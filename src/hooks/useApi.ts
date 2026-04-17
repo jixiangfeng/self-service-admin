@@ -41,7 +41,7 @@ export const usePermissionTree = (options?: UseQueryOptions) =>
 export const useMenuTree = (options?: UseQueryOptions) =>
   useQuery({
     queryKey: ['menuTree'],
-    queryFn: async () => (await api.permission.tree()).data,
+    queryFn: async () => (await api.menu.tree()).data,
     ...options,
   } as any);
 
@@ -149,7 +149,7 @@ export const useDeleteRole = (options?: UseMutationOptions<any, any, number>) =>
 export const useCreateMenu = (options?: UseMutationOptions<any, any, any>) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => api.permission.add(data),
+    mutationFn: async (data: any) => api.menu.add(data),
     onSuccess: () => {
       message.success('菜单创建成功');
       queryClient.invalidateQueries({ queryKey: ['menuTree'] });
@@ -163,7 +163,7 @@ export const useCreateMenu = (options?: UseMutationOptions<any, any, any>) => {
 export const useUpdateMenu = (options?: UseMutationOptions<any, any, any>) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => api.permission.edit(data),
+    mutationFn: async (data: any) => api.menu.edit(data),
     onSuccess: () => {
       message.success('菜单更新成功');
       queryClient.invalidateQueries({ queryKey: ['menuTree'] });
@@ -177,7 +177,7 @@ export const useUpdateMenu = (options?: UseMutationOptions<any, any, any>) => {
 export const useDeleteMenu = (options?: UseMutationOptions<any, any, number>) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: number) => api.permission.remove(id),
+    mutationFn: async (id: number) => api.menu.remove(id),
     onSuccess: () => {
       message.success('菜单删除成功');
       queryClient.invalidateQueries({ queryKey: ['menuTree'] });

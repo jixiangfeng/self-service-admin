@@ -16,6 +16,7 @@ import {
   TeamOutlined,
   UserOutlined,
 } from '@ant-design/icons';
+import { authApi } from '@/services/backendService';
 
 const BasicLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -56,12 +57,18 @@ const BasicLayout: React.FC = () => {
     { key: 'logout', label: '退出登录' },
   ];
 
-  const handleMenuClick = ({ key }: { key: string }) => {
+  const handleMenuClick = async ({ key }: { key: string }) => {
     if (key === 'logout') {
-      localStorage.removeItem('satoken');
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      navigate('/login');
+      try {
+        await authApi.logout();
+      } catch {
+        // Local cleanup is still required if the session has already expired.
+      } finally {
+        localStorage.removeItem('satoken');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        navigate('/login');
+      }
     }
   };
 

@@ -13,11 +13,13 @@ export default function Login() {
     try {
       setLoading(true);
       const response = await authApi.login(values);
+      const currentUser = response.data.user;
       const user = {
-        userId: response.data.userId,
-        username: response.data.username,
-        nickname: response.data.nickname,
-        avatar: response.data.avatar,
+        userId: currentUser.id,
+        id: currentUser.id,
+        username: currentUser.username,
+        avatar: currentUser.avatar,
+        role: currentUser.role,
       };
 
       localStorage.setItem('satoken', response.data.token);
@@ -57,7 +59,7 @@ export default function Login() {
           </Form.Item>
 
           <div className="login-tips">
-            <p>使用 `sz-web` 后端已有账号直接登录</p>
+            <p>使用后端库中的已有系统账号直接登录</p>
           </div>
         </Form>
       </div>
