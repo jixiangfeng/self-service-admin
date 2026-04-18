@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Card, Form, Input, Modal, Select, Space, Spin, Table, Tag, Tree } from 'antd';
+import { ProTable } from '@ant-design/pro-components';
+import type { ProColumns } from '@ant-design/pro-components';
+import { Button, Form, Input, Modal, Space, Tag, Tree } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined, SafetyOutlined } from '@ant-design/icons';
 import { useCreateRole, useDeleteRole, usePermissionTree, useRolePermissionIds, useRoles, useUpdateRole } from '@/hooks/useApi';
 import PageBanner from '@/components/PageBanner';
 
 const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleString('zh-CN') : '-');
-const SEARCH_FIELD_WIDTH = 240;
 
 const normalizeTree = (nodes: any[] = []): any[] =>
   nodes.map((node) => ({
@@ -16,7 +17,6 @@ const normalizeTree = (nodes: any[] = []): any[] =>
 
 const RoleManagement: React.FC = () => {
   const [form] = Form.useForm();
-  const [searchForm] = Form.useForm();
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRole, setEditingRole] = useState<any>(null);
   const checkedPermissionIds = Form.useWatch('permissionIds', form) || [];
@@ -36,21 +36,6 @@ const RoleManagement: React.FC = () => {
   const updateMutation: any = useUpdateRole();
   const deleteMutation: any = useDeleteRole();
   const roles = (rolesData as any)?.records || [];
-
-  const handleSearch = () => {
-    const values = searchForm.getFieldsValue();
-    setQueryParams({
-      pageNum: 1,
-      pageSize: queryParams.pageSize,
-      keyword: values.keyword?.trim() || undefined,
-      status: values.status,
-    });
-  };
-
-  const handleReset = () => {
-    searchForm.resetFields();
-    setQueryParams({ pageNum: 1, pageSize: 10, keyword: undefined, status: undefined });
-  };
 
   useEffect(() => {
     if (editingRole?.id) {
@@ -109,24 +94,83 @@ const RoleManagement: React.FC = () => {
     }
   };
 
-  const columns = [
-    { title: 'ID', dataIndex: 'id', width: 80 },
-    { title: '角色名称', dataIndex: 'roleName', width: 160 },
-    { title: '角色编码', dataIndex: 'roleCode', width: 180 },
-    { title: '排序', dataIndex: 'sort', width: 100, render: (value: number) => value ?? 0 },
-    { title: '权限数', dataIndex: 'permissionCount', width: 100, render: (value: number) => value ?? 0 },
-    { title: '描述', dataIndex: 'description', render: (value: string) => value || '-' },
+  const columns: ProColumns<any>[] = [
+    {
+      title: 'ID',
+      dataIndex: 'id',
+      width: 80,
+      search: false,
+    },
+    {
+      title: '角色名称',
+      dataIndex: 'roleName',
+      width: 160,
+      hideInSearch: true,
+    },
+    {
+      title: '角色编码',
+      dataIndex: 'roleCode',
+      width: 180,
+      hideInSearch: true,
+    },
+    {
+      title: '关键词',
+      dataIndex: 'keyword',
+      valueType: 'text',
+      hideInTable: true,
+      fieldProps: {
+        placeholder: '角色名称/角色编码',
+      },
+    },
+    {
+      title: '排序',
+      dataIndex: 'sort',
+      width: 100,
+      search: false,
+      render: (_, record) => record.sort ?? 0,
+    },
+    {
+      title: '权限数',
+      dataIndex: 'permissionCount',
+      width: 100,
+      search: false,
+      render: (_, record) => record.permissionCount ?? 0,
+    },
+    {
+      title: '描述',
+      dataIndex: 'description',
+      search: false,
+      render: (_, record) => record.description || '-',
+    },
     {
       title: '状态',
       dataIndex: 'status',
       width: 100,
-      render: (status: number) => <Tag color={status === 1 ? 'success' : 'default'}>{status === 1 ? '正常' : '禁用'}</Tag>,
+      valueType: 'select',
+      valueEnum: {
+        1: { text: '正常' },
+        0: { text: '禁用' },
+      },
+      render: (_, record) => <Tag color={record.status === 1 ? 'success' : 'default'}>{record.status === 1 ? '正常' : '禁用'}</Tag>,
     },
-    { title: '创建时间', dataIndex: 'createTime', width: 180, render: formatDateTime },
-    { title: '更新时间', dataIndex: 'updateTime', width: 180, render: formatDateTime },
+    {
+      title: '创建时间',
+      dataIndex: 'createTime',
+      width: 180,
+      search: false,
+      render: (_, record) => formatDateTime(record.createTime),
+    },
+    {
+      title: '更新时间',
+      dataIndex: 'updateTime',
+      width: 180,
+      search: false,
+      render: (_, record) => formatDateTime(record.updateTime),
+    },
     {
       title: '操作',
       width: 160,
+      search: false,
       render: (_: any, record: any) => (
         <Space>
           <Button size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)}>
@@ -140,59 +184,56 @@ const RoleManagement: React.FC = () => {
     },
   ];
 
-  if (isLoading) return <Spin />;
-
   return (
     <div style={{ padding: 24 }}>
       <PageBanner title="角色管理" subtitle="复用 sz-web 的角色编码、权限树和角色授权模型。" icon={<SafetyOutlined />} />
-      <Card style={{ marginBottom: 16 }}>
-        <Form form={searchForm} onFinish={handleSearch}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-            <Space wrap size="middle">
-              <Form.Item name="keyword" label="关键词" style={{ marginBottom: 0 }}>
-                <Input placeholder="角色名称/角色编码" allowClear style={{ width: SEARCH_FIELD_WIDTH }} />
-              </Form.Item>
-              <Form.Item name="status" label="状态" style={{ marginBottom: 0 }}>
-                <Select
-                  placeholder="全部"
-                  allowClear
-                  style={{ width: SEARCH_FIELD_WIDTH }}
-                  options={[
-                    { label: '正常', value: 1 },
-                    { label: '禁用', value: 0 },
-                  ]}
-                />
-              </Form.Item>
-            </Space>
-            <Space>
-              <Button type="primary" htmlType="submit">搜索</Button>
-              <Button onClick={handleReset}>重置</Button>
-            </Space>
-          </div>
-        </Form>
-      </Card>
-      <Card extra={<Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>新建角色</Button>}>
-        <Table
-          columns={columns}
-          dataSource={roles}
-          rowKey="id"
-          scroll={{ x: 1360 }}
-          pagination={{
-            current: (rolesData as any)?.current || queryParams.pageNum,
-            pageSize: (rolesData as any)?.size || queryParams.pageSize,
-            total: (rolesData as any)?.total || 0,
-            showSizeChanger: true,
-            showTotal: (total) => `共 ${total} 条`,
-            onChange: (page, pageSize) => {
-              setQueryParams((prev) => ({
-                ...prev,
-                pageNum: page,
-                pageSize: pageSize || prev.pageSize,
-              }));
-            },
-          }}
-        />
-      </Card>
+      <ProTable<any>
+        columns={columns}
+        loading={isLoading}
+        dataSource={roles}
+        rowKey="id"
+        cardBordered
+        search={{
+          labelWidth: 'auto',
+          defaultCollapsed: false,
+        }}
+        scroll={{ x: 1360 }}
+        pagination={{
+          current: (rolesData as any)?.current || queryParams.pageNum,
+          pageSize: (rolesData as any)?.size || queryParams.pageSize,
+          total: (rolesData as any)?.total || 0,
+          showSizeChanger: true,
+          showTotal: (total) => `共 ${total} 条`,
+          onChange: (page, pageSize) => {
+            setQueryParams((prev) => ({
+              ...prev,
+              pageNum: page,
+              pageSize: pageSize || prev.pageSize,
+            }));
+          },
+        }}
+        toolBarRender={() => [
+          <Button key="create" type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+            新建角色
+          </Button>,
+        ]}
+        onSubmit={(values) => {
+          setQueryParams((prev) => ({
+            ...prev,
+            pageNum: 1,
+            keyword: typeof values.keyword === 'string' ? values.keyword.trim() || undefined : undefined,
+            status: typeof values.status === 'number' ? values.status : undefined,
+          }));
+        }}
+        onReset={() => {
+          setQueryParams((prev) => ({
+            ...prev,
+            pageNum: 1,
+            keyword: undefined,
+            status: undefined,
+          }));
+        }}
+      />
 
       <Modal
         title={editingRole ? '编辑角色' : '新建角色'}
