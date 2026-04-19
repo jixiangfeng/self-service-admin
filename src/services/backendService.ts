@@ -1,4 +1,4 @@
-import { request } from '../utils/request';
+import { localDataStore } from './localDataStore';
 
 export interface ApiEnvelope<T> {
   code: number;
@@ -23,6 +23,7 @@ export interface LoginRequest {
 export interface BackendUser {
   id: number;
   username: string;
+  nickname?: string;
   email?: string;
   phone?: string;
   avatar?: string;
@@ -32,10 +33,6 @@ export interface BackendUser {
   updatedAt?: string;
 }
 
-interface PermissionIdsPayload {
-  permissionIds: number[];
-}
-
 export interface LoginResponse {
   user: BackendUser;
   token: string;
@@ -43,7 +40,6 @@ export interface LoginResponse {
 }
 
 export interface UserInfo extends BackendUser {
-  nickname?: string;
   roles?: string[];
   permissions?: string[];
   createTime?: string;
@@ -65,6 +61,8 @@ export interface UserRecord {
   avatar?: string;
   role?: string;
   status: number;
+  createdAt?: string;
+  updatedAt?: string;
   createTime?: string;
   updateTime?: string;
   lastLoginTime?: string;
@@ -80,6 +78,8 @@ export interface RoleRecord {
   status: number;
   permissionCount?: number;
   permissionIds?: number[];
+  createdAt?: string;
+  updatedAt?: string;
   createTime?: string;
   updateTime?: string;
 }
@@ -97,6 +97,8 @@ export interface PermissionTreeNode {
   sort?: number;
   status?: number;
   visible?: number;
+  createdAt?: string;
+  updatedAt?: string;
   updateTime?: string;
   children?: PermissionTreeNode[];
 }
@@ -107,6 +109,8 @@ export interface DictTypeRecord {
   dictCode: string;
   status: number;
   remark?: string;
+  createdAt?: string;
+  updatedAt?: string;
   createTime?: string;
   updateTime?: string;
 }
@@ -119,439 +123,353 @@ export interface DictDataRecord {
   dictSort?: number;
   status: number;
   remark?: string;
+  updatedAt?: string;
   updateTime?: string;
 }
 
-interface BackendRole {
-  id: number;
-  name: string;
-  code: string;
-  description?: string;
-  sort?: number;
-  status?: number;
-  createdAt?: string;
-  updatedAt?: string;
-  permissionCount?: number;
-}
-
-interface BackendPermission {
-  id: number;
-  parentId?: number;
-  name: string;
-  code: string;
-  type?: string;
-  path?: string;
-  icon?: string;
-  sort?: number;
-  updatedAt?: string;
-}
-
-interface BackendMenu {
-  id: number;
-  parentId?: number;
-  name: string;
-  path?: string;
-  component?: string;
-  icon?: string;
-  sort?: number;
-  visible?: number;
-  status?: number;
-  permission?: string;
-  type?: string;
-  updatedAt?: string;
-  children?: BackendMenu[];
-}
-
-interface BackendDictionary {
-  id: number;
-  name: string;
-  code: string;
-  description?: string;
-  status?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-interface BackendDictionaryItem {
-  id: number;
-  dictId: number;
+export interface SelectOptionRecord {
+  value: number;
   label: string;
-  value: string;
-  sort?: number;
-  status?: number;
-  remark?: string;
-  updatedAt?: string;
 }
 
-const normalizeUserRecord = (user: BackendUser): UserRecord => ({
-  ...user,
-  status: user.status ?? 0,
-  createTime: user.createdAt,
-  updateTime: user.updatedAt,
-  roles: user.role
-    ? [
-        {
-          id: 0,
-          roleCode: user.role,
-          roleName: user.role,
-        },
-      ]
-    : [],
+export interface MerchantRecord {
+  id: number;
+  merchantName: string;
+  merchantCode: string;
+  merchantType: string;
+  creditCode?: string;
+  contactName?: string;
+  contactPhone?: string;
+  settlementAccountName?: string;
+  settlementAccountNo?: string;
+  settlementCycle?: string;
+  licenseUrl?: string;
+  shortName?: string;
+  contractStatus?: string;
+  cityCoverage?: string;
+  storeCount?: number;
+  remark?: string;
+  status: number;
+  createdAt?: string;
+  updatedAt?: string;
+  createTime?: string;
+  updateTime?: string;
+}
+
+export interface StoreRecord {
+  id: number;
+  merchantId: number;
+  merchantName?: string;
+  storeName: string;
+  storeCode: string;
+  province?: string;
+  city?: string;
+  district?: string;
+  address?: string;
+  longitude?: number | string;
+  latitude?: number | string;
+  businessHours?: string;
+  holidayHours?: string;
+  serviceFlags?: string;
+  marketingEnabled?: number;
+  status: string;
+  notice?: string;
+  storePhone?: string;
+  managerName?: string;
+  managerPhone?: string;
+  intro?: string;
+  tempClosed?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  createTime?: string;
+  updateTime?: string;
+}
+
+export interface ServicePointRecord {
+  id: number;
+  storeId: number;
+  storeName?: string;
+  pointCode: string;
+  pointName?: string;
+  pointType: string;
+  abilityTags?: string;
+  qrCode?: string;
+  sortNo?: number;
+  status: string;
+  capacity?: number;
+  queueEnabled?: number;
+  temporaryClosedUntil?: string;
+  deviceCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  createTime?: string;
+  updateTime?: string;
+}
+
+export interface DeviceRecord {
+  id: number;
+  storeId: number;
+  storeName?: string;
+  servicePointId?: number;
+  pointCode?: string;
+  deviceName: string;
+  deviceCode: string;
+  deviceType: string;
+  vendorName?: string;
+  protocolType?: string;
+  protocolVersion?: string;
+  controlMode?: string;
+  faultLevel?: string;
+  signalStrength?: number;
+  abilityTags?: string;
+  lastHeartbeatAt?: string;
+  installTime?: string;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+  createTime?: string;
+  updateTime?: string;
+}
+
+export interface ServiceProductRecord {
+  id: number;
+  productName: string;
+  productCode: string;
+  categoryCode: string;
+  billingMode: string;
+  scopeType: string;
+  scopeId?: number;
+  scopeName?: string;
+  priceDesc?: string;
+  discountRule?: string;
+  serviceDuration?: string;
+  usageNotice?: string;
+  sellingPoints?: string;
+  status: number;
+  createdAt?: string;
+  updatedAt?: string;
+  createTime?: string;
+  updateTime?: string;
+}
+
+export interface PricingRuleRecord {
+  id: number;
+  ruleName: string;
+  ruleCode: string;
+  storeId?: number;
+  storeName?: string;
+  serviceProductId?: number;
+  productName?: string;
+  startPrice?: number | string;
+  minutePrice?: number | string;
+  countPrice?: number | string;
+  capAmount?: number | string;
+  freeMinutes?: number;
+  nightPriceDesc?: string;
+  holidayPriceDesc?: string;
+  status: number;
+  createdAt?: string;
+  updatedAt?: string;
+  createTime?: string;
+  updateTime?: string;
+}
+
+const ok = <T,>(data: T, message = 'success'): ApiEnvelope<T> => ({
+  code: 200,
+  message,
+  data,
+  timestamp: Date.now(),
 });
 
-const normalizeRoleRecord = (role: BackendRole): RoleRecord => ({
-  id: role.id,
-  roleName: role.name,
-  roleCode: role.code,
-  description: role.description,
-  sort: role.sort ?? 0,
-  status: role.status ?? 1,
-  permissionCount: role.permissionCount ?? 0,
-  createTime: role.createdAt,
-  updateTime: role.updatedAt,
-  permissionIds: [],
+const wait = (ms = 80) => new Promise((resolve) => {
+  setTimeout(resolve, ms);
 });
 
-const normalizePermissionNode = (permission: BackendPermission): PermissionTreeNode => ({
-  id: permission.id,
-  parentId: permission.parentId ?? 0,
-  permissionName: permission.name,
-  name: permission.name,
-  permissionCode: permission.code,
-  path: permission.path,
-  icon: permission.icon,
-  sort: permission.sort ?? 0,
-  updateTime: permission.updatedAt,
-  children: [],
+const run = async <T,>(runner: () => T | Promise<T>) => {
+  await wait();
+  return ok(await runner());
+};
+
+const stripUserSecret = (user: BackendUser) => ({
+  id: user.id,
+  username: user.username,
+  nickname: user.nickname,
+  email: user.email,
+  phone: user.phone,
+  avatar: user.avatar,
+  role: user.role,
+  status: user.status,
+  createdAt: user.createdAt,
+  updatedAt: user.updatedAt,
 });
-
-const buildPermissionTree = (permissions: BackendPermission[]) => {
-  const nodeMap = new Map<number, PermissionTreeNode>();
-  const roots: PermissionTreeNode[] = [];
-
-  permissions
-    .slice()
-    .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0) || a.id - b.id)
-    .forEach((permission) => {
-      nodeMap.set(permission.id, normalizePermissionNode(permission));
-    });
-
-  permissions.forEach((permission) => {
-    const node = nodeMap.get(permission.id);
-
-    if (!node) {
-      return;
-    }
-
-    const parentId = permission.parentId ?? 0;
-    if (!parentId || !nodeMap.has(parentId)) {
-      roots.push(node);
-      return;
-    }
-
-    nodeMap.get(parentId)?.children?.push(node);
-  });
-
-  return roots;
-};
-
-const normalizeMenuRecord = (menu: BackendMenu): PermissionTreeNode => ({
-  id: menu.id,
-  parentId: menu.parentId ?? 0,
-  permissionName: menu.name,
-  permissionCode: menu.permission,
-  permissionType: menu.type,
-  path: menu.path,
-  component: menu.component,
-  icon: menu.icon,
-  sort: menu.sort ?? 0,
-  status: menu.status ?? 1,
-  visible: menu.visible ?? 1,
-  updateTime: menu.updatedAt,
-  name: menu.name,
-  children: (menu.children || []).map(normalizeMenuRecord),
-});
-
-const normalizeDictionaryRecord = (dictionary: BackendDictionary): DictTypeRecord => ({
-  id: dictionary.id,
-  dictName: dictionary.name,
-  dictCode: dictionary.code,
-  status: dictionary.status ?? 1,
-  remark: dictionary.description,
-  createTime: dictionary.createdAt,
-  updateTime: dictionary.updatedAt,
-});
-
-const normalizeDictionaryItemRecord = (item: BackendDictionaryItem, dictCode: string): DictDataRecord => ({
-  id: item.id,
-  dictCode,
-  dictLabel: item.label,
-  dictValue: item.value,
-  dictSort: item.sort ?? 0,
-  status: item.status ?? 1,
-  remark: item.remark,
-  updateTime: item.updatedAt,
-});
-
-const normalizePageParams = (params: Record<string, unknown> = {}) => {
-  const { pageNum, pageSize, current, size, ...rest } = params;
-
-  return {
-    ...rest,
-    current: current ?? pageNum ?? 1,
-    size: size ?? pageSize ?? 10,
-  };
-};
-
-const sanitizeUserPayload = (data: Record<string, unknown>) => {
-  const allowedKeys = ['username', 'email', 'phone', 'avatar', 'role', 'status'];
-
-  return Object.fromEntries(
-    Object.entries(data).filter(([key, value]) => allowedKeys.includes(key) && value !== undefined)
-  );
-};
-
-const sanitizeRolePayload = (data: Record<string, unknown>) => {
-  const payload = {
-    name: data.roleName,
-    code: data.roleCode,
-    description: data.description,
-    sort: data.sort,
-    status: data.status,
-  };
-
-  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
-};
-
-const sanitizePermissionIds = (permissionIds: unknown): number[] => {
-  if (!Array.isArray(permissionIds)) {
-    return [];
-  }
-
-  return permissionIds
-    .map((id) => Number(id))
-    .filter((id) => Number.isFinite(id));
-};
-
-const normalizeMenuType = (value: unknown) => {
-  if (value === 'M' || value === 0 || value === '0') return 'M';
-  if (value === 'F' || value === 2 || value === '2') return 'F';
-  return 'C';
-};
-
-const sanitizeMenuPayload = (data: Record<string, unknown>) => {
-  const payload = {
-    parentId: data.parentId ?? 0,
-    name: data.permissionName,
-    permission: data.permissionCode,
-    type: normalizeMenuType(data.permissionType),
-    path: data.path,
-    component: data.component,
-    icon: data.icon,
-    sort: data.sort ?? 0,
-    status: data.status ?? 1,
-    visible: data.visible ?? 1,
-  };
-
-  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
-};
-
-const sanitizeDictionaryPayload = (data: Record<string, unknown>) => {
-  const payload = {
-    name: data.dictName,
-    code: data.dictCode,
-    description: data.remark,
-    status: data.status,
-  };
-
-  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
-};
 
 export const authApi = {
-  login: (data: LoginRequest) => request.post<ApiEnvelope<LoginResponse>>('/auth/login', data),
-  logout: () => request.post<ApiEnvelope<void>>('/auth/logout'),
-  getCurrentUser: async () => {
-    const response = await request.get<ApiEnvelope<BackendUser>>('/auth/me');
-
-    return {
-      ...response,
-      data: {
-        ...response.data,
-        createTime: response.data.createdAt,
-        updateTime: response.data.updatedAt,
-      },
-    };
-  },
+  login: async (payload: LoginRequest) =>
+    run(() => {
+      const response = localDataStore.authenticate(payload);
+      return {
+        ...response,
+        user: stripUserSecret(response.user),
+      };
+    }),
+  logout: async () => run(() => undefined),
+  getCurrentUser: async () => run(() => localDataStore.getCurrentUser()),
 };
 
 export const userApi = {
-  page: async (params: Record<string, unknown>) => {
-    const response = await request.get<ApiEnvelope<PageResult<BackendUser>>>('/users', {
-      params: normalizePageParams(params),
-    });
-
-    return {
-      ...response,
-      data: {
-        ...response.data,
-        records: response.data.records.map(normalizeUserRecord),
-      },
-    };
-  },
-  add: (data: Record<string, unknown>) => request.post<ApiEnvelope<void>>('/users', sanitizeUserPayload(data)),
-  edit: (data: Record<string, unknown>) => {
-    const { id, ...rest } = data;
-
-    if (!id) {
-      return Promise.reject(new Error('缺少用户 ID'));
-    }
-
-    return request.put<ApiEnvelope<void>>(`/users/${id}`, sanitizeUserPayload(rest));
-  },
-  remove: (id: number) => request.delete<ApiEnvelope<void>>(`/users/${id}`),
-  changeStatus: (id: number, status: number) => request.put<ApiEnvelope<void>>(`/users/${id}/status`, { status }),
-  roleList: async () => {
-    const response = await request.get<ApiEnvelope<PageResult<RoleRecord>>>('/roles', {
-      params: { current: 1, size: 1000 },
-    });
-
-    return {
-      ...response,
-      data: response.data.records.map((role) => ({
-        id: role.id,
-        roleCode: role.roleCode,
-        roleName: role.roleName,
-      })),
-    };
-  },
+  page: async (params: Record<string, unknown>) => run(() => localDataStore.listUsers(params)),
+  add: async (data: Record<string, unknown>) => run(() => {
+    localDataStore.createUser(data);
+  }),
+  edit: async (data: Record<string, unknown>) => run(() => {
+    localDataStore.updateUser(data);
+  }),
+  remove: async () => run(() => {
+    throw new Error('当前版本暂不支持删除用户');
+  }),
+  changeStatus: async (id: number, status: number) => run(() => {
+    localDataStore.changeUserStatus(id, status);
+  }),
+  roleList: async () => run(() => localDataStore.listRoleOptions()),
 };
 
 export const roleApi = {
-  page: async (params: Record<string, unknown>) => {
-    const response = await request.get<ApiEnvelope<PageResult<BackendRole>>>('/roles', {
-      params: normalizePageParams(params),
-    });
-
-    return {
-      ...response,
-      data: {
-        ...response.data,
-        records: response.data.records.map(normalizeRoleRecord),
-      },
-    };
-  },
-  add: async (data: Record<string, unknown>) => {
-    const permissionIds = sanitizePermissionIds(data.permissionIds);
-    const response = await request.post<ApiEnvelope<BackendRole>>('/roles', sanitizeRolePayload(data));
-
-    if (response.data?.id) {
-      await request.put<ApiEnvelope<void>>(`/roles/${response.data.id}/permission-ids`, {
-        permissionIds,
-      } satisfies PermissionIdsPayload);
-    }
-
-    return {
-      ...response,
-      data: normalizeRoleRecord(response.data),
-    };
-  },
-  edit: (data: Record<string, unknown>) => {
-    const { id, permissionIds, ...rest } = data;
-
-    if (!id) {
-      return Promise.reject(new Error('缺少角色 ID'));
-    }
-
-    return request
-      .put<ApiEnvelope<void>>(`/roles/${id}`, sanitizeRolePayload(rest))
-      .then(async (response) => {
-        await request.put<ApiEnvelope<void>>(`/roles/${id}/permission-ids`, {
-          permissionIds: sanitizePermissionIds(permissionIds),
-        } satisfies PermissionIdsPayload);
-
-        return response;
-      });
-  },
-  remove: (id: number) => request.delete<ApiEnvelope<void>>(`/roles/${id}`),
-  permissionTree: async () => {
-    const response = await request.get<ApiEnvelope<BackendPermission[]>>('/permissions');
-
-    return {
-      ...response,
-      data: buildPermissionTree(response.data),
-    };
-  },
-  permissionIds: (id: number) => request.get<ApiEnvelope<number[]>>(`/roles/${id}/permission-ids`),
+  page: async (params: Record<string, unknown>) => run(() => localDataStore.listRoles(params)),
+  add: async (data: Record<string, unknown>) => run(() => localDataStore.createRole(data)),
+  edit: async (data: Record<string, unknown>) => run(() => {
+    localDataStore.updateRole(data);
+  }),
+  remove: async (id: number) => run(() => {
+    localDataStore.removeRole(id);
+  }),
+  permissionTree: async () => run(() => localDataStore.listPermissionTree()),
+  permissionIds: async (id: number) => run(() => localDataStore.getRolePermissionIds(id)),
 };
 
 export const permissionApi = {
-  tree: async () => {
-    const response = await request.get<ApiEnvelope<BackendPermission[]>>('/permissions');
-
-    return {
-      ...response,
-      data: buildPermissionTree(response.data),
-    };
-  },
-  add: () => Promise.reject(new Error('当前后端未提供权限新增接口')),
-  edit: () => Promise.reject(new Error('当前后端未提供权限编辑接口')),
-  remove: () => Promise.reject(new Error('当前后端未提供权限删除接口')),
+  tree: async () => run(() => localDataStore.listPermissionTree()),
+  add: () => Promise.reject(new Error('当前前端演示版未开放权限新增')),
+  edit: () => Promise.reject(new Error('当前前端演示版未开放权限编辑')),
+  remove: () => Promise.reject(new Error('当前前端演示版未开放权限删除')),
 };
 
 export const menuApi = {
-  tree: async () => {
-    const response = await request.get<ApiEnvelope<BackendMenu[]>>('/menus');
-
-    return {
-      ...response,
-      data: response.data.map(normalizeMenuRecord),
-    };
-  },
-  add: (data: Record<string, unknown>) => request.post<ApiEnvelope<void>>('/menus', sanitizeMenuPayload(data)),
-  edit: (data: Record<string, unknown>) => {
-    const { id, ...rest } = data;
-
-    if (!id) {
-      return Promise.reject(new Error('缺少菜单 ID'));
-    }
-
-    return request.put<ApiEnvelope<void>>(`/menus/${id}`, sanitizeMenuPayload(rest));
-  },
-  remove: (id: number) => request.delete<ApiEnvelope<void>>(`/menus/${id}`),
+  tree: async () => run(() => localDataStore.listMenus()),
+  add: async (data: Record<string, unknown>) => run(() => {
+    localDataStore.createMenu(data);
+  }),
+  edit: async (data: Record<string, unknown>) => run(() => {
+    localDataStore.updateMenu(data);
+  }),
+  remove: async (id: number) => run(() => {
+    localDataStore.removeMenu(id);
+  }),
 };
 
 export const dictApi = {
-  typeList: async (params: Record<string, unknown>) => {
-    const response = await request.get<ApiEnvelope<PageResult<BackendDictionary>>>('/dictionaries', {
-      params: normalizePageParams(params),
-    });
-
-    return {
-      ...response,
-      data: {
-        ...response.data,
-        records: response.data.records.map(normalizeDictionaryRecord),
-      },
-    };
-  },
-  typeAdd: (data: Record<string, unknown>) => request.post<ApiEnvelope<void>>('/dictionaries', sanitizeDictionaryPayload(data)),
-  typeEdit: (id: number, data: Record<string, unknown>) => request.put<ApiEnvelope<void>>(`/dictionaries/${id}`, sanitizeDictionaryPayload(data)),
-  typeRemove: (id: number) => request.delete<ApiEnvelope<void>>(`/dictionaries/${id}`),
-  dataList: async (params: Record<string, unknown>) => {
-    const dictCode = String(params.dictCode || '');
-    const response = await request.get<ApiEnvelope<BackendDictionaryItem[]>>(`/dictionary-items/code/${dictCode}`);
-
-    return {
-      ...response,
-      data: {
-        records: response.data.map((item) => normalizeDictionaryItemRecord(item, dictCode)),
-        total: response.data.length,
-        size: response.data.length,
+  typeList: async (params: Record<string, unknown>) => run(() => localDataStore.listDictionaryTypes(params)),
+  typeAdd: async (data: Record<string, unknown>) => run(() => {
+    localDataStore.createDictionaryType(data);
+  }),
+  typeEdit: async (id: number, data: Record<string, unknown>) => run(() => {
+    localDataStore.updateDictionaryType(id, data);
+  }),
+  typeRemove: async (id: number) => run(() => {
+    localDataStore.removeDictionaryType(id);
+  }),
+  dataList: async (params: Record<string, unknown>) =>
+    run(() => {
+      const records = localDataStore.listDictionaryItems(String(params.dictCode || ''));
+      return {
+        records,
+        total: records.length,
+        size: records.length,
         current: 1,
         pages: 1,
-      },
-    };
-  },
+      } satisfies PageResult<DictDataRecord>;
+    }),
+  dataAdd: async (data: Record<string, unknown>) => run(() => {
+    localDataStore.createDictionaryItem(data);
+  }),
+  dataEdit: async (id: number, data: Record<string, unknown>) => run(() => {
+    localDataStore.updateDictionaryItem(id, data);
+  }),
+  dataRemove: async (id: number) => run(() => {
+    localDataStore.removeDictionaryItem(id);
+  }),
+};
+
+export const merchantApi = {
+  page: async (params: Record<string, unknown>) => run(() => localDataStore.listMerchants(params)),
+  options: async () => run(() => localDataStore.listMerchantOptions()),
+  add: async (data: Record<string, unknown>) => run(() => localDataStore.createMerchant(data)),
+  edit: async (data: Record<string, unknown>) => run(() => {
+    localDataStore.updateMerchant(data);
+  }),
+  changeStatus: async (id: number, status: number) => run(() => {
+    localDataStore.changeMerchantStatus(id, status);
+  }),
+  remove: async (id: number) => run(() => {
+    localDataStore.removeMerchant(id);
+  }),
+};
+
+export const storeApi = {
+  page: async (params: Record<string, unknown>) => run(() => localDataStore.listStores(params)),
+  options: async (merchantId?: number) => run(() => localDataStore.listStoreOptions(merchantId)),
+  add: async (data: Record<string, unknown>) => run(() => localDataStore.createStore(data)),
+  edit: async (data: Record<string, unknown>) => run(() => {
+    localDataStore.updateStore(data);
+  }),
+  remove: async (id: number) => run(() => {
+    localDataStore.removeStore(id);
+  }),
+};
+
+export const servicePointApi = {
+  page: async (params: Record<string, unknown>) => run(() => localDataStore.listServicePoints(params)),
+  options: async (storeId?: number) => run(() => localDataStore.listServicePointOptions(storeId)),
+  add: async (data: Record<string, unknown>) => run(() => localDataStore.createServicePoint(data)),
+  edit: async (data: Record<string, unknown>) => run(() => {
+    localDataStore.updateServicePoint(data);
+  }),
+  remove: async (id: number) => run(() => {
+    localDataStore.removeServicePoint(id);
+  }),
+};
+
+export const deviceApi = {
+  page: async (params: Record<string, unknown>) => run(() => localDataStore.listDevices(params)),
+  add: async (data: Record<string, unknown>) => run(() => localDataStore.createDevice(data)),
+  edit: async (data: Record<string, unknown>) => run(() => {
+    localDataStore.updateDevice(data);
+  }),
+  remove: async (id: number) => run(() => {
+    localDataStore.removeDevice(id);
+  }),
+};
+
+export const serviceProductApi = {
+  page: async (params: Record<string, unknown>) => run(() => localDataStore.listServiceProducts(params)),
+  options: async () => run(() => localDataStore.listServiceProductOptions()),
+  add: async (data: Record<string, unknown>) => run(() => localDataStore.createServiceProduct(data)),
+  edit: async (data: Record<string, unknown>) => run(() => {
+    localDataStore.updateServiceProduct(data);
+  }),
+  remove: async (id: number) => run(() => {
+    localDataStore.removeServiceProduct(id);
+  }),
+};
+
+export const pricingRuleApi = {
+  page: async (params: Record<string, unknown>) => run(() => localDataStore.listPricingRules(params)),
+  add: async (data: Record<string, unknown>) => run(() => localDataStore.createPricingRule(data)),
+  edit: async (data: Record<string, unknown>) => run(() => {
+    localDataStore.updatePricingRule(data);
+  }),
+  remove: async (id: number) => run(() => {
+    localDataStore.removePricingRule(id);
+  }),
 };
 
 export default {
@@ -561,4 +479,10 @@ export default {
   menu: menuApi,
   permission: permissionApi,
   dict: dictApi,
+  merchant: merchantApi,
+  store: storeApi,
+  servicePoint: servicePointApi,
+  device: deviceApi,
+  serviceProduct: serviceProductApi,
+  pricingRule: pricingRuleApi,
 };

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { Button, Form, Input, Modal, Space, Tag } from 'antd';
-import { EditOutlined, UserOutlined } from '@ant-design/icons';
-import { useRoleOptions, useUpdateUser, useUpdateUserStatus, useUsers } from '@/hooks/useApi';
+import { Button, Form, Input, Modal, Select, Space, Tag } from 'antd';
+import { EditOutlined, PlusOutlined, UserOutlined } from '@ant-design/icons';
+import { useCreateUser, useRoleOptions, useUpdateUser, useUpdateUserStatus, useUsers } from '@/hooks/useApi';
 import PageBanner from '@/components/PageBanner';
 
 const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleString('zh-CN') : '-');
@@ -22,30 +22,46 @@ const UserManagement: React.FC = () => {
 
   const { data: usersData, isLoading } = useUsers(queryParams);
   const { data: roleOptions = [] } = useRoleOptions();
+  const createMutation: any = useCreateUser();
   const updateMutation: any = useUpdateUser();
   const updateStatusMutation: any = useUpdateUserStatus();
   const users = (usersData as any)?.records || [];
+
+  const closeModal = () => {
+    setModalVisible(false);
+    setEditingUser(null);
+    form.resetFields();
+  };
+
+  const handleCreate = () => {
+    setEditingUser(null);
+    form.resetFields();
+    form.setFieldsValue({ status: 1, role: 'PLATFORM_OPERATOR', password: '123456' });
+    setModalVisible(true);
+  };
 
   const handleEdit = (record: any) => {
     setEditingUser(record);
     form.setFieldsValue({
       id: record.id,
       username: record.username,
+      nickname: record.nickname,
       phone: record.phone,
       email: record.email,
       role: record.role,
+      status: record.status,
     });
     setModalVisible(true);
   };
 
   const handleSubmit = async () => {
     const values = await form.validateFields();
-    updateMutation.mutate(values, {
-      onSuccess: () => {
-        setModalVisible(false);
-        setEditingUser(null);
-      },
-    });
+    if (editingUser) {
+      updateMutation.mutate(values, { onSuccess: closeModal });
+      return;
+    }
+
+    createMutation.mutate(values, { onSuccess: closeModal });
   };
 
   const columns: ProColumns<any>[] = [
@@ -187,34 +203,60 @@ const UserManagement: React.FC = () => {
             role: undefined,
           }));
         }}
+        toolBarRender={() => [
+          <Button key="create" type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+            新建用户
+          </Button>,
+        ]}
       />
 
       <Modal
-        title={editingUser ? `编辑用户 #${editingUser.id}` : '编辑用户'}
+        title={editingUser ? `编辑用户 #${editingUser.id}` : '新建用户'}
         open={modalVisible}
         onOk={handleSubmit}
-        onCancel={() => {
-          setModalVisible(false);
-          setEditingUser(null);
-        }}
-        confirmLoading={updateMutation.isPending}
+        onCancel={closeModal}
+        confirmLoading={createMutation.isPending || updateMutation.isPending}
+        width={860}
       >
         <Form form={form} layout="vertical">
-          <Form.Item name="id" hidden>
-            <Input />
-          </Form.Item>
-          <Form.Item name="username" label="用户名" rules={[{ required: true, message: '请输入用户名' }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="phone" label="手机号">
-            <Input />
-          </Form.Item>
-          <Form.Item name="email" label="邮箱" rules={[{ type: 'email', message: '请输入正确邮箱' }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="role" label="角色编码">
-            <Input placeholder="例如 PLATFORM_OPERATOR" />
-          </Form.Item>
+          <div className="modal-grid">
+            <Form.Item name="id" hidden>
+              <Input />
+            </Form.Item>
+            <Form.Item name="username" label="用户名" rules={[{ required: true, message: '请输入用户名' }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="nickname" label="昵称">
+              <Input />
+            </Form.Item>
+            <Form.Item name="phone" label="手机号">
+              <Input />
+            </Form.Item>
+            <Form.Item name="email" label="邮箱" rules={[{ type: 'email', message: '请输入正确邮箱' }]}>
+              <Input />
+            </Form.Item>
+            {!editingUser ? (
+              <Form.Item name="password" label="初始密码" rules={[{ required: true, message: '请输入初始密码' }]}>
+                <Input.Password />
+              </Form.Item>
+            ) : null}
+            <Form.Item name="role" label="角色编码">
+              <Select
+                options={(roleOptions as any[]).map((item) => ({
+                  value: item.roleCode,
+                  label: `${item.roleName} / ${item.roleCode}`,
+                }))}
+              />
+            </Form.Item>
+            <Form.Item name="status" label="状态">
+              <Select
+                options={[
+                  { value: 1, label: '正常' },
+                  { value: 0, label: '禁用' },
+                ]}
+              />
+            </Form.Item>
+          </div>
         </Form>
       </Modal>
     </div>

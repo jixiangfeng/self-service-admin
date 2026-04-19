@@ -76,7 +76,7 @@ const MenuManagement: React.FC = () => {
   const handleCreate = (parentId = 0) => {
     setEditingMenu(null);
     form.resetFields();
-    form.setFieldsValue({ parentId, permissionType: 1, sort: 0 });
+    form.setFieldsValue({ parentId, permissionType: 1, sort: 0, visible: 1, status: 1 });
     setIsModalOpen(true);
   };
 
@@ -94,6 +94,8 @@ const MenuManagement: React.FC = () => {
         component: record.component,
         icon: record.icon,
         sort: record.sort ?? 0,
+        visible: record.visible ?? 1,
+        status: record.status ?? 1,
       });
     }, 0);
   };
@@ -110,7 +112,6 @@ const MenuManagement: React.FC = () => {
     const payload = {
       ...values,
       permissionType: normalizeType(values.permissionType),
-      status: 1,
     };
 
     if (editingMenu) {
@@ -262,43 +263,61 @@ const MenuManagement: React.FC = () => {
         onOk={() => form.submit()}
         onCancel={closeModal}
         confirmLoading={createMutation.isPending || updateMutation.isPending}
-        width={640}
+        width={860}
         destroyOnClose
       >
         <Form form={form} layout="vertical" onFinish={handleFinish} preserve={false}>
-          <Form.Item name="id" hidden>
-            <Input />
-          </Form.Item>
-          <Form.Item name="parentId" label="上级菜单" initialValue={0}>
-            <Select options={parentOptions} />
-          </Form.Item>
-          <Form.Item name="permissionName" label="菜单名称" rules={[{ required: true, message: '请输入菜单名称' }]}>
-            <Input autoComplete="off" />
-          </Form.Item>
-          <Form.Item name="permissionCode" label="权限编码" rules={[{ required: true, message: '请输入权限编码' }]}>
-            <Input autoComplete="off" />
-          </Form.Item>
-          <Form.Item name="permissionType" label="菜单类型" rules={[{ required: true, message: '请选择菜单类型' }]}>
-            <Select
-              options={[
-                { label: '目录', value: 0 },
-                { label: '菜单', value: 1 },
-                { label: '按钮', value: 2 },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="path" label="路由路径">
-            <Input autoComplete="off" />
-          </Form.Item>
-          <Form.Item name="component" label="组件路径">
-            <Input autoComplete="off" />
-          </Form.Item>
-          <Form.Item name="icon" label="图标">
-            <Input autoComplete="off" />
-          </Form.Item>
-          <Form.Item name="sort" label="排序" initialValue={0}>
-            <Input type="number" />
-          </Form.Item>
+          <div className="modal-grid">
+            <Form.Item name="id" hidden>
+              <Input />
+            </Form.Item>
+            <Form.Item name="parentId" label="上级菜单" initialValue={0}>
+              <Select options={parentOptions} />
+            </Form.Item>
+            <Form.Item name="permissionName" label="菜单名称" rules={[{ required: true, message: '请输入菜单名称' }]}>
+              <Input autoComplete="off" />
+            </Form.Item>
+            <Form.Item name="permissionCode" label="权限编码" rules={[{ required: true, message: '请输入权限编码' }]}>
+              <Input autoComplete="off" />
+            </Form.Item>
+            <Form.Item name="permissionType" label="菜单类型" rules={[{ required: true, message: '请选择菜单类型' }]}>
+              <Select
+                options={[
+                  { label: '目录', value: 0 },
+                  { label: '菜单', value: 1 },
+                  { label: '按钮', value: 2 },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item name="path" label="路由路径">
+              <Input autoComplete="off" />
+            </Form.Item>
+            <Form.Item name="component" label="组件路径">
+              <Input autoComplete="off" />
+            </Form.Item>
+            <Form.Item name="icon" label="图标">
+              <Input autoComplete="off" />
+            </Form.Item>
+            <Form.Item name="sort" label="排序" initialValue={0}>
+              <Input type="number" />
+            </Form.Item>
+            <Form.Item name="visible" label="可见性" initialValue={1}>
+              <Select
+                options={[
+                  { value: 1, label: '显示' },
+                  { value: 0, label: '隐藏' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item name="status" label="状态" initialValue={1}>
+              <Select
+                options={[
+                  { value: 1, label: '正常' },
+                  { value: 0, label: '禁用' },
+                ]}
+              />
+            </Form.Item>
+          </div>
         </Form>
       </Modal>
     </div>

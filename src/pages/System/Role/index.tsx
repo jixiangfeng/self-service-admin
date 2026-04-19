@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { Button, Form, Input, Modal, Space, Tag, Tree } from 'antd';
+import { Button, Form, Input, Modal, Select, Space, Tag, Tree } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined, SafetyOutlined } from '@ant-design/icons';
 import { useCreateRole, useDeleteRole, usePermissionTree, useRolePermissionIds, useRoles, useUpdateRole } from '@/hooks/useApi';
 import PageBanner from '@/components/PageBanner';
@@ -68,6 +68,8 @@ const RoleManagement: React.FC = () => {
         roleName: record.roleName,
         roleCode: record.roleCode,
         description: record.description,
+        sort: record.sort ?? 0,
+        status: record.status ?? 1,
         permissionIds: record.permissionIds || [],
       });
     }, 0);
@@ -84,8 +86,8 @@ const RoleManagement: React.FC = () => {
   const handleFinish = (values: any) => {
     const payload = {
       ...values,
-      sort: editingRole?.sort ?? 0,
-      status: editingRole?.status ?? 1,
+      sort: Number(values.sort ?? editingRole?.sort ?? 0),
+      status: Number(values.status ?? editingRole?.status ?? 1),
     };
     if (editingRole) {
       updateMutation.mutate(payload, { onSuccess: closeModal });
@@ -241,34 +243,47 @@ const RoleManagement: React.FC = () => {
         onOk={() => form.submit()}
         onCancel={closeModal}
         confirmLoading={createMutation.isPending || updateMutation.isPending}
-        width={720}
+        width={880}
         destroyOnClose
       >
         <Form form={form} layout="vertical" onFinish={handleFinish} preserve={false}>
-          <Form.Item name="id" hidden>
-            <Input />
-          </Form.Item>
-          <Form.Item name="roleName" label="角色名称" rules={[{ required: true, message: '请输入角色名称' }]}>
-            <Input autoComplete="off" />
-          </Form.Item>
-          <Form.Item name="roleCode" label="角色编码" rules={[{ required: true, message: '请输入角色编码' }]}>
-            <Input autoComplete="off" />
-          </Form.Item>
-          <Form.Item name="description" label="描述">
-            <Input.TextArea rows={3} />
-          </Form.Item>
-          <Form.Item name="permissionIds" label="权限范围">
-            <Tree
-              checkable
-              defaultExpandAll
-              treeData={normalizeTree((permissionTree as any[]) || [])}
-              checkedKeys={checkedPermissionIds}
-              onCheck={(checkedKeys) => form.setFieldValue('permissionIds', Array.isArray(checkedKeys) ? checkedKeys : checkedKeys.checked)}
-            />
-          </Form.Item>
-          {editingRole?.id && permissionIdsLoading ? (
-            <div style={{ marginTop: -8, color: 'rgba(0, 0, 0, 0.45)', fontSize: 12 }}>正在加载角色已有权限...</div>
-          ) : null}
+          <div className="modal-grid">
+            <Form.Item name="id" hidden>
+              <Input />
+            </Form.Item>
+            <Form.Item name="roleName" label="角色名称" rules={[{ required: true, message: '请输入角色名称' }]}>
+              <Input autoComplete="off" />
+            </Form.Item>
+            <Form.Item name="roleCode" label="角色编码" rules={[{ required: true, message: '请输入角色编码' }]}>
+              <Input autoComplete="off" />
+            </Form.Item>
+            <Form.Item name="sort" label="排序" initialValue={0}>
+              <Input type="number" autoComplete="off" />
+            </Form.Item>
+            <Form.Item name="status" label="状态" initialValue={1}>
+              <Select
+                options={[
+                  { value: 1, label: '正常' },
+                  { value: 0, label: '禁用' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item className="modal-span-2" name="description" label="描述">
+              <Input.TextArea rows={3} />
+            </Form.Item>
+            <Form.Item className="modal-span-2" name="permissionIds" label="权限范围">
+              <Tree
+                checkable
+                defaultExpandAll
+                treeData={normalizeTree((permissionTree as any[]) || [])}
+                checkedKeys={checkedPermissionIds}
+                onCheck={(checkedKeys) => form.setFieldValue('permissionIds', Array.isArray(checkedKeys) ? checkedKeys : checkedKeys.checked)}
+              />
+            </Form.Item>
+            {editingRole?.id && permissionIdsLoading ? (
+              <div className="modal-span-2" style={{ marginTop: -8, color: 'rgba(0, 0, 0, 0.45)', fontSize: 12 }}>正在加载角色已有权限...</div>
+            ) : null}
+          </div>
         </Form>
       </Modal>
     </div>

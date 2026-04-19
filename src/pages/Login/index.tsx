@@ -39,11 +39,17 @@ export default function Login() {
     <div className="login-container">
       <div className="login-box">
         <div className="login-header">
-          <h1>自助洗车管理后台</h1>
-          <p>面向商户、门店与设备运营的后台入口</p>
+          <h1>自助设备经营平台</h1>
+          <p>当前为本地业务演示版，页面能力按产品文档持续完善。</p>
         </div>
 
-        <Form name="login" onFinish={handleLogin} autoComplete="off" size="large">
+        <Form
+          name="login"
+          onFinish={handleLogin}
+          autoComplete="off"
+          size="large"
+          initialValues={{ username: 'admin', password: 'admin123' }}
+        >
           <Form.Item name="username" rules={[{ required: true, message: '请输入用户名' }]}>
             <Input prefix={<UserOutlined />} placeholder="用户名" />
           </Form.Item>
@@ -59,7 +65,9 @@ export default function Login() {
           </Form.Item>
 
           <div className="login-tips">
-            <p>使用后端库中的已有系统账号直接登录</p>
+            <p>演示账号：admin / admin123</p>
+            <p>运营账号：operator / operator123</p>
+            <p>客服账号：service / service123</p>
           </div>
         </Form>
       </div>

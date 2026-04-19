@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { BookOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
-import { Button, Card, Form, Input, Modal, Select, Space, Table, Tabs, Tag } from 'antd';
+import { Button, Card, Form, Input, Modal, Select, Space, Table, Tabs, Tag, message } from 'antd';
 import PageBanner from '@/components/PageBanner';
+import api from '@/services/backendService';
 import {
   useCreateDictionary,
   useDeleteDictionary,
@@ -15,11 +17,15 @@ const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleStri
 
 const Dictionary: React.FC = () => {
   const [form] = Form.useForm();
+  const [itemForm] = Form.useForm();
   const [searchForm] = Form.useForm();
   const [itemSearchForm] = Form.useForm();
   const [modalVisible, setModalVisible] = useState(false);
+  const [itemModalVisible, setItemModalVisible] = useState(false);
   const [editingDict, setEditingDict] = useState<any>(null);
+  const [editingItem, setEditingItem] = useState<any>(null);
   const [selectedCode, setSelectedCode] = useState<string>();
+  const queryClient = useQueryClient();
   const [queryParams, setQueryParams] = useState({
     pageNum: 1,
     pageSize: 10,
@@ -32,6 +38,33 @@ const Dictionary: React.FC = () => {
   const createMutation: any = useCreateDictionary();
   const updateMutation: any = useUpdateDictionary();
   const deleteMutation: any = useDeleteDictionary();
+  const createItemMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => api.dict.dataAdd(payload),
+    onSuccess: () => {
+      message.success('字典项已创建');
+      queryClient.invalidateQueries({ queryKey: ['dictItems', selectedCode] });
+      setItemModalVisible(false);
+      setEditingItem(null);
+      itemForm.resetFields();
+    },
+  });
+  const updateItemMutation = useMutation({
+    mutationFn: async ({ id, ...payload }: Record<string, unknown>) => api.dict.dataEdit(Number(id), payload),
+    onSuccess: () => {
+      message.success('字典项已更新');
+      queryClient.invalidateQueries({ queryKey: ['dictItems', selectedCode] });
+      setItemModalVisible(false);
+      setEditingItem(null);
+      itemForm.resetFields();
+    },
+  });
+  const deleteItemMutation = useMutation({
+    mutationFn: async (id: number) => api.dict.dataRemove(id),
+    onSuccess: () => {
+      message.success('字典项已删除');
+      queryClient.invalidateQueries({ queryKey: ['dictItems', selectedCode] });
+    },
+  });
 
   const dicts = (dictionaries as any)?.records || [];
   const itemList = (items as any)?.records || [];
@@ -74,9 +107,16 @@ const Dictionary: React.FC = () => {
     form.resetFields();
   };
 
+  const closeItemModal = () => {
+    setItemModalVisible(false);
+    setEditingItem(null);
+    itemForm.resetFields();
+  };
+
   const handleCreate = () => {
     setEditingDict(null);
     form.resetFields();
+    form.setFieldsValue({ status: 1 });
     setModalVisible(true);
   };
 
@@ -87,6 +127,7 @@ const Dictionary: React.FC = () => {
       form.setFieldsValue({
         dictName: record.dictName,
         dictCode: record.dictCode,
+        status: record.status ?? 1,
         remark: record.remark,
       });
     }, 0);
@@ -100,11 +141,41 @@ const Dictionary: React.FC = () => {
     });
   };
 
+  const handleCreateItem = () => {
+    setEditingItem(null);
+    itemForm.resetFields();
+    itemForm.setFieldsValue({ dictCode: selectedCode, dictSort: 0, status: 1 });
+    setItemModalVisible(true);
+  };
+
+  const handleEditItem = (record: any) => {
+    setEditingItem(record);
+    itemForm.setFieldsValue(record);
+    setItemModalVisible(true);
+  };
+
+  const handleDeleteItem = (id: number) => {
+    Modal.confirm({
+      title: '确认删除字典项',
+      content: '确定要删除该字典项吗？',
+      onOk: () => deleteItemMutation.mutate(id),
+    });
+  };
+
+  const handleItemFinish = async () => {
+    const values = await itemForm.validateFields();
+    if (editingItem) {
+      updateItemMutation.mutate({ id: editingItem.id, ...values });
+      return;
+    }
+    createItemMutation.mutate(values);
+  };
+
   const handleFinish = (values: any) => {
     if (editingDict) {
-      updateMutation.mutate({ id: editingDict.id, ...values, status: editingDict.status ?? 1 }, { onSuccess: closeModal });
+      updateMutation.mutate({ id: editingDict.id, ...values, status: Number(values.status ?? editingDict.status ?? 1) }, { onSuccess: closeModal });
     } else {
-      createMutation.mutate({ ...values, status: 1 }, { onSuccess: closeModal });
+      createMutation.mutate({ ...values, status: Number(values.status ?? 1) }, { onSuccess: closeModal });
     }
   };
 
@@ -146,6 +217,16 @@ const Dictionary: React.FC = () => {
       render: (status: number) => <Tag color={status === 1 ? 'success' : 'default'}>{status === 1 ? '启用' : '禁用'}</Tag>,
     },
     { title: '更新时间', dataIndex: 'updateTime', width: 180, render: formatDateTime },
+    {
+      title: '操作',
+      width: 180,
+      render: (_: any, record: any) => (
+        <Space>
+          <Button size="small" onClick={() => handleEditItem(record)}>编辑</Button>
+          <Button size="small" danger onClick={() => handleDeleteItem(record.id)}>删除</Button>
+        </Space>
+      ),
+    },
   ];
 
   return (
@@ -216,7 +297,7 @@ const Dictionary: React.FC = () => {
             label: '字典项',
             disabled: !selectedCode,
             children: selectedCode ? (
-              <Card title={`字典项 - ${selectedCode}`}>
+              <Card title={`字典项 - ${selectedCode}`} extra={<Button type="primary" onClick={handleCreateItem}>新建字典项</Button>}>
                 <Form form={itemSearchForm} style={{ marginBottom: 16 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
                     <Space wrap size="middle">
@@ -253,18 +334,68 @@ const Dictionary: React.FC = () => {
         onOk={() => form.submit()}
         onCancel={closeModal}
         confirmLoading={createMutation.isPending || updateMutation.isPending}
+        width={760}
         destroyOnClose
       >
         <Form form={form} layout="vertical" onFinish={handleFinish} preserve={false}>
-          <Form.Item name="dictName" label="字典名称" rules={[{ required: true, message: '请输入字典名称' }]}>
-            <Input autoComplete="off" />
-          </Form.Item>
-          <Form.Item name="dictCode" label="字典编码" rules={[{ required: true, message: '请输入字典编码' }]}>
-            <Input autoComplete="off" />
-          </Form.Item>
-          <Form.Item name="remark" label="备注">
-            <Input.TextArea rows={3} />
-          </Form.Item>
+          <div className="modal-grid">
+            <Form.Item name="dictName" label="字典名称" rules={[{ required: true, message: '请输入字典名称' }]}>
+              <Input autoComplete="off" />
+            </Form.Item>
+            <Form.Item name="dictCode" label="字典编码" rules={[{ required: true, message: '请输入字典编码' }]}>
+              <Input autoComplete="off" />
+            </Form.Item>
+            <Form.Item name="status" label="状态" initialValue={1}>
+              <Select
+                options={[
+                  { value: 1, label: '启用' },
+                  { value: 0, label: '禁用' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item className="modal-span-2" name="remark" label="备注">
+              <Input.TextArea rows={3} />
+            </Form.Item>
+          </div>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={editingItem ? '编辑字典项' : '新建字典项'}
+        open={itemModalVisible}
+        onOk={handleItemFinish}
+        onCancel={closeItemModal}
+        confirmLoading={createItemMutation.isPending || updateItemMutation.isPending}
+        width={760}
+        destroyOnClose
+      >
+        <Form form={itemForm} layout="vertical">
+          <div className="modal-grid">
+            <Form.Item name="dictCode" label="字典编码">
+              <Input disabled />
+            </Form.Item>
+            <Form.Item name="dictSort" label="排序">
+              <Input />
+            </Form.Item>
+            <Form.Item name="dictLabel" label="标签" rules={[{ required: true, message: '请输入标签' }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="dictValue" label="值" rules={[{ required: true, message: '请输入值' }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="status" label="状态">
+              <Select
+                options={[
+                  { value: 1, label: '启用' },
+                  { value: 0, label: '禁用' },
+                ]}
+              />
+            </Form.Item>
+            <div />
+            <Form.Item className="modal-span-2" name="remark" label="备注">
+              <Input.TextArea rows={3} />
+            </Form.Item>
+          </div>
         </Form>
       </Modal>
     </div>
