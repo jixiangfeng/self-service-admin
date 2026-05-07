@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Statistic, message } from 'antd';
+import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
 import { CustomerServiceOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
+import { messageChannelOptions, messageStatusOptions, subscribeStatusOptions, templateStatusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import api from '@/services/backendService';
 
 interface MessageTemplateRecord {
   id: string;
@@ -18,27 +20,46 @@ interface MessageTemplateRecord {
   updatedAt: string;
 }
 
-const statusMap = {
-  ENABLED: { color: 'success', text: '启用' },
-  PAUSED: { color: 'gold', text: '暂停' },
-  DRAFT: { color: 'default', text: '草稿' },
-};
+interface MessageRecord {
+  id: string;
+  messageNo: string;
+  templateCode: string;
+  receiver: string;
+  phone: string;
+  channel: string;
+  subscribeStatus: string;
+  status: string;
+  failReason?: string;
+  sentAt: string;
+}
+
+const statusMap = buildValueEnum(templateStatusOptions);
+const channelMap = buildValueEnum(messageChannelOptions);
+const messageStatusMap = buildValueEnum(messageStatusOptions);
+const subscribeStatusMap = buildValueEnum(subscribeStatusOptions);
 
 const initialTemplates: MessageTemplateRecord[] = [
-  { id: 'mt1', templateCode: 'MSG-PAY-SUCC', templateName: '支付成功模板', scene: '支付结果通知', channel: '小程序模板消息', trigger: '支付回调成功', targetUser: '下单用户', status: 'ENABLED', updatedAt: '2026-04-18 09:02:00' },
-  { id: 'mt2', templateCode: 'MSG-INVITE', templateName: '邀请奖励到账模板', scene: '活动奖励提醒', channel: '站内消息', trigger: '发奖成功', targetUser: '邀请人', status: 'DRAFT', updatedAt: '2026-04-17 20:12:00' },
-  { id: 'mt3', templateCode: 'MSG-REFUND', templateName: '退款进度模板', scene: '退款通知', channel: '短信 / 小程序', trigger: '退款状态变更', targetUser: '退款申请人', status: 'ENABLED', updatedAt: '2026-04-17 18:50:00' },
+  { id: 'mt1', templateCode: 'MSG-PAY-SUCC', templateName: '支付成功模板', scene: '支付结果通知', channel: 'WECHAT', trigger: '支付回调成功', targetUser: '下单用户', status: 'ENABLED', updatedAt: '2026-04-18 09:02:00' },
+  { id: 'mt2', templateCode: 'MSG-INVITE', templateName: '邀请奖励到账模板', scene: '活动奖励提醒', channel: 'IN_APP', trigger: '发奖成功', targetUser: '邀请人', status: 'DRAFT', updatedAt: '2026-04-17 20:12:00' },
+  { id: 'mt3', templateCode: 'MSG-REFUND', templateName: '退款进度模板', scene: '退款通知', channel: 'SMS', trigger: '退款状态变更', targetUser: '退款申请人', status: 'ENABLED', updatedAt: '2026-04-17 18:50:00' },
+];
+
+const initialMessages: MessageRecord[] = [
+  { id: 'msg1', messageNo: 'MS202604180001', templateCode: 'MSG-PAY-SUCC', receiver: '张晨', phone: '13800001111', channel: 'WECHAT', subscribeStatus: 'SUBSCRIBED', status: 'SENT', sentAt: '2026-04-18 09:14:00' },
+  { id: 'msg2', messageNo: 'MS202604180002', templateCode: 'MSG-REFUND', receiver: '陈越', phone: '13800002222', channel: 'SMS', subscribeStatus: 'SUBSCRIBED', status: 'PENDING', sentAt: '2026-04-18 09:26:00' },
+  { id: 'msg3', messageNo: 'MS202604180003', templateCode: 'MSG-INVITE', receiver: '李波', phone: '13800003333', channel: 'WECHAT', subscribeStatus: 'EXPIRED', status: 'FAILED', failReason: '订阅授权过期', sentAt: '2026-04-18 08:58:00' },
 ];
 
 const MessageCenterManagement: React.FC = () => {
   const [form] = Form.useForm<MessageTemplateRecord>();
   const [records, setRecords] = useState(initialTemplates);
+  const [messages, setMessages] = useState(initialMessages);
   const [keyword, setKeyword] = useState('');
+  const [messageKeyword, setMessageKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<MessageTemplateRecord | null>(null);
   const [detail, setDetail] = useState<MessageTemplateRecord | null>(null);
-  const [helperVisible, setHelperVisible] = useState(false);
 
   const closeModal = () => {
     setModalVisible(false);
@@ -56,6 +77,11 @@ const MessageCenterManagement: React.FC = () => {
     [keyword, records, statusFilter]
   );
 
+  const messageDataSource = useMemo(
+    () => messages.filter((item) => containsKeyword(messageKeyword, [item.messageNo, item.templateCode, item.receiver, item.phone, item.failReason])),
+    [messageKeyword, messages]
+  );
+
   const columns: ProColumns<MessageTemplateRecord>[] = [
     {
       title: '模板',
@@ -71,10 +97,10 @@ const MessageCenterManagement: React.FC = () => {
     },
     { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '模板 / 编码 / 场景 / 渠道 / 触发条件' } },
     { title: '场景', dataIndex: 'scene', width: 160, search: false },
-    { title: '发送渠道', dataIndex: 'channel', width: 180, search: false },
+    { title: '发送渠道', dataIndex: 'channel', width: 180, valueType: 'select', valueEnum: channelMap, render: (_, record) => renderStatusTag(record.channel, channelMap) },
     { title: '触发条件', dataIndex: 'trigger', width: 200, search: false },
     { title: '目标用户', dataIndex: 'targetUser', width: 120, search: false },
-    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: buildValueEnum(Object.entries(statusMap).map(([value, item]) => ({ value, label: item.text }))), render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
     {
       title: '操作',
@@ -87,6 +113,7 @@ const MessageCenterManagement: React.FC = () => {
           <Button
             size="small"
             onClick={() => {
+              api.message.templates.page({});
               setRecords((prev) => prev.map((item) => item.id === record.id ? { ...item, status: item.status === 'ENABLED' ? 'PAUSED' : 'ENABLED', updatedAt: new Date().toISOString() } : item));
               message.success('消息模板状态已更新');
             }}
@@ -94,6 +121,35 @@ const MessageCenterManagement: React.FC = () => {
             {record.status === 'ENABLED' ? '暂停' : '启用'}
           </Button>
         </Space>
+      ),
+    },
+  ];
+
+  const messageColumns: ProColumns<MessageRecord>[] = [
+    { title: '消息编号', dataIndex: 'messageNo', width: 180, hideInSearch: true },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '消息编号 / 模板 / 接收人 / 手机号' } },
+    { title: '模板编码', dataIndex: 'templateCode', width: 160, search: false },
+    { title: '接收人', dataIndex: 'receiver', width: 120, search: false },
+    { title: '手机号', dataIndex: 'phone', width: 140, search: false },
+    { title: '渠道', dataIndex: 'channel', width: 140, valueType: 'select', valueEnum: channelMap, render: (_, record) => renderStatusTag(record.channel, channelMap) },
+    { title: '订阅状态', dataIndex: 'subscribeStatus', width: 120, valueType: 'select', valueEnum: subscribeStatusMap, render: (_, record) => renderStatusTag(record.subscribeStatus, subscribeStatusMap) },
+    { title: '发送状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: messageStatusMap, render: (_, record) => renderStatusTag(record.status, messageStatusMap) },
+    { title: '失败原因', dataIndex: 'failReason', width: 180, search: false },
+    { title: '发送时间', dataIndex: 'sentAt', width: 180, search: false, render: (_, record) => formatDateTime(record.sentAt) },
+    {
+      title: '操作',
+      width: 120,
+      search: false,
+      render: (_, record) => (
+        <Button
+          size="small"
+          onClick={() => {
+            setMessages((prev) => prev.map((item) => item.id === record.id ? { ...item, status: 'SENT', failReason: undefined, sentAt: new Date().toISOString() } : item));
+            message.success('消息已重发');
+          }}
+        >
+          重发
+        </Button>
       ),
     },
   ];
@@ -121,28 +177,62 @@ const MessageCenterManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="启用模板" value={records.filter((item) => item.status === 'ENABLED').length} suffix="个" /></Card></Col>
       </Row>
 
-      <ProTable<MessageTemplateRecord>
-        cardBordered
-        rowKey="id"
-        columns={columns}
-        dataSource={dataSource}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        pagination={{ pageSize: 8 }}
-        scroll={{ x: 1760 }}
-        toolBarRender={() => [
-          <Button key="records" onClick={() => setHelperVisible(true)}>发送记录</Button>,
-          <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => { setEditingRecord(null); form.resetFields(); form.setFieldsValue({ status: 'DRAFT' }); setModalVisible(true); }}>
-            新建模板
-          </Button>,
+      <Tabs
+        items={[
+          {
+            key: 'template',
+            label: '消息模板',
+            children: (
+              <ProTable<MessageTemplateRecord>
+                cardBordered
+                rowKey="id"
+                columns={columns}
+                dataSource={dataSource}
+                search={{ labelWidth: 'auto', defaultCollapsed: false }}
+                pagination={{ pageSize: 8 }}
+                scroll={{ x: 1760 }}
+                toolBarRender={() => [
+                  <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => { setEditingRecord(null); form.resetFields(); form.setFieldsValue({ status: 'DRAFT' }); setModalVisible(true); }}>
+                    新建模板
+                  </Button>,
+                ]}
+                onSubmit={(values) => {
+                  setKeyword(String(values.keyword || ''));
+                  setStatusFilter(values.status as string | undefined);
+                }}
+                onReset={() => {
+                  setKeyword('');
+                  setStatusFilter(undefined);
+                }}
+                request={async (params) => {
+                  const res = await api.message.templates.page(params);
+                  return { data: res.data.records as any, success: true, total: res.data.total };
+                }}
+              />
+            ),
+          },
+          {
+            key: 'records',
+            label: '发送记录',
+            children: (
+              <ProTable<MessageRecord>
+                cardBordered
+                rowKey="id"
+                columns={messageColumns}
+                dataSource={messageDataSource}
+                search={{ labelWidth: 'auto', defaultCollapsed: false }}
+                pagination={{ pageSize: 8 }}
+                scroll={{ x: 1740 }}
+                onSubmit={(values) => setMessageKeyword(String(values.keyword || ''))}
+                onReset={() => setMessageKeyword('')}
+        request={async (params: any) => {
+          const res = await api.message.messageRecords.page(params);
+          return { data: res.data.records as any, success: true, total: res.data.total };
+        }}
+              />
+            ),
+          },
         ]}
-        onSubmit={(values) => {
-          setKeyword(String(values.keyword || ''));
-          setStatusFilter(values.status as string | undefined);
-        }}
-        onReset={() => {
-          setKeyword('');
-          setStatusFilter(undefined);
-        }}
       />
 
       <Modal title={editingRecord ? `编辑消息模板 · ${editingRecord.templateName}` : '新建消息模板'} open={modalVisible} onOk={handleSubmit} onCancel={closeModal} width={860}>
@@ -151,9 +241,9 @@ const MessageCenterManagement: React.FC = () => {
             <Form.Item name="templateCode" label="模板编码" rules={[{ required: true, message: '请输入模板编码' }]}><Input /></Form.Item>
             <Form.Item name="templateName" label="模板名称" rules={[{ required: true, message: '请输入模板名称' }]}><Input /></Form.Item>
             <Form.Item name="scene" label="场景"><Input /></Form.Item>
-            <Form.Item name="channel" label="发送渠道"><Input /></Form.Item>
+            <Form.Item name="channel" label="发送渠道"><Select options={messageChannelOptions} /></Form.Item>
             <Form.Item name="targetUser" label="目标用户"><Input /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={Object.entries(statusMap).map(([value, item]) => ({ value, label: item.text }))} /></Form.Item>
+            <Form.Item name="status" label="状态"><Select options={templateStatusOptions} /></Form.Item>
             <Form.Item className="modal-span-2" name="trigger" label="触发条件"><Input.TextArea rows={3} /></Form.Item>
           </div>
         </Form>
@@ -165,19 +255,12 @@ const MessageCenterManagement: React.FC = () => {
             <Descriptions.Item label="模板编码">{detail.templateCode}</Descriptions.Item>
             <Descriptions.Item label="模板名称">{detail.templateName}</Descriptions.Item>
             <Descriptions.Item label="场景">{detail.scene}</Descriptions.Item>
-            <Descriptions.Item label="发送渠道">{detail.channel}</Descriptions.Item>
+            <Descriptions.Item label="发送渠道">{channelMap[detail.channel]?.text || detail.channel}</Descriptions.Item>
             <Descriptions.Item label="触发条件">{detail.trigger}</Descriptions.Item>
             <Descriptions.Item label="目标用户">{detail.targetUser}</Descriptions.Item>
             <Descriptions.Item label="更新时间">{formatDateTime(detail.updatedAt)}</Descriptions.Item>
           </Descriptions>
         ) : null}
-      </Modal>
-
-      <Modal title="发送记录" open={helperVisible} footer={null} onCancel={() => setHelperVisible(false)} width={680}>
-        <Descriptions column={1} labelStyle={{ width: 120 }}>
-          <Descriptions.Item label="最近记录">支付成功模板今日发送 268 次，退款进度模板发送 52 次，邀请奖励模板失败 3 次。</Descriptions.Item>
-          <Descriptions.Item label="建议动作">优先排查失败模板的渠道配置和触发参数。</Descriptions.Item>
-        </Descriptions>
       </Modal>
     </div>
   );

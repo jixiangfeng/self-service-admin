@@ -18,10 +18,10 @@ export const renderBooleanTag = (value?: number, enabledText = '开启', disable
   <Tag color={value === 1 ? 'success' : 'default'}>{value === 1 ? enabledText : disabledText}</Tag>
 );
 
-export const renderStatusTag = (value?: string | number, map?: Record<string | number, { color: string; text: string }>) => {
+export const renderStatusTag = (value?: string | number, map?: Record<string | number, { color?: string; text: string }>) => {
   const matched = value != null && map ? map[value] : undefined;
   if (matched) {
-    return <Tag color={matched.color}>{matched.text}</Tag>;
+    return <Tag color={matched.color || 'processing'}>{matched.text}</Tag>;
   }
   return <Tag>{String(value ?? '-')}</Tag>;
 };

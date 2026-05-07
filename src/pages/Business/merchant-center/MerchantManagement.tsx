@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   merchantContractStatusOptions,
   merchantTypeOptions,
+  settlementCycleOptions,
   statusOptions,
 } from '@/constants/businessCatalog';
 import api from '@/services/backendService';
@@ -38,7 +39,7 @@ const merchantFormDefaults = {
   status: 1,
   merchantType: 'DIRECT',
   contractStatus: 'ACTIVE',
-  settlementCycle: '周结',
+  settlementCycle: 'WEEK',
 };
 
 const MerchantManagement: React.FC = () => {
@@ -158,8 +159,8 @@ const MerchantManagement: React.FC = () => {
         valueEnum: buildValueEnum(statusOptions),
         render: (_, record) => renderStatusTag(record.status, merchantStatusMap),
       },
-      { title: '创建时间', dataIndex: 'createTime', width: 180, search: false, render: (_, record) => formatDateTime(record.createTime) },
-      { title: '更新时间', dataIndex: 'updateTime', width: 180, search: false, render: (_, record) => formatDateTime(record.updateTime) },
+      { title: '创建时间', dataIndex: 'createdAt', width: 180, search: false, render: (_, record) => formatDateTime(record.createdAt || record.createTime) },
+      { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt || record.updateTime) },
       {
         title: '操作',
         width: 200,
@@ -372,14 +373,7 @@ const MerchantManagement: React.FC = () => {
                     <Input placeholder="用于账单结算与打款" />
                   </Form.Item>
                   <Form.Item name="settlementCycle" label="结算周期" rules={[{ required: true, message: '请选择结算周期' }]}>
-                    <Select
-                      placeholder="请选择结算周期"
-                      options={[
-                        { value: '日结', label: '日结' },
-                        { value: '周结', label: '周结' },
-                        { value: '月结', label: '月结' },
-                      ]}
-                    />
+                    <Select placeholder="请选择结算周期" options={settlementCycleOptions} />
                   </Form.Item>
                   <Form.Item name="status" label="状态" initialValue={merchantFormDefaults.status}>
                     <Select options={statusOptions} placeholder="请选择状态" />

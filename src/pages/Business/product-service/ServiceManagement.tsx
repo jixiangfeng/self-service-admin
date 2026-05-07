@@ -185,6 +185,9 @@ const ServiceManagement: React.FC = () => {
       },
       { title: '价格描述', dataIndex: 'priceDesc', width: 200, search: false, render: (_, record) => record.priceDesc || '-' },
       { title: '服务周期', dataIndex: 'serviceDuration', width: 120, search: false, render: (_, record) => record.serviceDuration || '-' },
+      { title: '价格版本', dataIndex: 'priceVersion', width: 120, search: false, render: (_, record) => record.priceVersion || '-' },
+      { title: '生效时间', dataIndex: 'effectiveAt', width: 160, search: false, render: (_, record) => formatDateTime(record.effectiveAt) },
+      { title: '失效时间', dataIndex: 'expireAt', width: 160, search: false, render: (_, record) => formatDateTime(record.expireAt) },
       { title: '卖点标签', dataIndex: 'sellingPoints', width: 240, search: false, render: (_, record) => renderOptionTags(record.sellingPoints, serviceSellingPointOptions) },
       { title: '优惠叠加', dataIndex: 'discountRule', width: 180, search: false, render: (_, record) => record.discountRule || '-' },
       {
@@ -195,7 +198,7 @@ const ServiceManagement: React.FC = () => {
         valueEnum: buildValueEnum(statusOptions),
         render: (_, record) => renderStatusTag(record.status, buildValueEnum(statusOptions) as any),
       },
-      { title: '更新时间', dataIndex: 'updateTime', width: 180, search: false, render: (_, record) => formatDateTime(record.updateTime) },
+      { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt || record.updateTime) },
       {
         title: '操作',
         width: 160,
@@ -262,6 +265,10 @@ const ServiceManagement: React.FC = () => {
       { title: '分钟单价', dataIndex: 'minutePrice', width: 100, search: false, render: (_, record) => record.minutePrice ?? '-' },
       { title: '封顶金额', dataIndex: 'capAmount', width: 100, search: false, render: (_, record) => record.capAmount ?? '-' },
       { title: '免费分钟', dataIndex: 'freeMinutes', width: 100, search: false, render: (_, record) => record.freeMinutes ?? '-' },
+      { title: '版本号', dataIndex: 'versionNo', width: 120, search: false, render: (_, record) => record.versionNo || '-' },
+      { title: '时段规则', dataIndex: 'timeSegment', width: 180, search: false, render: (_, record) => record.timeSegment || '-' },
+      { title: '节假日规则', dataIndex: 'holidayRule', width: 180, search: false, render: (_, record) => record.holidayRule || '-' },
+      { title: '生效时间', dataIndex: 'effectiveAt', width: 160, search: false, render: (_, record) => formatDateTime(record.effectiveAt) },
       {
         title: '状态',
         dataIndex: 'status',
@@ -532,8 +539,20 @@ const ServiceManagement: React.FC = () => {
             <Form.Item name="serviceDuration" label="服务周期 / 履约时长">
               <Input placeholder="例如 15 分钟 / 10 次 / 30 天" />
             </Form.Item>
+            <Form.Item name="priceVersion" label="价格版本">
+              <Input placeholder="例如 V202604" />
+            </Form.Item>
+            <Form.Item name="effectiveAt" label="生效时间">
+              <Input placeholder="例如 2026-04-18 00:00:00" />
+            </Form.Item>
+            <Form.Item name="expireAt" label="失效时间">
+              <Input placeholder="例如 2026-12-31 23:59:59" />
+            </Form.Item>
             <Form.Item className="modal-span-2" name="sellingPoints" label="卖点标签">
               <Select mode="multiple" options={serviceSellingPointOptions} placeholder="选择商品卖点" />
+            </Form.Item>
+            <Form.Item className="modal-span-2" name="rightsContent" label="权益内容">
+              <Input.TextArea rows={3} placeholder="填写包含的服务次数、设备能力、卡券权益等" />
             </Form.Item>
             <Form.Item className="modal-span-2" name="discountRule" label="优惠叠加规则">
               <Input placeholder="例如 支持券 + 余额" />
@@ -543,6 +562,9 @@ const ServiceManagement: React.FC = () => {
             </Form.Item>
             <Form.Item className="modal-span-2" name="usageNotice" label="使用须知">
               <Input.TextArea rows={4} placeholder="填写启动时效、退款规则、核销边界等说明" />
+            </Form.Item>
+            <Form.Item className="modal-span-2" name="refundRule" label="退款规则">
+              <Input.TextArea rows={3} placeholder="填写未使用退款、部分履约退款、异常中断退款规则" />
             </Form.Item>
           </div>
         </Form>
@@ -600,14 +622,29 @@ const ServiceManagement: React.FC = () => {
             <Form.Item name="freeMinutes" label="免费分钟">
               <InputNumber style={{ width: '100%' }} min={0} precision={0} />
             </Form.Item>
+            <Form.Item name="versionNo" label="版本号">
+              <Input placeholder="例如 PR-V202604" />
+            </Form.Item>
+            <Form.Item name="effectiveAt" label="生效时间">
+              <Input placeholder="例如 2026-04-18 00:00:00" />
+            </Form.Item>
+            <Form.Item name="expireAt" label="失效时间">
+              <Input placeholder="例如 2026-12-31 23:59:59" />
+            </Form.Item>
             <Form.Item name="status" label="状态" initialValue={1}>
               <Select options={statusOptions} />
+            </Form.Item>
+            <Form.Item className="modal-span-2" name="timeSegment" label="时段规则">
+              <Input placeholder="例如 20:00-02:00 夜间价，08:00-20:00 标准价" />
             </Form.Item>
             <Form.Item className="modal-span-2" name="nightPriceDesc" label="夜间价格描述">
               <Input />
             </Form.Item>
             <Form.Item className="modal-span-2" name="holidayPriceDesc" label="节假日价格描述">
               <Input />
+            </Form.Item>
+            <Form.Item className="modal-span-2" name="holidayRule" label="节假日规则">
+              <Input.TextArea rows={3} placeholder="填写节假日适用日期、加价/折扣、是否与夜间价叠加" />
             </Form.Item>
           </div>
         </Form>

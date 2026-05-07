@@ -3,6 +3,7 @@ import { Button, Card, Col, Descriptions, Divider, Form, Input, List, Modal, Row
 import { AccountBookOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
+import { partnerRoleOptions, profitRelationStatusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, containsKeyword, formatAmount, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
@@ -28,17 +29,8 @@ interface ProfitDetailRecord {
   status: string;
 }
 
-const roleMap = {
-  PLATFORM: { color: 'blue', text: '平台方' },
-  MERCHANT: { color: 'purple', text: '商户方' },
-  PARTNER: { color: 'cyan', text: '门店合伙人' },
-};
-
-const statusMap = {
-  EFFECTIVE: { color: 'success', text: '生效中' },
-  PENDING: { color: 'gold', text: '待确认' },
-  CLOSED: { color: 'default', text: '已结束' },
-};
+const roleMap = buildValueEnum(partnerRoleOptions);
+const statusMap = buildValueEnum(profitRelationStatusOptions);
 
 const initialRelations: PartnerRelationRecord[] = [
   { id: 'pr1', storeName: '嘉定联营门店', partnerName: '联营合伙人-陈禾', role: 'PARTNER', ratio: '30%', period: '2026-04-01 ~ 2026-12-31', settleAccount: '陈禾 / 招商银行', status: 'EFFECTIVE' },
@@ -82,13 +74,13 @@ const ProfitSharingManagement: React.FC = () => {
       dataIndex: 'role',
       width: 120,
       valueType: 'select',
-      valueEnum: buildValueEnum(Object.entries(roleMap).map(([value, item]) => ({ value, label: item.text }))),
+      valueEnum: roleMap,
       render: (_, record) => renderStatusTag(record.role, roleMap),
     },
     { title: '比例', dataIndex: 'ratio', width: 100, search: false },
     { title: '结算账户', dataIndex: 'settleAccount', width: 180, search: false },
     { title: '生效周期', dataIndex: 'period', width: 220, search: false },
-    { title: '状态', dataIndex: 'status', width: 120, search: false, render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
     {
       title: '操作',
       width: 220,
@@ -127,7 +119,7 @@ const ProfitSharingManagement: React.FC = () => {
     { title: '合伙人', dataIndex: 'partnerName', width: 180, search: false },
     { title: '分润基数', dataIndex: 'baseAmount', width: 120, search: false, render: (_, record) => formatAmount(record.baseAmount) },
     { title: '实际分润', dataIndex: 'actualAmount', width: 120, search: false, render: (_, record) => formatAmount(record.actualAmount) },
-    { title: '状态', dataIndex: 'status', width: 120, search: false, render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
     {
       title: '操作',
       width: 160,
@@ -229,12 +221,12 @@ const ProfitSharingManagement: React.FC = () => {
             <Divider className="modal-span-2" orientation="left">关系基础信息</Divider>
             <Form.Item name="storeName" label="门店" rules={[{ required: true, message: '请输入门店' }]}><Input /></Form.Item>
             <Form.Item name="partnerName" label="合伙人" rules={[{ required: true, message: '请输入合伙人' }]}><Input /></Form.Item>
-            <Form.Item name="role" label="角色" rules={[{ required: true, message: '请选择角色' }]}><Select options={Object.entries(roleMap).map(([value, item]) => ({ value, label: item.text }))} /></Form.Item>
+            <Form.Item name="role" label="角色" rules={[{ required: true, message: '请选择角色' }]}><Select options={partnerRoleOptions} /></Form.Item>
             <Form.Item name="ratio" label="分润比例" rules={[{ required: true, message: '请输入分润比例' }]}><Input placeholder="例如 30%" /></Form.Item>
             <Form.Item className="modal-span-2" name="settleAccount" label="收款账户" rules={[{ required: true, message: '请输入收款账户' }]}><Input /></Form.Item>
             <Divider className="modal-span-2" orientation="left">生效周期</Divider>
             <Form.Item className="modal-span-2" name="period" label="生效周期" rules={[{ required: true, message: '请输入生效周期' }]}><Input placeholder="例如 2026-04-01 ~ 2026-12-31" /></Form.Item>
-            <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={Object.entries(statusMap).map(([value, item]) => ({ value, label: item.text }))} /></Form.Item>
+            <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={profitRelationStatusOptions} /></Form.Item>
           </div>
         </Form>
       </Modal>

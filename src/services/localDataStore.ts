@@ -351,7 +351,7 @@ const buildInitialState = (): LocalState => {
       status: 1,
       shortName: '鲸洗直营',
       contractStatus: 'ACTIVE',
-      settlementCycle: '周结',
+      settlementCycle: 'WEEK',
       cityCoverage: '上海 / 苏州',
     }),
     ensureTimeFields({
@@ -369,7 +369,7 @@ const buildInitialState = (): LocalState => {
       status: 1,
       shortName: '嘉定联营',
       contractStatus: 'ACTIVE',
-      settlementCycle: '月结',
+      settlementCycle: 'MONTH',
       cityCoverage: '上海嘉定',
     }),
   ];

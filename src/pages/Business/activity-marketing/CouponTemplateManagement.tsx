@@ -3,8 +3,10 @@ import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space
 import { GiftOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
+import { couponTypeOptions, templateStatusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import api from '@/services/backendService';
 
 interface CouponTemplateRecord {
   id: string;
@@ -21,19 +23,8 @@ interface CouponTemplateRecord {
   updatedAt: string;
 }
 
-const typeMap = {
-  FULL_REDUCTION: { color: 'blue', text: '满减券' },
-  DIRECT: { color: 'purple', text: '立减券' },
-  DISCOUNT: { color: 'cyan', text: '折扣券' },
-  FREE_SERVICE: { color: 'gold', text: '免费服务券' },
-  DURATION: { color: 'green', text: '时长抵扣券' },
-};
-
-const statusMap = {
-  ENABLED: { color: 'success', text: '启用' },
-  PAUSED: { color: 'gold', text: '暂停' },
-  EXPIRED: { color: 'default', text: '失效' },
-};
+const typeMap = buildValueEnum(couponTypeOptions);
+const statusMap = buildValueEnum(templateStatusOptions);
 
 const initialTemplates: CouponTemplateRecord[] = [
   { id: 'ct1', templateCode: 'CPN-NIGHT-008', templateName: '夜洗 8 元满减券', couponType: 'FULL_REDUCTION', scope: '指定门店组', threshold: '满 39 元可用', validity: '领券后 7 天', issueRule: '夜洗活动自动发放', stackRule: '可与余额同用，不可叠同类券', stock: 520, status: 'ENABLED', updatedAt: '2026-04-18 09:16:00' },
@@ -88,7 +79,7 @@ const CouponTemplateManagement: React.FC = () => {
       dataIndex: 'couponType',
       width: 140,
       valueType: 'select',
-      valueEnum: buildValueEnum(Object.entries(typeMap).map(([value, item]) => ({ value, label: item.text }))),
+      valueEnum: typeMap,
       render: (_, record) => renderStatusTag(record.couponType, typeMap),
     },
     { title: '适用范围', dataIndex: 'scope', width: 160, search: false },
@@ -102,7 +93,7 @@ const CouponTemplateManagement: React.FC = () => {
       dataIndex: 'status',
       width: 120,
       valueType: 'select',
-      valueEnum: buildValueEnum(Object.entries(statusMap).map(([value, item]) => ({ value, label: item.text }))),
+      valueEnum: statusMap,
       render: (_, record) => renderStatusTag(record.status, statusMap),
     },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
@@ -126,11 +117,8 @@ const CouponTemplateManagement: React.FC = () => {
           <Button
             size="small"
             onClick={() => {
-              setRecords((prev) =>
-                prev.map((item) =>
-                  item.id === record.id ? { ...item, status: item.status === 'ENABLED' ? 'PAUSED' : 'ENABLED', updatedAt: new Date().toISOString() } : item
-                )
-              );
+              api.marketing.couponTemplates.edit({ id: Number(record.id), status: record.status === 'ENABLED' ? 'PAUSED' : 'ENABLED' } as Record<string, unknown>);
+              setRecords((prev) => prev.map((item) => item.id === record.id ? { ...item, status: item.status === 'ENABLED' ? 'PAUSED' : 'ENABLED', updatedAt: new Date().toISOString() } : item));
               message.success('券模板状态已更新');
             }}
           >
@@ -144,10 +132,12 @@ const CouponTemplateManagement: React.FC = () => {
   const handleSubmit = async () => {
     const values = await form.validateFields();
     if (editingRecord) {
+      await api.marketing.couponTemplates.edit({ ...values, id: Number(editingRecord.id) } as Record<string, unknown>);
       setRecords((prev) => prev.map((item) => (item.id === editingRecord.id ? { ...item, ...values, updatedAt: new Date().toISOString() } : item)));
       message.success('券模板已更新');
     } else {
-      setRecords((prev) => [{ ...values, id: `coupon-${Date.now()}`, updatedAt: new Date().toISOString() }, ...prev]);
+      await api.marketing.couponTemplates.add(values as unknown as Record<string, unknown>);
+      setRecords((prev) => [{ ...values, id: `${Date.now()}`, updatedAt: new Date().toISOString() }, ...prev]);
       message.success('券模板已创建');
     }
     closeModal();
@@ -198,6 +188,10 @@ const CouponTemplateManagement: React.FC = () => {
           setTypeFilter(undefined);
           setStatusFilter(undefined);
         }}
+        request={async (params) => {
+          const res = await api.marketing.couponTemplates.page(params);
+          return { data: res.data.records as any, success: true, total: res.data.total };
+        }}
       />
 
       <Modal title={editingRecord ? `编辑券模板 · ${editingRecord.templateName}` : '新建券模板'} open={modalVisible} onOk={handleSubmit} onCancel={closeModal} width={860}>
@@ -210,7 +204,7 @@ const CouponTemplateManagement: React.FC = () => {
               <Input />
             </Form.Item>
             <Form.Item name="couponType" label="券类型" rules={[{ required: true, message: '请选择券类型' }]}>
-              <Select options={Object.entries(typeMap).map(([value, item]) => ({ value, label: item.text }))} />
+              <Select options={couponTypeOptions} />
             </Form.Item>
             <Form.Item name="scope" label="作用范围">
               <Input />
@@ -225,7 +219,7 @@ const CouponTemplateManagement: React.FC = () => {
               <Input />
             </Form.Item>
             <Form.Item name="status" label="状态">
-              <Select options={Object.entries(statusMap).map(([value, item]) => ({ value, label: item.text }))} />
+              <Select options={templateStatusOptions} />
             </Form.Item>
             <Form.Item className="modal-span-2" name="issueRule" label="发放规则">
               <Input.TextArea rows={3} />
@@ -242,7 +236,7 @@ const CouponTemplateManagement: React.FC = () => {
           <Descriptions column={2} labelStyle={{ width: 100 }}>
             <Descriptions.Item label="编码">{detail.templateCode}</Descriptions.Item>
             <Descriptions.Item label="名称">{detail.templateName}</Descriptions.Item>
-            <Descriptions.Item label="券类型">{typeMap[detail.couponType as keyof typeof typeMap]?.text || detail.couponType}</Descriptions.Item>
+            <Descriptions.Item label="券类型">{typeMap[detail.couponType]?.text || detail.couponType}</Descriptions.Item>
             <Descriptions.Item label="作用范围">{detail.scope}</Descriptions.Item>
             <Descriptions.Item label="使用门槛">{detail.threshold}</Descriptions.Item>
             <Descriptions.Item label="有效期">{detail.validity}</Descriptions.Item>

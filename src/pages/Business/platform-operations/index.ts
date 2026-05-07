@@ -1,0 +1,11 @@
+export { default as OperationsSupportManagement } from './OperationsSupportManagement';
+export { default as OperationsConfigManagement } from './OperationsConfigManagement';
+export { default as PlatformBaseManagement } from './PlatformBaseManagement';
+export { default as PaymentOpsManagement } from './PaymentOpsManagement';
+export { default as DeviceOpsManagement } from './DeviceOpsManagement';
+export { default as OperationsExtensionManagement } from './OperationsExtensionManagement';
+export { default as FileRelationManagement } from './FileRelationManagement';
+export { default as ApprovalFlowManagement } from './ApprovalFlowManagement';
+export { default as RiskScheduleAlarmManagement } from './RiskScheduleAlarmManagement';
+export { default as MiniProgramOpsManagement } from './MiniProgramOpsManagement';
+export { default as OpenApiManagement } from './OpenApiManagement';

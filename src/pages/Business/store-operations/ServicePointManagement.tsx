@@ -9,6 +9,7 @@ import {
   pointAbilityOptions,
   pointStatusOptions,
   pointTypeOptions,
+  maintainStatusOptions,
   statusOptions,
 } from '@/constants/businessCatalog';
 import api from '@/services/backendService';
@@ -100,7 +101,10 @@ const ServicePointManagement: React.FC = () => {
       },
       { title: '能力标签', dataIndex: 'abilityTags', width: 240, search: false, render: (_, record) => renderOptionTags(record.abilityTags, pointAbilityOptions) },
       { title: '二维码', dataIndex: 'qrCode', width: 160, search: false, render: (_, record) => record.qrCode || '-' },
+      { title: '二维码状态', dataIndex: 'qrStatus', width: 120, search: false, render: (_, record) => renderStatusTag(record.qrStatus, buildValueEnum(statusOptions) as any) },
       { title: '设备数', dataIndex: 'deviceCount', width: 90, search: false, render: (_, record) => record.deviceCount ?? 0 },
+      { title: '绑定设备', dataIndex: 'bindDeviceCodes', width: 180, search: false, render: (_, record) => record.bindDeviceCodes || '-' },
+      { title: '维护状态', dataIndex: 'maintainStatus', width: 120, search: false, render: (_, record) => renderStatusTag(record.maintainStatus, buildValueEnum(maintainStatusOptions) as any) },
       { title: '排队提示', dataIndex: 'queueEnabled', width: 100, search: false, render: (_, record) => renderBooleanTag(record.queueEnabled, '开启', '关闭') },
       { title: '排序', dataIndex: 'sortNo', width: 100, search: false, render: (_, record) => record.sortNo ?? 0 },
       {
@@ -111,7 +115,7 @@ const ServicePointManagement: React.FC = () => {
         valueEnum: buildValueEnum(pointStatusOptions),
         render: (_, record) => renderStatusTag(record.status, buildValueEnum(pointStatusOptions) as any),
       },
-      { title: '更新时间', dataIndex: 'updateTime', width: 180, search: false, render: (_, record) => formatDateTime(record.updateTime) },
+      { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt || record.updateTime) },
       {
         title: '操作',
         width: 160,
@@ -287,11 +291,29 @@ const ServicePointManagement: React.FC = () => {
             <Form.Item name="qrCode" label="二维码标识">
               <Input />
             </Form.Item>
+            <Form.Item name="qrStatus" label="二维码状态">
+              <Select options={statusOptions} />
+            </Form.Item>
+            <Form.Item className="modal-span-2" name="bindDeviceCodes" label="绑定设备编号">
+              <Input placeholder="多个设备编号可用逗号分隔" />
+            </Form.Item>
             <Form.Item name="capacity" label="可同时服务车辆数">
               <Input type="number" />
             </Form.Item>
+            <Form.Item name="maintainStatus" label="维护状态">
+              <Select options={maintainStatusOptions} />
+            </Form.Item>
+            <Form.Item name="lastMaintainAt" label="最近维护时间">
+              <Input placeholder="例如 2026-04-18 09:00:00" />
+            </Form.Item>
+            <Form.Item name="locationDesc" label="点位位置描述">
+              <Input placeholder="例如 B 区 03 号工位" />
+            </Form.Item>
             <Form.Item name="queueEnabled" label="是否开启排队提示">
               <Select options={statusOptions.map((item) => ({ value: item.value, label: item.value === 1 ? '开启' : '关闭' }))} />
+            </Form.Item>
+            <Form.Item name="queueRule" label="排队规则">
+              <Input placeholder="例如 最多排队 3 人，超时 10 分钟释放" />
             </Form.Item>
             <Form.Item name="temporaryClosedUntil" label="临时关闭截止时间">
               <Input placeholder="例如 2026-04-18 20:00" />

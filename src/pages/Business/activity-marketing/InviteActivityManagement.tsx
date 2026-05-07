@@ -3,8 +3,10 @@ import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space
 import { GiftOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
+import { activityRewardStatusOptions, activityStatusOptions, inviteRecordStatusOptions, rewardTypeOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import api from '@/services/backendService';
 
 interface InviteActivityRecord {
   id: string;
@@ -12,7 +14,13 @@ interface InviteActivityRecord {
   activityName: string;
   qualifyRule: string;
   inviterReward: string;
+  inviterRewardType: string;
   inviteeReward: string;
+  inviteeRewardType: string;
+  inviteCount: number;
+  qualifiedCount: number;
+  rewardStatus: string;
+  recordStatus: string;
   antiFraud: string;
   recoveryRule: string;
   dailyLimit: string;
@@ -20,15 +28,13 @@ interface InviteActivityRecord {
   updatedAt: string;
 }
 
-const statusMap = {
-  DRAFT: { color: 'gold', text: '草稿' },
-  RUNNING: { color: 'success', text: '进行中' },
-  PAUSED: { color: 'default', text: '暂停' },
-};
+const statusMap = buildValueEnum(activityStatusOptions);
+const rewardStatusMap = buildValueEnum(activityRewardStatusOptions);
+const inviteRecordStatusMap = buildValueEnum(inviteRecordStatusOptions);
 
 const initialActivities: InviteActivityRecord[] = [
-  { id: 'i1', activityCode: 'INV-001', activityName: '邀请好友首充得奖励', qualifyRule: '好友首充满 50 元', inviterReward: '10 元余额', inviteeReward: '5 元洗车券', antiFraud: '同设备 / 同手机号 / 同支付账户限制', recoveryRule: '首充退款后自动回收奖励', dailyLimit: '10 人 / 天', status: 'DRAFT', updatedAt: '2026-04-18 09:05:00' },
-  { id: 'i2', activityCode: 'INV-003', activityName: '三人阶梯邀请奖励', qualifyRule: '累计 3 人达标', inviterReward: '30 元余额', inviteeReward: '新人礼券包', antiFraud: '黑名单 / 退款回收 / 人工审核', recoveryRule: '作弊判定后批量扣回', dailyLimit: '20 人 / 天', status: 'PAUSED', updatedAt: '2026-04-16 18:10:00' },
+  { id: 'i1', activityCode: 'INV-001', activityName: '邀请好友首充得奖励', qualifyRule: '好友首充满 50 元', inviterReward: '10 元余额', inviterRewardType: 'BALANCE', inviteeReward: '5 元洗车券', inviteeRewardType: 'COUPON', inviteCount: 86, qualifiedCount: 24, rewardStatus: 'PENDING', recordStatus: 'QUALIFIED', antiFraud: '同设备 / 同手机号 / 同支付账户限制', recoveryRule: '首充退款后自动回收奖励', dailyLimit: '10 人 / 天', status: 'DRAFT', updatedAt: '2026-04-18 09:05:00' },
+  { id: 'i2', activityCode: 'INV-003', activityName: '三人阶梯邀请奖励', qualifyRule: '累计 3 人达标', inviterReward: '30 元余额', inviterRewardType: 'BALANCE', inviteeReward: '新人礼券包', inviteeRewardType: 'COUPON', inviteCount: 132, qualifiedCount: 48, rewardStatus: 'ISSUED', recordStatus: 'REWARDED', antiFraud: '黑名单 / 退款回收 / 人工审核', recoveryRule: '作弊判定后批量扣回', dailyLimit: '20 人 / 天', status: 'PAUSED', updatedAt: '2026-04-16 18:10:00' },
 ];
 
 const InviteActivityManagement: React.FC = () => {
@@ -74,10 +80,14 @@ const InviteActivityManagement: React.FC = () => {
     { title: '达标规则', dataIndex: 'qualifyRule', width: 180, search: false },
     { title: '邀请人奖励', dataIndex: 'inviterReward', width: 160, search: false },
     { title: '被邀请人奖励', dataIndex: 'inviteeReward', width: 160, search: false },
+    { title: '邀请数', dataIndex: 'inviteCount', width: 100, search: false },
+    { title: '达标数', dataIndex: 'qualifiedCount', width: 100, search: false },
+    { title: '记录状态', dataIndex: 'recordStatus', width: 120, valueType: 'select', valueEnum: inviteRecordStatusMap, render: (_, record) => renderStatusTag(record.recordStatus, inviteRecordStatusMap) },
+    { title: '奖励状态', dataIndex: 'rewardStatus', width: 120, valueType: 'select', valueEnum: rewardStatusMap, render: (_, record) => renderStatusTag(record.rewardStatus, rewardStatusMap) },
     { title: '防刷规则', dataIndex: 'antiFraud', width: 220, search: false },
     { title: '奖励回收', dataIndex: 'recoveryRule', width: 180, search: false },
     { title: '每日上限', dataIndex: 'dailyLimit', width: 120, search: false },
-    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: buildValueEnum(Object.entries(statusMap).map(([value, item]) => ({ value, label: item.text }))), render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
     {
       title: '操作',
@@ -90,9 +100,8 @@ const InviteActivityManagement: React.FC = () => {
           <Button
             size="small"
             onClick={() => {
-              setRecords((prev) =>
-                prev.map((item) => item.id === record.id ? { ...item, status: item.status === 'RUNNING' ? 'PAUSED' : 'RUNNING', updatedAt: new Date().toISOString() } : item)
-              );
+              api.marketing.inviteActivities.edit({ id: Number(record.id), status: record.status === 'RUNNING' ? 'PAUSED' : 'RUNNING' } as Record<string, unknown>);
+              setRecords((prev) => prev.map((item) => item.id === record.id ? { ...item, status: item.status === 'RUNNING' ? 'PAUSED' : 'RUNNING', updatedAt: new Date().toISOString() } : item));
               message.success('邀请活动状态已更新');
             }}
           >
@@ -106,10 +115,12 @@ const InviteActivityManagement: React.FC = () => {
   const handleSubmit = async () => {
     const values = await form.validateFields();
     if (editingRecord) {
+      await api.marketing.inviteActivities.edit({ ...values, id: Number(editingRecord.id) } as Record<string, unknown>);
       setRecords((prev) => prev.map((item) => (item.id === editingRecord.id ? { ...item, ...values, updatedAt: new Date().toISOString() } : item)));
       message.success('邀请活动已更新');
     } else {
-      setRecords((prev) => [{ ...values, id: `invite-${Date.now()}`, updatedAt: new Date().toISOString() }, ...prev]);
+      await api.marketing.inviteActivities.add(values as unknown as Record<string, unknown>);
+      setRecords((prev) => [{ ...values, id: `${Date.now()}`, updatedAt: new Date().toISOString() }, ...prev]);
       message.success('邀请活动已创建');
     }
     closeModal();
@@ -148,6 +159,10 @@ const InviteActivityManagement: React.FC = () => {
           setKeyword('');
           setStatusFilter(undefined);
         }}
+        request={async (params) => {
+          const res = await api.marketing.inviteActivities.page(params);
+          return { data: res.data.records as any, success: true, total: res.data.total };
+        }}
       />
 
       <Modal title={editingRecord ? `编辑邀请活动 · ${editingRecord.activityName}` : '新建邀请活动'} open={modalVisible} onOk={handleSubmit} onCancel={closeModal} width={860}>
@@ -159,8 +174,13 @@ const InviteActivityManagement: React.FC = () => {
             <Form.Item name="dailyLimit" label="每日上限"><Input /></Form.Item>
             <Form.Item name="inviterReward" label="邀请人奖励"><Input /></Form.Item>
             <Form.Item name="inviteeReward" label="被邀请人奖励"><Input /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={Object.entries(statusMap).map(([value, item]) => ({ value, label: item.text }))} /></Form.Item>
-            <div />
+            <Form.Item name="inviterRewardType" label="邀请人奖励类型"><Select options={rewardTypeOptions} /></Form.Item>
+            <Form.Item name="inviteeRewardType" label="被邀请人奖励类型"><Select options={rewardTypeOptions} /></Form.Item>
+            <Form.Item name="inviteCount" label="邀请数"><Input /></Form.Item>
+            <Form.Item name="qualifiedCount" label="达标数"><Input /></Form.Item>
+            <Form.Item name="recordStatus" label="记录状态"><Select options={inviteRecordStatusOptions} /></Form.Item>
+            <Form.Item name="rewardStatus" label="奖励状态"><Select options={activityRewardStatusOptions} /></Form.Item>
+            <Form.Item name="status" label="状态"><Select options={activityStatusOptions} /></Form.Item>
             <Form.Item className="modal-span-2" name="antiFraud" label="防刷规则"><Input.TextArea rows={3} /></Form.Item>
             <Form.Item className="modal-span-2" name="recoveryRule" label="奖励回收规则"><Input.TextArea rows={3} /></Form.Item>
           </div>
@@ -176,6 +196,10 @@ const InviteActivityManagement: React.FC = () => {
             <Descriptions.Item label="邀请人奖励">{detail.inviterReward}</Descriptions.Item>
             <Descriptions.Item label="被邀请人奖励">{detail.inviteeReward}</Descriptions.Item>
             <Descriptions.Item label="每日上限">{detail.dailyLimit}</Descriptions.Item>
+            <Descriptions.Item label="邀请数">{detail.inviteCount}</Descriptions.Item>
+            <Descriptions.Item label="达标数">{detail.qualifiedCount}</Descriptions.Item>
+            <Descriptions.Item label="记录状态">{inviteRecordStatusMap[detail.recordStatus]?.text || detail.recordStatus}</Descriptions.Item>
+            <Descriptions.Item label="奖励状态">{rewardStatusMap[detail.rewardStatus]?.text || detail.rewardStatus}</Descriptions.Item>
             <Descriptions.Item label="防刷规则">{detail.antiFraud}</Descriptions.Item>
             <Descriptions.Item label="奖励回收">{detail.recoveryRule}</Descriptions.Item>
             <Descriptions.Item label="更新时间">{formatDateTime(detail.updatedAt)}</Descriptions.Item>

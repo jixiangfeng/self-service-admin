@@ -3,11 +3,12 @@ import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space
 import { GiftOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
+import { activityStatusOptions, costBearerOptions, couponTypeOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 
-type ActivityStatus = 'DRAFT' | 'RUNNING' | 'PAUSED' | 'ENDED';
+type ActivityStatus = 'DRAFT' | 'NOT_STARTED' | 'RUNNING' | 'PAUSED' | 'ENDED' | 'DISABLED';
 type ActivityTab = 'coupon' | 'invite' | 'recharge';
 
 interface CouponActivity {
@@ -48,16 +49,13 @@ interface RechargeActivity {
   updatedAt: string;
 }
 
-const statusMap = {
-  DRAFT: { color: 'default', text: '草稿' },
-  RUNNING: { color: 'success', text: '进行中' },
-  PAUSED: { color: 'gold', text: '已暂停' },
-  ENDED: { color: 'default', text: '已结束' },
-};
+const statusMap = buildValueEnum(activityStatusOptions);
+const couponTypeMap = buildValueEnum(couponTypeOptions);
+const costBearerMap = buildValueEnum(costBearerOptions);
 
 const initialCouponActivities: CouponActivity[] = [
-  { id: 'ca1', activityCode: 'MKT-CPN-001', activityName: '夜洗券包发放', couponType: '满减券', scope: '指定门店组', triggerRule: '晚 20:00 后下发', grantCount: 520, budget: 6800, status: 'RUNNING', updatedAt: '2026-04-18 09:20:00' },
-  { id: 'ca2', activityCode: 'MKT-CPN-002', activityName: '新人首单礼', couponType: '立减券', scope: '平台', triggerRule: '注册后自动领券', grantCount: 1600, budget: 4200, status: 'RUNNING', updatedAt: '2026-04-17 20:12:00' },
+  { id: 'ca1', activityCode: 'MKT-CPN-001', activityName: '夜洗券包发放', couponType: 'FULL_REDUCTION', scope: '指定门店组', triggerRule: '晚 20:00 后下发', grantCount: 520, budget: 6800, status: 'RUNNING', updatedAt: '2026-04-18 09:20:00' },
+  { id: 'ca2', activityCode: 'MKT-CPN-002', activityName: '新人首单礼', couponType: 'DIRECT', scope: '平台', triggerRule: '注册后自动领券', grantCount: 1600, budget: 4200, status: 'RUNNING', updatedAt: '2026-04-17 20:12:00' },
 ];
 
 const initialInviteActivities: InviteActivity[] = [
@@ -66,8 +64,8 @@ const initialInviteActivities: InviteActivity[] = [
 ];
 
 const initialRechargeActivities: RechargeActivity[] = [
-  { id: 'ra1', activityCode: 'MKT-RCG-001', activityName: '首充礼包', rechargeRule: '首次充值满 50 元', rewardRule: '赠 10 元余额 + 5 元券', scope: '平台', costOwner: '平台承担', status: 'DRAFT', updatedAt: '2026-04-18 09:00:00' },
-  { id: 'ra2', activityCode: 'MKT-RCG-002', activityName: '夜洗充值返利', rechargeRule: '充值 100 元', rewardRule: '赠 15 元余额', scope: '指定门店', costOwner: '门店承担 70%', status: 'PAUSED', updatedAt: '2026-04-16 21:10:00' },
+  { id: 'ra1', activityCode: 'MKT-RCG-001', activityName: '首充礼包', rechargeRule: '首次充值满 50 元', rewardRule: '赠 10 元余额 + 5 元券', scope: '平台', costOwner: 'PLATFORM', status: 'DRAFT', updatedAt: '2026-04-18 09:00:00' },
+  { id: 'ra2', activityCode: 'MKT-RCG-002', activityName: '夜洗充值返利', rechargeRule: '充值 100 元', rewardRule: '赠 15 元余额', scope: '指定门店', costOwner: 'STORE', status: 'PAUSED', updatedAt: '2026-04-16 21:10:00' },
 ];
 
 const MarketingManagement: React.FC = () => {
@@ -147,12 +145,12 @@ const MarketingManagement: React.FC = () => {
       ),
     },
     { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '活动名称 / 编码 / 券类型 / 范围' } },
-    { title: '券类型', dataIndex: 'couponType', width: 120, search: false },
+    { title: '券类型', dataIndex: 'couponType', width: 120, valueType: 'select', valueEnum: couponTypeMap, render: (_, record) => renderStatusTag(record.couponType, couponTypeMap) },
     { title: '范围', dataIndex: 'scope', width: 180, search: false },
     { title: '触发规则', dataIndex: 'triggerRule', width: 220, search: false },
     { title: '发券量', dataIndex: 'grantCount', width: 120, search: false },
     { title: '预算', dataIndex: 'budget', width: 120, search: false, render: (_, record) => formatAmount(record.budget) },
-    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: buildValueEnum(Object.entries(statusMap).map(([value, item]) => ({ value, label: item.text }))), render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
     {
       title: '操作',
@@ -188,7 +186,7 @@ const MarketingManagement: React.FC = () => {
     { title: '邀请人奖励', dataIndex: 'inviterReward', width: 160, search: false },
     { title: '被邀请人奖励', dataIndex: 'inviteeReward', width: 160, search: false },
     { title: '上限规则', dataIndex: 'dailyLimit', width: 140, search: false },
-    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: buildValueEnum(Object.entries(statusMap).map(([value, item]) => ({ value, label: item.text }))), render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
     {
       title: '操作',
@@ -223,8 +221,8 @@ const MarketingManagement: React.FC = () => {
     { title: '充值规则', dataIndex: 'rechargeRule', width: 180, search: false },
     { title: '奖励规则', dataIndex: 'rewardRule', width: 220, search: false },
     { title: '作用范围', dataIndex: 'scope', width: 140, search: false },
-    { title: '成本承担', dataIndex: 'costOwner', width: 160, search: false },
-    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: buildValueEnum(Object.entries(statusMap).map(([value, item]) => ({ value, label: item.text }))), render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '成本承担', dataIndex: 'costOwner', width: 160, valueType: 'select', valueEnum: costBearerMap, render: (_, record) => renderStatusTag(record.costOwner, costBearerMap) },
+    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
     {
       title: '操作',
@@ -376,12 +374,12 @@ const MarketingManagement: React.FC = () => {
             <div className="modal-grid">
               <Form.Item name="activityCode" label="活动编码" rules={[{ required: true, message: '请输入活动编码' }]}><Input /></Form.Item>
               <Form.Item name="activityName" label="活动名称" rules={[{ required: true, message: '请输入活动名称' }]}><Input /></Form.Item>
-              <Form.Item name="couponType" label="券类型"><Input /></Form.Item>
+              <Form.Item name="couponType" label="券类型"><Select options={couponTypeOptions} /></Form.Item>
               <Form.Item name="scope" label="作用范围"><Input /></Form.Item>
               <Form.Item className="modal-span-2" name="triggerRule" label="触发规则"><Input /></Form.Item>
               <Form.Item name="grantCount" label="发券量"><Input /></Form.Item>
               <Form.Item name="budget" label="预算"><Input /></Form.Item>
-              <Form.Item name="status" label="状态"><Select options={Object.entries(statusMap).map(([value, item]) => ({ value, label: item.text }))} /></Form.Item>
+              <Form.Item name="status" label="状态"><Select options={activityStatusOptions} /></Form.Item>
             </div>
           ) : null}
           {modalType === 'invite' ? (
@@ -393,7 +391,7 @@ const MarketingManagement: React.FC = () => {
               <Form.Item name="inviterReward" label="邀请人奖励"><Input /></Form.Item>
               <Form.Item name="inviteeReward" label="被邀请人奖励"><Input /></Form.Item>
               <Form.Item className="modal-span-2" name="antiFraud" label="防刷规则"><Input.TextArea rows={3} /></Form.Item>
-              <Form.Item name="status" label="状态"><Select options={Object.entries(statusMap).map(([value, item]) => ({ value, label: item.text }))} /></Form.Item>
+              <Form.Item name="status" label="状态"><Select options={activityStatusOptions} /></Form.Item>
             </div>
           ) : null}
           {modalType === 'recharge' ? (
@@ -402,8 +400,8 @@ const MarketingManagement: React.FC = () => {
               <Form.Item name="activityName" label="活动名称" rules={[{ required: true, message: '请输入活动名称' }]}><Input /></Form.Item>
               <Form.Item name="rechargeRule" label="充值规则"><Input /></Form.Item>
               <Form.Item name="scope" label="作用范围"><Input /></Form.Item>
-              <Form.Item name="costOwner" label="成本承担"><Input /></Form.Item>
-              <Form.Item name="status" label="状态"><Select options={Object.entries(statusMap).map(([value, item]) => ({ value, label: item.text }))} /></Form.Item>
+              <Form.Item name="costOwner" label="成本承担"><Select options={costBearerOptions} /></Form.Item>
+              <Form.Item name="status" label="状态"><Select options={activityStatusOptions} /></Form.Item>
               <Form.Item className="modal-span-2" name="rewardRule" label="奖励规则"><Input.TextArea rows={3} /></Form.Item>
             </div>
           ) : null}

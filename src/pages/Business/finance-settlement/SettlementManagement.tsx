@@ -3,8 +3,16 @@ import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space
 import { AccountBookOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
+import {
+  costBearerOptions,
+  payoutStatusOptions,
+  reconciliationStatusOptions,
+  settlementDetailTypeOptions,
+  settlementStatusOptions,
+  settlementSubjectTypeOptions,
+} from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
-import { containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 
 interface SettlementRecord {
@@ -33,18 +41,48 @@ interface ProfitShareRecord {
   updatedAt: string;
 }
 
-const settlementStatusMap = {
-  PENDING: { color: 'gold', text: '待生成' },
-  WAIT_CONFIRM: { color: 'processing', text: '待确认' },
-  SETTLED: { color: 'success', text: '已结算' },
-  REJECTED: { color: 'default', text: '已驳回' },
-};
+interface SettlementDetailRecord {
+  id: string;
+  billNo: string;
+  detailType: string;
+  sourceNo: string;
+  storeName: string;
+  incomeAmount: number;
+  refundAmount: number;
+  costAmount: number;
+  settlementAmount: number;
+  remark: string;
+}
 
-const payoutStatusMap = {
-  UNPAID: { color: 'gold', text: '待打款' },
-  PAYING: { color: 'processing', text: '打款中' },
-  PAID: { color: 'success', text: '已打款' },
-};
+interface PayoutRecord {
+  id: string;
+  payoutNo: string;
+  billNo: string;
+  accountName: string;
+  bankName: string;
+  amount: number;
+  status: string;
+  paidAt: string;
+  failureReason?: string;
+}
+
+interface ReconciliationRecord {
+  id: string;
+  reconcileNo: string;
+  billNo: string;
+  channelAmount: number;
+  systemAmount: number;
+  diffAmount: number;
+  status: string;
+  owner: string;
+  updatedAt: string;
+}
+
+const settlementStatusMap = buildValueEnum(settlementStatusOptions);
+const payoutStatusMap = buildValueEnum(payoutStatusOptions);
+const subjectTypeMap = buildValueEnum(settlementSubjectTypeOptions);
+const detailTypeMap = buildValueEnum(settlementDetailTypeOptions);
+const reconciliationStatusMap = buildValueEnum(reconciliationStatusOptions);
 
 const initialSettlementRecords: SettlementRecord[] = [
   { id: 's1', billNo: 'SB202604W001', billType: 'MERCHANT', subjectName: '鲸洗直营运营中心', cycle: '2026-04-13 至 2026-04-19', incomeAmount: 1850, refundAmount: 120, costAmount: 80, settlementAmount: 1650, payoutStatus: 'UNPAID', status: 'WAIT_CONFIRM', updatedAt: '2026-04-18 09:00:00' },
@@ -56,9 +94,28 @@ const profitShareRecords: ProfitShareRecord[] = [
   { id: 'p2', storeName: '嘉定联营门店', partnerName: '联营合伙人-陈禾', baseAmount: 920, ratio: '30%', actualAmount: 276, status: 'WAIT_CONFIRM', updatedAt: '2026-04-18 09:12:00' },
 ];
 
+const settlementDetails: SettlementDetailRecord[] = [
+  { id: 'sd1', billNo: 'SB202604W001', detailType: 'ORDER_INCOME', sourceNo: 'SO202604170101', storeName: '虹桥旗舰洗车站', incomeAmount: 29, refundAmount: 0, costAmount: 0, settlementAmount: 29, remark: '快速冲洗套餐订单收入' },
+  { id: 'sd2', billNo: 'SB202604W001', detailType: 'REFUND_DEDUCT', sourceNo: 'RF202604180011', storeName: '徐汇夜洗门店', incomeAmount: 0, refundAmount: 12, costAmount: 0, settlementAmount: -12, remark: '设备中断退款冲减' },
+  { id: 'sd3', billNo: 'SB202604W007', detailType: 'ACTIVITY_COST', sourceNo: 'MKT-RCG-002', storeName: '徐汇夜洗门店', incomeAmount: 0, refundAmount: 0, costAmount: 36, settlementAmount: -36, remark: '夜洗充值返利成本分摊' },
+];
+
+const payoutRecords: PayoutRecord[] = [
+  { id: 'po1', payoutNo: 'PO202604180001', billNo: 'SB202604W001', accountName: '鲸洗直营运营中心', bankName: '招商银行', amount: 1650, status: 'UNPAID', paidAt: '-' },
+  { id: 'po2', payoutNo: 'PO202604170007', billNo: 'SB202604W006', accountName: '嘉定联营服务商', bankName: '建设银行', amount: 920, status: 'PAID', paidAt: '2026-04-17 18:40:00' },
+];
+
+const reconciliationRecords: ReconciliationRecord[] = [
+  { id: 'rr1', reconcileNo: 'RCN202604180001', billNo: 'SB202604W001', channelAmount: 1850, systemAmount: 1850, diffAmount: 0, status: 'MATCHED', owner: '财务-沈黎', updatedAt: '2026-04-18 10:12:00' },
+  { id: 'rr2', reconcileNo: 'RCN202604180002', billNo: 'SB202604W007', channelAmount: 724, systemAmount: 760, diffAmount: -36, status: 'DIFF', owner: '财务-沈黎', updatedAt: '2026-04-18 10:18:00' },
+];
+
 const SettlementManagement: React.FC = () => {
   const [billKeyword, setBillKeyword] = useState('');
   const [shareKeyword, setShareKeyword] = useState('');
+  const [detailKeyword, setDetailKeyword] = useState('');
+  const [payoutKeyword, setPayoutKeyword] = useState('');
+  const [reconcileKeyword, setReconcileKeyword] = useState('');
   const [bills, setBills] = useState(initialSettlementRecords);
   const [detail, setDetail] = useState<SettlementRecord | null>(null);
   const [generateVisible, setGenerateVisible] = useState(false);
@@ -72,19 +129,22 @@ const SettlementManagement: React.FC = () => {
 
   const filteredBills = useMemo(() => bills.filter((item) => containsKeyword(billKeyword, [item.billNo, item.subjectName, item.cycle])), [billKeyword, bills]);
   const filteredShares = useMemo(() => profitShareRecords.filter((item) => containsKeyword(shareKeyword, [item.storeName, item.partnerName, item.ratio])), [shareKeyword]);
+  const filteredDetails = useMemo(() => settlementDetails.filter((item) => containsKeyword(detailKeyword, [item.billNo, item.sourceNo, item.storeName, item.remark])), [detailKeyword]);
+  const filteredPayouts = useMemo(() => payoutRecords.filter((item) => containsKeyword(payoutKeyword, [item.payoutNo, item.billNo, item.accountName, item.bankName, item.failureReason])), [payoutKeyword]);
+  const filteredReconciliations = useMemo(() => reconciliationRecords.filter((item) => containsKeyword(reconcileKeyword, [item.reconcileNo, item.billNo, item.owner])), [reconcileKeyword]);
 
   const billColumns: ProColumns<SettlementRecord>[] = [
     { title: '结算单号', dataIndex: 'billNo', width: 180, hideInSearch: true },
     { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '结算单号 / 主体 / 周期' } },
-    { title: '结算层级', dataIndex: 'billType', width: 120, search: false, render: (_, record) => renderStatusTag(record.billType, { MERCHANT: { color: 'blue', text: '商户' }, STORE: { color: 'purple', text: '门店' }, PLATFORM: { color: 'cyan', text: '平台' } }) },
+    { title: '结算层级', dataIndex: 'billType', width: 120, valueType: 'select', valueEnum: subjectTypeMap, render: (_, record) => renderStatusTag(record.billType, subjectTypeMap) },
     { title: '结算主体', dataIndex: 'subjectName', width: 180, search: false },
     { title: '周期', dataIndex: 'cycle', width: 220, search: false },
     { title: '收入金额', dataIndex: 'incomeAmount', width: 120, search: false, render: (_, record) => formatAmount(record.incomeAmount) },
     { title: '退款冲减', dataIndex: 'refundAmount', width: 120, search: false, render: (_, record) => formatAmount(record.refundAmount) },
     { title: '活动成本', dataIndex: 'costAmount', width: 120, search: false, render: (_, record) => formatAmount(record.costAmount) },
     { title: '应结金额', dataIndex: 'settlementAmount', width: 120, search: false, render: (_, record) => formatAmount(record.settlementAmount) },
-    { title: '打款状态', dataIndex: 'payoutStatus', width: 120, search: false, render: (_, record) => renderStatusTag(record.payoutStatus, payoutStatusMap) },
-    { title: '状态', dataIndex: 'status', width: 120, search: false, render: (_, record) => renderStatusTag(record.status, settlementStatusMap) },
+    { title: '打款状态', dataIndex: 'payoutStatus', width: 120, valueType: 'select', valueEnum: payoutStatusMap, render: (_, record) => renderStatusTag(record.payoutStatus, payoutStatusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: settlementStatusMap, render: (_, record) => renderStatusTag(record.status, settlementStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
     {
       title: '操作',
@@ -128,6 +188,43 @@ const SettlementManagement: React.FC = () => {
         </Space>
       ),
     },
+  ];
+
+  const detailColumns: ProColumns<SettlementDetailRecord>[] = [
+    { title: '结算单号', dataIndex: 'billNo', width: 180, hideInSearch: true },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '结算单 / 来源单 / 门店 / 备注' } },
+    { title: '明细类型', dataIndex: 'detailType', width: 130, valueType: 'select', valueEnum: detailTypeMap, render: (_, record) => renderStatusTag(record.detailType, detailTypeMap) },
+    { title: '来源单号', dataIndex: 'sourceNo', width: 180, search: false },
+    { title: '门店', dataIndex: 'storeName', width: 180, search: false },
+    { title: '收入', dataIndex: 'incomeAmount', width: 110, search: false, render: (_, record) => formatAmount(record.incomeAmount) },
+    { title: '退款', dataIndex: 'refundAmount', width: 110, search: false, render: (_, record) => formatAmount(record.refundAmount) },
+    { title: '成本', dataIndex: 'costAmount', width: 110, search: false, render: (_, record) => formatAmount(record.costAmount) },
+    { title: '应结', dataIndex: 'settlementAmount', width: 110, search: false, render: (_, record) => formatAmount(record.settlementAmount) },
+    { title: '备注', dataIndex: 'remark', width: 240, search: false },
+  ];
+
+  const payoutColumns: ProColumns<PayoutRecord>[] = [
+    { title: '打款流水号', dataIndex: 'payoutNo', width: 180, hideInSearch: true },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '打款流水 / 结算单 / 账户 / 银行' } },
+    { title: '结算单号', dataIndex: 'billNo', width: 180, search: false },
+    { title: '收款户名', dataIndex: 'accountName', width: 180, search: false },
+    { title: '开户行', dataIndex: 'bankName', width: 160, search: false },
+    { title: '打款金额', dataIndex: 'amount', width: 120, search: false, render: (_, record) => formatAmount(record.amount) },
+    { title: '打款状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: payoutStatusMap, render: (_, record) => renderStatusTag(record.status, payoutStatusMap) },
+    { title: '打款时间', dataIndex: 'paidAt', width: 180, search: false, render: (_, record) => formatDateTime(record.paidAt) },
+    { title: '失败原因', dataIndex: 'failureReason', width: 180, search: false },
+  ];
+
+  const reconciliationColumns: ProColumns<ReconciliationRecord>[] = [
+    { title: '对账单号', dataIndex: 'reconcileNo', width: 180, hideInSearch: true },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '对账单 / 结算单 / 负责人' } },
+    { title: '结算单号', dataIndex: 'billNo', width: 180, search: false },
+    { title: '渠道金额', dataIndex: 'channelAmount', width: 120, search: false, render: (_, record) => formatAmount(record.channelAmount) },
+    { title: '系统金额', dataIndex: 'systemAmount', width: 120, search: false, render: (_, record) => formatAmount(record.systemAmount) },
+    { title: '差异金额', dataIndex: 'diffAmount', width: 120, search: false, render: (_, record) => formatAmount(record.diffAmount) },
+    { title: '对账状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: reconciliationStatusMap, render: (_, record) => renderStatusTag(record.status, reconciliationStatusMap) },
+    { title: '负责人', dataIndex: 'owner', width: 120, search: false },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
   ];
 
   const handleGenerate = async () => {
@@ -200,7 +297,7 @@ const SettlementManagement: React.FC = () => {
                   <Button
                     key="cost"
                     onClick={() => {
-                      costForm.setFieldsValue({ couponCost: '200', rechargeCost: '360', inviteCost: '120', owner: '平台承担 30%，门店承担 70%' });
+                      costForm.setFieldsValue({ couponCost: '200', rechargeCost: '360', inviteCost: '120', owner: 'RATIO' });
                       setCostVisible(true);
                     }}
                   >
@@ -210,6 +307,60 @@ const SettlementManagement: React.FC = () => {
                 ]}
                 onSubmit={(values) => setBillKeyword(String(values.keyword || ''))}
                 onReset={() => setBillKeyword('')}
+              />
+            ),
+          },
+          {
+            key: 'detail',
+            label: '结算明细',
+            children: (
+              <ProTable<SettlementDetailRecord>
+                cardBordered
+                rowKey="id"
+                columns={detailColumns}
+                dataSource={filteredDetails}
+                search={{ labelWidth: 'auto', defaultCollapsed: false }}
+                pagination={{ pageSize: 8 }}
+                scroll={{ x: 1600 }}
+                toolBarRender={() => [<Button key="export" onClick={() => { setHelperTitle('导出结算明细'); setHelperDesc('已创建结算明细导出任务。'); setHelperVisible(true); }}>导出明细</Button>]}
+                onSubmit={(values) => setDetailKeyword(String(values.keyword || ''))}
+                onReset={() => setDetailKeyword('')}
+              />
+            ),
+          },
+          {
+            key: 'payout',
+            label: '打款流水',
+            children: (
+              <ProTable<PayoutRecord>
+                cardBordered
+                rowKey="id"
+                columns={payoutColumns}
+                dataSource={filteredPayouts}
+                search={{ labelWidth: 'auto', defaultCollapsed: false }}
+                pagination={{ pageSize: 8 }}
+                scroll={{ x: 1500 }}
+                toolBarRender={() => [<Button key="retry" type="primary" onClick={() => { setHelperTitle('重试打款'); setHelperDesc('打款失败时可在这里发起重试，需保留支付渠道流水和失败原因。'); setHelperVisible(true); }}>重试打款</Button>]}
+                onSubmit={(values) => setPayoutKeyword(String(values.keyword || ''))}
+                onReset={() => setPayoutKeyword('')}
+              />
+            ),
+          },
+          {
+            key: 'reconcile',
+            label: '对账差异',
+            children: (
+              <ProTable<ReconciliationRecord>
+                cardBordered
+                rowKey="id"
+                columns={reconciliationColumns}
+                dataSource={filteredReconciliations}
+                search={{ labelWidth: 'auto', defaultCollapsed: false }}
+                pagination={{ pageSize: 8 }}
+                scroll={{ x: 1500 }}
+                toolBarRender={() => [<Button key="handle" type="primary" onClick={() => { setHelperTitle('处理对账差异'); setHelperDesc('差异处理应回写结算单明细或生成手工调整明细。'); setHelperVisible(true); }}>处理差异</Button>]}
+                onSubmit={(values) => setReconcileKeyword(String(values.keyword || ''))}
+                onReset={() => setReconcileKeyword('')}
               />
             ),
           },
@@ -257,7 +408,7 @@ const SettlementManagement: React.FC = () => {
         <Form form={costForm} layout="vertical">
           <div className="modal-grid">
             <Form.Item name="couponCost" label="优惠券成本" rules={[{ required: true, message: '请输入优惠券成本' }]}>
-              <Input />
+              <Select options={costBearerOptions} />
             </Form.Item>
             <Form.Item name="rechargeCost" label="充值赠送成本" rules={[{ required: true, message: '请输入充值成本' }]}>
               <Input />
@@ -290,7 +441,7 @@ const SettlementManagement: React.FC = () => {
         <Form form={generateForm} layout="vertical">
           <div className="modal-grid">
             <Form.Item name="billType" label="结算层级" rules={[{ required: true, message: '请选择结算层级' }]}>
-              <Select options={[{ value: 'MERCHANT', label: '商户' }, { value: 'STORE', label: '门店' }, { value: 'PLATFORM', label: '平台' }]} />
+              <Select options={settlementSubjectTypeOptions} />
             </Form.Item>
             <Form.Item name="subjectName" label="结算主体" rules={[{ required: true, message: '请输入结算主体' }]}>
               <Input />

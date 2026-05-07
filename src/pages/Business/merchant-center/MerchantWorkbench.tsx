@@ -1,8 +1,15 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Statistic, Table, Tag, message } from 'antd';
+import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Statistic, Table, message } from 'antd';
 import { ApartmentOutlined } from '@ant-design/icons';
+import {
+  merchantTodoCategoryOptions,
+  settlementStatusOptions,
+  storeStatusOptions,
+  ticketPriorityOptions,
+  todoStatusOptions,
+} from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
-import { formatAmount } from '@/pages/Business/shared';
+import { buildValueEnum, formatAmount, renderStatusTag } from '@/pages/Business/shared';
 
 interface TodoRecord {
   id: string;
@@ -12,6 +19,8 @@ interface TodoRecord {
   priority: string;
   status: string;
   category: string;
+  relatedStore: string;
+  relatedNo: string;
 }
 
 interface StoreOverviewRecord {
@@ -22,32 +31,28 @@ interface StoreOverviewRecord {
   revenue: number;
   activeCampaigns: number;
   settlementStatus: string;
+  faultCount: number;
+  afterSaleCount: number;
   status: string;
 }
 
-const priorityColorMap: Record<string, string> = {
-  HIGH: 'red',
-  MEDIUM: 'gold',
-  LOW: 'blue',
-};
-
-const todoStatusColorMap: Record<string, string> = {
-  PENDING: 'gold',
-  PROCESSING: 'processing',
-  DONE: 'success',
-};
+const priorityMap = buildValueEnum(ticketPriorityOptions);
+const todoStatusMap = buildValueEnum(todoStatusOptions);
+const todoCategoryMap = buildValueEnum(merchantTodoCategoryOptions);
+const settlementStatusMap = buildValueEnum(settlementStatusOptions);
+const storeStatusMap = buildValueEnum(storeStatusOptions);
 
 const initialTodos: TodoRecord[] = [
-  { id: 'todo-1', title: '确认上海直营夜洗门店组的跨店活动范围', owner: '平台运营-何铭', deadline: '今日 17:30', priority: 'HIGH', status: 'PENDING', category: '活动配置' },
-  { id: 'todo-2', title: '审核夜洗充值返利活动的赠送预算', owner: '财务-林悦', deadline: '今日 18:00', priority: 'HIGH', status: 'PROCESSING', category: '预算审批' },
-  { id: 'todo-3', title: '处理两笔门店设备异常引起的售后补偿', owner: '客服-刘莎', deadline: '今日 20:00', priority: 'MEDIUM', status: 'PENDING', category: '售后处理' },
-  { id: 'todo-4', title: '确认本周商户结算单与退款冲减明细', owner: '财务-许鸣', deadline: '明日 10:00', priority: 'MEDIUM', status: 'PENDING', category: '结算确认' },
+  { id: 'todo-1', title: '确认上海直营夜洗门店组的跨店活动范围', owner: '平台运营-何铭', deadline: '2026-04-18 17:30:00', priority: 'HIGH', status: 'PENDING', category: 'ACTIVITY_CONFIG', relatedStore: '上海直营夜洗门店组', relatedNo: 'CSA-001' },
+  { id: 'todo-2', title: '审核夜洗充值返利活动的赠送预算', owner: '财务-林悦', deadline: '2026-04-18 18:00:00', priority: 'HIGH', status: 'PROCESSING', category: 'BUDGET_APPROVAL', relatedStore: '徐汇夜洗门店', relatedNo: 'RCG-006' },
+  { id: 'todo-3', title: '处理两笔门店设备异常引起的售后补偿', owner: '客服-刘莎', deadline: '2026-04-18 20:00:00', priority: 'MEDIUM', status: 'PENDING', category: 'AFTER_SALE', relatedStore: '徐汇夜洗门店', relatedNo: 'CS20260418001' },
+  { id: 'todo-4', title: '确认本周商户结算单与退款冲减明细', owner: '财务-许鸣', deadline: '2026-04-19 10:00:00', priority: 'MEDIUM', status: 'PENDING', category: 'SETTLEMENT_CONFIRM', relatedStore: '虹桥旗舰洗车站', relatedNo: 'SB202604W001' },
 ];
 
 const initialStores: StoreOverviewRecord[] = [
-  { id: 'store-1', store: '虹桥旗舰洗车站', manager: '李思远', orders: 86, revenue: 2050, activeCampaigns: 3, settlementStatus: '待确认', status: '营业中' },
-  { id: 'store-2', store: '徐汇夜洗门店', manager: '黄允', orders: 61, revenue: 1530, activeCampaigns: 2, settlementStatus: '待生成', status: '营业中' },
-  { id: 'store-3', store: '嘉定联营门店', manager: '陈禾', orders: 37, revenue: 960, activeCampaigns: 1, settlementStatus: '待确认', status: '运营筹备' },
+  { id: 'store-1', store: '虹桥旗舰洗车站', manager: '李思远', orders: 86, revenue: 2050, activeCampaigns: 3, settlementStatus: 'WAIT_CONFIRM', faultCount: 1, afterSaleCount: 1, status: 'OPEN' },
+  { id: 'store-2', store: '徐汇夜洗门店', manager: '黄允', orders: 61, revenue: 1530, activeCampaigns: 2, settlementStatus: 'PENDING', faultCount: 1, afterSaleCount: 2, status: 'OPEN' },
+  { id: 'store-3', store: '嘉定联营门店', manager: '陈禾', orders: 37, revenue: 960, activeCampaigns: 1, settlementStatus: 'WAIT_CONFIRM', faultCount: 1, afterSaleCount: 0, status: 'PAUSED' },
 ];
 
 const MerchantWorkbench: React.FC = () => {
@@ -63,7 +68,7 @@ const MerchantWorkbench: React.FC = () => {
       storeCount: stores.length,
       revenue: stores.reduce((sum, item) => sum + item.revenue, 0),
       runningCampaigns: stores.reduce((sum, item) => sum + item.activeCampaigns, 0),
-      pendingSettlement: stores.filter((item) => item.settlementStatus !== '已完成').length,
+      pendingSettlement: stores.filter((item) => item.settlementStatus !== 'SETTLED').length,
     }),
     [stores]
   );
@@ -108,10 +113,13 @@ const MerchantWorkbench: React.FC = () => {
               dataSource={todos}
               columns={[
                 { title: '待办', dataIndex: 'title' },
+                { title: '分类', dataIndex: 'category', width: 120, render: (value: string) => renderStatusTag(value, todoCategoryMap) },
                 { title: '负责人', dataIndex: 'owner', width: 140 },
-                { title: '截止时间', dataIndex: 'deadline', width: 120 },
-                { title: '优先级', dataIndex: 'priority', width: 90, render: (value: string) => <Tag color={priorityColorMap[value]}>{value}</Tag> },
-                { title: '状态', dataIndex: 'status', width: 100, render: (value: string) => <Tag color={todoStatusColorMap[value]}>{value}</Tag> },
+                { title: '关联门店', dataIndex: 'relatedStore', width: 150 },
+                { title: '关联单号', dataIndex: 'relatedNo', width: 150 },
+                { title: '截止时间', dataIndex: 'deadline', width: 160 },
+                { title: '优先级', dataIndex: 'priority', width: 90, render: (value: string) => renderStatusTag(value, priorityMap) },
+                { title: '状态', dataIndex: 'status', width: 100, render: (value: string) => renderStatusTag(value, todoStatusMap) },
                 {
                   title: '操作',
                   width: 220,
@@ -162,8 +170,10 @@ const MerchantWorkbench: React.FC = () => {
                 { title: '订单数', dataIndex: 'orders', width: 90 },
                 { title: '营收', dataIndex: 'revenue', width: 120, render: (value: number) => formatAmount(value) },
                 { title: '活动数', dataIndex: 'activeCampaigns', width: 90 },
-                { title: '结算状态', dataIndex: 'settlementStatus', width: 110 },
-                { title: '状态', dataIndex: 'status', width: 110, render: (value: string) => <Tag color={value === '营业中' ? 'success' : 'gold'}>{value}</Tag> },
+                { title: '故障数', dataIndex: 'faultCount', width: 90 },
+                { title: '售后数', dataIndex: 'afterSaleCount', width: 90 },
+                { title: '结算状态', dataIndex: 'settlementStatus', width: 110, render: (value: string) => renderStatusTag(value, settlementStatusMap) },
+                { title: '状态', dataIndex: 'status', width: 110, render: (value: string) => renderStatusTag(value, storeStatusMap) },
                 {
                   title: '操作',
                   width: 120,
@@ -192,12 +202,18 @@ const MerchantWorkbench: React.FC = () => {
               <Input />
             </Form.Item>
             <Form.Item name="priority" label="优先级" rules={[{ required: true, message: '请选择优先级' }]}>
-              <Select options={[{ value: 'HIGH', label: '高' }, { value: 'MEDIUM', label: '中' }, { value: 'LOW', label: '低' }]} />
+              <Select options={ticketPriorityOptions} />
             </Form.Item>
             <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}>
-              <Select options={[{ value: 'PENDING', label: '待处理' }, { value: 'PROCESSING', label: '处理中' }, { value: 'DONE', label: '已完成' }]} />
+              <Select options={todoStatusOptions} />
             </Form.Item>
-            <Form.Item className="modal-span-2" name="category" label="所属分类" rules={[{ required: true, message: '请输入所属分类' }]}>
+            <Form.Item name="category" label="所属分类" rules={[{ required: true, message: '请选择所属分类' }]}>
+              <Select options={merchantTodoCategoryOptions} />
+            </Form.Item>
+            <Form.Item name="relatedStore" label="关联门店">
+              <Input />
+            </Form.Item>
+            <Form.Item className="modal-span-2" name="relatedNo" label="关联单号">
               <Input />
             </Form.Item>
           </div>

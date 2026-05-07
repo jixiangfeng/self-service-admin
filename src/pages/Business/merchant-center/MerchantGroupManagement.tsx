@@ -3,6 +3,7 @@ import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space
 import { ApartmentOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
+import { merchantGroupTypeOptions, scopeLevelOptions, templateStatusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 
@@ -22,24 +23,9 @@ interface MerchantGroupRecord {
   updatedAt: string;
 }
 
-const groupTypeMap = {
-  REGION: { color: 'blue', text: '区域分组' },
-  ACTIVITY: { color: 'purple', text: '活动门店组' },
-  WRITEOFF: { color: 'cyan', text: '核销门店组' },
-  REPORT: { color: 'gold', text: '统计门店组' },
-};
-
-const statusMap = {
-  ENABLED: { color: 'success', text: '启用' },
-  DRAFT: { color: 'gold', text: '草稿' },
-  DISABLED: { color: 'default', text: '停用' },
-};
-
-const scopeLevelMap = {
-  MERCHANT: { color: 'blue', text: '商户级' },
-  STORE_GROUP: { color: 'purple', text: '门店组级' },
-  CITY: { color: 'cyan', text: '城市级' },
-};
+const groupTypeMap = buildValueEnum(merchantGroupTypeOptions);
+const statusMap = buildValueEnum(templateStatusOptions);
+const scopeLevelMap = buildValueEnum(scopeLevelOptions);
 
 const initialRecords: MerchantGroupRecord[] = [
   {
@@ -137,7 +123,7 @@ const MerchantGroupManagement: React.FC = () => {
       dataIndex: 'groupType',
       width: 140,
       valueType: 'select',
-      valueEnum: buildValueEnum(Object.entries(groupTypeMap).map(([value, item]) => ({ value, label: item.text }))),
+      valueEnum: groupTypeMap,
       render: (_, record) => renderStatusTag(record.groupType, groupTypeMap),
     },
     {
@@ -157,7 +143,7 @@ const MerchantGroupManagement: React.FC = () => {
       dataIndex: 'status',
       width: 120,
       valueType: 'select',
-      valueEnum: buildValueEnum(Object.entries(statusMap).map(([value, item]) => ({ value, label: item.text }))),
+      valueEnum: statusMap,
       render: (_, record) => renderStatusTag(record.status, statusMap),
     },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
@@ -290,10 +276,10 @@ const MerchantGroupManagement: React.FC = () => {
               <Input />
             </Form.Item>
             <Form.Item name="groupType" label="分组类型" rules={[{ required: true, message: '请选择分组类型' }]}>
-              <Select options={Object.entries(groupTypeMap).map(([value, item]) => ({ value, label: item.text }))} />
+              <Select options={merchantGroupTypeOptions} />
             </Form.Item>
             <Form.Item name="scopeLevel" label="作用层级" rules={[{ required: true, message: '请选择作用层级' }]}>
-              <Select options={Object.entries(scopeLevelMap).map(([value, item]) => ({ value, label: item.text }))} />
+              <Select options={scopeLevelOptions} />
             </Form.Item>
             <Form.Item name="city" label="城市">
               <Input />
@@ -305,7 +291,7 @@ const MerchantGroupManagement: React.FC = () => {
               <Input />
             </Form.Item>
             <Form.Item name="status" label="状态">
-              <Select options={Object.entries(statusMap).map(([value, item]) => ({ value, label: item.text }))} />
+              <Select options={templateStatusOptions} />
             </Form.Item>
             <div />
             <Form.Item className="modal-span-2" name="scope" label="用途范围">

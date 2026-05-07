@@ -116,7 +116,9 @@ const StoreManagement: React.FC = () => {
       { title: '城市', dataIndex: 'city', width: 140, render: (_, record) => record.city || '-', hideInSearch: true },
       { title: '城市筛选', dataIndex: 'cityKeyword', hideInTable: true, fieldProps: { placeholder: '输入城市，例如上海' } },
       { title: '营业时间', dataIndex: 'businessHours', width: 160, search: false, render: (_, record) => record.businessHours || '-' },
+      { title: '营业时段', dataIndex: 'openTime', width: 150, search: false, render: (_, record) => record.openTime && record.closeTime ? `${record.openTime}-${record.closeTime}` : '-' },
       { title: '店长', dataIndex: 'managerName', width: 140, search: false, render: (_, record) => record.managerName || '-' },
+      { title: '服务半径', dataIndex: 'serviceRadius', width: 110, search: false, render: (_, record) => record.serviceRadius ? `${record.serviceRadius}km` : '-' },
       { title: '服务能力', dataIndex: 'serviceFlags', width: 280, search: false, render: (_, record) => renderOptionTags(record.serviceFlags, storeServiceCapabilityOptions) },
       { title: '营销开关', dataIndex: 'marketingEnabled', width: 120, search: false, render: (_, record) => renderBooleanTag(record.marketingEnabled) },
       { title: '临停状态', dataIndex: 'tempClosed', width: 120, search: false, render: (_, record) => renderBooleanTag(record.tempClosed, '临停中', '正常') },
@@ -128,7 +130,7 @@ const StoreManagement: React.FC = () => {
         valueEnum: buildValueEnum(storeStatusOptions),
         render: (_, record) => renderStatusTag(record.status, buildValueEnum(storeStatusOptions) as any),
       },
-      { title: '更新时间', dataIndex: 'updateTime', width: 180, search: false, render: (_, record) => formatDateTime(record.updateTime) },
+      { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt || record.updateTime) },
       {
         title: '操作',
         width: 160,
@@ -273,6 +275,12 @@ const StoreManagement: React.FC = () => {
             <Form.Item name="managerPhone" label="负责人电话">
               <Input />
             </Form.Item>
+            <Form.Item name="coverUrl" label="门店封面">
+              <Input placeholder="封面图片 URL" />
+            </Form.Item>
+            <Form.Item name="serviceRadius" label="服务半径 km">
+              <Input />
+            </Form.Item>
             <Form.Item name="province" label="省份">
               <Input />
             </Form.Item>
@@ -290,6 +298,12 @@ const StoreManagement: React.FC = () => {
             <Form.Item name="businessHours" label="营业时间">
               <Input placeholder="例如 08:00-22:00" />
             </Form.Item>
+            <Form.Item name="openTime" label="开门时间">
+              <Input placeholder="例如 08:00" />
+            </Form.Item>
+            <Form.Item name="closeTime" label="关门时间">
+              <Input placeholder="例如 22:00" />
+            </Form.Item>
             <Form.Item name="holidayHours" label="节假日营业时间">
               <Input placeholder="例如 节假日 09:00-21:00" />
             </Form.Item>
@@ -305,8 +319,17 @@ const StoreManagement: React.FC = () => {
             <Form.Item name="tempClosed" label="是否临时停业">
               <Select options={statusOptions.map((item) => ({ value: item.value, label: item.value === 1 ? '是' : '否' }))} />
             </Form.Item>
+            <Form.Item name="tempClosedReason" label="临停原因">
+              <Input />
+            </Form.Item>
+            <Form.Item name="tempClosedUntil" label="临停截止时间">
+              <Input placeholder="例如 2026-04-18 20:00:00" />
+            </Form.Item>
 
             <Divider className="modal-span-2" orientation="left">公告与说明</Divider>
+            <Form.Item className="modal-span-2" name="imageUrls" label="门店图片">
+              <Input.TextArea rows={2} placeholder="多张图片 URL 可用逗号分隔" />
+            </Form.Item>
             <Form.Item className="modal-span-2" name="notice" label="门店公告">
               <Input.TextArea rows={3} />
             </Form.Item>

@@ -3,6 +3,12 @@ import { Button, Card, Col, Descriptions, Form, Input, List, Modal, Row, Select,
 import { ProfileOutlined, ReloadOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
+import {
+  orderStatusOptions,
+  payModeOptions as catalogPayModeOptions,
+  refundStatusOptions,
+  ticketStatusOptions,
+} from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
@@ -57,34 +63,10 @@ const orderTypeOptions = [
   { value: 'MIXED', label: '混合计费订单' },
 ];
 
-const payModeOptions = [
-  { value: 'WX', label: '微信支付' },
-  { value: 'BALANCE', label: '余额支付' },
-  { value: 'MIXED', label: '混合支付' },
-];
-
-const orderStatusMap = {
-  PENDING_PAYMENT: { color: 'gold', text: '待支付' },
-  PAID: { color: 'processing', text: '待启动' },
-  IN_PROGRESS: { color: 'processing', text: '进行中' },
-  COMPLETED: { color: 'success', text: '已完成' },
-  REFUNDED: { color: 'default', text: '已退款' },
-  AFTER_SALE: { color: 'warning', text: '售后中' },
-  CLOSED: { color: 'default', text: '已关单' },
-};
-
-const refundStatusMap = {
-  PENDING: { color: 'gold', text: '待审核' },
-  PROCESSING: { color: 'processing', text: '处理中' },
-  SUCCESS: { color: 'success', text: '已成功' },
-  REJECTED: { color: 'default', text: '已拒绝' },
-};
-
-const afterSaleStatusMap = {
-  PENDING: { color: 'gold', text: '待受理' },
-  PROCESSING: { color: 'processing', text: '处理中' },
-  CLOSED: { color: 'success', text: '已关闭' },
-};
+const payModeOptions = catalogPayModeOptions;
+const orderStatusMap = buildValueEnum(orderStatusOptions);
+const refundStatusMap = buildValueEnum(refundStatusOptions);
+const afterSaleStatusMap = buildValueEnum(ticketStatusOptions);
 
 const initialOrders: TradeOrderRecord[] = [
   { id: 'o1', orderNo: 'SO202604180001', orderType: 'SCAN', storeName: '虹桥旗舰洗车站', pointCode: 'BAY-01', serviceName: '快速冲洗套餐', payMode: 'WX', amount: 29, userName: '张晨', status: 'PENDING_PAYMENT', createdAt: '2026-04-18 09:12:00' },
@@ -202,7 +184,7 @@ const TradeManagement: React.FC = () => {
     { title: '支付方式', dataIndex: 'payMode', width: 120, valueType: 'select', valueEnum: buildValueEnum(payModeOptions), render: (_, record) => renderStatusTag(record.payMode, buildValueEnum(payModeOptions) as any) },
     { title: '订单金额', dataIndex: 'amount', width: 120, search: false, render: (_, record) => formatAmount(record.amount) },
     { title: '用户', dataIndex: 'userName', width: 100, search: false },
-    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: buildValueEnum(Object.entries(orderStatusMap).map(([value, item]) => ({ value, label: item.text }))), render: (_, record) => renderStatusTag(record.status, orderStatusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: orderStatusMap, render: (_, record) => renderStatusTag(record.status, orderStatusMap) },
     { title: '创建时间', dataIndex: 'createdAt', width: 180, search: false, render: (_, record) => formatDateTime(record.createdAt) },
     {
       title: '操作',
@@ -240,7 +222,7 @@ const TradeManagement: React.FC = () => {
     { title: '退款金额', dataIndex: 'amount', width: 120, search: false, render: (_, record) => formatAmount(record.amount) },
     { title: '退款原因', dataIndex: 'reason', width: 220, search: false },
     { title: '申请来源', dataIndex: 'applicant', width: 140, search: false },
-    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: buildValueEnum(Object.entries(refundStatusMap).map(([value, item]) => ({ value, label: item.text }))), render: (_, record) => renderStatusTag(record.status, refundStatusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: refundStatusMap, render: (_, record) => renderStatusTag(record.status, refundStatusMap) },
     { title: '创建时间', dataIndex: 'createdAt', width: 180, search: false, render: (_, record) => formatDateTime(record.createdAt) },
     {
       title: '操作',
@@ -263,7 +245,7 @@ const TradeManagement: React.FC = () => {
     { title: '问题描述', dataIndex: 'content', width: 260, search: false },
     { title: '处理人', dataIndex: 'owner', width: 140, search: false },
     { title: '补偿方案', dataIndex: 'compensation', width: 160, search: false },
-    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: buildValueEnum(Object.entries(afterSaleStatusMap).map(([value, item]) => ({ value, label: item.text }))), render: (_, record) => renderStatusTag(record.status, afterSaleStatusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: afterSaleStatusMap, render: (_, record) => renderStatusTag(record.status, afterSaleStatusMap) },
     { title: '创建时间', dataIndex: 'createdAt', width: 180, search: false, render: (_, record) => formatDateTime(record.createdAt) },
     {
       title: '操作',
@@ -373,13 +355,7 @@ const TradeManagement: React.FC = () => {
           <div className="modal-grid">
             <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}>
               <Select
-                options={Object.entries(
-                  actionModalType === 'order'
-                    ? orderStatusMap
-                    : actionModalType === 'refund'
-                      ? refundStatusMap
-                      : afterSaleStatusMap
-                ).map(([value, item]) => ({ value, label: item.text }))}
+                options={actionModalType === 'order' ? orderStatusOptions : actionModalType === 'refund' ? refundStatusOptions : ticketStatusOptions}
               />
             </Form.Item>
             <div />

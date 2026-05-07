@@ -1,36 +1,55 @@
 import React, { useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Space, Table, Tabs, Tag, message } from 'antd';
+import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Table, Tabs, message } from 'antd';
 import { ShoppingCartOutlined } from '@ant-design/icons';
+import {
+  retailCategoryOptions,
+  retailDeliveryTypeOptions,
+  retailProductStatusOptions,
+  retailStockScopeOptions,
+} from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import { buildValueEnum, formatAmount, renderStatusTag } from '@/pages/Business/shared';
 
 interface RetailProductRecord {
   id: string;
+  productCode: string;
   name: string;
   category: string;
-  inventory: string;
+  salePrice: number;
+  costPrice: number;
   delivery: string;
-  stage: string;
-  price: string;
+  status: string;
+  stockSummary: string;
+  supplier: string;
 }
 
 interface StockRecord {
   id: string;
   scope: string;
+  storeName: string;
+  deviceCode: string;
   sku: string;
   available: number;
-  warning: string;
+  locked: number;
+  warningThreshold: number;
   owner: string;
+  updatedAt: string;
 }
 
+const categoryMap = buildValueEnum(retailCategoryOptions);
+const deliveryMap = buildValueEnum(retailDeliveryTypeOptions);
+const productStatusMap = buildValueEnum(retailProductStatusOptions);
+const stockScopeMap = buildValueEnum(retailStockScopeOptions);
+
 const initialProducts: RetailProductRecord[] = [
-  { id: 'product-1', name: '冰感饮料套餐', category: '饮料商品', inventory: '设备库存 42', delivery: '自动出货', stage: '三期规划', price: '12 元' },
-  { id: 'product-2', name: '洗车毛巾礼包', category: '门店自提', inventory: '门店库存 18', delivery: '扫码自提', stage: '四期预留', price: '29 元' },
+  { id: 'product-1', productCode: 'RP-DRINK-001', name: '冰感饮料套餐', category: 'DRINK', salePrice: 12, costPrice: 6.8, delivery: 'DEVICE_SHIP', status: 'ON_SALE', stockSummary: '设备库存 42', supplier: '清凉饮品供应商' },
+  { id: 'product-2', productCode: 'RP-CAR-002', name: '洗车毛巾礼包', category: 'CAR_SUPPLY', salePrice: 29, costPrice: 12.5, delivery: 'STORE_PICKUP', status: 'DRAFT', stockSummary: '门店库存 18', supplier: '门店物料仓' },
 ];
 
 const initialStocks: StockRecord[] = [
-  { id: 'stock-1', scope: '平台总仓', sku: '零食礼包', available: 128, warning: '低于 30 提醒', owner: '仓储-许安' },
-  { id: 'stock-2', scope: '虹桥旗舰洗车站', sku: '洗车毛巾礼包', available: 18, warning: '低于 10 提醒', owner: '门店-李思远' },
-  { id: 'stock-3', scope: '饮料机 D-07', sku: '冰感饮料套餐', available: 42, warning: '低于 12 提醒', owner: '设备运维-周可' },
+  { id: 'stock-1', scope: 'PLATFORM_WAREHOUSE', storeName: '-', deviceCode: '-', sku: '零食礼包', available: 128, locked: 8, warningThreshold: 30, owner: '仓储-许安', updatedAt: '2026-04-18 09:00:00' },
+  { id: 'stock-2', scope: 'STORE', storeName: '虹桥旗舰洗车站', deviceCode: '-', sku: '洗车毛巾礼包', available: 18, locked: 2, warningThreshold: 10, owner: '门店-李思远', updatedAt: '2026-04-18 08:40:00' },
+  { id: 'stock-3', scope: 'DEVICE', storeName: '徐汇夜洗门店', deviceCode: 'DRINK-D-07', sku: '冰感饮料套餐', available: 42, locked: 0, warningThreshold: 12, owner: '设备运维-周可', updatedAt: '2026-04-18 08:30:00' },
 ];
 
 const RetailManagement: React.FC = () => {
@@ -88,12 +107,14 @@ const RetailManagement: React.FC = () => {
                   rowKey="id"
                   dataSource={products}
                   columns={[
+                    { title: '商品编码', dataIndex: 'productCode', width: 150 },
                     { title: '商品名称', dataIndex: 'name' },
-                    { title: '分类', dataIndex: 'category', width: 160 },
-                    { title: '售价', dataIndex: 'price', width: 100 },
-                    { title: '库存摘要', dataIndex: 'inventory', width: 180 },
-                    { title: '履约方式', dataIndex: 'delivery', width: 160 },
-                    { title: '阶段', dataIndex: 'stage', width: 120, render: (value: string) => <Tag color="gold">{value}</Tag> },
+                    { title: '分类', dataIndex: 'category', width: 140, render: (value: string) => renderStatusTag(value, categoryMap) },
+                    { title: '售价', dataIndex: 'salePrice', width: 100, render: (value: number) => formatAmount(value) },
+                    { title: '成本价', dataIndex: 'costPrice', width: 100, render: (value: number) => formatAmount(value) },
+                    { title: '库存摘要', dataIndex: 'stockSummary', width: 160 },
+                    { title: '履约方式', dataIndex: 'delivery', width: 140, render: (value: string) => renderStatusTag(value, deliveryMap) },
+                    { title: '状态', dataIndex: 'status', width: 110, render: (value: string) => renderStatusTag(value, productStatusMap) },
                     { title: '操作', width: 100, render: (_, record: RetailProductRecord) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
                   ]}
                 />
@@ -110,10 +131,13 @@ const RetailManagement: React.FC = () => {
                   rowKey="id"
                   dataSource={stocks}
                   columns={[
-                    { title: '库存层级', dataIndex: 'scope' },
+                    { title: '库存层级', dataIndex: 'scope', width: 140, render: (value: string) => renderStatusTag(value, stockScopeMap) },
+                    { title: '门店', dataIndex: 'storeName', width: 160 },
+                    { title: '设备', dataIndex: 'deviceCode', width: 130 },
                     { title: 'SKU', dataIndex: 'sku', width: 180 },
                     { title: '可用库存', dataIndex: 'available', width: 120 },
-                    { title: '预警规则', dataIndex: 'warning', width: 160 },
+                    { title: '锁定库存', dataIndex: 'locked', width: 120 },
+                    { title: '预警阈值', dataIndex: 'warningThreshold', width: 120 },
                     { title: '负责人', dataIndex: 'owner', width: 140 },
                   ]}
                 />
@@ -126,12 +150,15 @@ const RetailManagement: React.FC = () => {
       <Modal title="新建零售商品" open={productVisible} onOk={handleProductSubmit} onCancel={() => { setProductVisible(false); productForm.resetFields(); }} width={860}>
         <Form form={productForm} layout="vertical">
           <div className="modal-grid">
+            <Form.Item name="productCode" label="商品编码" rules={[{ required: true, message: '请输入商品编码' }]}><Input /></Form.Item>
             <Form.Item name="name" label="商品名称" rules={[{ required: true, message: '请输入商品名称' }]}><Input /></Form.Item>
-            <Form.Item name="category" label="商品分类" rules={[{ required: true, message: '请输入商品分类' }]}><Input /></Form.Item>
-            <Form.Item name="price" label="售价"><Input /></Form.Item>
-            <Form.Item name="delivery" label="履约方式"><Input /></Form.Item>
-            <Form.Item className="modal-span-2" name="inventory" label="库存摘要"><Input /></Form.Item>
-            <Form.Item className="modal-span-2" name="stage" label="阶段"><Input /></Form.Item>
+            <Form.Item name="category" label="商品分类" rules={[{ required: true, message: '请选择商品分类' }]}><Select options={retailCategoryOptions} /></Form.Item>
+            <Form.Item name="delivery" label="履约方式"><Select options={retailDeliveryTypeOptions} /></Form.Item>
+            <Form.Item name="salePrice" label="售价"><Input /></Form.Item>
+            <Form.Item name="costPrice" label="成本价"><Input /></Form.Item>
+            <Form.Item name="supplier" label="供应商"><Input /></Form.Item>
+            <Form.Item name="status" label="状态"><Select options={retailProductStatusOptions} /></Form.Item>
+            <Form.Item className="modal-span-2" name="stockSummary" label="库存摘要"><Input /></Form.Item>
           </div>
         </Form>
       </Modal>
@@ -139,11 +166,15 @@ const RetailManagement: React.FC = () => {
       <Modal title="新建库存台账" open={stockVisible} onOk={handleStockSubmit} onCancel={() => { setStockVisible(false); stockForm.resetFields(); }} width={860}>
         <Form form={stockForm} layout="vertical">
           <div className="modal-grid">
-            <Form.Item name="scope" label="库存层级" rules={[{ required: true, message: '请输入库存层级' }]}><Input /></Form.Item>
+            <Form.Item name="scope" label="库存层级" rules={[{ required: true, message: '请选择库存层级' }]}><Select options={retailStockScopeOptions} /></Form.Item>
+            <Form.Item name="storeName" label="门店"><Input /></Form.Item>
+            <Form.Item name="deviceCode" label="设备编号"><Input /></Form.Item>
             <Form.Item name="sku" label="SKU" rules={[{ required: true, message: '请输入 SKU' }]}><Input /></Form.Item>
             <Form.Item name="available" label="可用库存"><Input /></Form.Item>
+            <Form.Item name="locked" label="锁定库存"><Input /></Form.Item>
             <Form.Item name="owner" label="负责人"><Input /></Form.Item>
-            <Form.Item className="modal-span-2" name="warning" label="预警规则"><Input /></Form.Item>
+            <Form.Item name="warningThreshold" label="预警阈值"><Input /></Form.Item>
+            <Form.Item name="updatedAt" label="更新时间"><Input /></Form.Item>
           </div>
         </Form>
       </Modal>

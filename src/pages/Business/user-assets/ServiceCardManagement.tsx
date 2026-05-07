@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Statistic, message } from 'antd';
+import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
 import { WalletOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
+import { serviceCardStatusOptions, serviceCardTypeOptions, templateStatusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, containsKeyword, formatAmount, renderStatusTag } from '@/pages/Business/shared';
 
@@ -20,17 +21,32 @@ interface ServiceCardRecord {
   status: string;
 }
 
-const cardTypeMap = {
-  SERVICE_CARD: { color: 'blue', text: '服务卡' },
-  COUNT_CARD: { color: 'purple', text: '次卡' },
-  MONTH_CARD: { color: 'cyan', text: '月卡' },
-};
+interface UserServiceCardRecord {
+  id: string;
+  cardNo: string;
+  cardName: string;
+  userName: string;
+  phone: string;
+  totalTimes: number;
+  remainTimes: number;
+  validFrom: string;
+  validTo: string;
+  status: string;
+}
 
-const statusMap = {
-  ENABLED: { color: 'success', text: '启用' },
-  PAUSED: { color: 'gold', text: '暂停' },
-  EXPIRED: { color: 'default', text: '下线' },
-};
+interface ServiceCardUsageRecord {
+  id: string;
+  cardNo: string;
+  serviceOrderNo: string;
+  storeName: string;
+  useTimes: number;
+  usedAt: string;
+  remark: string;
+}
+
+const cardTypeMap = buildValueEnum(serviceCardTypeOptions);
+const statusMap = buildValueEnum(templateStatusOptions);
+const userCardStatusMap = buildValueEnum(serviceCardStatusOptions);
 
 const initialCards: ServiceCardRecord[] = [
   { id: 'sc1', cardCode: 'CARD-MONTH-001', cardName: '夜洗月卡', cardType: 'MONTH_CARD', scope: '夜洗门店组', rights: '30 天内不限次夜洗优惠', salePrice: 199, validity: '30 天', stock: 200, issueRule: '支持购买与活动发放', status: 'ENABLED' },
@@ -38,9 +54,21 @@ const initialCards: ServiceCardRecord[] = [
   { id: 'sc3', cardCode: 'CARD-SVC-020', cardName: '会员服务包', cardType: 'SERVICE_CARD', scope: '平台', rights: '洗车 + 吸尘权益包', salePrice: 129, validity: '180 天', stock: 60, issueRule: '仅运营后台补发', status: 'ENABLED' },
 ];
 
+const initialUserCards: UserServiceCardRecord[] = [
+  { id: 'usc1', cardNo: 'UC202604180001', cardName: '夜洗月卡', userName: '张晨', phone: '13800001111', totalTimes: 30, remainTimes: 24, validFrom: '2026-04-18', validTo: '2026-05-18', status: 'USING' },
+  { id: 'usc2', cardNo: 'UC202604170018', cardName: '精洗 5 次卡', userName: '陈越', phone: '13800002222', totalTimes: 5, remainTimes: 1, validFrom: '2026-04-01', validTo: '2026-06-30', status: 'USING' },
+];
+
+const initialUsageRecords: ServiceCardUsageRecord[] = [
+  { id: 'use1', cardNo: 'UC202604180001', serviceOrderNo: 'SO202604180019', storeName: '徐汇夜洗门店', useTimes: 1, usedAt: '2026-04-18 09:27:00', remark: '夜洗权益核销' },
+  { id: 'use2', cardNo: 'UC202604170018', serviceOrderNo: 'SO202604170101', storeName: '嘉定联营门店', useTimes: 1, usedAt: '2026-04-17 19:42:00', remark: '精洗次卡核销' },
+];
+
 const ServiceCardManagement: React.FC = () => {
   const [form] = Form.useForm<ServiceCardRecord>();
   const [records, setRecords] = useState(initialCards);
+  const [userCards] = useState(initialUserCards);
+  const [usageRecords] = useState(initialUsageRecords);
   const [keyword, setKeyword] = useState('');
   const [typeFilter, setTypeFilter] = useState<string | undefined>();
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
@@ -85,7 +113,7 @@ const ServiceCardManagement: React.FC = () => {
       dataIndex: 'cardType',
       width: 120,
       valueType: 'select',
-      valueEnum: buildValueEnum(Object.entries(cardTypeMap).map(([value, item]) => ({ value, label: item.text }))),
+      valueEnum: cardTypeMap,
       render: (_, record) => renderStatusTag(record.cardType, cardTypeMap),
     },
     { title: '作用范围', dataIndex: 'scope', width: 160, search: false },
@@ -94,7 +122,7 @@ const ServiceCardManagement: React.FC = () => {
     { title: '有效期', dataIndex: 'validity', width: 120, search: false },
     { title: '发放规则', dataIndex: 'issueRule', width: 180, search: false },
     { title: '库存', dataIndex: 'stock', width: 100, search: false },
-    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: buildValueEnum(Object.entries(statusMap).map(([value, item]) => ({ value, label: item.text }))), render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
     {
       title: '操作',
       width: 220,
@@ -130,6 +158,29 @@ const ServiceCardManagement: React.FC = () => {
     },
   ];
 
+  const userCardColumns: ProColumns<UserServiceCardRecord>[] = [
+    { title: '用户卡号', dataIndex: 'cardNo', width: 180, hideInSearch: true },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '卡号 / 卡名称 / 用户 / 手机号' } },
+    { title: '卡名称', dataIndex: 'cardName', width: 160, search: false },
+    { title: '用户', dataIndex: 'userName', width: 120, search: false },
+    { title: '手机号', dataIndex: 'phone', width: 140, search: false },
+    { title: '总次数', dataIndex: 'totalTimes', width: 100, search: false },
+    { title: '剩余次数', dataIndex: 'remainTimes', width: 100, search: false },
+    { title: '有效期开始', dataIndex: 'validFrom', width: 120, search: false },
+    { title: '有效期结束', dataIndex: 'validTo', width: 120, search: false },
+    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: userCardStatusMap, render: (_, record) => renderStatusTag(record.status, userCardStatusMap) },
+  ];
+
+  const usageColumns: ProColumns<ServiceCardUsageRecord>[] = [
+    { title: '用户卡号', dataIndex: 'cardNo', width: 180, hideInSearch: true },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '卡号 / 订单 / 门店 / 备注' } },
+    { title: '服务订单', dataIndex: 'serviceOrderNo', width: 180, search: false },
+    { title: '门店', dataIndex: 'storeName', width: 180, search: false },
+    { title: '使用次数', dataIndex: 'useTimes', width: 100, search: false },
+    { title: '使用时间', dataIndex: 'usedAt', width: 180, search: false },
+    { title: '备注', dataIndex: 'remark', width: 220, search: false },
+  ];
+
   const handleSubmit = async () => {
     const values = await form.validateFields();
     if (editingRecord) {
@@ -153,40 +204,80 @@ const ServiceCardManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="可售库存" value={records.reduce((sum, item) => sum + item.stock, 0)} suffix="份" /></Card></Col>
       </Row>
 
-      <ProTable<ServiceCardRecord>
-        cardBordered
-        rowKey="id"
-        columns={columns}
-        dataSource={dataSource}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        pagination={{ pageSize: 8 }}
-        scroll={{ x: 1780 }}
-        toolBarRender={() => [
-          <Button key="issue" onClick={() => setHelperVisible(true)}>批量发卡</Button>,
-          <Button
-            key="new"
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              setEditingRecord(null);
-              form.resetFields();
-              form.setFieldsValue({ cardType: 'SERVICE_CARD', status: 'ENABLED', stock: 0, salePrice: 0 });
-              setModalVisible(true);
-            }}
-          >
-            新建卡产品
-          </Button>,
+      <Tabs
+        items={[
+          {
+            key: 'product',
+            label: '卡产品',
+            children: (
+              <ProTable<ServiceCardRecord>
+                cardBordered
+                rowKey="id"
+                columns={columns}
+                dataSource={dataSource}
+                search={{ labelWidth: 'auto', defaultCollapsed: false }}
+                pagination={{ pageSize: 8 }}
+                scroll={{ x: 1780 }}
+                toolBarRender={() => [
+                  <Button key="issue" onClick={() => setHelperVisible(true)}>批量发卡</Button>,
+                  <Button
+                    key="new"
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => {
+                      setEditingRecord(null);
+                      form.resetFields();
+                      form.setFieldsValue({ cardType: 'SERVICE_CARD', status: 'ENABLED', stock: 0, salePrice: 0 });
+                      setModalVisible(true);
+                    }}
+                  >
+                    新建卡产品
+                  </Button>,
+                ]}
+                onSubmit={(values) => {
+                  setKeyword(String(values.keyword || ''));
+                  setTypeFilter(values.cardType as string | undefined);
+                  setStatusFilter(values.status as string | undefined);
+                }}
+                onReset={() => {
+                  setKeyword('');
+                  setTypeFilter(undefined);
+                  setStatusFilter(undefined);
+                }}
+              />
+            ),
+          },
+          {
+            key: 'userCard',
+            label: '用户服务卡',
+            children: (
+              <ProTable<UserServiceCardRecord>
+                cardBordered
+                rowKey="id"
+                columns={userCardColumns}
+                dataSource={userCards}
+                search={{ labelWidth: 'auto', defaultCollapsed: false }}
+                pagination={{ pageSize: 8 }}
+                scroll={{ x: 1480 }}
+              />
+            ),
+          },
+          {
+            key: 'usage',
+            label: '使用记录',
+            children: (
+              <ProTable<ServiceCardUsageRecord>
+                cardBordered
+                rowKey="id"
+                columns={usageColumns}
+                dataSource={usageRecords}
+                search={{ labelWidth: 'auto', defaultCollapsed: false }}
+                pagination={{ pageSize: 8 }}
+                scroll={{ x: 1320 }}
+              />
+            ),
+          },
         ]}
-        onSubmit={(values) => {
-          setKeyword(String(values.keyword || ''));
-          setTypeFilter(values.cardType as string | undefined);
-          setStatusFilter(values.status as string | undefined);
-        }}
-        onReset={() => {
-          setKeyword('');
-          setTypeFilter(undefined);
-          setStatusFilter(undefined);
-        }}
       />
 
       <Modal
@@ -206,7 +297,7 @@ const ServiceCardManagement: React.FC = () => {
               <Input />
             </Form.Item>
             <Form.Item name="cardType" label="卡类型" rules={[{ required: true, message: '请选择卡类型' }]}>
-              <Select options={Object.entries(cardTypeMap).map(([value, item]) => ({ value, label: item.text }))} />
+              <Select options={serviceCardTypeOptions} />
             </Form.Item>
             <Form.Item name="scope" label="作用范围">
               <Input />
@@ -221,7 +312,7 @@ const ServiceCardManagement: React.FC = () => {
               <Input />
             </Form.Item>
             <Form.Item name="status" label="状态">
-              <Select options={Object.entries(statusMap).map(([value, item]) => ({ value, label: item.text }))} />
+              <Select options={templateStatusOptions} />
             </Form.Item>
             <Form.Item className="modal-span-2" name="rights" label="权益内容">
               <Input.TextArea rows={3} />

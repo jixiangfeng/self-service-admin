@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   deviceControlModeOptions,
   deviceFaultLevelOptions,
+  deviceProtocolTypeOptions,
   deviceStatusOptions,
   deviceTypeOptions,
 } from '@/constants/businessCatalog';
@@ -119,7 +120,7 @@ const DeviceManagement: React.FC = () => {
         render: (_, record) => renderStatusTag(record.deviceType, buildValueEnum(deviceTypeOptions) as any),
       },
       { title: '厂商', dataIndex: 'vendorName', width: 120, search: false, render: (_, record) => record.vendorName || '-' },
-      { title: '协议', dataIndex: 'protocolType', width: 120, search: false, render: (_, record) => record.protocolType || '-' },
+      { title: '协议', dataIndex: 'protocolType', width: 120, search: false, render: (_, record) => renderStatusTag(record.protocolType, buildValueEnum(deviceProtocolTypeOptions) as any) },
       { title: '控制方式', dataIndex: 'controlMode', width: 120, search: false, render: (_, record) => renderStatusTag(record.controlMode, buildValueEnum(deviceControlModeOptions) as any) },
       { title: '能力标签', dataIndex: 'abilityTags', width: 220, search: false, render: (_, record) => renderOptionTags(record.abilityTags) },
       { title: '故障级别', dataIndex: 'faultLevel', width: 120, search: false, render: (_, record) => renderStatusTag(record.faultLevel, buildValueEnum(deviceFaultLevelOptions) as any) },
@@ -309,7 +310,7 @@ const DeviceManagement: React.FC = () => {
               <Input />
             </Form.Item>
             <Form.Item name="protocolType" label="协议类型">
-              <Input />
+              <Select options={deviceProtocolTypeOptions} allowClear />
             </Form.Item>
             <Form.Item name="protocolVersion" label="协议版本">
               <Input />

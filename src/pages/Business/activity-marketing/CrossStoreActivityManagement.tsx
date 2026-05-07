@@ -3,6 +3,7 @@ import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space
 import { GiftOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
+import { activityStatusOptions, activityTypeOptions, costBearerOptions, writeOffMethodOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 
@@ -19,21 +20,14 @@ interface CrossStoreActivityRecord {
   updatedAt: string;
 }
 
-const activityTypeMap = {
-  COUPON: { color: 'blue', text: '跨店优惠券' },
-  RECHARGE: { color: 'purple', text: '跨店充值活动' },
-  JOINT: { color: 'cyan', text: '联名活动' },
-};
-
-const statusMap = {
-  RUNNING: { color: 'success', text: '进行中' },
-  DRAFT: { color: 'gold', text: '草稿' },
-  PAUSED: { color: 'default', text: '暂停' },
-};
+const activityTypeMap = buildValueEnum(activityTypeOptions);
+const statusMap = buildValueEnum(activityStatusOptions);
+const costBearerMap = buildValueEnum(costBearerOptions);
+const writeOffMethodMap = buildValueEnum(writeOffMethodOptions);
 
 const initialActivities: CrossStoreActivityRecord[] = [
-  { id: 'cs1', activityCode: 'CSA-001', activityName: '上海直营跨店夜洗券', activityType: 'COUPON', storeGroup: '上海直营夜洗门店组', writeoffMode: '指定门店核销', costOwner: '平台承担', cycle: '2026-04-18 ~ 2026-05-18', status: 'RUNNING', updatedAt: '2026-04-18 09:32:00' },
-  { id: 'cs2', activityCode: 'CSA-006', activityName: '联营门店联合充值季', activityType: 'RECHARGE', storeGroup: '嘉定联营核销组', writeoffMode: '跨店通用', costOwner: '门店按比例分摊', cycle: '2026-05-01 ~ 2026-05-31', status: 'DRAFT', updatedAt: '2026-04-17 18:45:00' },
+  { id: 'cs1', activityCode: 'CSA-001', activityName: '上海直营跨店夜洗券', activityType: 'COUPON', storeGroup: '上海直营夜洗门店组', writeoffMode: 'ASSIGNED_STORE', costOwner: 'PLATFORM', cycle: '2026-04-18 ~ 2026-05-18', status: 'RUNNING', updatedAt: '2026-04-18 09:32:00' },
+  { id: 'cs2', activityCode: 'CSA-006', activityName: '联营门店联合充值季', activityType: 'RECHARGE', storeGroup: '嘉定联营核销组', writeoffMode: 'STORE_GROUP', costOwner: 'RATIO', cycle: '2026-05-01 ~ 2026-05-31', status: 'DRAFT', updatedAt: '2026-04-17 18:45:00' },
 ];
 
 const CrossStoreActivityManagement: React.FC = () => {
@@ -76,12 +70,12 @@ const CrossStoreActivityManagement: React.FC = () => {
       ),
     },
     { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '活动 / 编码 / 门店组 / 核销方式 / 成本承担' } },
-    { title: '活动类型', dataIndex: 'activityType', width: 140, search: false, render: (_, record) => renderStatusTag(record.activityType, activityTypeMap) },
+    { title: '活动类型', dataIndex: 'activityType', width: 140, valueType: 'select', valueEnum: activityTypeMap, render: (_, record) => renderStatusTag(record.activityType, activityTypeMap) },
     { title: '门店组', dataIndex: 'storeGroup', width: 200, search: false },
-    { title: '核销方式', dataIndex: 'writeoffMode', width: 160, search: false },
-    { title: '成本承担', dataIndex: 'costOwner', width: 160, search: false },
+    { title: '核销方式', dataIndex: 'writeoffMode', width: 160, valueType: 'select', valueEnum: writeOffMethodMap, render: (_, record) => renderStatusTag(record.writeoffMode, writeOffMethodMap) },
+    { title: '成本承担', dataIndex: 'costOwner', width: 160, valueType: 'select', valueEnum: costBearerMap, render: (_, record) => renderStatusTag(record.costOwner, costBearerMap) },
     { title: '活动周期', dataIndex: 'cycle', width: 200, search: false },
-    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: buildValueEnum(Object.entries(statusMap).map(([value, item]) => ({ value, label: item.text }))), render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
     {
       title: '操作',
@@ -157,12 +151,12 @@ const CrossStoreActivityManagement: React.FC = () => {
           <div className="modal-grid">
             <Form.Item name="activityCode" label="活动编码" rules={[{ required: true, message: '请输入活动编码' }]}><Input /></Form.Item>
             <Form.Item name="activityName" label="活动名称" rules={[{ required: true, message: '请输入活动名称' }]}><Input /></Form.Item>
-            <Form.Item name="activityType" label="活动类型" rules={[{ required: true, message: '请选择活动类型' }]}><Select options={Object.entries(activityTypeMap).map(([value, item]) => ({ value, label: item.text }))} /></Form.Item>
+            <Form.Item name="activityType" label="活动类型" rules={[{ required: true, message: '请选择活动类型' }]}><Select options={activityTypeOptions} /></Form.Item>
             <Form.Item name="storeGroup" label="门店组"><Input /></Form.Item>
-            <Form.Item name="writeoffMode" label="核销方式"><Input /></Form.Item>
-            <Form.Item name="costOwner" label="成本承担"><Input /></Form.Item>
+            <Form.Item name="writeoffMode" label="核销方式"><Select options={writeOffMethodOptions} /></Form.Item>
+            <Form.Item name="costOwner" label="成本承担"><Select options={costBearerOptions} /></Form.Item>
             <Form.Item className="modal-span-2" name="cycle" label="活动周期"><Input /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={Object.entries(statusMap).map(([value, item]) => ({ value, label: item.text }))} /></Form.Item>
+            <Form.Item name="status" label="状态"><Select options={activityStatusOptions} /></Form.Item>
           </div>
         </Form>
       </Modal>
@@ -173,8 +167,8 @@ const CrossStoreActivityManagement: React.FC = () => {
             <Descriptions.Item label="活动编码">{detail.activityCode}</Descriptions.Item>
             <Descriptions.Item label="活动名称">{detail.activityName}</Descriptions.Item>
             <Descriptions.Item label="门店组">{detail.storeGroup}</Descriptions.Item>
-            <Descriptions.Item label="核销方式">{detail.writeoffMode}</Descriptions.Item>
-            <Descriptions.Item label="成本承担">{detail.costOwner}</Descriptions.Item>
+            <Descriptions.Item label="核销方式">{writeOffMethodMap[detail.writeoffMode]?.text || detail.writeoffMode}</Descriptions.Item>
+            <Descriptions.Item label="成本承担">{costBearerMap[detail.costOwner]?.text || detail.costOwner}</Descriptions.Item>
             <Descriptions.Item label="活动周期">{detail.cycle}</Descriptions.Item>
             <Descriptions.Item label="更新时间">{formatDateTime(detail.updatedAt)}</Descriptions.Item>
           </Descriptions>
