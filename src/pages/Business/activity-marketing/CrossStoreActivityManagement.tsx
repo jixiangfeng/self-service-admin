@@ -1,44 +1,64 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Statistic, message } from 'antd';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Statistic, message } from 'antd';
 import { GiftOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
+import { useNavigate } from 'react-router-dom';
 import { activityStatusOptions, activityTypeOptions, costBearerOptions, writeOffMethodOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
-
-interface CrossStoreActivityRecord {
-  id: string;
-  activityCode: string;
-  activityName: string;
-  activityType: string;
-  storeGroup: string;
-  writeoffMode: string;
-  costOwner: string;
-  cycle: string;
-  status: string;
-  updatedAt: string;
-}
+import api, { type CrossStoreActivityRecord } from '@/services/backendService';
 
 const activityTypeMap = buildValueEnum(activityTypeOptions);
 const statusMap = buildValueEnum(activityStatusOptions);
 const costBearerMap = buildValueEnum(costBearerOptions);
 const writeOffMethodMap = buildValueEnum(writeOffMethodOptions);
 
-const initialActivities: CrossStoreActivityRecord[] = [
-  { id: 'cs1', activityCode: 'CSA-001', activityName: '上海直营跨店夜洗券', activityType: 'COUPON', storeGroup: '上海直营夜洗门店组', writeoffMode: 'ASSIGNED_STORE', costOwner: 'PLATFORM', cycle: '2026-04-18 ~ 2026-05-18', status: 'RUNNING', updatedAt: '2026-04-18 09:32:00' },
-  { id: 'cs2', activityCode: 'CSA-006', activityName: '联营门店联合充值季', activityType: 'RECHARGE', storeGroup: '嘉定联营核销组', writeoffMode: 'STORE_GROUP', costOwner: 'RATIO', cycle: '2026-05-01 ~ 2026-05-31', status: 'DRAFT', updatedAt: '2026-04-17 18:45:00' },
+const crossStoreDetailFields: DetailField<CrossStoreActivityRecord>[] = [
+  { name: 'activityCode', label: '活动编码' },
+  { name: 'activityName', label: '活动名称' },
+  { name: 'activityType', label: '活动类型', render: (value) => value ? activityTypeMap[value as keyof typeof activityTypeMap]?.text || value : '-' },
+  { name: 'storeGroup', label: '门店组' },
+  { name: 'writeoffMode', label: '核销方式', render: (value) => value ? writeOffMethodMap[value as keyof typeof writeOffMethodMap]?.text || value : '-' },
+  { name: 'costOwner', label: '成本承担', render: (value) => value ? costBearerMap[value as keyof typeof costBearerMap]?.text || value : '-' },
+  { name: 'cycle', label: '活动周期' },
+  { name: 'status', label: '状态', render: (value) => value ? statusMap[value as keyof typeof statusMap]?.text || value : '-' },
+  { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
 ];
 
 const CrossStoreActivityManagement: React.FC = () => {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [form] = Form.useForm<CrossStoreActivityRecord>();
-  const [records, setRecords] = useState(initialActivities);
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<CrossStoreActivityRecord | null>(null);
   const [detail, setDetail] = useState<CrossStoreActivityRecord | null>(null);
-  const [helperVisible, setHelperVisible] = useState(false);
+  const activityQuery = useQuery({
+    queryKey: ['crossStoreActivities', keyword, statusFilter],
+    queryFn: async () => (await api.marketing.crossStoreActivities.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: statusFilter })).data,
+  });
+  const saveMutation = useMutation({
+    mutationFn: async (values: Record<string, unknown>) => {
+      if (values.id) return api.marketing.crossStoreActivities.edit(values);
+      return api.marketing.crossStoreActivities.add(values);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crossStoreActivities'] });
+      message.success(editingRecord ? '跨店活动已更新' : '跨店活动已创建');
+    },
+  });
+  const statusMutation = useMutation({
+    mutationFn: (record: CrossStoreActivityRecord) => api.marketing.crossStoreActivities.changeStatus(record.id, record.status === 'RUNNING' ? 'PAUSED' : 'RUNNING'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crossStoreActivities'] });
+      message.success('跨店活动状态已更新');
+    },
+  });
+  const records = activityQuery.data?.records || [];
 
   const closeModal = () => {
     setModalVisible(false);
@@ -88,8 +108,7 @@ const CrossStoreActivityManagement: React.FC = () => {
           <Button
             size="small"
             onClick={() => {
-              setRecords((prev) => prev.map((item) => item.id === record.id ? { ...item, status: item.status === 'RUNNING' ? 'PAUSED' : 'RUNNING', updatedAt: new Date().toISOString() } : item));
-              message.success('跨店活动状态已更新');
+              statusMutation.mutate(record);
             }}
           >
             {record.status === 'RUNNING' ? '暂停' : '启动'}
@@ -102,11 +121,9 @@ const CrossStoreActivityManagement: React.FC = () => {
   const handleSubmit = async () => {
     const values = await form.validateFields();
     if (editingRecord) {
-      setRecords((prev) => prev.map((item) => (item.id === editingRecord.id ? { ...item, ...values, updatedAt: new Date().toISOString() } : item)));
-      message.success('跨店活动已更新');
+      await saveMutation.mutateAsync({ ...values, id: editingRecord.id } as Record<string, unknown>);
     } else {
-      setRecords((prev) => [{ ...values, id: `cross-${Date.now()}`, updatedAt: new Date().toISOString() }, ...prev]);
-      message.success('跨店活动已创建');
+      await saveMutation.mutateAsync(values as unknown as Record<string, unknown>);
     }
     closeModal();
   };
@@ -127,11 +144,12 @@ const CrossStoreActivityManagement: React.FC = () => {
         rowKey="id"
         columns={columns}
         dataSource={dataSource}
+        loading={activityQuery.isLoading}
         search={{ labelWidth: 'auto', defaultCollapsed: false }}
         pagination={{ pageSize: 8 }}
         scroll={{ x: 1860 }}
         toolBarRender={() => [
-          <Button key="group" onClick={() => setHelperVisible(true)}>选择门店组</Button>,
+          <Button key="group" onClick={() => navigate('/merchant/groups')}>选择门店组</Button>,
           <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => { setEditingRecord(null); form.resetFields(); form.setFieldsValue({ status: 'DRAFT' }); setModalVisible(true); }}>
             新建跨店活动
           </Button>,
@@ -146,7 +164,7 @@ const CrossStoreActivityManagement: React.FC = () => {
         }}
       />
 
-      <Modal title={editingRecord ? `编辑跨店活动 · ${editingRecord.activityName}` : '新建跨店活动'} open={modalVisible} onOk={handleSubmit} onCancel={closeModal} width={860}>
+      <Modal title={editingRecord ? `编辑跨店活动 · ${editingRecord.activityName}` : '新建跨店活动'} open={modalVisible} onOk={handleSubmit} confirmLoading={saveMutation.isPending} onCancel={closeModal} width={860}>
         <Form form={form} layout="vertical">
           <div className="modal-grid">
             <Form.Item name="activityCode" label="活动编码" rules={[{ required: true, message: '请输入活动编码' }]}><Input /></Form.Item>
@@ -163,24 +181,10 @@ const CrossStoreActivityManagement: React.FC = () => {
 
       <Modal title="跨店活动详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={820}>
         {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 110 }}>
-            <Descriptions.Item label="活动编码">{detail.activityCode}</Descriptions.Item>
-            <Descriptions.Item label="活动名称">{detail.activityName}</Descriptions.Item>
-            <Descriptions.Item label="门店组">{detail.storeGroup}</Descriptions.Item>
-            <Descriptions.Item label="核销方式">{writeOffMethodMap[detail.writeoffMode]?.text || detail.writeoffMode}</Descriptions.Item>
-            <Descriptions.Item label="成本承担">{costBearerMap[detail.costOwner]?.text || detail.costOwner}</Descriptions.Item>
-            <Descriptions.Item label="活动周期">{detail.cycle}</Descriptions.Item>
-            <Descriptions.Item label="更新时间">{formatDateTime(detail.updatedAt)}</Descriptions.Item>
-          </Descriptions>
+          <SchemaDetail record={detail} fields={crossStoreDetailFields} column={2} labelWidth={110} />
         ) : null}
       </Modal>
 
-      <Modal title="门店组选择说明" open={helperVisible} footer={null} onCancel={() => setHelperVisible(false)} width={680}>
-        <Descriptions column={1} labelStyle={{ width: 120 }}>
-          <Descriptions.Item label="配置入口">请先到门店组管理维护活动组、核销组、统计组。</Descriptions.Item>
-          <Descriptions.Item label="推荐做法">活动创建前先锁定门店组，避免中途变更核销边界。</Descriptions.Item>
-        </Descriptions>
-      </Modal>
     </div>
   );
 };

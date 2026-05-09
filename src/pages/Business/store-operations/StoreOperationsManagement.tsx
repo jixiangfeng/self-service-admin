@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Table, message } from 'antd';
+import { Button, Card, Col, Form, Input, Modal, Popconfirm, Row, Select, Space, Table, message } from 'antd';
 import { ShopOutlined } from '@ant-design/icons';
+import { ProTable } from '@ant-design/pro-components';
+import { useQuery } from '@tanstack/react-query';
 import {
   publishStatusOptions,
   storeNoticeTypeOptions,
@@ -9,83 +11,116 @@ import {
   ticketPriorityOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import api from '@/services/backendService';
+import type { SelectOptionRecord, StoreNoticeRecord, StoreOperationTaskRecord, StoreOperationTaskSummaryRecord } from '@/services/backendService';
 import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
-
-interface TaskRecord {
-  id: string;
-  taskType: string;
-  task: string;
-  owner: string;
-  deadline: string;
-  priority: string;
-  status: string;
-  store: string;
-  relatedDevice: string;
-  result?: string;
-}
-
-interface NoticeRecord {
-  id: string;
-  noticeType: string;
-  title: string;
-  content: string;
-  status: string;
-  store: string;
-  publisher: string;
-  publishAt: string;
-}
 
 const taskTypeMap = buildValueEnum(storeOperationTaskTypeOptions);
 const taskStatusMap = buildValueEnum(storeOperationTaskStatusOptions);
 const priorityMap = buildValueEnum(ticketPriorityOptions);
 const noticeTypeMap = buildValueEnum(storeNoticeTypeOptions);
 const publishStatusMap = buildValueEnum(publishStatusOptions);
+const pageData = <T,>(result: any) => ('data' in result ? result.data : result) as { records: T[]; total: number };
 
-const initialTasks: TaskRecord[] = [
-  { id: 'task-1', taskType: 'INSPECTION', task: '夜洗门店巡检', owner: '店长-周可', deadline: '2026-04-18 18:00:00', priority: 'MEDIUM', status: 'PROCESSING', store: '徐汇夜洗门店', relatedDevice: '-', result: '已完成洗车区巡检，待上传照片' },
-  { id: 'task-2', taskType: 'DEVICE_MAINTAIN', task: '泡沫设备保养', owner: '运维-李维', deadline: '2026-04-18 20:00:00', priority: 'HIGH', status: 'PENDING', store: '虹桥旗舰洗车站', relatedDevice: 'DEV-HQ-002' },
-  { id: 'task-3', taskType: 'NOTICE_UPDATE', task: '公告更新：五一价格调整', owner: '运营-何铭', deadline: '2026-04-19 10:00:00', priority: 'LOW', status: 'CONFIRMING', store: '嘉定联营门店', relatedDevice: '-' },
+const taskDetailFields: DetailField<StoreOperationTaskRecord>[] = [
+  { name: 'taskNo', label: '任务编号' },
+  { name: 'taskType', label: '任务类型' },
+  { name: 'task', label: '任务名称' },
+  { name: 'store', label: '门店' },
+  { name: 'relatedDevice', label: '关联设备' },
+  { name: 'owner', label: '负责人' },
+  { name: 'priority', label: '优先级' },
+  { name: 'deadline', label: '截止时间' },
+  { name: 'status', label: '状态' },
+  { name: 'result', label: '处理结果' },
 ];
 
-const initialNotices: NoticeRecord[] = [
-  { id: 'notice-1', noticeType: 'SHIFT', title: '早班排班', content: '店长 1 人，店员 2 人', status: 'PUBLISHED', store: '虹桥旗舰洗车站', publisher: '店长-李思远', publishAt: '2026-04-18 08:00:00' },
-  { id: 'notice-2', noticeType: 'SHIFT', title: '晚班排班', content: '店长 1 人，店员 1 人，运维 1 人待定', status: 'CONFIRMING', store: '徐汇夜洗门店', publisher: '区域运营-何铭', publishAt: '2026-04-18 18:00:00' },
-  { id: 'notice-3', noticeType: 'PRICE_NOTICE', title: '五一价格调整', content: '五一期间夜间价格规则调整说明', status: 'PENDING', store: '嘉定联营门店', publisher: '运营-何铭', publishAt: '2026-04-30 12:00:00' },
+const noticeDetailFields: DetailField<StoreNoticeRecord>[] = [
+  { name: 'noticeNo', label: '公告编号' },
+  { name: 'noticeType', label: '公告类型' },
+  { name: 'title', label: '标题' },
+  { name: 'store', label: '门店' },
+  { name: 'publisher', label: '发布人' },
+  { name: 'publishAt', label: '发布时间' },
+  { name: 'status', label: '状态' },
+  { name: 'content', label: '内容' },
 ];
 
 const StoreOperationsManagement: React.FC = () => {
-  const [taskForm] = Form.useForm<TaskRecord>();
-  const [noticeForm] = Form.useForm<NoticeRecord>();
-  const [tasks, setTasks] = useState(initialTasks);
-  const [notices, setNotices] = useState(initialNotices);
+  const [taskForm] = Form.useForm<StoreOperationTaskRecord>();
+  const [noticeForm] = Form.useForm<StoreNoticeRecord>();
+  const [tasks, setTasks] = useState<StoreOperationTaskRecord[]>([]);
+  const [notices, setNotices] = useState<StoreNoticeRecord[]>([]);
   const [taskVisible, setTaskVisible] = useState(false);
   const [noticeVisible, setNoticeVisible] = useState(false);
-  const [detail, setDetail] = useState<TaskRecord | NoticeRecord | null>(null);
+  const [editingTask, setEditingTask] = useState<StoreOperationTaskRecord | null>(null);
+  const [editingNotice, setEditingNotice] = useState<StoreNoticeRecord | null>(null);
+  const [detail, setDetail] = useState<StoreOperationTaskRecord | StoreNoticeRecord | null>(null);
+  const [taskSummary, setTaskSummary] = useState<StoreOperationTaskSummaryRecord>({ inspectCount: 0, pendingException: 0, overdueCount: 0, doneCount: 0 });
+  const { data: storeOptions } = useQuery({ queryKey: ['storeOptionsForStoreOps'], queryFn: async () => (await api.store.options()).data });
+  const { data: deviceOptions } = useQuery({ queryKey: ['deviceOptionsForStoreOps'], queryFn: async () => (await api.device.options()).data });
+  const storeOptionMap = useMemo(() => new Map((storeOptions as SelectOptionRecord[] | undefined || []).map((item) => [item.value, item.label])), [storeOptions]);
+  const deviceOptionMap = useMemo(() => new Map((deviceOptions as SelectOptionRecord[] | undefined || []).map((item) => [item.value, item.label])), [deviceOptions]);
 
-  const summary = useMemo(
-    () => ({
-      inspectCount: tasks.length,
-      pendingException: tasks.filter((item) => item.status !== 'DONE').length,
-      dutyCount: notices.length + 1,
-      noticeCount: notices.length,
-    }),
-    [notices, tasks]
-  );
+  const summary = useMemo(() => ({ ...taskSummary, dutyCount: notices.filter((item) => item.noticeType === 'SHIFT').length, noticeCount: notices.length }), [notices, taskSummary]);
+
+  const fetchTasks = async () => {
+    const [result, summaryResult] = await Promise.all([
+      api.storeOperationTask.page({ current: 1, size: 100 }),
+      api.storeOperationTask.summary(),
+    ]);
+    setTasks(pageData<StoreOperationTaskRecord>(result).records || []);
+    setTaskSummary('data' in summaryResult ? summaryResult.data : summaryResult);
+  };
+
+  const fetchNotices = async () => {
+    const result = await api.storeNotice.page({ current: 1, size: 100 });
+    setNotices(pageData<StoreNoticeRecord>(result).records || []);
+  };
+
+  const openTask = (record?: StoreOperationTaskRecord) => {
+    setEditingTask(record || null);
+    taskForm.resetFields();
+    taskForm.setFieldsValue(record || { status: 'PENDING', priority: 'MEDIUM' });
+    setTaskVisible(true);
+  };
+
+  const openNotice = (record?: StoreNoticeRecord) => {
+    setEditingNotice(record || null);
+    noticeForm.resetFields();
+    noticeForm.setFieldsValue(record || { status: 'PENDING' });
+    setNoticeVisible(true);
+  };
 
   const handleTaskSubmit = async () => {
     const values = await taskForm.validateFields();
-    setTasks((prev) => [{ ...values, id: `task-${Date.now()}` }, ...prev]);
+    if (editingTask) {
+      await api.storeOperationTask.edit({ ...editingTask, ...values } as unknown as Record<string, unknown>);
+      message.success('门店运营任务已更新');
+    } else {
+      await api.storeOperationTask.add(values as unknown as Record<string, unknown>);
+      message.success('门店运营任务已创建');
+    }
     setTaskVisible(false);
+    setEditingTask(null);
     taskForm.resetFields();
-    message.success('运营任务已创建');
+    fetchTasks();
   };
 
   const handleNoticeSubmit = async () => {
     const values = await noticeForm.validateFields();
-    setNotices((prev) => [{ ...values, id: `notice-${Date.now()}` }, ...prev]);
+    if (editingNotice) {
+      await api.storeNotice.edit({ ...editingNotice, ...values } as unknown as Record<string, unknown>);
+      message.success('门店公告已更新');
+    } else {
+      await api.storeNotice.add(values as unknown as Record<string, unknown>);
+      message.success('门店公告已创建');
+    }
     setNoticeVisible(false);
+    setEditingNotice(null);
     noticeForm.resetFields();
-    message.success('公告 / 排班已创建');
+    fetchNotices();
   };
 
   return (
@@ -95,13 +130,25 @@ const StoreOperationsManagement: React.FC = () => {
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={6}><Card title="今日待巡检">{summary.inspectCount} 项</Card></Col>
         <Col xs={24} sm={12} xl={6}><Card title="待处理异常">{summary.pendingException} 单</Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card title="值班店员">{summary.dutyCount} 人</Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card title="超时任务">{summary.overdueCount} 单</Card></Col>
         <Col xs={24} sm={12} xl={6}><Card title="门店公告">{summary.noticeCount} 条</Card></Col>
       </Row>
 
+      <ProTable
+        style={{ display: 'none' }}
+        columns={[]}
+        request={async () => {
+          await Promise.all([fetchTasks(), fetchNotices()]);
+          return { data: [], success: true };
+        }}
+        search={false}
+        options={false}
+        pagination={false}
+      />
+
       <Row gutter={[16, 16]}>
         <Col xs={24} xl={12}>
-          <Card title="门店运营任务" extra={<Button type="primary" onClick={() => { taskForm.resetFields(); taskForm.setFieldsValue({ status: 'PENDING' }); setTaskVisible(true); }}>新建任务</Button>}>
+          <Card title="门店运营任务" extra={<Button type="primary" onClick={() => openTask()}>新建任务</Button>}>
             <Table
               pagination={false}
               rowKey="id"
@@ -117,25 +164,14 @@ const StoreOperationsManagement: React.FC = () => {
                 { title: '状态', dataIndex: 'status', width: 110, render: (value: string) => renderStatusTag(value, taskStatusMap) },
                 {
                   title: '操作',
-                  width: 180,
-                  render: (_, record: TaskRecord) => (
+                  width: 210,
+                  render: (_, record: StoreOperationTaskRecord) => (
                     <Space size="small">
                       <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-                      <Button
-                        size="small"
-                        onClick={() => {
-                          setTasks((prev) =>
-                            prev.map((item) =>
-                              item.id === record.id
-                                ? { ...item, status: item.status === 'PROCESSING' ? 'CONFIRMING' : item.status === 'CONFIRMING' ? 'DONE' : 'PROCESSING' }
-                                : item
-                            )
-                          );
-                          message.success('任务状态已更新');
-                        }}
-                      >
-                        推进
-                      </Button>
+                      <Button size="small" onClick={() => openTask(record)}>编辑</Button>
+                      <Popconfirm title="确认推进该任务？" onConfirm={async () => { await api.storeOperationTask.updateStatus(record.id, { status: record.status === 'DONE' ? 'PROCESSING' : 'DONE', result: record.result }); message.success('任务状态已更新'); fetchTasks(); }}>
+                        <Button size="small">{record.status === 'DONE' ? '恢复' : '完成'}</Button>
+                      </Popconfirm>
                     </Space>
                   ),
                 },
@@ -144,7 +180,7 @@ const StoreOperationsManagement: React.FC = () => {
           </Card>
         </Col>
         <Col xs={24} xl={12}>
-          <Card title="班次与公告" extra={<Button onClick={() => { noticeForm.resetFields(); noticeForm.setFieldsValue({ status: 'PENDING' }); setNoticeVisible(true); }}>新建公告 / 排班</Button>}>
+          <Card title="班次与公告" extra={<Button onClick={() => openNotice()}>新建公告 / 排班</Button>}>
             <Table
               pagination={false}
               rowKey="id"
@@ -159,25 +195,14 @@ const StoreOperationsManagement: React.FC = () => {
                 { title: '状态', dataIndex: 'status', width: 110, render: (value: string) => renderStatusTag(value, publishStatusMap) },
                 {
                   title: '操作',
-                  width: 120,
-                  render: (_, record: NoticeRecord) => (
+                  width: 180,
+                  render: (_, record: StoreNoticeRecord) => (
                     <Space size="small">
                       <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-                      <Button
-                        size="small"
-                        onClick={() => {
-                          setNotices((prev) =>
-                            prev.map((item) =>
-                              item.id === record.id
-                                ? { ...item, status: item.status === 'PUBLISHED' ? 'PENDING' : 'PUBLISHED' }
-                                : item
-                            )
-                          );
-                          message.success('公告状态已更新');
-                        }}
-                      >
-                        发布
-                      </Button>
+                      <Button size="small" onClick={() => openNotice(record)}>编辑</Button>
+                      <Popconfirm title="确认发布该公告？" onConfirm={async () => { await api.storeNotice.updateStatus(record.id, 'PUBLISHED'); message.success('公告已发布'); fetchNotices(); }}>
+                        <Button size="small">发布</Button>
+                      </Popconfirm>
                     </Space>
                   ),
                 },
@@ -187,15 +212,17 @@ const StoreOperationsManagement: React.FC = () => {
         </Col>
       </Row>
 
-      <Modal title="新建运营任务" open={taskVisible} onOk={handleTaskSubmit} onCancel={() => { setTaskVisible(false); taskForm.resetFields(); }} width={820}>
+      <Modal title={editingTask ? `编辑运营任务 · ${editingTask.task}` : '新建运营任务'} open={taskVisible} onOk={handleTaskSubmit} onCancel={() => { setTaskVisible(false); taskForm.resetFields(); }} width={820}>
         <Form form={taskForm} layout="vertical">
           <div className="modal-grid">
             <Form.Item name="taskType" label="任务类型" rules={[{ required: true, message: '请选择任务类型' }]}><Select options={storeOperationTaskTypeOptions} /></Form.Item>
             <Form.Item name="priority" label="优先级"><Select options={ticketPriorityOptions} /></Form.Item>
             <Form.Item className="modal-span-2" name="task" label="任务名称" rules={[{ required: true, message: '请输入任务名称' }]}><Input /></Form.Item>
-            <Form.Item name="store" label="所属门店" rules={[{ required: true, message: '请输入所属门店' }]}><Input /></Form.Item>
+            <Form.Item name="storeId" label="所属门店" rules={[{ required: true, message: '请选择所属门店' }]}><Select options={storeOptions as SelectOptionRecord[]} onChange={(value) => taskForm.setFieldValue('store', storeOptionMap.get(value))} /></Form.Item>
+            <Form.Item name="store" label="门店名称"><Input disabled /></Form.Item>
             <Form.Item name="owner" label="负责人" rules={[{ required: true, message: '请输入负责人' }]}><Input /></Form.Item>
-            <Form.Item name="relatedDevice" label="关联设备"><Input /></Form.Item>
+            <Form.Item name="deviceId" label="关联设备"><Select options={deviceOptions as SelectOptionRecord[]} allowClear onChange={(value) => taskForm.setFieldValue('relatedDevice', deviceOptionMap.get(value))} /></Form.Item>
+            <Form.Item name="relatedDevice" label="设备名称"><Input disabled /></Form.Item>
             <Form.Item name="deadline" label="截止时间"><Input /></Form.Item>
             <Form.Item name="status" label="状态"><Select options={storeOperationTaskStatusOptions} /></Form.Item>
             <Form.Item className="modal-span-2" name="result" label="处理结果"><Input.TextArea rows={3} /></Form.Item>
@@ -203,12 +230,13 @@ const StoreOperationsManagement: React.FC = () => {
         </Form>
       </Modal>
 
-      <Modal title="新建公告 / 排班" open={noticeVisible} onOk={handleNoticeSubmit} onCancel={() => { setNoticeVisible(false); noticeForm.resetFields(); }} width={820}>
+      <Modal title={editingNotice ? `编辑公告 · ${editingNotice.title}` : '新建公告 / 排班'} open={noticeVisible} onOk={handleNoticeSubmit} onCancel={() => { setNoticeVisible(false); noticeForm.resetFields(); }} width={820}>
         <Form form={noticeForm} layout="vertical">
           <div className="modal-grid">
             <Form.Item name="noticeType" label="公告类型" rules={[{ required: true, message: '请选择公告类型' }]}><Select options={storeNoticeTypeOptions} /></Form.Item>
             <Form.Item name="title" label="标题" rules={[{ required: true, message: '请输入标题' }]}><Input /></Form.Item>
-            <Form.Item name="store" label="门店" rules={[{ required: true, message: '请输入门店' }]}><Input /></Form.Item>
+            <Form.Item name="storeId" label="门店" rules={[{ required: true, message: '请选择门店' }]}><Select options={storeOptions as SelectOptionRecord[]} onChange={(value) => noticeForm.setFieldValue('store', storeOptionMap.get(value))} /></Form.Item>
+            <Form.Item name="store" label="门店名称"><Input disabled /></Form.Item>
             <Form.Item name="publisher" label="发布人"><Input /></Form.Item>
             <Form.Item name="publishAt" label="发布时间"><Input /></Form.Item>
             <Form.Item name="status" label="状态"><Select options={publishStatusOptions} /></Form.Item>
@@ -218,15 +246,7 @@ const StoreOperationsManagement: React.FC = () => {
       </Modal>
 
       <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
-        {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 100 }}>
-            {Object.entries(detail).map(([key, value]) => (
-              <Descriptions.Item key={key} label={key}>
-                {String(value)}
-              </Descriptions.Item>
-            ))}
-          </Descriptions>
-        ) : null}
+        {detail ? <SchemaDetail record={detail as Record<string, any>} fields={('task' in detail ? taskDetailFields : noticeDetailFields) as DetailField<Record<string, any>>[]} labelWidth={100} /> : null}
       </Modal>
     </div>
   );

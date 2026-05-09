@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Popconfirm, Row, Select, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Col, Form, Input, Modal, Popconfirm, Row, Select, Statistic, Tabs, message } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined, QrcodeOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -11,6 +11,7 @@ import {
   pointTypeOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
 import type {
   PointDeviceBindLogRecord,
@@ -27,6 +28,42 @@ const auditStatusMap = buildValueEnum(auditStatusOptions);
 const maintainStatusMap = buildValueEnum(maintainStatusOptions);
 const pointStatusMap = buildValueEnum(pointStatusOptions);
 const pointTypeMap = buildValueEnum(pointTypeOptions);
+
+const pointProfileDetailFields: Record<PointProfileTab, DetailField<any>[]> = {
+  qr: [
+    { name: 'pointCode', label: '点位编号' },
+    { name: 'qrCode', label: '二维码' },
+    { name: 'qrVersion', label: '版本' },
+    { name: 'status', label: '状态' },
+    { name: 'createdAt', label: '创建时间' },
+    { name: 'updatedAt', label: '更新时间' },
+  ],
+  maintain: [
+    { name: 'maintainNo', label: '维护单号' },
+    { name: 'pointCode', label: '点位编号' },
+    { name: 'maintainType', label: '维护类型' },
+    { name: 'owner', label: '负责人' },
+    { name: 'status', label: '状态' },
+    { name: 'plannedAt', label: '计划时间' },
+  ],
+  bind: [
+    { name: 'bindNo', label: '绑定单号' },
+    { name: 'pointCode', label: '点位编号' },
+    { name: 'pointType', label: '点位类型' },
+    { name: 'beforeDevice', label: '原设备' },
+    { name: 'afterDevice', label: '新设备' },
+    { name: 'operator', label: '操作人' },
+    { name: 'boundAt', label: '绑定时间' },
+  ],
+  status: [
+    { name: 'logNo', label: '日志编号' },
+    { name: 'pointCode', label: '点位编号' },
+    { name: 'beforeStatus', label: '原状态' },
+    { name: 'afterStatus', label: '新状态' },
+    { name: 'reason', label: '原因' },
+    { name: 'changedAt', label: '变更时间' },
+  ],
+};
 
 const ServicePointProfileManagement: React.FC = () => {
   const queryClient = useQueryClient();
@@ -195,13 +232,7 @@ const ServicePointProfileManagement: React.FC = () => {
       />
 
       <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
-        {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 110 }}>
-            {Object.entries(detail).map(([key, value]) => (
-              <Descriptions.Item key={key} label={key}>{String(value ?? '-')}</Descriptions.Item>
-            ))}
-          </Descriptions>
-        ) : null}
+        {detail ? <SchemaDetail record={detail as Record<string, any>} fields={pointProfileDetailFields[activeTab]} /> : null}
       </Modal>
 
       <Modal

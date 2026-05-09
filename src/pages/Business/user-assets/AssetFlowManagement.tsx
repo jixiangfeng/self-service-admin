@@ -1,195 +1,197 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Col, Modal, Row, Statistic, Tabs } from 'antd';
 import { TransactionOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
+import { useQuery } from '@tanstack/react-query';
 import {
   balanceFlowTypeOptions,
   rechargeOrderStatusOptions,
-  rewardTypeOptions,
   userLevelOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
-import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import { buildValueEnum, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import api from '@/services/backendService';
+import type { AppUserProfileRecord, BalanceFlowRecord, ServiceCardRecord, ServiceCardUsageRecord, UserRiskRecord, UserServiceCardRecord } from '@/services/backendService';
 
-interface BalanceFlowRecord {
-  id: string;
-  flowNo: string;
-  userName: string;
-  flowType: string;
-  amount: number;
-  beforeAmount: number;
-  afterAmount: number;
-  relatedNo: string;
-  createdAt: string;
-}
-
-interface PointFlowRecord {
-  id: string;
-  flowNo: string;
-  userName: string;
-  scene: string;
-  points: number;
-  beforePoints: number;
-  afterPoints: number;
-  expireAt: string;
-  createdAt: string;
-}
-
-interface RechargeOrderRecord {
-  id: string;
-  rechargeNo: string;
-  userName: string;
-  payOrderNo: string;
-  payAmount: number;
-  giftAmount: number;
-  giftPoints: number;
-  status: string;
-  paidAt: string;
-}
-
-interface RechargeRewardRecord {
-  id: string;
-  rewardNo: string;
-  rechargeNo: string;
-  userName: string;
-  rewardType: string;
-  rewardValue: string;
-  status: string;
-  issuedAt: string;
-}
-
-interface UserTagRecord {
-  id: string;
-  tagCode: string;
-  tagName: string;
-  userName: string;
-  source: string;
-  status: string;
-  updatedAt: string;
-}
-
-interface MemberLevelRecord {
-  id: string;
-  levelCode: string;
-  levelName: string;
-  minGrowth: number;
-  discount: string;
-  rights: string;
-  status: string;
-}
+type DetailRecord = BalanceFlowRecord | AppUserProfileRecord | UserServiceCardRecord | ServiceCardRecord | ServiceCardUsageRecord | UserRiskRecord;
 
 const balanceFlowTypeMap = buildValueEnum(balanceFlowTypeOptions);
 const rechargeStatusMap = buildValueEnum(rechargeOrderStatusOptions);
-const rewardTypeMap = buildValueEnum(rewardTypeOptions);
 const userLevelMap = buildValueEnum(userLevelOptions);
 
-const balanceFlows: BalanceFlowRecord[] = [
-  { id: 'bf1', flowNo: 'BF202604180001', userName: '张晨', flowType: 'RECHARGE', amount: 100, beforeAmount: 20, afterAmount: 120, relatedNo: 'RO202604180009', createdAt: '2026-04-18 09:20:00' },
-  { id: 'bf2', flowNo: 'BF202604180002', userName: '李波', flowType: 'CONSUME', amount: -29.9, beforeAmount: 88, afterAmount: 58.1, relatedNo: 'SO202604180019', createdAt: '2026-04-18 09:30:00' },
-];
-
-const pointFlows: PointFlowRecord[] = [
-  { id: 'pf1', flowNo: 'PF202604180001', userName: '张晨', scene: '充值赠送', points: 100, beforePoints: 260, afterPoints: 360, expireAt: '2027-04-18 23:59:59', createdAt: '2026-04-18 09:20:00' },
-  { id: 'pf2', flowNo: 'PF202604170006', userName: '陈越', scene: '积分兑换', points: -50, beforePoints: 180, afterPoints: 130, expireAt: '-', createdAt: '2026-04-17 21:15:00' },
-];
-
-const rechargeOrders: RechargeOrderRecord[] = [
-  { id: 'ro1', rechargeNo: 'RO202604180009', userName: '张晨', payOrderNo: 'PAY202604180020', payAmount: 100, giftAmount: 10, giftPoints: 100, status: 'PAID', paidAt: '2026-04-18 09:20:00' },
-  { id: 'ro2', rechargeNo: 'RO202604170006', userName: '李波', payOrderNo: 'PAY202604170006', payAmount: 50, giftAmount: 5, giftPoints: 50, status: 'REWARDED', paidAt: '2026-04-17 22:10:00' },
-];
-
-const rechargeRewards: RechargeRewardRecord[] = [
-  { id: 'rr1', rewardNo: 'RR202604180001', rechargeNo: 'RO202604180009', userName: '张晨', rewardType: 'BALANCE', rewardValue: '10 元余额', status: 'PAID', issuedAt: '2026-04-18 09:20:10' },
-  { id: 'rr2', rewardNo: 'RR202604170006', rechargeNo: 'RO202604170006', userName: '李波', rewardType: 'POINTS', rewardValue: '50 积分', status: 'REWARDED', issuedAt: '2026-04-17 22:10:20' },
-];
-
-const userTags: UserTagRecord[] = [
-  { id: 'ut1', tagCode: 'NIGHT_USER', tagName: '夜洗用户', userName: '李波', source: '订单行为', status: 'MEMBER', updatedAt: '2026-04-18 09:30:00' },
-  { id: 'ut2', tagCode: 'RISK_REFUND', tagName: '退款关注', userName: '陈越', source: '风控命中', status: 'NORMAL', updatedAt: '2026-04-17 22:30:00' },
-];
-
-const memberLevels: MemberLevelRecord[] = [
-  { id: 'lv1', levelCode: 'NORMAL', levelName: '普通用户', minGrowth: 0, discount: '无折扣', rights: '基础权益', status: 'NORMAL' },
-  { id: 'lv2', levelCode: 'MEMBER', levelName: '会员用户', minGrowth: 500, discount: '9.5 折', rights: '生日券 / 夜洗券', status: 'MEMBER' },
-];
+const assetFlowDetailFields: Record<'balance' | 'profile' | 'serviceCard' | 'userCard' | 'usage' | 'risk', DetailField<any>[]> = {
+  balance: [
+    { name: 'flowNo', label: '流水号' },
+    { name: 'userName', label: '用户' },
+    { name: 'flowType', label: '类型' },
+    { name: 'changeAmount', label: '变动金额', render: (value) => formatAmount(value) },
+    { name: 'balanceAfter', label: '变动后' , render: (value) => formatAmount(value) },
+    { name: 'relatedNo', label: '关联单号' },
+    { name: 'operator', label: '操作人' },
+    { name: 'createdAt', label: '创建时间', render: (value) => formatDateTime(value) },
+  ],
+  profile: [
+    { name: 'userName', label: '用户' },
+    { name: 'mobile', label: '手机号' },
+    { name: 'memberLevel', label: '会员等级' },
+    { name: 'realNameStatus', label: '实名状态' },
+    { name: 'riskStatus', label: '风控状态' },
+    { name: 'registeredAt', label: '注册时间', render: (value) => formatDateTime(value) },
+    { name: 'remark', label: '备注' },
+  ],
+  serviceCard: [
+    { name: 'cardCode', label: '卡产品编码' },
+    { name: 'cardName', label: '卡产品名称' },
+    { name: 'cardType', label: '卡类型' },
+    { name: 'scope', label: '适用范围' },
+    { name: 'rights', label: '权益' },
+    { name: 'salePrice', label: '售价', render: (value) => formatAmount(value) },
+    { name: 'stock', label: '库存' },
+    { name: 'status', label: '状态' },
+    { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
+  ],
+  userCard: [
+    { name: 'cardNo', label: '用户卡号' },
+    { name: 'cardName', label: '卡名称' },
+    { name: 'userName', label: '用户' },
+    { name: 'phone', label: '手机号' },
+    { name: 'remainTimes', label: '剩余次数' },
+    { name: 'totalTimes', label: '总次数' },
+    { name: 'validFrom', label: '有效期开始', render: (value) => formatDateTime(value) },
+    { name: 'validTo', label: '有效期结束', render: (value) => formatDateTime(value) },
+    { name: 'sourceBizNo', label: '来源单号' },
+    { name: 'status', label: '状态' },
+  ],
+  usage: [
+    { name: 'usageNo', label: '使用流水' },
+    { name: 'cardNo', label: '用户卡号' },
+    { name: 'cardName', label: '卡名称' },
+    { name: 'userName', label: '用户' },
+    { name: 'serviceOrderNo', label: '订单号' },
+    { name: 'storeName', label: '门店' },
+    { name: 'deductCount', label: '扣减次数' },
+    { name: 'status', label: '状态' },
+    { name: 'usedAt', label: '使用时间', render: (value) => formatDateTime(value) },
+  ],
+  risk: [
+    { name: 'userName', label: '用户' },
+    { name: 'mobile', label: '手机号' },
+    { name: 'riskScene', label: '风控场景' },
+    { name: 'riskReason', label: '风控原因' },
+    { name: 'relatedNo', label: '关联单号' },
+    { name: 'riskStatus', label: '状态' },
+    { name: 'owner', label: '负责人' },
+    { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
+  ],
+};
 
 const AssetFlowManagement: React.FC = () => {
   const [keyword, setKeyword] = useState('');
-  const [detail, setDetail] = useState<BalanceFlowRecord | PointFlowRecord | RechargeOrderRecord | RechargeRewardRecord | UserTagRecord | MemberLevelRecord | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [modalTitle, setModalTitle] = useState('');
-  const [form] = Form.useForm<{ bizNo: string; type: string; remark: string }>();
-
-  const filter = <T extends object>(items: T[]) =>
-    items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
-
-  const openModal = (title: string) => {
-    setModalTitle(title);
-    form.resetFields();
-    setModalVisible(true);
-  };
+  const [detail, setDetail] = useState<DetailRecord | null>(null);
+  const balanceFlowQuery = useQuery({
+    queryKey: ['assetFlowBalanceFlows', keyword],
+    queryFn: async () => (await api.asset.balanceFlows.page({ pageNum: 1, pageSize: 200, keyword })).data,
+  });
+  const profileQuery = useQuery({
+    queryKey: ['assetFlowProfiles', keyword],
+    queryFn: async () => (await api.asset.profiles.page({ pageNum: 1, pageSize: 200, keyword })).data,
+  });
+  const serviceCardQuery = useQuery({
+    queryKey: ['assetFlowServiceCards', keyword],
+    queryFn: async () => (await api.asset.serviceCards.page({ pageNum: 1, pageSize: 200, keyword })).data,
+  });
+  const userServiceCardQuery = useQuery({
+    queryKey: ['assetFlowUserServiceCards', keyword],
+    queryFn: async () => (await api.asset.userServiceCards.page({ pageNum: 1, pageSize: 200, keyword })).data,
+  });
+  const serviceCardUsageQuery = useQuery({
+    queryKey: ['assetFlowServiceCardUsages', keyword],
+    queryFn: async () => (await api.asset.serviceCardUsages.page({ pageNum: 1, pageSize: 200, keyword })).data,
+  });
+  const riskQuery = useQuery({
+    queryKey: ['assetFlowRiskRecords', keyword],
+    queryFn: async () => (await api.asset.riskRecords.page({ pageNum: 1, pageSize: 200, keyword })).data,
+  });
+  const balanceFlows = balanceFlowQuery.data?.records || [];
+  const profiles = profileQuery.data?.records || [];
+  const serviceCards = serviceCardQuery.data?.records || [];
+  const userServiceCards = userServiceCardQuery.data?.records || [];
+  const serviceCardUsages = serviceCardUsageQuery.data?.records || [];
+  const riskRecords = riskQuery.data?.records || [];
 
   const balanceColumns = useMemo<ProColumns<BalanceFlowRecord>[]>(() => [
     { title: '流水号', dataIndex: 'flowNo', width: 180 },
     { title: '用户', dataIndex: 'userName', width: 120 },
     { title: '类型', dataIndex: 'flowType', width: 120, render: (_, record) => renderStatusTag(record.flowType, balanceFlowTypeMap) },
-    { title: '变动金额', dataIndex: 'amount', width: 120, render: (_, record) => formatAmount(record.amount) },
-    { title: '变动前', dataIndex: 'beforeAmount', width: 120, render: (_, record) => formatAmount(record.beforeAmount) },
-    { title: '变动后', dataIndex: 'afterAmount', width: 120, render: (_, record) => formatAmount(record.afterAmount) },
+    { title: '变动金额', dataIndex: 'changeAmount', width: 120, render: (_, record) => formatAmount(record.changeAmount) },
+    { title: '变动后', dataIndex: 'balanceAfter', width: 120, render: (_, record) => formatAmount(record.balanceAfter) },
     { title: '关联单号', dataIndex: 'relatedNo', width: 180 },
+    { title: '操作人', dataIndex: 'operator', width: 120 },
     { title: '创建时间', dataIndex: 'createdAt', width: 180, render: (_, record) => formatDateTime(record.createdAt) },
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
-  const pointColumns = useMemo<ProColumns<PointFlowRecord>[]>(() => [
-    { title: '积分流水', dataIndex: 'flowNo', width: 180 },
+  const profileColumns = useMemo<ProColumns<AppUserProfileRecord>[]>(() => [
     { title: '用户', dataIndex: 'userName', width: 120 },
-    { title: '场景', dataIndex: 'scene', width: 130 },
-    { title: '变动积分', dataIndex: 'points', width: 110 },
-    { title: '变动前', dataIndex: 'beforePoints', width: 100 },
-    { title: '变动后', dataIndex: 'afterPoints', width: 100 },
-    { title: '过期时间', dataIndex: 'expireAt', width: 180, render: (_, record) => formatDateTime(record.expireAt) },
-    { title: '创建时间', dataIndex: 'createdAt', width: 180, render: (_, record) => formatDateTime(record.createdAt) },
+    { title: '手机号', dataIndex: 'mobile', width: 140 },
+    { title: '会员等级', dataIndex: 'memberLevel', width: 120, render: (_, record) => renderStatusTag(record.memberLevel, userLevelMap) },
+    { title: '实名状态', dataIndex: 'realNameStatus', width: 120 },
+    { title: '风控状态', dataIndex: 'riskStatus', width: 120 },
+    { title: '注册时间', dataIndex: 'registeredAt', width: 180, render: (_, record) => formatDateTime(record.registeredAt) },
+    { title: '备注', dataIndex: 'remark', width: 220 },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
-  const rechargeColumns = useMemo<ProColumns<RechargeOrderRecord>[]>(() => [
-    { title: '充值单号', dataIndex: 'rechargeNo', width: 180 },
-    { title: '用户', dataIndex: 'userName', width: 120 },
-    { title: '支付单号', dataIndex: 'payOrderNo', width: 180 },
-    { title: '支付金额', dataIndex: 'payAmount', width: 120, render: (_, record) => formatAmount(record.payAmount) },
-    { title: '赠送余额', dataIndex: 'giftAmount', width: 120, render: (_, record) => formatAmount(record.giftAmount) },
-    { title: '赠送积分', dataIndex: 'giftPoints', width: 110 },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, rechargeStatusMap) },
-    { title: '支付时间', dataIndex: 'paidAt', width: 180, render: (_, record) => formatDateTime(record.paidAt) },
-  ], []);
-
-  const rewardColumns = useMemo<ProColumns<RechargeRewardRecord>[]>(() => [
-    { title: '奖励流水', dataIndex: 'rewardNo', width: 180 },
-    { title: '充值单号', dataIndex: 'rechargeNo', width: 180 },
-    { title: '用户', dataIndex: 'userName', width: 120 },
-    { title: '奖励类型', dataIndex: 'rewardType', width: 120, render: (_, record) => renderStatusTag(record.rewardType, rewardTypeMap) },
-    { title: '奖励内容', dataIndex: 'rewardValue', width: 160 },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, rechargeStatusMap) },
-    { title: '发放时间', dataIndex: 'issuedAt', width: 180, render: (_, record) => formatDateTime(record.issuedAt) },
-  ], []);
-
-  const tagColumns = useMemo<ProColumns<UserTagRecord>[]>(() => [
-    { title: '标签编码', dataIndex: 'tagCode', width: 150 },
-    { title: '标签名称', dataIndex: 'tagName', width: 150 },
-    { title: '用户', dataIndex: 'userName', width: 120 },
-    { title: '来源', dataIndex: 'source', width: 130 },
-    { title: '用户等级', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, userLevelMap) },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
-  ], []);
-
-  const levelColumns = useMemo<ProColumns<MemberLevelRecord>[]>(() => [
-    { title: '等级编码', dataIndex: 'levelCode', width: 140 },
-    { title: '等级名称', dataIndex: 'levelName', width: 140 },
-    { title: '成长值门槛', dataIndex: 'minGrowth', width: 120 },
-    { title: '折扣', dataIndex: 'discount', width: 120 },
+  const serviceCardColumns = useMemo<ProColumns<ServiceCardRecord>[]>(() => [
+    { title: '卡产品编码', dataIndex: 'cardCode', width: 160 },
+    { title: '卡产品名称', dataIndex: 'cardName', width: 180 },
+    { title: '卡类型', dataIndex: 'cardType', width: 120 },
+    { title: '适用范围', dataIndex: 'scope', width: 160 },
     { title: '权益', dataIndex: 'rights', width: 220 },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, userLevelMap) },
+    { title: '售价', dataIndex: 'salePrice', width: 120, render: (_, record) => formatAmount(record.salePrice) },
+    { title: '库存', dataIndex: 'stock', width: 90 },
+    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, rechargeStatusMap) },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
+  ], []);
+
+  const userCardColumns = useMemo<ProColumns<UserServiceCardRecord>[]>(() => [
+    { title: '用户卡号', dataIndex: 'cardNo', width: 170 },
+    { title: '卡名称', dataIndex: 'cardName', width: 170 },
+    { title: '用户', dataIndex: 'userName', width: 120 },
+    { title: '手机号', dataIndex: 'phone', width: 140 },
+    { title: '剩余/总次数', dataIndex: 'remainTimes', width: 130, renderText: (_, record) => `${record.remainTimes ?? 0}/${record.totalTimes ?? 0}` },
+    { title: '有效期', dataIndex: 'validFrom', width: 230, render: (_, record) => `${formatDateTime(record.validFrom)} - ${formatDateTime(record.validTo)}` },
+    { title: '来源单号', dataIndex: 'sourceBizNo', width: 180 },
+    { title: '状态', dataIndex: 'status', width: 120 },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
+  ], []);
+
+  const usageColumns = useMemo<ProColumns<ServiceCardUsageRecord>[]>(() => [
+    { title: '使用流水', dataIndex: 'usageNo', width: 170 },
+    { title: '用户卡号', dataIndex: 'cardNo', width: 170 },
+    { title: '卡名称', dataIndex: 'cardName', width: 170 },
+    { title: '用户', dataIndex: 'userName', width: 120 },
+    { title: '订单号', dataIndex: 'serviceOrderNo', width: 170 },
+    { title: '门店', dataIndex: 'storeName', width: 170 },
+    { title: '扣减次数', dataIndex: 'deductCount', width: 110 },
+    { title: '状态', dataIndex: 'status', width: 120 },
+    { title: '使用时间', dataIndex: 'usedAt', width: 180, render: (_, record) => formatDateTime(record.usedAt) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
+  ], []);
+
+  const riskColumns = useMemo<ProColumns<UserRiskRecord>[]>(() => [
+    { title: '用户', dataIndex: 'userName', width: 120 },
+    { title: '手机号', dataIndex: 'mobile', width: 140 },
+    { title: '风控场景', dataIndex: 'riskScene', width: 150 },
+    { title: '风控原因', dataIndex: 'riskReason', width: 220 },
+    { title: '关联单号', dataIndex: 'relatedNo', width: 180 },
+    { title: '状态', dataIndex: 'riskStatus', width: 120 },
+    { title: '负责人', dataIndex: 'owner', width: 120 },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
   return (
@@ -197,12 +199,12 @@ const AssetFlowManagement: React.FC = () => {
       <PageBanner title="资产流水中心" subtitle="维护余额流水、积分流水、充值订单、充值奖励、用户标签和会员等级。" icon={<TransactionOutlined />} />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="余额流水" value={balanceFlows.length} suffix="条" /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="积分流水" value={pointFlows.length} suffix="条" /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="充值金额" value={formatAmount(rechargeOrders.reduce((sum, item) => sum + item.payAmount, 0))} /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="奖励流水" value={rechargeRewards.length} suffix="条" /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="用户标签" value={userTags.length} suffix="个" /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="会员等级" value={memberLevels.length} suffix="级" /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card><Statistic title="余额流水" value={balanceFlowQuery.data?.total ?? balanceFlows.length} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card><Statistic title="用户档案" value={profileQuery.data?.total ?? profiles.length} suffix="个" /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card><Statistic title="卡产品" value={serviceCardQuery.data?.total ?? serviceCards.length} suffix="个" /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card><Statistic title="用户服务卡" value={userServiceCardQuery.data?.total ?? userServiceCards.length} suffix="张" /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card><Statistic title="扣次流水" value={serviceCardUsageQuery.data?.total ?? serviceCardUsages.length} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card><Statistic title="风控记录" value={riskQuery.data?.total ?? riskRecords.length} suffix="条" /></Card></Col>
       </Row>
 
       <ProTable
@@ -218,44 +220,26 @@ const AssetFlowManagement: React.FC = () => {
 
       <Tabs
         items={[
-          { key: 'balance', label: '余额流水', children: <ProTable<BalanceFlowRecord> cardBordered rowKey="id" columns={balanceColumns} dataSource={filter(balanceFlows) as BalanceFlowRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1480 }} /> },
-          { key: 'point', label: '积分流水', children: <ProTable<PointFlowRecord> cardBordered rowKey="id" columns={pointColumns} dataSource={filter(pointFlows) as PointFlowRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1320 }} /> },
-          { key: 'recharge', label: '充值订单', children: <ProTable<RechargeOrderRecord> cardBordered rowKey="id" columns={rechargeColumns} dataSource={filter(rechargeOrders) as RechargeOrderRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1420 }} toolBarRender={() => [<Button key="sync" type="primary" onClick={() => openModal('同步充值订单')}>同步订单</Button>]} /> },
-          { key: 'reward', label: '充值奖励', children: <ProTable<RechargeRewardRecord> cardBordered rowKey="id" columns={rewardColumns} dataSource={filter(rechargeRewards) as RechargeRewardRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="retry" type="primary" onClick={() => openModal('补发充值奖励')}>补发奖励</Button>]} /> },
-          { key: 'tag', label: '用户标签', children: <ProTable<UserTagRecord> cardBordered rowKey="id" columns={tagColumns} dataSource={filter(userTags) as UserTagRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1080 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('维护用户标签')}>维护标签</Button>]} /> },
-          { key: 'level', label: '会员等级', children: <ProTable<MemberLevelRecord> cardBordered rowKey="id" columns={levelColumns} dataSource={filter(memberLevels) as MemberLevelRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 980 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建会员等级')}>新建等级</Button>]} /> },
+          { key: 'balance', label: '余额流水', children: <ProTable<BalanceFlowRecord> cardBordered rowKey="id" columns={balanceColumns} dataSource={balanceFlows} loading={balanceFlowQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1480 }} /> },
+          { key: 'profile', label: '用户档案', children: <ProTable<AppUserProfileRecord> cardBordered rowKey="id" columns={profileColumns} dataSource={profiles} loading={profileQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} /> },
+          { key: 'serviceCard', label: '服务卡产品', children: <ProTable<ServiceCardRecord> cardBordered rowKey="id" columns={serviceCardColumns} dataSource={serviceCards} loading={serviceCardQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1480 }} /> },
+          { key: 'userCard', label: '用户服务卡', children: <ProTable<UserServiceCardRecord> cardBordered rowKey="id" columns={userCardColumns} dataSource={userServiceCards} loading={userServiceCardQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1500 }} /> },
+          { key: 'cardUsage', label: '扣次流水', children: <ProTable<ServiceCardUsageRecord> cardBordered rowKey="id" columns={usageColumns} dataSource={serviceCardUsages} loading={serviceCardUsageQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1500 }} /> },
+          { key: 'risk', label: '风控记录', children: <ProTable<UserRiskRecord> cardBordered rowKey="id" columns={riskColumns} dataSource={riskRecords} loading={riskQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1500 }} /> },
         ]}
       />
 
       <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 110 }}>
-            {Object.entries(detail).map(([key, value]) => (
-              <Descriptions.Item key={key} label={key}>{String(value ?? '-')}</Descriptions.Item>
-            ))}
-          </Descriptions>
+          <SchemaDetail
+            record={detail as Record<string, any>}
+            fields={('flowNo' in detail ? assetFlowDetailFields.balance : 'cardCode' in detail ? assetFlowDetailFields.serviceCard : 'usageNo' in detail ? assetFlowDetailFields.usage : 'cardNo' in detail ? assetFlowDetailFields.userCard : 'riskScene' in detail ? assetFlowDetailFields.risk : assetFlowDetailFields.profile) as DetailField<Record<string, any>>[]}
+            column={2}
+            labelWidth={110}
+          />
         ) : null}
       </Modal>
 
-      <Modal
-        title={modalTitle}
-        open={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        onOk={async () => {
-          await form.validateFields();
-          setModalVisible(false);
-          message.success('资产流水操作已记录');
-        }}
-        width={760}
-      >
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="bizNo" label="用户 / 流水 / 配置编码" rules={[{ required: true, message: '请输入用户、流水或配置编码' }]}><Input /></Form.Item>
-            <Form.Item name="type" label="类型"><Select options={balanceFlowTypeOptions} /></Form.Item>
-            <Form.Item className="modal-span-2" name="remark" label="处理说明"><Input.TextArea rows={4} /></Form.Item>
-          </div>
-        </Form>
-      </Modal>
     </div>
   );
 };

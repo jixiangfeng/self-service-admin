@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
 import { ThunderboltOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   deviceCommandStatusOptions,
   deviceFaultLevelOptions,
@@ -11,69 +12,16 @@ import {
   publishStatusOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
-import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
-
-interface DeviceCommandRecord {
-  id: string;
-  commandNo: string;
-  serviceOrderNo: string;
-  deviceCode: string;
-  commandType: string;
-  commandPayload: string;
-  status: string;
-  ackAt: string;
-}
-
-interface CommandLogRecord {
-  id: string;
-  commandNo: string;
-  deviceCode: string;
-  requestPayload: string;
-  responsePayload: string;
-  retryCount: number;
-  loggedAt: string;
-}
-
-interface FaultRecord {
-  id: string;
-  faultNo: string;
-  deviceCode: string;
-  storeName: string;
-  faultType: string;
-  level: string;
-  relatedOrderNo: string;
-  status: string;
-  reportedAt: string;
-}
-
-interface HeartbeatRecord {
-  id: string;
-  deviceCode: string;
-  storeName: string;
-  signalStatus: string;
-  payload: string;
-  heartbeatAt: string;
-}
-
-interface MaintenanceRecord {
-  id: string;
-  maintainNo: string;
-  deviceCode: string;
-  maintainType: string;
-  owner: string;
-  status: string;
-  plannedAt: string;
-}
-
-interface SparePartRecord {
-  id: string;
-  partCode: string;
-  partName: string;
-  deviceModel: string;
-  stockQty: number;
-  warningQty: number;
-  status: string;
-}
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import api, {
+  type DeviceCommandLogRecord,
+  type DeviceCommandRecord,
+  type DeviceFaultRecord,
+  type DeviceHeartbeatRecord,
+  type DeviceMaintenanceRecord,
+  type DeviceSparePartRecord,
+} from '@/services/backendService';
 
 const commandStatusMap = buildValueEnum(deviceCommandStatusOptions);
 const deviceStatusMap = buildValueEnum(deviceStatusOptions);
@@ -81,45 +29,81 @@ const faultLevelMap = buildValueEnum(deviceFaultLevelOptions);
 const maintainStatusMap = buildValueEnum(maintainStatusOptions);
 const publishStatusMap = buildValueEnum(publishStatusOptions);
 
-const commands: DeviceCommandRecord[] = [
-  { id: 'cmd1', commandNo: 'CMD202604180019', serviceOrderNo: 'SO202604180019', deviceCode: 'DEV-HQ-003', commandType: '启动高压冲洗', commandPayload: '{"duration":900}', status: 'SENT', ackAt: '-' },
-  { id: 'cmd2', commandNo: 'CMD202604170101', serviceOrderNo: 'SO202604170101', deviceCode: 'DEV-JD-002', commandType: '套餐启动', commandPayload: '{"package":"FOAM"}', status: 'ACKED', ackAt: '2026-04-17 19:42:08' },
-];
-
-const commandLogs: CommandLogRecord[] = [
-  { id: 'log1', commandNo: 'CMD202604180019', deviceCode: 'DEV-HQ-003', requestPayload: '{"action":"start"}', responsePayload: '{"code":0}', retryCount: 0, loggedAt: '2026-04-18 09:27:00' },
-  { id: 'log2', commandNo: 'CMD202604170113', deviceCode: 'DEV-XH-007', requestPayload: '{"action":"dry"}', responsePayload: '{"code":504}', retryCount: 2, loggedAt: '2026-04-17 22:08:30' },
-];
-
-const faults: FaultRecord[] = [
-  { id: 'ft1', faultNo: 'FT202604180001', deviceCode: 'DEV-XH-007', storeName: '徐汇夜洗门店', faultType: '回执超时', level: 'HIGH', relatedOrderNo: 'SO202604170113', status: 'PROCESSING', reportedAt: '2026-04-18 09:28:00' },
-  { id: 'ft2', faultNo: 'FT202604180002', deviceCode: 'DEV-HQ-003', storeName: '虹桥旗舰洗车站', faultType: '心跳离线', level: 'MEDIUM', relatedOrderNo: '-', status: 'PENDING', reportedAt: '2026-04-18 08:57:00' },
-];
-
-const heartbeats: HeartbeatRecord[] = [
-  { id: 'hb1', deviceCode: 'DEV-HQ-003', storeName: '虹桥旗舰洗车站', signalStatus: 'ONLINE', payload: '{"voltage":220,"temp":36}', heartbeatAt: '2026-04-18 10:20:00' },
-  { id: 'hb2', deviceCode: 'DEV-XH-007', storeName: '徐汇夜洗门店', signalStatus: 'OFFLINE', payload: '{"lastError":"ACK_TIMEOUT"}', heartbeatAt: '2026-04-18 09:28:00' },
-];
-
-const maintenances: MaintenanceRecord[] = [
-  { id: 'mt1', maintainNo: 'MT202604180006', deviceCode: 'DEV-HQ-003', maintainType: '月度保养', owner: '运维-周可', status: 'PENDING', plannedAt: '2026-04-19 09:00:00' },
-  { id: 'mt2', maintainNo: 'MT202604170002', deviceCode: 'DEV-JD-002', maintainType: '喷头更换', owner: '运维-李维', status: 'DONE', plannedAt: '2026-04-17 16:00:00' },
-];
-
-const spareParts: SparePartRecord[] = [
-  { id: 'sp1', partCode: 'PART-NOZZLE-01', partName: '高压喷头', deviceModel: '高压主机 A 系列', stockQty: 18, warningQty: 5, status: 'PUBLISHED' },
-  { id: 'sp2', partCode: 'PART-DRYER-FAN', partName: '风干机风扇', deviceModel: '风干设备 C 系列', stockQty: 3, warningQty: 4, status: 'PENDING' },
-];
+const deviceOpsDetailFields: Record<'command' | 'log' | 'fault' | 'heartbeat' | 'maintenance' | 'part', DetailField<any>[]> = {
+  command: [
+    { name: 'commandNo', label: '指令编号' },
+    { name: 'serviceOrderNo', label: '订单号' },
+    { name: 'deviceCode', label: '设备编号' },
+    { name: 'commandType', label: '指令类型' },
+    { name: 'commandPayload', label: '指令内容' },
+    { name: 'status', label: '状态' },
+    { name: 'ackAt', label: '回执时间', render: (value) => formatDateTime(value) },
+  ],
+  log: [
+    { name: 'commandNo', label: '指令编号' },
+    { name: 'deviceCode', label: '设备编号' },
+    { name: 'requestPayload', label: '请求报文' },
+    { name: 'responsePayload', label: '回执报文' },
+    { name: 'retryCount', label: '重试次数' },
+    { name: 'loggedAt', label: '记录时间', render: (value) => formatDateTime(value) },
+  ],
+  fault: [
+    { name: 'faultNo', label: '故障单号' },
+    { name: 'deviceCode', label: '设备编号' },
+    { name: 'storeName', label: '门店' },
+    { name: 'faultType', label: '故障类型' },
+    { name: 'level', label: '等级' },
+    { name: 'relatedOrderNo', label: '关联订单' },
+    { name: 'status', label: '状态' },
+    { name: 'reportedAt', label: '上报时间', render: (value) => formatDateTime(value) },
+  ],
+  heartbeat: [
+    { name: 'deviceCode', label: '设备编号' },
+    { name: 'storeName', label: '门店' },
+    { name: 'signalStatus', label: '信号状态' },
+    { name: 'payload', label: '心跳内容' },
+    { name: 'heartbeatAt', label: '心跳时间', render: (value) => formatDateTime(value) },
+  ],
+  maintenance: [
+    { name: 'maintainNo', label: '保养单号' },
+    { name: 'deviceCode', label: '设备编号' },
+    { name: 'maintainType', label: '保养类型' },
+    { name: 'owner', label: '负责人' },
+    { name: 'status', label: '状态' },
+    { name: 'plannedAt', label: '计划时间', render: (value) => formatDateTime(value) },
+  ],
+  part: [
+    { name: 'partCode', label: '备件编码' },
+    { name: 'partName', label: '备件名称' },
+    { name: 'deviceModel', label: '适用型号' },
+    { name: 'stockQty', label: '库存' },
+    { name: 'warningQty', label: '预警库存' },
+    { name: 'status', label: '状态' },
+  ],
+};
 
 const DeviceOpsManagement: React.FC = () => {
+  const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
-  const [detail, setDetail] = useState<DeviceCommandRecord | CommandLogRecord | FaultRecord | HeartbeatRecord | MaintenanceRecord | SparePartRecord | null>(null);
+  const [detail, setDetail] = useState<DeviceCommandRecord | DeviceCommandLogRecord | DeviceFaultRecord | DeviceHeartbeatRecord | DeviceMaintenanceRecord | DeviceSparePartRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [form] = Form.useForm<{ bizNo: string; status: string; remark: string }>();
 
-  const filter = <T extends object>(items: T[]) =>
-    items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
+  const queryParams = useMemo(() => ({ keyword, current: 1, size: 50 }), [keyword]);
+  const commandsQuery = useQuery({ queryKey: ['device-commands', queryParams], queryFn: () => api.deviceOps.commands.page(queryParams) });
+  const commandLogsQuery = useQuery({ queryKey: ['device-command-logs', queryParams], queryFn: () => api.deviceOps.commandLogs.page(queryParams) });
+  const faultsQuery = useQuery({ queryKey: ['device-faults', queryParams], queryFn: () => api.deviceOps.faults.page(queryParams) });
+  const heartbeatsQuery = useQuery({ queryKey: ['device-heartbeats', queryParams], queryFn: () => api.deviceOps.heartbeats.page(queryParams) });
+  const maintenancesQuery = useQuery({ queryKey: ['device-maintenances', queryParams], queryFn: () => api.deviceOps.maintenances.page(queryParams) });
+  const sparePartsQuery = useQuery({ queryKey: ['device-spare-parts', queryParams], queryFn: () => api.deviceOps.spareParts.page(queryParams) });
+
+  const commands = commandsQuery.data?.data.records ?? [];
+  const commandLogs = commandLogsQuery.data?.data.records ?? [];
+  const faults = faultsQuery.data?.data.records ?? [];
+  const heartbeats = heartbeatsQuery.data?.data.records ?? [];
+  const maintenances = maintenancesQuery.data?.data.records ?? [];
+  const spareParts = sparePartsQuery.data?.data.records ?? [];
 
   const openModal = (title: string) => {
     setModalTitle(title);
@@ -138,16 +122,17 @@ const DeviceOpsManagement: React.FC = () => {
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
-  const commandLogColumns = useMemo<ProColumns<CommandLogRecord>[]>(() => [
+  const commandLogColumns = useMemo<ProColumns<DeviceCommandLogRecord>[]>(() => [
     { title: '指令编号', dataIndex: 'commandNo', width: 180 },
     { title: '设备编号', dataIndex: 'deviceCode', width: 150 },
     { title: '请求报文', dataIndex: 'requestPayload', width: 220 },
     { title: '回执报文', dataIndex: 'responsePayload', width: 220 },
     { title: '重试次数', dataIndex: 'retryCount', width: 100 },
     { title: '记录时间', dataIndex: 'loggedAt', width: 180, render: (_, record) => formatDateTime(record.loggedAt) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
-  const faultColumns = useMemo<ProColumns<FaultRecord>[]>(() => [
+  const faultColumns = useMemo<ProColumns<DeviceFaultRecord>[]>(() => [
     { title: '故障单号', dataIndex: 'faultNo', width: 180 },
     { title: '设备编号', dataIndex: 'deviceCode', width: 150 },
     { title: '门店', dataIndex: 'storeName', width: 180 },
@@ -156,32 +141,36 @@ const DeviceOpsManagement: React.FC = () => {
     { title: '关联订单', dataIndex: 'relatedOrderNo', width: 180 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, maintainStatusMap) },
     { title: '上报时间', dataIndex: 'reportedAt', width: 180, render: (_, record) => formatDateTime(record.reportedAt) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
-  const heartbeatColumns = useMemo<ProColumns<HeartbeatRecord>[]>(() => [
+  const heartbeatColumns = useMemo<ProColumns<DeviceHeartbeatRecord>[]>(() => [
     { title: '设备编号', dataIndex: 'deviceCode', width: 150 },
     { title: '门店', dataIndex: 'storeName', width: 180 },
     { title: '信号状态', dataIndex: 'signalStatus', width: 120, render: (_, record) => renderStatusTag(record.signalStatus, deviceStatusMap) },
     { title: '心跳内容', dataIndex: 'payload', width: 260 },
     { title: '心跳时间', dataIndex: 'heartbeatAt', width: 180, render: (_, record) => formatDateTime(record.heartbeatAt) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
-  const maintenanceColumns = useMemo<ProColumns<MaintenanceRecord>[]>(() => [
+  const maintenanceColumns = useMemo<ProColumns<DeviceMaintenanceRecord>[]>(() => [
     { title: '保养单号', dataIndex: 'maintainNo', width: 180 },
     { title: '设备编号', dataIndex: 'deviceCode', width: 150 },
     { title: '保养类型', dataIndex: 'maintainType', width: 130 },
     { title: '负责人', dataIndex: 'owner', width: 130 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, maintainStatusMap) },
     { title: '计划时间', dataIndex: 'plannedAt', width: 180, render: (_, record) => formatDateTime(record.plannedAt) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
-  const sparePartColumns = useMemo<ProColumns<SparePartRecord>[]>(() => [
+  const sparePartColumns = useMemo<ProColumns<DeviceSparePartRecord>[]>(() => [
     { title: '备件编码', dataIndex: 'partCode', width: 160 },
     { title: '备件名称', dataIndex: 'partName', width: 160 },
     { title: '适用型号', dataIndex: 'deviceModel', width: 180 },
     { title: '库存', dataIndex: 'stockQty', width: 90 },
     { title: '预警库存', dataIndex: 'warningQty', width: 100 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
   return (
@@ -189,12 +178,12 @@ const DeviceOpsManagement: React.FC = () => {
       <PageBanner title="设备履约运维" subtitle="维护设备指令、回执日志、故障记录、心跳日志、保养任务和备件库存。" icon={<ThunderboltOutlined />} />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="待回执指令" value={commands.filter((item) => ['PENDING', 'SENT'].includes(item.status)).length} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card><Statistic title="待回执指令" value={commands.filter((item) => ['PENDING', 'SENT'].includes(item.status ?? '')).length} suffix="条" /></Card></Col>
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="指令日志" value={commandLogs.length} suffix="条" /></Card></Col>
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="故障中" value={faults.filter((item) => item.status !== 'DONE').length} suffix="单" /></Card></Col>
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="离线设备" value={heartbeats.filter((item) => item.signalStatus === 'OFFLINE').length} suffix="台" /></Card></Col>
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="待保养" value={maintenances.filter((item) => item.status === 'PENDING').length} suffix="单" /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="低库存备件" value={spareParts.filter((item) => item.stockQty <= item.warningQty).length} suffix="种" /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card><Statistic title="低库存备件" value={spareParts.filter((item) => Number(item.stockQty ?? 0) <= Number(item.warningQty ?? 0)).length} suffix="种" /></Card></Col>
       </Row>
 
       <ProTable
@@ -210,22 +199,23 @@ const DeviceOpsManagement: React.FC = () => {
 
       <Tabs
         items={[
-          { key: 'command', label: '设备指令', children: <ProTable<DeviceCommandRecord> cardBordered rowKey="id" columns={commandColumns} dataSource={filter(commands) as DeviceCommandRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1420 }} toolBarRender={() => [<Button key="retry" type="primary" onClick={() => openModal('重发设备指令')}>重发指令</Button>]} /> },
-          { key: 'commandLog', label: '回执日志', children: <ProTable<CommandLogRecord> cardBordered rowKey="id" columns={commandLogColumns} dataSource={filter(commandLogs) as CommandLogRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} /> },
-          { key: 'fault', label: '故障记录', children: <ProTable<FaultRecord> cardBordered rowKey="id" columns={faultColumns} dataSource={filter(faults) as FaultRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1420 }} toolBarRender={() => [<Button key="assign" type="primary" onClick={() => openModal('分派故障处理')}>分派处理</Button>]} /> },
-          { key: 'heartbeat', label: '心跳日志', children: <ProTable<HeartbeatRecord> cardBordered rowKey="id" columns={heartbeatColumns} dataSource={filter(heartbeats) as HeartbeatRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1080 }} /> },
-          { key: 'maintenance', label: '保养任务', children: <ProTable<MaintenanceRecord> cardBordered rowKey="id" columns={maintenanceColumns} dataSource={filter(maintenances) as MaintenanceRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1120 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建保养任务')}>新建保养</Button>]} /> },
-          { key: 'sparePart', label: '备件库存', children: <ProTable<SparePartRecord> cardBordered rowKey="id" columns={sparePartColumns} dataSource={filter(spareParts) as SparePartRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 980 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新增备件')}>新增备件</Button>]} /> },
+          { key: 'command', label: '设备指令', children: <ProTable<DeviceCommandRecord> cardBordered rowKey="id" columns={commandColumns} dataSource={commands} loading={commandsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1420 }} toolBarRender={() => [<Button key="retry" type="primary" onClick={() => openModal('重发设备指令')}>重发指令</Button>]} /> },
+          { key: 'commandLog', label: '回执日志', children: <ProTable<DeviceCommandLogRecord> cardBordered rowKey="id" columns={commandLogColumns} dataSource={commandLogs} loading={commandLogsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} /> },
+          { key: 'fault', label: '故障记录', children: <ProTable<DeviceFaultRecord> cardBordered rowKey="id" columns={faultColumns} dataSource={faults} loading={faultsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1420 }} toolBarRender={() => [<Button key="assign" type="primary" onClick={() => openModal('分派故障处理')}>分派处理</Button>]} /> },
+          { key: 'heartbeat', label: '心跳日志', children: <ProTable<DeviceHeartbeatRecord> cardBordered rowKey="id" columns={heartbeatColumns} dataSource={heartbeats} loading={heartbeatsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1080 }} /> },
+          { key: 'maintenance', label: '保养任务', children: <ProTable<DeviceMaintenanceRecord> cardBordered rowKey="id" columns={maintenanceColumns} dataSource={maintenances} loading={maintenancesQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1120 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建保养任务')}>新建保养</Button>]} /> },
+          { key: 'sparePart', label: '备件库存', children: <ProTable<DeviceSparePartRecord> cardBordered rowKey="id" columns={sparePartColumns} dataSource={spareParts} loading={sparePartsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 980 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新增备件')}>新增备件</Button>]} /> },
         ]}
       />
 
       <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 110 }}>
-            {Object.entries(detail).map(([key, value]) => (
-              <Descriptions.Item key={key} label={key}>{String(value ?? '-')}</Descriptions.Item>
-            ))}
-          </Descriptions>
+          <SchemaDetail
+            record={detail as Record<string, any>}
+            fields={('requestPayload' in detail ? deviceOpsDetailFields.log : 'faultNo' in detail ? deviceOpsDetailFields.fault : 'heartbeatAt' in detail ? deviceOpsDetailFields.heartbeat : 'maintainNo' in detail ? deviceOpsDetailFields.maintenance : 'partCode' in detail ? deviceOpsDetailFields.part : deviceOpsDetailFields.command) as DetailField<Record<string, any>>[]}
+            column={2}
+            labelWidth={110}
+          />
         ) : null}
       </Modal>
 
@@ -234,9 +224,22 @@ const DeviceOpsManagement: React.FC = () => {
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={async () => {
-          await form.validateFields();
+          const values = await form.validateFields();
+          if (modalTitle === '重发设备指令') {
+            await api.deviceOps.commands.add({ commandNo: values.bizNo, deviceCode: values.bizNo, commandType: '重发指令', status: values.status || 'SENT', remark: values.remark });
+            await queryClient.invalidateQueries({ queryKey: ['device-commands'] });
+          } else if (modalTitle === '分派故障处理') {
+            await api.deviceOps.faults.add({ faultNo: values.bizNo, deviceCode: values.bizNo, faultType: '人工分派', status: values.status || 'PROCESSING', remark: values.remark });
+            await queryClient.invalidateQueries({ queryKey: ['device-faults'] });
+          } else if (modalTitle === '新建保养任务') {
+            await api.deviceOps.maintenances.add({ maintainNo: values.bizNo, deviceCode: values.bizNo, maintainType: '人工保养', status: values.status || 'PENDING', remark: values.remark });
+            await queryClient.invalidateQueries({ queryKey: ['device-maintenances'] });
+          } else if (modalTitle === '新增备件') {
+            await api.deviceOps.spareParts.add({ partCode: values.bizNo, partName: values.bizNo, status: values.status || 'PENDING' });
+            await queryClient.invalidateQueries({ queryKey: ['device-spare-parts'] });
+          }
           setModalVisible(false);
-          message.success('设备运维操作已记录');
+          message.success('已保存到后端');
         }}
         width={760}
       >

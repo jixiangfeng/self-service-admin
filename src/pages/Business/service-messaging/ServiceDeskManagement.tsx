@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
 import { CustomerServiceOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -7,77 +8,102 @@ import {
   compensationTypeOptions,
   messageChannelOptions,
   messageStatusOptions,
-  ticketPriorityOptions,
-  ticketSourceOptions,
   ticketStatusOptions,
   ticketTypeOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
-
-interface MessageRecord {
-  id: string;
-  scene: string;
-  receiver: string;
-  channel: string;
-  template: string;
-  status: string;
-  sentAt: string;
-  trigger: string;
-}
-
-interface TicketRecord {
-  id: string;
-  ticketNo: string;
-  source: string;
-  ticketType: string;
-  orderNo: string;
-  storeName: string;
-  deviceCode: string;
-  content: string;
-  owner: string;
-  priority: string;
-  compensationType: string;
-  compensationAmount: number;
-  status: string;
-  updatedAt: string;
-  result?: string;
-}
+import api, { type AfterSaleTicketRecord, type MessageRecord, type MessageTemplateRecord } from '@/services/backendService';
 
 const messageStatusMap = buildValueEnum(messageStatusOptions);
 const messageChannelMap = buildValueEnum(messageChannelOptions);
 const ticketStatusMap = buildValueEnum(ticketStatusOptions);
-const priorityMap = buildValueEnum(ticketPriorityOptions);
-const ticketSourceMap = buildValueEnum(ticketSourceOptions);
 const ticketTypeMap = buildValueEnum(ticketTypeOptions);
 const compensationTypeMap = buildValueEnum(compensationTypeOptions);
 
-const initialMessages: MessageRecord[] = [
-  { id: 'm1', scene: '支付成功通知', receiver: '张晨', channel: 'WECHAT', template: 'pay_success_v1', status: 'SENT', sentAt: '2026-04-18 09:14:00', trigger: '支付回调成功' },
-  { id: 'm2', scene: '退款进度通知', receiver: '陈越', channel: 'IN_APP', template: 'refund_progress_v2', status: 'PENDING', sentAt: '2026-04-18 09:26:00', trigger: '退款状态变更' },
-  { id: 'm3', scene: '邀请奖励到账', receiver: '李波', channel: 'WECHAT', template: 'invite_reward_v1', status: 'FAILED', sentAt: '2026-04-18 08:58:00', trigger: '奖励发放成功' },
-];
-
-const initialTickets: TicketRecord[] = [
-  { id: 't1', ticketNo: 'CS20260418001', source: 'DEVICE_FAULT', ticketType: 'FAULT', orderNo: 'SO202604170113', storeName: '徐汇夜洗门店', deviceCode: 'DEV-XH-007', content: '风干设备启动失败，需要客服联系', owner: '客服-刘莎', priority: 'HIGH', compensationType: 'COUPON', compensationAmount: 5, status: 'PROCESSING', updatedAt: '2026-04-18 09:28:00', result: '已联系门店确认设备异常，准备补发 5 元券' },
-  { id: 't2', ticketNo: 'CS20260417017', source: 'ORDER_COMPLAINT', ticketType: 'COMPLAINT', orderNo: 'SO202604170098', storeName: '虹桥旗舰洗车站', deviceCode: '-', content: '订单结束时间与实际不符', owner: '客服-韩梅', priority: 'MEDIUM', compensationType: 'BALANCE', compensationAmount: 8, status: 'PENDING', updatedAt: '2026-04-17 21:12:00' },
-  { id: 't3', ticketNo: 'CS20260417005', source: 'STORE_EVALUATION', ticketType: 'CONSULT', orderNo: '-', storeName: '嘉定联营门店', deviceCode: '-', content: '门店指引不清晰', owner: '运营-何铭', priority: 'LOW', compensationType: 'NONE', compensationAmount: 0, status: 'CLOSED', updatedAt: '2026-04-17 19:05:00', result: '已同步门店更新指引牌文案' },
-];
+const serviceDeskDetailFields: Record<'ticket' | 'message' | 'template', DetailField<any>[]> = {
+  ticket: [
+    { name: 'ticketNo', label: '工单号' },
+    { name: 'ticketType', label: '类型' },
+    { name: 'orderNo', label: '关联订单' },
+    { name: 'content', label: '反馈内容' },
+    { name: 'owner', label: '处理人' },
+    { name: 'compensationType', label: '补偿类型' },
+    { name: 'compensationAmount', label: '补偿金额' },
+    { name: 'compensationValue', label: '补偿内容' },
+    { name: 'status', label: '状态' },
+    { name: 'result', label: '处理结果' },
+    { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
+  ],
+  message: [
+    { name: 'messageNo', label: '消息编号' },
+    { name: 'templateCode', label: '模板编码' },
+    { name: 'receiver', label: '接收人' },
+    { name: 'phone', label: '手机号' },
+    { name: 'channel', label: '渠道' },
+    { name: 'subscribeStatus', label: '订阅状态' },
+    { name: 'status', label: '发送状态' },
+    { name: 'failReason', label: '失败原因' },
+    { name: 'sentAt', label: '发送时间', render: (value) => formatDateTime(value) },
+  ],
+  template: [
+    { name: 'templateCode', label: '模板编码' },
+    { name: 'templateName', label: '模板名称' },
+    { name: 'scene', label: '场景' },
+    { name: 'channel', label: '发送渠道' },
+    { name: 'triggerCondition', label: '触发条件' },
+    { name: 'targetUser', label: '目标用户' },
+    { name: 'status', label: '状态' },
+    { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
+  ],
+};
 
 const ServiceDeskManagement: React.FC = () => {
+  const queryClient = useQueryClient();
   const [messageKeyword, setMessageKeyword] = useState('');
   const [ticketKeyword, setTicketKeyword] = useState('');
-  const [messages, setMessages] = useState(initialMessages);
-  const [tickets, setTickets] = useState(initialTickets);
+  const [detail, setDetail] = useState<AfterSaleTicketRecord | MessageRecord | MessageTemplateRecord | null>(null);
   const [ticketModalVisible, setTicketModalVisible] = useState(false);
-  const [detail, setDetail] = useState<TicketRecord | MessageRecord | null>(null);
-  const [editingTicket, setEditingTicket] = useState<TicketRecord | null>(null);
-  const [ticketForm] = Form.useForm<TicketRecord & { reply?: string }>();
+  const [editingTicket, setEditingTicket] = useState<AfterSaleTicketRecord | null>(null);
+  const [ticketForm] = Form.useForm();
   const [helperVisible, setHelperVisible] = useState(false);
   const [helperTitle, setHelperTitle] = useState('');
+  const [messageForm] = Form.useForm();
 
-  const filteredMessages = useMemo(() => messages.filter((item) => containsKeyword(messageKeyword, [item.scene, item.receiver, item.template, item.trigger])), [messageKeyword, messages]);
-  const filteredTickets = useMemo(() => tickets.filter((item) => containsKeyword(ticketKeyword, [item.ticketNo, item.source, item.content, item.owner, item.orderNo])), [ticketKeyword, tickets]);
+  const messageQuery = useQuery({
+    queryKey: ['messageRecords', messageKeyword],
+    queryFn: async () => (await api.message.messageRecords.page({ pageNum: 1, pageSize: 200, keyword: messageKeyword || undefined })).data,
+  });
+  const templateQuery = useQuery({
+    queryKey: ['messageTemplates', messageKeyword],
+    queryFn: async () => (await api.message.templates.page({ pageNum: 1, pageSize: 200 })).data,
+  });
+  const ticketQuery = useQuery({
+    queryKey: ['afterSaleTickets', ticketKeyword],
+    queryFn: async () => (await api.afterSaleTicket.page({ pageNum: 1, pageSize: 200, keyword: ticketKeyword || undefined })).data,
+  });
+
+  const messages = messageQuery.data?.records || [];
+  const templates = templateQuery.data?.records || [];
+  const tickets = ticketQuery.data?.records || [];
+  const createTicketMutation = useMutation({
+    mutationFn: (values: Record<string, unknown>) => api.afterSaleTicket.add(values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['afterSaleTickets'] });
+      message.success('客服工单已创建');
+    },
+  });
+  const sendMessageMutation = useMutation({
+    mutationFn: (values: Record<string, unknown>) => api.message.messageRecords.add({ ...values, messageNo: values.messageNo || `MSG${Date.now()}`, status: 'SENT' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messageRecords'] });
+      message.success('消息已发送');
+    },
+  });
+
+  const filteredMessages = useMemo(() => messages.filter((item) => containsKeyword(messageKeyword, [item.messageNo, item.templateCode, item.receiver, item.phone, item.failReason])), [messageKeyword, messages]);
+  const filteredTickets = useMemo(() => tickets.filter((item) => containsKeyword(ticketKeyword, [item.ticketNo, item.ticketType, item.content, item.owner, item.orderNo])), [ticketKeyword, tickets]);
 
   const openHelper = (title: string) => {
     setHelperTitle(title);
@@ -85,48 +111,41 @@ const ServiceDeskManagement: React.FC = () => {
   };
 
   const messageColumns: ProColumns<MessageRecord>[] = [
-    { title: '触达场景', dataIndex: 'scene', width: 180, hideInSearch: true },
-    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '场景 / 接收人 / 模板 / 触发条件' } },
+    { title: '消息编号', dataIndex: 'messageNo', width: 180, hideInSearch: true },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '消息编号 / 模板 / 接收人 / 手机号' } },
+    { title: '模板编码', dataIndex: 'templateCode', width: 160, search: false },
     { title: '接收人', dataIndex: 'receiver', width: 120, search: false },
-    { title: '渠道', dataIndex: 'channel', width: 160, valueType: 'select', valueEnum: messageChannelMap, render: (_, record) => renderStatusTag(record.channel, messageChannelMap) },
-    { title: '模板编码', dataIndex: 'template', width: 160, search: false },
-    { title: '触发条件', dataIndex: 'trigger', width: 180, search: false },
-    { title: '状态', dataIndex: 'status', width: 120, search: false, render: (_, record) => renderStatusTag(record.status, messageStatusMap) },
+    { title: '手机号', dataIndex: 'phone', width: 140, search: false },
+    { title: '渠道', dataIndex: 'channel', width: 140, valueType: 'select', valueEnum: messageChannelMap, render: (_, record) => renderStatusTag(record.channel, messageChannelMap) },
+    { title: '订阅状态', dataIndex: 'subscribeStatus', width: 120, search: false, renderText: (value) => value || '-' },
+    { title: '发送状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: messageStatusMap, render: (_, record) => renderStatusTag(record.status, messageStatusMap) },
+    { title: '失败原因', dataIndex: 'failReason', width: 180, search: false, renderText: (value) => value || '-' },
     { title: '发送时间', dataIndex: 'sentAt', width: 180, search: false, render: (_, record) => formatDateTime(record.sentAt) },
     {
       title: '操作',
-      width: 160,
+      width: 120,
       search: false,
       render: (_, record) => (
-        <Space>
-          <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-          <Button
-            size="small"
-            onClick={() => {
-              setMessages((prev) => prev.map((item) => item.id === record.id ? { ...item, status: 'SENT', sentAt: new Date().toISOString() } : item));
-              message.success('消息已重发');
-            }}
-          >
-            重发
-          </Button>
-        </Space>
+        <Button size="small" onClick={() => { setDetail(record); }}>
+          详情
+        </Button>
       ),
     },
   ];
 
-  const ticketColumns: ProColumns<TicketRecord>[] = [
+  const ticketColumns: ProColumns<AfterSaleTicketRecord>[] = [
     { title: '工单号', dataIndex: 'ticketNo', width: 180, hideInSearch: true },
-    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '工单号 / 来源 / 订单 / 内容 / 处理人' } },
-    { title: '来源', dataIndex: 'source', width: 140, valueType: 'select', valueEnum: ticketSourceMap, render: (_, record) => renderStatusTag(record.source, ticketSourceMap) },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '工单号 / 类型 / 订单 / 内容' } },
+    { title: '来源', dataIndex: 'source', width: 140, renderText: () => '-' },
     { title: '类型', dataIndex: 'ticketType', width: 120, valueType: 'select', valueEnum: ticketTypeMap, render: (_, record) => renderStatusTag(record.ticketType, ticketTypeMap) },
-    { title: '关联订单', dataIndex: 'orderNo', width: 160, search: false },
-    { title: '门店', dataIndex: 'storeName', width: 160, search: false },
-    { title: '设备', dataIndex: 'deviceCode', width: 130, search: false },
-    { title: '反馈内容', dataIndex: 'content', width: 260, search: false },
-    { title: '处理人', dataIndex: 'owner', width: 140, search: false },
-    { title: '优先级', dataIndex: 'priority', width: 120, search: false, render: (_, record) => renderStatusTag(record.priority, priorityMap) },
+    { title: '关联订单', dataIndex: 'orderNo', width: 160, search: false, renderText: (value) => value || '-' },
+    { title: '门店', dataIndex: 'storeName', width: 160, search: false, renderText: () => '-' },
+    { title: '设备', dataIndex: 'deviceCode', width: 130, search: false, renderText: () => '-' },
+    { title: '反馈内容', dataIndex: 'content', width: 260, search: false, renderText: (value) => value || '-' },
+    { title: '处理人', dataIndex: 'owner', width: 140, search: false, renderText: (value) => value || '-' },
+    { title: '优先级', dataIndex: 'priority', width: 120, search: false, renderText: () => '-' },
     { title: '补偿', dataIndex: 'compensationType', width: 120, render: (_, record) => renderStatusTag(record.compensationType, compensationTypeMap) },
-    { title: '补偿金额', dataIndex: 'compensationAmount', width: 110, search: false },
+    { title: '补偿金额', dataIndex: 'compensationAmount', width: 110, search: false, renderText: (value) => String(value ?? '-') },
     { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: ticketStatusMap, render: (_, record) => renderStatusTag(record.status, ticketStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
     {
@@ -140,20 +159,11 @@ const ServiceDeskManagement: React.FC = () => {
             size="small"
             onClick={() => {
               setEditingTicket(record);
-              ticketForm.setFieldsValue({ ...record, reply: record.result });
+              ticketForm.setFieldsValue({ ...record, result: record.result });
               setTicketModalVisible(true);
             }}
           >
             处理
-          </Button>
-          <Button
-            size="small"
-            onClick={() => {
-              setTickets((prev) => prev.map((item) => item.id === record.id ? { ...item, status: 'CLOSED', updatedAt: new Date().toISOString(), result: item.result || '已手动关闭工单' } : item));
-              message.success('工单已关闭');
-            }}
-          >
-            关闭
           </Button>
         </Space>
       ),
@@ -162,43 +172,17 @@ const ServiceDeskManagement: React.FC = () => {
 
   const handleTicketSubmit = async () => {
     const values = await ticketForm.validateFields();
-    if (editingTicket) {
-      setTickets((prev) =>
-        prev.map((item) =>
-          item.id === editingTicket.id
-            ? {
-                ...item,
-                ...values,
-                result: values.reply,
-                updatedAt: new Date().toISOString(),
-              }
-            : item
-        )
-      );
-      message.success('工单处理结果已更新');
-    } else {
-      setTickets((prev) => [
-        {
-          id: `ticket-${Date.now()}`,
-          ticketNo: values.ticketNo,
-          source: values.source,
-          orderNo: values.orderNo,
-          storeName: values.storeName,
-          deviceCode: values.deviceCode,
-          content: values.content,
-          owner: values.owner,
-          priority: values.priority,
-          ticketType: values.ticketType,
-          compensationType: values.compensationType,
-          compensationAmount: values.compensationAmount,
-          status: values.status,
-          updatedAt: new Date().toISOString(),
-          result: values.reply,
-        },
-        ...prev,
-      ]);
-      message.success('工单已创建');
+    if (!editingTicket) {
+      return;
     }
+    await api.afterSaleTicket.updateStatus(editingTicket.id, {
+      ticketStatus: values.status,
+      compensationType: values.compensationType,
+      compensationValue: values.result,
+      result: values.result,
+    });
+    message.success('工单处理结果已更新');
+    queryClient.invalidateQueries({ queryKey: ['afterSaleTickets'] });
     setTicketModalVisible(false);
     setEditingTicket(null);
     ticketForm.resetFields();
@@ -207,14 +191,12 @@ const ServiceDeskManagement: React.FC = () => {
   return (
     <div style={{ padding: 24 }}>
       <PageBanner title="客服工单" subtitle="管理故障反馈、订单投诉、消息发送和客服处理进度。" icon={<CustomerServiceOutlined />} />
-
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="今日消息发送" value={368} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="今日消息发送" value={messages.length} suffix="条" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="待处理工单" value={tickets.filter((item) => item.status !== 'CLOSED').length} suffix="单" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="消息失败" value={messages.filter((item) => item.status === 'FAILED').length} suffix="条" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="高优先级工单" value={tickets.filter((item) => item.priority === 'HIGH').length} suffix="单" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="高优先级工单" value={0} suffix="单" /></Card></Col>
       </Row>
-
       <Tabs
         items={[
           {
@@ -226,10 +208,11 @@ const ServiceDeskManagement: React.FC = () => {
                 rowKey="id"
                 columns={messageColumns}
                 dataSource={filteredMessages}
+                loading={messageQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1580 }}
-                toolBarRender={() => [<Button key="template" onClick={() => openHelper('模板管理')}>模板管理</Button>, <Button key="send" type="primary" onClick={() => openHelper('手工发送')}>手工发送</Button>]}
+                toolBarRender={() => [<Button key="template" onClick={() => openHelper(`模板管理 · ${templates.length} 个模板`)}>模板管理</Button>, <Button key="send" type="primary" onClick={() => { messageForm.resetFields(); openHelper('手工发送'); }}>手工发送</Button>]}
                 onSubmit={(values) => setMessageKeyword(String(values.keyword || ''))}
                 onReset={() => setMessageKeyword('')}
               />
@@ -239,28 +222,26 @@ const ServiceDeskManagement: React.FC = () => {
             key: 'ticket',
             label: '客服工单',
             children: (
-              <ProTable<TicketRecord>
+              <ProTable<AfterSaleTicketRecord>
                 cardBordered
                 rowKey="id"
                 columns={ticketColumns}
                 dataSource={filteredTickets}
+                loading={ticketQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
-                scroll={{ x: 1860 }}
+                scroll={{ x: 1740 }}
                 toolBarRender={() => [
-                  <Button key="assign" onClick={() => openHelper('批量分派')}>批量分派</Button>,
-                  <Button
-                    key="new"
-                    type="primary"
-                    onClick={() => {
-                      setEditingTicket(null);
-                      ticketForm.resetFields();
-                      ticketForm.setFieldsValue({ priority: 'MEDIUM', status: 'PENDING', owner: '客服-待分派', compensationType: 'NONE', compensationAmount: 0 });
-                      setTicketModalVisible(true);
-                    }}
-                  >
-                    新建工单
-                  </Button>,
+                  <Button key="assign" onClick={() => {
+                    const first = tickets[0];
+                    if (first) {
+                      api.afterSaleTicket.updateStatus(first.id, { ticketStatus: first.status || 'PROCESSING', compensationType: first.compensationType, compensationValue: first.result || '已分派客服处理' }).then(() => {
+                        queryClient.invalidateQueries({ queryKey: ['afterSaleTickets'] });
+                        message.success('已分派首个待处理工单');
+                      });
+                    }
+                  }}>批量分派</Button>,
+                  <Button key="new" type="primary" onClick={() => { setEditingTicket(null); ticketForm.resetFields(); setTicketModalVisible(true); }}>新建工单</Button>,
                 ]}
                 onSubmit={(values) => setTicketKeyword(String(values.keyword || ''))}
                 onReset={() => setTicketKeyword('')}
@@ -269,81 +250,54 @@ const ServiceDeskManagement: React.FC = () => {
           },
         ]}
       />
-
-      <Modal
-        title={editingTicket ? `处理工单 · ${editingTicket.ticketNo}` : '新建工单'}
-        open={ticketModalVisible}
-        onOk={handleTicketSubmit}
-        onCancel={() => {
-          setTicketModalVisible(false);
-          setEditingTicket(null);
-          ticketForm.resetFields();
-        }}
-        width={860}
-        okText={editingTicket ? '保存处理结果' : '创建工单'}
-      >
+      <Modal title={editingTicket ? `处理工单 · ${editingTicket.ticketNo}` : '新建工单'} open={ticketModalVisible} onOk={async () => {
+        if (editingTicket) {
+          await handleTicketSubmit();
+          return;
+        }
+        const values = await ticketForm.validateFields();
+        await createTicketMutation.mutateAsync({ ...values, ticketNo: values.ticketNo || `TK${Date.now()}`, ticketStatus: values.status || 'PENDING' });
+        setTicketModalVisible(false);
+        ticketForm.resetFields();
+      }} confirmLoading={createTicketMutation.isPending} onCancel={() => setTicketModalVisible(false)} width={760}>
         <Form form={ticketForm} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item className="modal-span-2" name="ticketNo" label="工单号" rules={[{ required: true, message: '请输入工单号' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="source" label="来源" rules={[{ required: true, message: '请选择来源' }]}>
-              <Select options={ticketSourceOptions} />
-            </Form.Item>
-            <Form.Item name="ticketType" label="工单类型" rules={[{ required: true, message: '请选择工单类型' }]}>
-              <Select options={ticketTypeOptions} />
-            </Form.Item>
-            <Form.Item name="orderNo" label="关联订单">
-              <Input />
-            </Form.Item>
-            <Form.Item name="storeName" label="关联门店">
-              <Input />
-            </Form.Item>
-            <Form.Item name="deviceCode" label="关联设备">
-              <Input />
-            </Form.Item>
-            <Form.Item name="owner" label="处理人">
-              <Input />
-            </Form.Item>
-            <Form.Item name="priority" label="优先级">
-              <Select options={ticketPriorityOptions} />
-            </Form.Item>
-            <Form.Item name="status" label="状态">
-              <Select options={ticketStatusOptions} />
-            </Form.Item>
-            <Form.Item name="compensationType" label="补偿类型">
-              <Select options={compensationTypeOptions} />
-            </Form.Item>
-            <Form.Item name="compensationAmount" label="补偿金额">
-              <Input />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="content" label="问题描述" rules={[{ required: true, message: '请输入问题描述' }]}>
-              <Input.TextArea rows={4} />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="reply" label="处理说明 / 补偿方案">
-              <Input.TextArea rows={4} placeholder="填写处理进度、补偿说明、关闭结论" />
-            </Form.Item>
-          </div>
+          <Row gutter={16}>
+            {!editingTicket && <Col span={12}><Form.Item name="ticketNo" label="工单号"><Input /></Form.Item></Col>}
+            {!editingTicket && <Col span={12}><Form.Item name="ticketType" label="工单类型" rules={[{ required: true, message: '请选择工单类型' }]}><Select options={ticketTypeOptions} /></Form.Item></Col>}
+            <Col span={12}><Form.Item name="status" label="工单状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={ticketStatusOptions} /></Form.Item></Col>
+            <Col span={12}><Form.Item name="compensationType" label="补偿类型"><Select options={compensationTypeOptions} /></Form.Item></Col>
+            <Col span={12}><Form.Item name="owner" label="处理人"><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="compensationAmount" label="补偿金额"><Input /></Form.Item></Col>
+            <Col span={24}><Form.Item name="result" label="处理结果" rules={[{ required: true, message: '请输入处理结果' }]}><Input.TextArea rows={4} /></Form.Item></Col>
+          </Row>
         </Form>
       </Modal>
-
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={720}>
-        {detail ? (
-          <Descriptions column={1} labelStyle={{ width: 120 }}>
-            {Object.entries(detail).map(([key, value]) => (
-              <Descriptions.Item key={key} label={key}>
-                {String(value)}
-              </Descriptions.Item>
-            ))}
-          </Descriptions>
-        ) : null}
+      <Modal title={helperTitle} open={helperVisible} onCancel={() => setHelperVisible(false)} footer={null} width={640}>
+        {helperTitle === '手工发送' ? (
+          <Form form={messageForm} layout="vertical">
+            <Form.Item name="templateCode" label="模板编码" rules={[{ required: true, message: '请输入模板编码' }]}><Input /></Form.Item>
+            <Form.Item name="receiver" label="接收人" rules={[{ required: true, message: '请输入接收人' }]}><Input /></Form.Item>
+            <Form.Item name="phone" label="手机号"><Input /></Form.Item>
+            <Form.Item name="channel" label="渠道"><Select options={messageChannelOptions} /></Form.Item>
+            <Button type="primary" loading={sendMessageMutation.isPending} onClick={async () => {
+              const values = await messageForm.validateFields();
+              await sendMessageMutation.mutateAsync(values);
+              setHelperVisible(false);
+            }}>发送</Button>
+          </Form>
+        ) : (
+          <div style={{ color: 'rgba(0,0,0,0.65)' }}>该入口已接入现有后端数据，当前可查看模板并处理工单。</div>
+        )}
       </Modal>
-
-      <Modal title={helperTitle} open={helperVisible} footer={null} onCancel={() => setHelperVisible(false)} width={680}>
-        <Descriptions column={1} labelStyle={{ width: 120 }}>
-          <Descriptions.Item label="说明">该入口已具备可达弹框，后续可以继续拆成独立批量处理页面。</Descriptions.Item>
-          <Descriptions.Item label="当前动作">{helperTitle}</Descriptions.Item>
-        </Descriptions>
+      <Modal title="详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={820}>
+        {detail ? (
+          <SchemaDetail
+            record={detail as Record<string, any>}
+            fields={('messageNo' in detail ? serviceDeskDetailFields.message : 'templateName' in detail ? serviceDeskDetailFields.template : serviceDeskDetailFields.ticket) as DetailField<Record<string, any>>[]}
+            column={2}
+            labelWidth={110}
+          />
+        ) : null}
       </Modal>
     </div>
   );

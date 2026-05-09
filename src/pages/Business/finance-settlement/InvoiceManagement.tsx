@@ -1,43 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
 import { FileDoneOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
-
-interface InvoiceTitleRecord {
-  id: string;
-  appUserName?: string;
-  merchantName?: string;
-  titleType: string;
-  titleName: string;
-  taxNo?: string;
-  bankName?: string;
-  bankAccount?: string;
-  address?: string;
-  phone?: string;
-  createdAt: string;
-}
-
-interface InvoiceApplyRecord {
-  id: string;
-  applyNo: string;
-  titleName: string;
-  appUserName: string;
-  sourceBizType: string;
-  sourceBizNo: string;
-  orderNos: string;
-  settlementBillNo?: string;
-  amount: number;
-  invoiceType: string;
-  applyStatus: string;
-  fileAssetId?: string;
-  rejectReason?: string;
-  applyRemark?: string;
-  createdAt: string;
-  issuedAt?: string;
-}
+import api, { type InvoiceApplyRecord, type InvoiceTitleRecord } from '@/services/backendService';
 
 type DetailRecord = InvoiceTitleRecord | InvoiceApplyRecord;
 
@@ -64,29 +34,87 @@ const invoiceSourceTypeOptions = [
   { value: 'RETAIL_ORDER', label: '零售订单' },
 ];
 
-const titles: InvoiceTitleRecord[] = [
-  { id: 'it1', appUserName: '李波', titleType: 'PERSONAL', titleName: '李波', phone: '138****2451', createdAt: '2026-05-01 10:12:00' },
-  { id: 'it2', merchantName: '鲸洗直营', titleType: 'COMPANY', titleName: '上海鲸洗智能服务有限公司', taxNo: '91310000MA1K202605', bankName: '招商银行上海分行', bankAccount: '6214 **** 2091', address: '上海市长宁区虹桥路 100 号', phone: '021-88886666', createdAt: '2026-05-02 14:20:00' },
-  { id: 'it3', appUserName: '陈越', titleType: 'COMPANY', titleName: '上海越行科技有限公司', taxNo: '91310000MA1K202606', bankName: '工商银行徐汇支行', bankAccount: '6222 **** 7788', address: '上海市徐汇区漕溪北路 88 号', phone: '021-66668888', createdAt: '2026-05-06 09:10:00' },
-];
-
-const applies: InvoiceApplyRecord[] = [
-  { id: 'ia1', applyNo: 'INV202605070001', titleName: '上海越行科技有限公司', appUserName: '陈越', sourceBizType: 'SERVICE_ORDER', sourceBizNo: 'SO-GROUP-20260507-001', orderNos: 'SO202605070018,SO202605070031', amount: 299.9, invoiceType: 'NORMAL', applyStatus: 'PENDING', applyRemark: '用户合并两笔洗车订单开票', createdAt: '2026-05-07 09:30:00' },
-  { id: 'ia2', applyNo: 'INV202605060008', titleName: '上海鲸洗智能服务有限公司', appUserName: '企业管理员-许鸣', sourceBizType: 'SETTLEMENT_BILL', sourceBizNo: 'SET202605060001', orderNos: 'SO202605010001-SO202605060120', settlementBillNo: 'SET202605060001', amount: 1280, invoiceType: 'SPECIAL', applyStatus: 'ISSUED', fileAssetId: 'FA202605060081', applyRemark: '企业月结开票', createdAt: '2026-05-06 10:00:00', issuedAt: '2026-05-06 16:20:00' },
-  { id: 'ia3', applyNo: 'INV202605050011', titleName: '李波', appUserName: '李波', sourceBizType: 'RECHARGE_ORDER', sourceBizNo: 'RCG202605050011', orderNos: '-', amount: 39.9, invoiceType: 'NORMAL', applyStatus: 'REJECTED', rejectReason: '个人抬头信息不完整，请补充手机号。', applyRemark: '充值订单开票', createdAt: '2026-05-05 13:20:00' },
-];
-
 const titleTypeMap = buildValueEnum(titleTypeOptions);
 const invoiceTypeMap = buildValueEnum(invoiceTypeOptions);
 const applyStatusMap = buildValueEnum(applyStatusOptions);
 const sourceTypeMap = buildValueEnum(invoiceSourceTypeOptions);
 
+const invoiceDetailFields: Record<'title' | 'apply', DetailField<any>[]> = {
+  title: [
+    { name: 'titleName', label: '抬头名称' },
+    { name: 'titleType', label: '抬头类型' },
+    { name: 'appUserName', label: '用户' },
+    { name: 'merchantName', label: '商户' },
+    { name: 'taxNo', label: '税号' },
+    { name: 'bankName', label: '开户行' },
+    { name: 'bankAccount', label: '银行账号' },
+    { name: 'address', label: '地址' },
+    { name: 'phone', label: '电话' },
+    { name: 'createdAt', label: '创建时间', render: (value) => formatDateTime(value) },
+  ],
+  apply: [
+    { name: 'applyNo', label: '申请单号' },
+    { name: 'titleName', label: '发票抬头' },
+    { name: 'appUserName', label: '申请用户' },
+    { name: 'sourceBizType', label: '来源类型' },
+    { name: 'sourceBizNo', label: '来源单号' },
+    { name: 'orderNos', label: '关联订单' },
+    { name: 'settlementBillNo', label: '结算单号' },
+    { name: 'amount', label: '开票金额', render: (value) => formatAmount(value) },
+    { name: 'invoiceType', label: '发票类型' },
+    { name: 'applyStatus', label: '申请状态' },
+    { name: 'fileAssetId', label: '发票文件' },
+    { name: 'rejectReason', label: '驳回原因' },
+    { name: 'applyRemark', label: '申请备注' },
+    { name: 'createdAt', label: '申请时间', render: (value) => formatDateTime(value) },
+    { name: 'issuedAt', label: '开票时间', render: (value) => formatDateTime(value) },
+  ],
+};
+
 const InvoiceManagement: React.FC = () => {
+  const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
   const [detail, setDetail] = useState<DetailRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [titleModalVisible, setTitleModalVisible] = useState(false);
+  const [processingApply, setProcessingApply] = useState<InvoiceApplyRecord | null>(null);
   const [modalTitle, setModalTitle] = useState('');
   const [form] = Form.useForm();
+  const [titleForm] = Form.useForm();
+  const [processForm] = Form.useForm();
+
+  const titleQuery = useQuery({
+    queryKey: ['invoiceTitles', keyword],
+    queryFn: async () => (await api.invoiceTitle.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+  });
+  const applyQuery = useQuery({
+    queryKey: ['invoiceApplies', keyword],
+    queryFn: async () => (await api.invoiceApply.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+  });
+  const createApplyMutation = useMutation({
+    mutationFn: (values: Record<string, unknown>) => api.invoiceApply.add(values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoiceApplies'] });
+      message.success('开票申请已保存');
+    },
+  });
+  const createTitleMutation = useMutation({
+    mutationFn: (values: Record<string, unknown>) => api.invoiceTitle.add(values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoiceTitles'] });
+      message.success('发票抬头已保存');
+    },
+  });
+  const processApplyMutation = useMutation({
+    mutationFn: (values: Record<string, unknown>) => api.invoiceApply.updateStatus(Number(processingApply?.id), { ...processingApply, ...values }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoiceApplies'] });
+      message.success('开票状态已更新');
+    },
+  });
+
+  const titles = titleQuery.data?.records || [];
+  const applies = applyQuery.data?.records || [];
 
   const filter = <T extends Record<string, any>>(records: T[]) => records.filter((record) => containsKeyword(keyword, Object.values(record)));
 
@@ -97,9 +125,10 @@ const InvoiceManagement: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    await form.validateFields();
+    const values = await form.validateFields();
+    await createApplyMutation.mutateAsync({ ...values, amount: Number(values.amount || 0) });
     setModalVisible(false);
-    message.success('发票信息已保存');
+    form.resetFields();
   };
 
   const titleColumns = useMemo<ProColumns<InvoiceTitleRecord>[]>(() => [
@@ -119,10 +148,10 @@ const InvoiceManagement: React.FC = () => {
   const applyColumns = useMemo<ProColumns<InvoiceApplyRecord>[]>(() => [
     { title: '申请单号', dataIndex: 'applyNo', width: 180, fixed: 'left' },
     { title: '发票抬头', dataIndex: 'titleName', width: 240 },
-    { title: '申请用户', dataIndex: 'appUserName', width: 140 },
+    { title: '申请用户', dataIndex: 'appUserName', width: 140, renderText: (value) => value || '-' },
     { title: '来源类型', dataIndex: 'sourceBizType', width: 130, render: (_, record) => renderStatusTag(record.sourceBizType, sourceTypeMap) },
     { title: '来源单号', dataIndex: 'sourceBizNo', width: 190 },
-    { title: '关联订单', dataIndex: 'orderNos', width: 220, ellipsis: true },
+    { title: '关联订单', dataIndex: 'orderNos', width: 220, ellipsis: true, renderText: (value) => value || '-' },
     { title: '结算单号', dataIndex: 'settlementBillNo', width: 170, renderText: (value) => value || '-' },
     { title: '开票金额', dataIndex: 'amount', width: 120, render: (_, record) => formatAmount(record.amount) },
     { title: '发票类型', dataIndex: 'invoiceType', width: 130, render: (_, record) => renderStatusTag(record.invoiceType, invoiceTypeMap) },
@@ -132,7 +161,7 @@ const InvoiceManagement: React.FC = () => {
     { title: '申请备注', dataIndex: 'applyRemark', width: 220, ellipsis: true, renderText: (value) => value || '-' },
     { title: '申请时间', dataIndex: 'createdAt', width: 180, render: (_, record) => formatDateTime(record.createdAt) },
     { title: '开票时间', dataIndex: 'issuedAt', width: 180, render: (_, record) => formatDateTime(record.issuedAt) },
-    { title: '操作', valueType: 'option', width: 150, fixed: 'right', render: (_, record) => [<a key="issue" onClick={() => openModal(`处理开票 · ${record.applyNo}`)}>处理</a>, <a key="detail" onClick={() => setDetail(record)}>详情</a>] },
+    { title: '操作', valueType: 'option', width: 150, fixed: 'right', render: (_, record) => [<a key="issue" onClick={() => { setProcessingApply(record); processForm.setFieldsValue(record); }}>处理</a>, <a key="detail" onClick={() => setDetail(record)}>详情</a>] },
   ], []);
 
   return (
@@ -143,7 +172,7 @@ const InvoiceManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="发票抬头" value={titles.length} suffix="个" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="开票申请" value={applies.length} suffix="单" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="待开票" value={applies.filter((item) => item.applyStatus === 'PENDING').length} suffix="单" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="已开票金额" value={applies.filter((item) => item.applyStatus === 'ISSUED').reduce((sum, item) => sum + item.amount, 0)} precision={2} prefix="￥" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="已开票金额" value={applies.filter((item) => item.applyStatus === 'ISSUED').reduce((sum, item) => sum + Number(item.amount || 0), 0)} precision={2} prefix="￥" /></Card></Col>
       </Row>
 
       <ProTable
@@ -159,20 +188,23 @@ const InvoiceManagement: React.FC = () => {
 
       <Tabs
         items={[
-          { key: 'title', label: '发票抬头', children: <ProTable<InvoiceTitleRecord> cardBordered rowKey="id" columns={titleColumns} dataSource={filter(titles)} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1900 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建发票抬头')}>新建抬头</Button>]} /> },
-          { key: 'apply', label: '开票申请', children: <ProTable<InvoiceApplyRecord> cardBordered rowKey="id" columns={applyColumns} dataSource={filter(applies)} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 2400 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建开票申请')}>新建申请</Button>]} /> },
+          { key: 'title', label: '发票抬头', children: <ProTable<InvoiceTitleRecord> cardBordered rowKey="id" columns={titleColumns} dataSource={filter(titles)} loading={titleQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1900 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => { titleForm.resetFields(); setTitleModalVisible(true); }}>新建抬头</Button>]} /> },
+          { key: 'apply', label: '开票申请', children: <ProTable<InvoiceApplyRecord> cardBordered rowKey="id" columns={applyColumns} dataSource={filter(applies)} loading={applyQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 2400 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建开票申请')}>新建申请</Button>]} /> },
         ]}
       />
 
       <Modal title="详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={820}>
         {detail && (
-          <Descriptions bordered size="small" column={2}>
-            {Object.entries(detail).map(([key, value]) => <Descriptions.Item key={key} label={key}>{String(value || '-')}</Descriptions.Item>)}
-          </Descriptions>
+          <SchemaDetail
+            record={detail as Record<string, any>}
+            fields={('applyNo' in detail ? invoiceDetailFields.apply : invoiceDetailFields.title) as DetailField<Record<string, any>>[]}
+            column={2}
+            labelWidth={110}
+          />
         )}
       </Modal>
 
-      <Modal title={modalTitle} open={modalVisible} onOk={handleSubmit} onCancel={() => setModalVisible(false)} width={780}>
+      <Modal title={modalTitle} open={modalVisible} onOk={handleSubmit} confirmLoading={createApplyMutation.isPending} onCancel={() => setModalVisible(false)} width={780}>
         <Form form={form} layout="vertical">
           <Row gutter={16}>
             <Col span={12}><Form.Item name="titleName" label="发票抬头" rules={[{ required: true, message: '请输入发票抬头' }]}><Input /></Form.Item></Col>
@@ -186,6 +218,40 @@ const InvoiceManagement: React.FC = () => {
             <Col span={12}><Form.Item name="fileAssetId" label="发票文件ID"><Input /></Form.Item></Col>
             <Col span={12}><Form.Item name="taxNo" label="税号"><Input /></Form.Item></Col>
             <Col span={24}><Form.Item name="applyRemark" label="申请备注"><Input.TextArea rows={2} /></Form.Item></Col>
+            <Col span={24}><Form.Item name="rejectReason" label="驳回原因 / 处理说明"><Input.TextArea rows={3} /></Form.Item></Col>
+          </Row>
+        </Form>
+      </Modal>
+
+      <Modal title="新建发票抬头" open={titleModalVisible} onCancel={() => setTitleModalVisible(false)} onOk={async () => {
+        const values = await titleForm.validateFields();
+        await createTitleMutation.mutateAsync(values);
+        setTitleModalVisible(false);
+      }} confirmLoading={createTitleMutation.isPending} width={760}>
+        <Form form={titleForm} layout="vertical">
+          <Row gutter={16}>
+            <Col span={12}><Form.Item name="titleName" label="抬头名称" rules={[{ required: true, message: '请输入抬头名称' }]}><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="titleType" label="抬头类型" rules={[{ required: true, message: '请选择抬头类型' }]}><Select options={titleTypeOptions} /></Form.Item></Col>
+            <Col span={12}><Form.Item name="appUserName" label="用户"><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="merchantName" label="商户"><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="taxNo" label="税号"><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="bankName" label="开户行"><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="bankAccount" label="银行账号"><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="phone" label="电话"><Input /></Form.Item></Col>
+            <Col span={24}><Form.Item name="address" label="地址"><Input /></Form.Item></Col>
+          </Row>
+        </Form>
+      </Modal>
+
+      <Modal title="开票处理" open={!!processingApply} onCancel={() => setProcessingApply(null)} onOk={async () => {
+        const values = await processForm.validateFields();
+        await processApplyMutation.mutateAsync(values);
+        setProcessingApply(null);
+      }} confirmLoading={processApplyMutation.isPending} width={720}>
+        <Form form={processForm} layout="vertical">
+          <Row gutter={16}>
+            <Col span={12}><Form.Item name="applyStatus" label="处理状态" rules={[{ required: true, message: '请选择处理状态' }]}><Select options={applyStatusOptions} /></Form.Item></Col>
+            <Col span={12}><Form.Item name="fileAssetId" label="发票文件ID"><Input /></Form.Item></Col>
             <Col span={24}><Form.Item name="rejectReason" label="驳回原因 / 处理说明"><Input.TextArea rows={3} /></Form.Item></Col>
           </Row>
         </Form>

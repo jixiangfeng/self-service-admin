@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
 import { UnorderedListOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -11,6 +12,8 @@ import {
   writeOffObjectTypeOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import api from '@/services/backendService';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 
 interface OrderItemRecord {
@@ -72,40 +75,120 @@ const orderStatusMap = buildValueEnum(orderStatusOptions);
 const payModeMap = buildValueEnum(payModeOptions);
 const detailTypeMap = buildValueEnum(settlementDetailTypeOptions);
 
-const orderItems: OrderItemRecord[] = [
-  { id: 'oi1', orderNo: 'SO202604180019', itemType: 'SERVICE_RIGHT', itemName: '泡沫精洗套餐', quantity: 1, salePrice: 39.9, discountAmount: 5, payableAmount: 34.9 },
-  { id: 'oi2', orderNo: 'SO202604180020', itemType: 'COUPON', itemName: '夜洗 5 元券', quantity: 1, salePrice: 0, discountAmount: 5, payableAmount: 0 },
-];
-
-const billingDetails: BillingDetailRecord[] = [
-  { id: 'bd1', orderNo: 'SO202604180019', billingMode: 'PACKAGE', startAt: '2026-04-18 09:27:00', endAt: '2026-04-18 09:45:00', durationMinutes: 18, unitPrice: 39.9, billingAmount: 39.9, billingSnapshot: '套餐价 V20260418' },
-  { id: 'bd2', orderNo: 'SO202604170113', billingMode: 'TIME', startAt: '2026-04-17 22:08:00', endAt: '2026-04-17 22:15:00', durationMinutes: 7, unitPrice: 0.9, billingAmount: 6.3, billingSnapshot: '夜洗时段价 PRICE-XH-NIGHT' },
-];
-
-const deductRecords: DeductRecord[] = [
-  { id: 'dr1', orderNo: 'SO202604180019', deductType: 'ACTIVITY_COST', deductName: '夜洗券抵扣', deductAmount: 5, costBearer: '平台承担', relatedNo: 'CP202604170001' },
-  { id: 'dr2', orderNo: 'SO202604180020', deductType: 'ORDER_INCOME', deductName: '余额支付', deductAmount: 20, costBearer: '用户余额', relatedNo: 'BF202604180002' },
-];
-
-const snapshots: OrderSnapshotRecord[] = [
-  { id: 'sn1', orderNo: 'SO202604180019', productSnapshot: '泡沫精洗套餐 / V20260418', priceSnapshot: '售价 39.9 / 券抵扣 5', storeSnapshot: '虹桥旗舰洗车站 / BAY-03', userSnapshot: '李波 / 会员用户', createdAt: '2026-04-18 09:14:00' },
-  { id: 'sn2', orderNo: 'SO202604170113', productSnapshot: '夜洗时长包 / V20260417', priceSnapshot: '0.9 元/分钟', storeSnapshot: '徐汇夜洗门店 / BAY-07', userSnapshot: '陈越 / 普通用户', createdAt: '2026-04-17 22:08:00' },
-];
-
-const statusLogs: OrderStatusLogRecord[] = [
-  { id: 'sl1', orderNo: 'SO202604180019', beforeStatus: 'PENDING_PAYMENT', afterStatus: 'PAID', operator: '支付回调', remark: '微信支付成功', changedAt: '2026-04-18 09:14:20' },
-  { id: 'sl2', orderNo: 'SO202604180019', beforeStatus: 'PAID', afterStatus: 'IN_PROGRESS', operator: '设备回执', remark: '设备启动成功', changedAt: '2026-04-18 09:27:08' },
-];
+const orderDetailFields: Record<'item' | 'billing' | 'deduct' | 'snapshot' | 'status', DetailField<any>[]> = {
+  item: [
+    { name: 'orderNo', label: '订单号' },
+    { name: 'itemType', label: '项目类型' },
+    { name: 'itemName', label: '项目名称' },
+    { name: 'quantity', label: '数量' },
+    { name: 'salePrice', label: '销售单价', render: (value) => formatAmount(value) },
+    { name: 'discountAmount', label: '优惠金额', render: (value) => formatAmount(value) },
+    { name: 'payableAmount', label: '应付金额', render: (value) => formatAmount(value) },
+  ],
+  billing: [
+    { name: 'orderNo', label: '订单号' },
+    { name: 'billingMode', label: '计费模式' },
+    { name: 'startAt', label: '开始时间', render: (value) => formatDateTime(value) },
+    { name: 'endAt', label: '结束时间', render: (value) => formatDateTime(value) },
+    { name: 'durationMinutes', label: '计费时长' },
+    { name: 'unitPrice', label: '单价', render: (value) => formatAmount(value) },
+    { name: 'billingAmount', label: '计费金额', render: (value) => formatAmount(value) },
+    { name: 'billingSnapshot', label: '规则快照' },
+  ],
+  deduct: [
+    { name: 'orderNo', label: '订单号' },
+    { name: 'deductType', label: '抵扣类型' },
+    { name: 'deductName', label: '抵扣名称' },
+    { name: 'deductAmount', label: '抵扣金额', render: (value) => formatAmount(value) },
+    { name: 'costBearer', label: '承担方' },
+    { name: 'relatedNo', label: '关联单号' },
+  ],
+  snapshot: [
+    { name: 'orderNo', label: '订单号' },
+    { name: 'productSnapshot', label: '商品快照' },
+    { name: 'priceSnapshot', label: '价格快照' },
+    { name: 'storeSnapshot', label: '门店快照' },
+    { name: 'userSnapshot', label: '用户快照' },
+    { name: 'createdAt', label: '创建时间', render: (value) => formatDateTime(value) },
+  ],
+  status: [
+    { name: 'orderNo', label: '订单号' },
+    { name: 'beforeStatus', label: '原状态' },
+    { name: 'afterStatus', label: '新状态' },
+    { name: 'operator', label: '操作人' },
+    { name: 'remark', label: '备注' },
+    { name: 'changedAt', label: '变更时间', render: (value) => formatDateTime(value) },
+  ],
+};
 
 const OrderDetailManagement: React.FC = () => {
+  const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
   const [detail, setDetail] = useState<OrderItemRecord | BillingDetailRecord | DeductRecord | OrderSnapshotRecord | OrderStatusLogRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
-  const [form] = Form.useForm<{ orderNo: string; status: string; remark: string }>();
+  const [form] = Form.useForm();
 
   const filter = <T extends object>(items: T[]): T[] =>
     items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
+
+  const itemQuery = useQuery({
+    queryKey: ['serviceOrderItems', keyword],
+    queryFn: async () => (await api.serviceOrderItem.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+  });
+  const billingQuery = useQuery({
+    queryKey: ['orderBillingDetails', keyword],
+    queryFn: async () => (await api.orderBillingDetail.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+  });
+  const statusQuery = useQuery({
+    queryKey: ['orderStatusLogs', keyword],
+    queryFn: async () => (await api.orderStatusLog.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+  });
+  const orderItems = (((itemQuery.data as any)?.records || []) as OrderItemRecord[]).map((item) => ({ ...item, id: String(item.id) }));
+  const billingDetails = (((billingQuery.data as any)?.records || []) as BillingDetailRecord[]).map((item) => ({ ...item, id: String(item.id) }));
+  const statusLogs = (((statusQuery.data as any)?.records || []) as OrderStatusLogRecord[]).map((item: any) => ({
+    ...item,
+    id: String(item.id),
+    operator: item.operator ?? item.operatorName ?? item.operatorType,
+  }));
+  const createBillingMutation = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => api.orderBillingDetail.add(data),
+    onSuccess: () => {
+      message.success('计费过程已写入');
+      queryClient.invalidateQueries({ queryKey: ['orderBillingDetails'] });
+    },
+  });
+  const deductRecords = orderItems
+    .filter((item) => Number(item.discountAmount || 0) > 0)
+    .map((item) => ({
+      id: `deduct-${item.id}`,
+      orderNo: item.orderNo,
+      deductType: item.itemType,
+      deductName: item.itemName,
+      deductAmount: Number(item.discountAmount || 0),
+      costBearer: '订单优惠',
+      relatedNo: item.orderNo,
+    }));
+  const snapshots = [
+    ...orderItems.filter((item: any) => item.snapshotJson).map((item: any) => ({
+      id: `item-snapshot-${item.id}`,
+      orderNo: item.orderNo,
+      productSnapshot: item.snapshotJson || '-',
+      priceSnapshot: `${formatAmount(item.salePrice)} / 优惠 ${formatAmount(item.discountAmount)}`,
+      storeSnapshot: '-',
+      userSnapshot: '-',
+      createdAt: item.createdAt,
+    })),
+    ...billingDetails.filter((item) => item.billingSnapshot).map((item) => ({
+      id: `billing-snapshot-${item.id}`,
+      orderNo: item.orderNo,
+      productSnapshot: '-',
+      priceSnapshot: item.billingSnapshot || '-',
+      storeSnapshot: '-',
+      userSnapshot: '-',
+      createdAt: item.startAt || item.endAt || '',
+    })),
+  ];
 
   const openModal = (title: string) => {
     setModalTitle(title);
@@ -167,11 +250,11 @@ const OrderDetailManagement: React.FC = () => {
       <PageBanner title="订单明细中心" subtitle="维护订单明细、计费过程、权益抵扣、交易快照和状态流转日志。" icon={<UnorderedListOutlined />} />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} xl={5}><Card><Statistic title="订单明细" value={orderItems.length} suffix="条" /></Card></Col>
-        <Col xs={24} sm={12} xl={5}><Card><Statistic title="计费记录" value={billingDetails.length} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={5}><Card loading={itemQuery.isLoading}><Statistic title="订单明细" value={orderItems.length} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={5}><Card loading={billingQuery.isLoading}><Statistic title="计费记录" value={billingDetails.length} suffix="条" /></Card></Col>
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="抵扣金额" value={formatAmount(deductRecords.reduce((sum, item) => sum + item.deductAmount, 0))} /></Card></Col>
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="交易快照" value={snapshots.length} suffix="份" /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="状态流转" value={statusLogs.length} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card loading={statusQuery.isLoading}><Statistic title="状态流转" value={statusLogs.length} suffix="条" /></Card></Col>
       </Row>
 
       <ProTable
@@ -187,21 +270,22 @@ const OrderDetailManagement: React.FC = () => {
 
       <Tabs
         items={[
-          { key: 'items', label: '订单明细', children: <ProTable<OrderItemRecord> cardBordered rowKey="id" columns={itemColumns} dataSource={filter(orderItems)} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} /> },
-          { key: 'billing', label: '计费过程', children: <ProTable<BillingDetailRecord> cardBordered rowKey="id" columns={billingColumns} dataSource={filter(billingDetails)} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1420 }} toolBarRender={() => [<Button key="recalc" type="primary" onClick={() => openModal('重算计费过程')}>重算计费</Button>]} /> },
+          { key: 'items', label: '订单明细', children: <ProTable<OrderItemRecord> cardBordered rowKey="id" columns={itemColumns} dataSource={filter(orderItems)} loading={itemQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} /> },
+          { key: 'billing', label: '计费过程', children: <ProTable<BillingDetailRecord> cardBordered rowKey="id" columns={billingColumns} dataSource={filter(billingDetails)} loading={billingQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1420 }} toolBarRender={() => [<Button key="recalc" type="primary" onClick={() => openModal('重算计费过程')}>重算计费</Button>]} /> },
           { key: 'deduct', label: '权益抵扣', children: <ProTable<DeductRecord> cardBordered rowKey="id" columns={deductColumns} dataSource={filter(deductRecords)} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1080 }} /> },
           { key: 'snapshot', label: '交易快照', children: <ProTable<OrderSnapshotRecord> cardBordered rowKey="id" columns={snapshotColumns} dataSource={filter(snapshots)} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} /> },
-          { key: 'status', label: '状态流转', children: <ProTable<OrderStatusLogRecord> cardBordered rowKey="id" columns={statusColumns} dataSource={filter(statusLogs)} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1120 }} /> },
+          { key: 'status', label: '状态流转', children: <ProTable<OrderStatusLogRecord> cardBordered rowKey="id" columns={statusColumns} dataSource={filter(statusLogs)} loading={statusQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1120 }} /> },
         ]}
       />
 
       <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 110 }}>
-            {Object.entries(detail).map(([key, value]) => (
-              <Descriptions.Item key={key} label={key}>{String(value ?? '-')}</Descriptions.Item>
-            ))}
-          </Descriptions>
+          <SchemaDetail
+            record={detail as Record<string, any>}
+            fields={('itemType' in detail ? orderDetailFields.item : 'billingMode' in detail ? orderDetailFields.billing : 'deductType' in detail ? orderDetailFields.deduct : 'productSnapshot' in detail ? orderDetailFields.snapshot : orderDetailFields.status) as DetailField<Record<string, any>>[]}
+            column={2}
+            labelWidth={110}
+          />
         ) : null}
       </Modal>
 
@@ -210,17 +294,25 @@ const OrderDetailManagement: React.FC = () => {
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={async () => {
-          await form.validateFields();
+          const values = await form.validateFields();
+          await createBillingMutation.mutateAsync(values);
           setModalVisible(false);
-          message.success('订单明细操作已记录');
+          form.resetFields();
         }}
+        confirmLoading={createBillingMutation.isPending}
         width={760}
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" initialValues={{ billingMode: 'TIME' }}>
           <div className="modal-grid">
             <Form.Item name="orderNo" label="订单号" rules={[{ required: true, message: '请输入订单号' }]}><Input /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={orderStatusOptions} /></Form.Item>
-            <Form.Item className="modal-span-2" name="remark" label="处理说明"><Input.TextArea rows={4} /></Form.Item>
+            <Form.Item name="serviceOrderId" label="订单ID"><Input type="number" /></Form.Item>
+            <Form.Item name="billingMode" label="计费模式" rules={[{ required: true, message: '请选择计费模式' }]}><Select options={billingModeOptions} /></Form.Item>
+            <Form.Item name="durationMinutes" label="计费时长"><Input type="number" /></Form.Item>
+            <Form.Item name="unitPrice" label="单价" rules={[{ required: true, message: '请输入单价' }]}><Input type="number" /></Form.Item>
+            <Form.Item name="billingAmount" label="计费金额" rules={[{ required: true, message: '请输入计费金额' }]}><Input type="number" /></Form.Item>
+            <Form.Item name="startAt" label="开始时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+            <Form.Item name="endAt" label="结束时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+            <Form.Item className="modal-span-2" name="billingSnapshot" label="规则快照"><Input.TextArea rows={4} /></Form.Item>
           </div>
         </Form>
       </Modal>

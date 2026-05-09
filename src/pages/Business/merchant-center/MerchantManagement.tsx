@@ -330,7 +330,7 @@ const MerchantManagement: React.FC = () => {
                     <Input placeholder="用于对接资质、发票与风控核验" />
                   </Form.Item>
                   <Form.Item className="merchant-editor-field-span-2" name="licenseUrl" label="营业资质地址">
-                    <Input placeholder="先录入资质链接，后续可替换成上传组件" />
+                    <Input placeholder="录入资质文件链接，用于资质、发票与风控核验" />
                   </Form.Item>
                 </div>
               </section>
@@ -362,7 +362,7 @@ const MerchantManagement: React.FC = () => {
                   </div>
                   <div>
                     <div className="merchant-editor-section__title">结算与档案备注</div>
-                    <div className="merchant-editor-section__desc">配置结算方式和账户信息，补充内部协作备注，便于后续财务对账。</div>
+                    <div className="merchant-editor-section__desc">配置结算方式和账户信息，补充内部协作备注，支撑财务对账。</div>
                   </div>
                 </div>
                 <div className="merchant-editor-fields">

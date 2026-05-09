@@ -1,18 +1,27 @@
 import { LockOutlined, UserOutlined } from '@ant-design/icons';
-import { Button, Form, Input, message } from 'antd';
+import { Button, Checkbox, Form, Input, message } from 'antd';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../../services/backendService';
 import './index.css';
 
+interface LoginFormValues {
+  username: string;
+  password: string;
+  remember?: boolean;
+}
+
 export default function Login() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (values: { username: string; password: string }) => {
+  const handleLogin = async (values: LoginFormValues) => {
     try {
       setLoading(true);
-      const response = await authApi.login(values);
+      const response = await authApi.login({
+        username: values.username,
+        password: values.password,
+      });
       const currentUser = response.data.user;
       const user = {
         userId: currentUser.id,
@@ -25,11 +34,12 @@ export default function Login() {
       localStorage.setItem('satoken', response.data.token);
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('rememberLogin', values.remember ? '1' : '0');
 
       message.success('登录成功');
       navigate('/');
     } catch (error: any) {
-      message.error(error.message || '登录失败');
+      message.error(error.message || '登录失败，请检查用户名和密码');
     } finally {
       setLoading(false);
     }
@@ -39,8 +49,9 @@ export default function Login() {
     <div className="login-container">
       <div className="login-box">
         <div className="login-header">
-          <h1>自助设备经营平台</h1>
-          <p>当前为本地业务演示版，页面能力按产品文档持续完善。</p>
+          <div className="login-logo">SZ</div>
+          <h2>自助设备经营平台</h2>
+          <p className="subtitle">Web管理端</p>
         </div>
 
         <Form
@@ -48,28 +59,37 @@ export default function Login() {
           onFinish={handleLogin}
           autoComplete="off"
           size="large"
-          initialValues={{ username: 'admin', password: 'admin123' }}
+          className="login-form"
+          initialValues={{ username: 'admin', password: '123456', remember: false }}
         >
           <Form.Item name="username" rules={[{ required: true, message: '请输入用户名' }]}>
-            <Input prefix={<UserOutlined />} placeholder="用户名" />
+            <Input prefix={<UserOutlined />} placeholder="请输入用户名" />
           </Form.Item>
 
-          <Form.Item name="password" rules={[{ required: true, message: '请输入密码' }]}>
-            <Input.Password prefix={<LockOutlined />} placeholder="密码" />
+          <Form.Item
+            name="password"
+            rules={[
+              { required: true, message: '请输入密码' },
+              { min: 6, message: '密码长度不能小于6位' },
+            ]}
+          >
+            <Input.Password prefix={<LockOutlined />} placeholder="请输入密码" />
+          </Form.Item>
+
+          <Form.Item name="remember" valuePropName="checked">
+            <Checkbox>记住密码</Checkbox>
           </Form.Item>
 
           <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading} block>
-              登录
+            <Button type="primary" htmlType="submit" loading={loading} className="login-button">
+              {loading ? '登录中...' : '登录'}
             </Button>
           </Form.Item>
-
-          <div className="login-tips">
-            <p>演示账号：admin / admin123</p>
-            <p>运营账号：operator / operator123</p>
-            <p>客服账号：service / service123</p>
-          </div>
         </Form>
+
+        <div className="login-footer">
+          <p>© 2024 自助设备经营平台</p>
+        </div>
       </div>
     </div>
   );

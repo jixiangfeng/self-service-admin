@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
 import { ControlOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   auditStatusOptions,
   publishStatusOptions,
@@ -10,101 +11,88 @@ import {
   ticketStatusOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
-import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
-
-interface OrganizationRecord {
-  id: string;
-  orgCode: string;
-  orgName: string;
-  orgType: string;
-  parentName: string;
-  merchantName: string;
-  storeName: string;
-  status: string;
-}
-
-interface SystemConfigRecord {
-  id: string;
-  configKey: string;
-  configName: string;
-  configType: string;
-  scopeType: string;
-  configValue: string;
-  status: string;
-  updatedAt: string;
-}
-
-interface SequenceRuleRecord {
-  id: string;
-  ruleCode: string;
-  bizType: string;
-  prefix: string;
-  datePattern: string;
-  sequenceLength: number;
-  currentValue: number;
-  status: string;
-}
-
-interface BizEventRecord {
-  id: string;
-  eventNo: string;
-  eventType: string;
-  bizNo: string;
-  idempotentKey: string;
-  processStatus: string;
-  retryCount: number;
-  createdAt: string;
-}
-
-interface ContentRecord {
-  id: string;
-  articleCode: string;
-  title: string;
-  category: string;
-  scopeType: string;
-  status: string;
-  updatedAt: string;
-}
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import api, {
+  type BizEventRecord,
+  type ContentArticleRecord,
+  type PlatformOrganizationRecord,
+  type SequenceRuleRecord,
+  type SystemConfigRecord,
+} from '@/services/backendService';
 
 const publishStatusMap = buildValueEnum(publishStatusOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
 const scopeMap = buildValueEnum(scopeTypeOptions);
 const ticketStatusMap = buildValueEnum(ticketStatusOptions);
 
-const organizations: OrganizationRecord[] = [
-  { id: 'org1', orgCode: 'ORG-EAST', orgName: '华东运营中心', orgType: '平台区域', parentName: '平台总部', merchantName: '-', storeName: '-', status: 'PUBLISHED' },
-  { id: 'org2', orgCode: 'ORG-HQ-STORE', orgName: '虹桥门店团队', orgType: '门店团队', parentName: '华东运营中心', merchantName: '鲸洗直营', storeName: '虹桥旗舰洗车站', status: 'PUBLISHED' },
-];
-
-const configs: SystemConfigRecord[] = [
-  { id: 'cfg1', configKey: 'pay.wx.mch_id', configName: '微信支付商户号', configType: '支付参数', scopeType: 'PLATFORM', configValue: '1900000109', status: 'PUBLISHED', updatedAt: '2026-04-18 09:12:00' },
-  { id: 'cfg2', configKey: 'store.nearby.radius', configName: '附近门店半径', configType: '业务开关', scopeType: 'STORE', configValue: '5000', status: 'PUBLISHED', updatedAt: '2026-04-17 18:22:00' },
-];
-
-const sequenceRules: SequenceRuleRecord[] = [
-  { id: 'seq1', ruleCode: 'ORDER_NO', bizType: '服务订单', prefix: 'SO', datePattern: 'yyyyMMdd', sequenceLength: 6, currentValue: 118, status: 'PUBLISHED' },
-  { id: 'seq2', ruleCode: 'REFUND_NO', bizType: '退款单', prefix: 'RF', datePattern: 'yyyyMMdd', sequenceLength: 5, currentValue: 26, status: 'PUBLISHED' },
-];
-
-const events: BizEventRecord[] = [
-  { id: 'evt1', eventNo: 'EV202604180001', eventType: '支付回调', bizNo: 'PAY202604180019', idempotentKey: 'wxpay:4200002188', processStatus: 'CLOSED', retryCount: 0, createdAt: '2026-04-18 09:40:00' },
-  { id: 'evt2', eventNo: 'EV202604180002', eventType: '设备回执', bizNo: 'CMD202604180008', idempotentKey: 'device:DEV-HQ-003:CMD202604180008', processStatus: 'PROCESSING', retryCount: 2, createdAt: '2026-04-18 09:43:00' },
-];
-
-const contents: ContentRecord[] = [
-  { id: 'ct1', articleCode: 'HELP_REFUND', title: '退款规则说明', category: '帮助中心', scopeType: 'PLATFORM', status: 'PUBLISHED', updatedAt: '2026-04-18 10:02:00' },
-  { id: 'ct2', articleCode: 'STORE_GUIDE', title: '门店使用指引', category: '小程序内容', scopeType: 'STORE', status: 'PENDING', updatedAt: '2026-04-17 16:48:00' },
-];
+const platformBaseDetailFields: Record<'org' | 'config' | 'sequence' | 'event' | 'content', DetailField<any>[]> = {
+  org: [
+    { name: 'orgCode', label: '组织编码' },
+    { name: 'orgName', label: '组织名称' },
+    { name: 'orgType', label: '组织类型' },
+    { name: 'parentName', label: '上级组织' },
+    { name: 'merchantName', label: '关联商户' },
+    { name: 'storeName', label: '关联门店' },
+    { name: 'status', label: '状态' },
+  ],
+  config: [
+    { name: 'configKey', label: '配置键' },
+    { name: 'configName', label: '配置名称' },
+    { name: 'configType', label: '配置类型' },
+    { name: 'scopeType', label: '范围' },
+    { name: 'configValue', label: '配置值' },
+    { name: 'status', label: '状态' },
+    { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
+  ],
+  sequence: [
+    { name: 'ruleCode', label: '规则编码' },
+    { name: 'bizType', label: '业务类型' },
+    { name: 'prefix', label: '前缀' },
+    { name: 'datePattern', label: '日期格式' },
+    { name: 'sequenceLength', label: '流水长度' },
+    { name: 'currentValue', label: '当前值' },
+    { name: 'status', label: '状态' },
+  ],
+  event: [
+    { name: 'eventNo', label: '事件编号' },
+    { name: 'eventType', label: '事件类型' },
+    { name: 'bizNo', label: '业务单号' },
+    { name: 'idempotentKey', label: '幂等键' },
+    { name: 'processStatus', label: '处理状态' },
+    { name: 'retryCount', label: '重试次数' },
+    { name: 'createdAt', label: '创建时间', render: (value) => formatDateTime(value) },
+  ],
+  content: [
+    { name: 'articleCode', label: '内容编码' },
+    { name: 'title', label: '标题' },
+    { name: 'category', label: '分类' },
+    { name: 'scopeType', label: '范围' },
+    { name: 'status', label: '状态' },
+    { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
+  ],
+};
 
 const PlatformBaseManagement: React.FC = () => {
+  const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
-  const [detail, setDetail] = useState<OrganizationRecord | SystemConfigRecord | SequenceRuleRecord | BizEventRecord | ContentRecord | null>(null);
+  const [detail, setDetail] = useState<PlatformOrganizationRecord | SystemConfigRecord | SequenceRuleRecord | BizEventRecord | ContentArticleRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [form] = Form.useForm<{ name: string; code: string; scopeType: string; status: string; remark: string }>();
 
-  const filter = <T extends object>(items: T[]) =>
-    items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
+  const queryParams = useMemo(() => ({ keyword, current: 1, size: 50 }), [keyword]);
+  const orgQuery = useQuery({ queryKey: ['platform-organizations', queryParams], queryFn: () => api.platformBase.organizations.page(queryParams) });
+  const configQuery = useQuery({ queryKey: ['system-configs', queryParams], queryFn: () => api.platformBase.configs.page(queryParams) });
+  const sequenceQuery = useQuery({ queryKey: ['sequence-rules', queryParams], queryFn: () => api.platformBase.sequenceRules.page(queryParams) });
+  const eventQuery = useQuery({ queryKey: ['biz-events', queryParams], queryFn: () => api.platformBase.events.page(queryParams) });
+  const contentQuery = useQuery({ queryKey: ['content-articles', queryParams], queryFn: () => api.platformBase.contents.page(queryParams) });
+
+  const organizations = orgQuery.data?.data.records ?? [];
+  const configs = configQuery.data?.data.records ?? [];
+  const sequenceRules = sequenceQuery.data?.data.records ?? [];
+  const events = eventQuery.data?.data.records ?? [];
+  const contents = contentQuery.data?.data.records ?? [];
 
   const openModal = (title: string) => {
     setModalTitle(title);
@@ -112,7 +100,7 @@ const PlatformBaseManagement: React.FC = () => {
     setModalVisible(true);
   };
 
-  const organizationColumns = useMemo<ProColumns<OrganizationRecord>[]>(() => [
+  const organizationColumns = useMemo<ProColumns<PlatformOrganizationRecord>[]>(() => [
     { title: '组织编码', dataIndex: 'orgCode', width: 150 },
     { title: '组织名称', dataIndex: 'orgName', width: 180 },
     { title: '组织类型', dataIndex: 'orgType', width: 130 },
@@ -131,6 +119,7 @@ const PlatformBaseManagement: React.FC = () => {
     { title: '配置值', dataIndex: 'configValue', width: 180 },
     { title: '状态', dataIndex: 'status', width: 110, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
   const sequenceColumns = useMemo<ProColumns<SequenceRuleRecord>[]>(() => [
@@ -141,6 +130,7 @@ const PlatformBaseManagement: React.FC = () => {
     { title: '流水长度', dataIndex: 'sequenceLength', width: 100 },
     { title: '当前值', dataIndex: 'currentValue', width: 100 },
     { title: '状态', dataIndex: 'status', width: 110, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
   const eventColumns = useMemo<ProColumns<BizEventRecord>[]>(() => [
@@ -151,15 +141,17 @@ const PlatformBaseManagement: React.FC = () => {
     { title: '处理状态', dataIndex: 'processStatus', width: 120, render: (_, record) => renderStatusTag(record.processStatus, ticketStatusMap) },
     { title: '重试次数', dataIndex: 'retryCount', width: 100 },
     { title: '创建时间', dataIndex: 'createdAt', width: 180, render: (_, record) => formatDateTime(record.createdAt) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
-  const contentColumns = useMemo<ProColumns<ContentRecord>[]>(() => [
+  const contentColumns = useMemo<ProColumns<ContentArticleRecord>[]>(() => [
     { title: '内容编码', dataIndex: 'articleCode', width: 160 },
     { title: '标题', dataIndex: 'title', width: 220 },
     { title: '分类', dataIndex: 'category', width: 130 },
     { title: '范围', dataIndex: 'scopeType', width: 110, render: (_, record) => renderStatusTag(record.scopeType, scopeMap) },
     { title: '状态', dataIndex: 'status', width: 110, render: (_, record) => renderStatusTag(record.status, auditStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
   return (
@@ -187,21 +179,22 @@ const PlatformBaseManagement: React.FC = () => {
 
       <Tabs
         items={[
-          { key: 'org', label: '组织租户', children: <ProTable<OrganizationRecord> cardBordered rowKey="id" columns={organizationColumns} dataSource={filter(organizations) as OrganizationRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建组织')}>新建组织</Button>]} /> },
-          { key: 'config', label: '配置中心', children: <ProTable<SystemConfigRecord> cardBordered rowKey="id" columns={configColumns} dataSource={filter(configs) as SystemConfigRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建配置项')}>新建配置</Button>]} /> },
-          { key: 'sequence', label: '编号规则', children: <ProTable<SequenceRuleRecord> cardBordered rowKey="id" columns={sequenceColumns} dataSource={filter(sequenceRules) as SequenceRuleRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建编号规则')}>新建规则</Button>]} /> },
-          { key: 'event', label: '幂等事件', children: <ProTable<BizEventRecord> cardBordered rowKey="id" columns={eventColumns} dataSource={filter(events) as BizEventRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1360 }} toolBarRender={() => [<Button key="retry" type="primary" onClick={() => openModal('重试业务事件')}>事件重试</Button>]} /> },
-          { key: 'content', label: '内容帮助', children: <ProTable<ContentRecord> cardBordered rowKey="id" columns={contentColumns} dataSource={filter(contents) as ContentRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建内容')}>新建内容</Button>]} /> },
+          { key: 'org', label: '组织租户', children: <ProTable<PlatformOrganizationRecord> cardBordered rowKey="id" columns={organizationColumns} dataSource={organizations} loading={orgQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建组织')}>新建组织</Button>]} /> },
+          { key: 'config', label: '配置中心', children: <ProTable<SystemConfigRecord> cardBordered rowKey="id" columns={configColumns} dataSource={configs} loading={configQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建配置项')}>新建配置</Button>]} /> },
+          { key: 'sequence', label: '编号规则', children: <ProTable<SequenceRuleRecord> cardBordered rowKey="id" columns={sequenceColumns} dataSource={sequenceRules} loading={sequenceQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建编号规则')}>新建规则</Button>]} /> },
+          { key: 'event', label: '幂等事件', children: <ProTable<BizEventRecord> cardBordered rowKey="id" columns={eventColumns} dataSource={events} loading={eventQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1360 }} toolBarRender={() => [<Button key="retry" type="primary" disabled={!events.length} onClick={() => openModal('重试业务事件')}>事件重试</Button>]} /> },
+          { key: 'content', label: '内容帮助', children: <ProTable<ContentArticleRecord> cardBordered rowKey="id" columns={contentColumns} dataSource={contents} loading={contentQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建内容')}>新建内容</Button>]} /> },
         ]}
       />
 
       <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 110 }}>
-            {Object.entries(detail).map(([key, value]) => (
-              <Descriptions.Item key={key} label={key}>{String(value ?? '-')}</Descriptions.Item>
-            ))}
-          </Descriptions>
+          <SchemaDetail
+            record={detail as Record<string, any>}
+            fields={('orgCode' in detail ? platformBaseDetailFields.org : 'configKey' in detail ? platformBaseDetailFields.config : 'ruleCode' in detail ? platformBaseDetailFields.sequence : 'eventNo' in detail ? platformBaseDetailFields.event : platformBaseDetailFields.content) as DetailField<Record<string, any>>[]}
+            column={2}
+            labelWidth={110}
+          />
         ) : null}
       </Modal>
 
@@ -210,9 +203,29 @@ const PlatformBaseManagement: React.FC = () => {
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={async () => {
-          await form.validateFields();
+          const values = await form.validateFields();
+          if (modalTitle === '新建组织') {
+            await api.platformBase.organizations.add({ orgCode: values.code, orgName: values.name, orgType: values.remark, status: values.status || 'PUBLISHED' });
+            await queryClient.invalidateQueries({ queryKey: ['platform-organizations'] });
+          } else if (modalTitle === '新建配置项') {
+            await api.platformBase.configs.add({ configKey: values.code, configName: values.name, configType: values.remark, scopeType: values.scopeType, configValue: values.remark, status: values.status || 'PUBLISHED' });
+            await queryClient.invalidateQueries({ queryKey: ['system-configs'] });
+          } else if (modalTitle === '新建编号规则') {
+            await api.platformBase.sequenceRules.add({ ruleCode: values.code, bizType: values.name, prefix: values.code, datePattern: 'yyyyMMdd', sequenceLength: 6, currentValue: 0, status: values.status || 'PUBLISHED' });
+            await queryClient.invalidateQueries({ queryKey: ['sequence-rules'] });
+          } else if (modalTitle === '重试业务事件') {
+            const firstEvent = events.find((item) => item.processStatus !== 'CLOSED') || events[0];
+            if (!firstEvent) {
+              return;
+            }
+            await api.platformBase.events.retry(firstEvent.id);
+            await queryClient.invalidateQueries({ queryKey: ['biz-events'] });
+          } else if (modalTitle === '新建内容') {
+            await api.platformBase.contents.add({ articleCode: values.code, title: values.name, category: values.remark, scopeType: values.scopeType, content: values.remark, status: values.status || 'PUBLISHED' });
+            await queryClient.invalidateQueries({ queryKey: ['content-articles'] });
+          }
           setModalVisible(false);
-          message.success('维护信息已记录');
+          message.success('已保存到后端');
         }}
         width={760}
       >

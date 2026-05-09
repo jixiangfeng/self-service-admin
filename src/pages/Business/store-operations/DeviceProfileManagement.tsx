@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Popconfirm, Row, Select, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Col, Form, Input, Modal, Popconfirm, Row, Select, Statistic, Tabs, message } from 'antd';
 import { ClusterOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -10,6 +10,7 @@ import {
   publishStatusOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
 import type {
   DeviceBindLogRecord,
@@ -25,6 +26,43 @@ type EditableRecord = DeviceVendorRecord | DeviceModelRecord | DeviceProtocolRec
 const publishStatusMap = buildValueEnum(publishStatusOptions);
 const deviceTypeMap = buildValueEnum(deviceTypeOptions);
 const protocolTypeMap = buildValueEnum(deviceProtocolTypeOptions);
+
+const deviceProfileDetailFields: Record<DeviceProfileTab, DetailField<any>[]> = {
+  vendor: [
+    { name: 'vendorCode', label: '厂商编码' },
+    { name: 'vendorName', label: '厂商名称' },
+    { name: 'contactName', label: '联系人' },
+    { name: 'contactPhone', label: '电话' },
+    { name: 'apiBaseUrl', label: '接口地址' },
+    { name: 'status', label: '状态' },
+    { name: 'updatedAt', label: '更新时间' },
+  ],
+  model: [
+    { name: 'vendorName', label: '厂商' },
+    { name: 'modelCode', label: '型号编码' },
+    { name: 'modelName', label: '型号名称' },
+    { name: 'deviceType', label: '设备类型' },
+    { name: 'protocolCode', label: '协议编码' },
+    { name: 'status', label: '状态' },
+  ],
+  protocol: [
+    { name: 'protocolCode', label: '协议编码' },
+    { name: 'protocolName', label: '协议名称' },
+    { name: 'protocolType', label: '协议类型' },
+    { name: 'version', label: '版本' },
+    { name: 'authConfig', label: '鉴权配置' },
+    { name: 'status', label: '状态' },
+  ],
+  bind: [
+    { name: 'bindNo', label: '绑定单号' },
+    { name: 'deviceCode', label: '设备编号' },
+    { name: 'beforeStore', label: '原门店' },
+    { name: 'afterStore', label: '新门店' },
+    { name: 'beforePoint', label: '原点位' },
+    { name: 'afterPoint', label: '新点位' },
+    { name: 'boundAt', label: '绑定时间' },
+  ],
+};
 
 const DeviceProfileManagement: React.FC = () => {
   const queryClient = useQueryClient();
@@ -193,13 +231,7 @@ const DeviceProfileManagement: React.FC = () => {
       />
 
       <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
-        {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 110 }}>
-            {Object.entries(detail).map(([key, value]) => (
-              <Descriptions.Item key={key} label={key}>{String(value ?? '-')}</Descriptions.Item>
-            ))}
-          </Descriptions>
-        ) : null}
+        {detail ? <SchemaDetail record={detail as Record<string, any>} fields={deviceProfileDetailFields[activeTab]} /> : null}
       </Modal>
 
       <Modal

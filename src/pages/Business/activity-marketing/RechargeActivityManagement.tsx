@@ -1,49 +1,69 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Statistic, message } from 'antd';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Statistic, message } from 'antd';
 import { GiftOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { activityRewardStatusOptions, activityStatusOptions, costBearerOptions, rewardTypeOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
-import api from '@/services/backendService';
-
-interface RechargeActivityRecord {
-  id: string;
-  activityCode: string;
-  activityName: string;
-  rechargeRule: string;
-  rewardRule: string;
-  scope: string;
-  costOwner: string;
-  tierRule: string;
-  minAmount: number;
-  rewardType: string[];
-  rewardValue: string;
-  rewardStatus: string;
-  issuedCount: number;
-  status: string;
-  updatedAt: string;
-}
+import api, { type RechargeActivityRecord } from '@/services/backendService';
 
 const statusMap = buildValueEnum(activityStatusOptions);
 const costBearerMap = buildValueEnum(costBearerOptions);
 const rewardStatusMap = buildValueEnum(activityRewardStatusOptions);
 
-const initialActivities: RechargeActivityRecord[] = [
-  { id: 'r1', activityCode: 'RCG-001', activityName: '首充礼包', rechargeRule: '首次充值满 50 元', rewardRule: '赠 10 元余额 + 5 元券', scope: '平台', costOwner: 'PLATFORM', tierRule: '50 / 100 / 200 三档', minAmount: 50, rewardType: ['BALANCE', 'COUPON'], rewardValue: '10 元余额 + 5 元券', rewardStatus: 'PENDING', issuedCount: 0, status: 'DRAFT', updatedAt: '2026-04-18 09:10:00' },
-  { id: 'r2', activityCode: 'RCG-006', activityName: '夜洗充值返利', rechargeRule: '充值 100 元', rewardRule: '赠 15 元余额', scope: '指定门店组', costOwner: 'RATIO', tierRule: '100 / 200 固定档', minAmount: 100, rewardType: ['BALANCE'], rewardValue: '15 元余额', rewardStatus: 'ISSUED', issuedCount: 126, status: 'PAUSED', updatedAt: '2026-04-16 21:42:00' },
+const rechargeDetailFields: DetailField<RechargeActivityRecord>[] = [
+  { name: 'activityCode', label: '活动编码' },
+  { name: 'activityName', label: '活动名称' },
+  { name: 'rechargeRule', label: '充值规则' },
+  { name: 'rewardRule', label: '奖励规则' },
+  { name: 'costOwner', label: '成本承担', render: (value) => value ? costBearerMap[value as keyof typeof costBearerMap]?.text || value : '-' },
+  { name: 'tierRule', label: '固定档位' },
+  { name: 'minAmount', label: '最低充值金额' },
+  { name: 'rewardValue', label: '奖励值' },
+  { name: 'rewardStatus', label: '发放状态', render: (value) => value ? rewardStatusMap[value as keyof typeof rewardStatusMap]?.text || value : '-' },
+  { name: 'issuedCount', label: '发放数量' },
+  { name: 'status', label: '状态', render: (value) => value ? statusMap[value as keyof typeof statusMap]?.text || value : '-' },
+  { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
 ];
 
 const RechargeActivityManagement: React.FC = () => {
+  const queryClient = useQueryClient();
   const [form] = Form.useForm<RechargeActivityRecord>();
-  const [records, setRecords] = useState(initialActivities);
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<RechargeActivityRecord | null>(null);
   const [detail, setDetail] = useState<RechargeActivityRecord | null>(null);
-  const [helperVisible, setHelperVisible] = useState(false);
+
+  const activityQuery = useQuery({
+    queryKey: ['rechargeActivities', keyword, statusFilter],
+    queryFn: async () => (await api.marketing.rechargeActivities.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: statusFilter })).data,
+  });
+  const saveMutation = useMutation({
+    mutationFn: async (values: Record<string, unknown>) => {
+      if (values.id) {
+        await api.marketing.rechargeActivities.edit(values);
+      } else {
+        await api.marketing.rechargeActivities.add(values);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rechargeActivities'] });
+      message.success(editingRecord ? '充值活动已更新' : '充值活动已创建');
+    },
+  });
+  const statusMutation = useMutation({
+    mutationFn: (record: RechargeActivityRecord) => api.marketing.rechargeActivities.edit({ ...record, status: record.status === 'RUNNING' ? 'PAUSED' : 'RUNNING' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rechargeActivities'] });
+      message.success('充值活动状态已更新');
+    },
+  });
+
+  const records = activityQuery.data?.records || [];
 
   const closeModal = () => {
     setModalVisible(false);
@@ -97,9 +117,7 @@ const RechargeActivityManagement: React.FC = () => {
           <Button
             size="small"
             onClick={() => {
-              api.marketing.rechargeActivities.edit({ id: Number(record.id), status: record.status === 'RUNNING' ? 'PAUSED' : 'RUNNING' } as Record<string, unknown>);
-              setRecords((prev) => prev.map((item) => item.id === record.id ? { ...item, status: item.status === 'RUNNING' ? 'PAUSED' : 'RUNNING', updatedAt: new Date().toISOString() } : item));
-              message.success('充值活动状态已更新');
+              statusMutation.mutate(record);
             }}
           >
             {record.status === 'RUNNING' ? '暂停' : '启动'}
@@ -112,13 +130,9 @@ const RechargeActivityManagement: React.FC = () => {
   const handleSubmit = async () => {
     const values = await form.validateFields();
     if (editingRecord) {
-      await api.marketing.rechargeActivities.edit({ ...values, id: Number(editingRecord.id) } as Record<string, unknown>);
-      setRecords((prev) => prev.map((item) => (item.id === editingRecord.id ? { ...item, ...values, updatedAt: new Date().toISOString() } : item)));
-      message.success('充值活动已更新');
+      await saveMutation.mutateAsync({ ...values, id: editingRecord.id } as Record<string, unknown>);
     } else {
-      await api.marketing.rechargeActivities.add(values as unknown as Record<string, unknown>);
-      setRecords((prev) => [{ ...values, id: `${Date.now()}`, updatedAt: new Date().toISOString() }, ...prev]);
-      message.success('充值活动已创建');
+      await saveMutation.mutateAsync(values as unknown as Record<string, unknown>);
     }
     closeModal();
   };
@@ -139,11 +153,17 @@ const RechargeActivityManagement: React.FC = () => {
         rowKey="id"
         columns={columns}
         dataSource={dataSource}
+        loading={activityQuery.isLoading}
         search={{ labelWidth: 'auto', defaultCollapsed: false }}
         pagination={{ pageSize: 8 }}
         scroll={{ x: 1860 }}
         toolBarRender={() => [
-          <Button key="tiers" onClick={() => setHelperVisible(true)}>固定档位</Button>,
+          <Button key="tiers" onClick={() => {
+            setEditingRecord(null);
+            form.resetFields();
+            form.setFieldsValue({ status: 'DRAFT', tierRule: '50/100/200/500', rechargeRule: '固定档位充值', rewardRule: '按档位赠送余额', rewardStatus: 'PENDING' });
+            setModalVisible(true);
+          }}>固定档位</Button>,
           <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => { setEditingRecord(null); form.resetFields(); form.setFieldsValue({ status: 'DRAFT' }); setModalVisible(true); }}>
             新建充值活动
           </Button>,
@@ -156,13 +176,9 @@ const RechargeActivityManagement: React.FC = () => {
           setKeyword('');
           setStatusFilter(undefined);
         }}
-        request={async (params) => {
-          const res = await api.marketing.rechargeActivities.page(params);
-          return { data: res.data.records as any, success: true, total: res.data.total };
-        }}
       />
 
-      <Modal title={editingRecord ? `编辑充值活动 · ${editingRecord.activityName}` : '新建充值活动'} open={modalVisible} onOk={handleSubmit} onCancel={closeModal} width={860}>
+      <Modal title={editingRecord ? `编辑充值活动 · ${editingRecord.activityName}` : '新建充值活动'} open={modalVisible} onOk={handleSubmit} confirmLoading={saveMutation.isPending} onCancel={closeModal} width={860}>
         <Form form={form} layout="vertical">
           <div className="modal-grid">
             <Form.Item name="activityCode" label="活动编码" rules={[{ required: true, message: '请输入活动编码' }]}><Input /></Form.Item>
@@ -185,26 +201,10 @@ const RechargeActivityManagement: React.FC = () => {
 
       <Modal title="充值活动详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={820}>
         {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 110 }}>
-            <Descriptions.Item label="活动编码">{detail.activityCode}</Descriptions.Item>
-            <Descriptions.Item label="活动名称">{detail.activityName}</Descriptions.Item>
-            <Descriptions.Item label="充值规则">{detail.rechargeRule}</Descriptions.Item>
-            <Descriptions.Item label="奖励规则">{detail.rewardRule}</Descriptions.Item>
-            <Descriptions.Item label="成本承担">{costBearerMap[detail.costOwner]?.text || detail.costOwner}</Descriptions.Item>
-            <Descriptions.Item label="固定档位">{detail.tierRule}</Descriptions.Item>
-            <Descriptions.Item label="发放状态">{rewardStatusMap[detail.rewardStatus]?.text || detail.rewardStatus}</Descriptions.Item>
-            <Descriptions.Item label="发放数量">{detail.issuedCount}</Descriptions.Item>
-            <Descriptions.Item label="更新时间">{formatDateTime(detail.updatedAt)}</Descriptions.Item>
-          </Descriptions>
+          <SchemaDetail record={detail} fields={rechargeDetailFields} column={2} labelWidth={110} />
         ) : null}
       </Modal>
 
-      <Modal title="固定档位模板" open={helperVisible} footer={null} onCancel={() => setHelperVisible(false)} width={680}>
-        <Descriptions column={1} labelStyle={{ width: 120 }}>
-          <Descriptions.Item label="推荐档位">50 / 100 / 200 / 500 四档。</Descriptions.Item>
-          <Descriptions.Item label="适用场景">首充礼包、节日充值返利、夜洗充值活动。</Descriptions.Item>
-        </Descriptions>
-      </Modal>
     </div>
   );
 };

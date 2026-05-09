@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Table, Tabs, message } from 'antd';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Card, Col, Form, Input, Modal, Row, Select, Table, Tabs, message } from 'antd';
 import { ShoppingCartOutlined } from '@ant-design/icons';
 import {
   retailCategoryOptions,
@@ -8,91 +9,94 @@ import {
   retailStockScopeOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, formatAmount, renderStatusTag } from '@/pages/Business/shared';
-
-interface RetailProductRecord {
-  id: string;
-  productCode: string;
-  name: string;
-  category: string;
-  salePrice: number;
-  costPrice: number;
-  delivery: string;
-  status: string;
-  stockSummary: string;
-  supplier: string;
-}
-
-interface StockRecord {
-  id: string;
-  scope: string;
-  storeName: string;
-  deviceCode: string;
-  sku: string;
-  available: number;
-  locked: number;
-  warningThreshold: number;
-  owner: string;
-  updatedAt: string;
-}
+import api, { type RetailProductRecord, type RetailStockRecord } from '@/services/backendService';
 
 const categoryMap = buildValueEnum(retailCategoryOptions);
 const deliveryMap = buildValueEnum(retailDeliveryTypeOptions);
 const productStatusMap = buildValueEnum(retailProductStatusOptions);
 const stockScopeMap = buildValueEnum(retailStockScopeOptions);
 
-const initialProducts: RetailProductRecord[] = [
-  { id: 'product-1', productCode: 'RP-DRINK-001', name: '冰感饮料套餐', category: 'DRINK', salePrice: 12, costPrice: 6.8, delivery: 'DEVICE_SHIP', status: 'ON_SALE', stockSummary: '设备库存 42', supplier: '清凉饮品供应商' },
-  { id: 'product-2', productCode: 'RP-CAR-002', name: '洗车毛巾礼包', category: 'CAR_SUPPLY', salePrice: 29, costPrice: 12.5, delivery: 'STORE_PICKUP', status: 'DRAFT', stockSummary: '门店库存 18', supplier: '门店物料仓' },
-];
-
-const initialStocks: StockRecord[] = [
-  { id: 'stock-1', scope: 'PLATFORM_WAREHOUSE', storeName: '-', deviceCode: '-', sku: '零食礼包', available: 128, locked: 8, warningThreshold: 30, owner: '仓储-许安', updatedAt: '2026-04-18 09:00:00' },
-  { id: 'stock-2', scope: 'STORE', storeName: '虹桥旗舰洗车站', deviceCode: '-', sku: '洗车毛巾礼包', available: 18, locked: 2, warningThreshold: 10, owner: '门店-李思远', updatedAt: '2026-04-18 08:40:00' },
-  { id: 'stock-3', scope: 'DEVICE', storeName: '徐汇夜洗门店', deviceCode: 'DRINK-D-07', sku: '冰感饮料套餐', available: 42, locked: 0, warningThreshold: 12, owner: '设备运维-周可', updatedAt: '2026-04-18 08:30:00' },
-];
+const retailDetailFields: Record<'product' | 'stock', DetailField<any>[]> = {
+  product: [
+    { name: 'productCode', label: '商品编码' },
+    { name: 'name', label: '商品名称' },
+    { name: 'category', label: '分类' },
+    { name: 'salePrice', label: '售价', render: (value) => formatAmount(value) },
+    { name: 'costPrice', label: '成本价', render: (value) => formatAmount(value) },
+    { name: 'stockSummary', label: '库存摘要' },
+    { name: 'delivery', label: '履约方式' },
+    { name: 'supplier', label: '供应商' },
+    { name: 'status', label: '状态' },
+  ],
+  stock: [
+    { name: 'scope', label: '库存层级' },
+    { name: 'storeName', label: '门店' },
+    { name: 'deviceCode', label: '设备' },
+    { name: 'sku', label: 'SKU' },
+    { name: 'available', label: '可用库存' },
+    { name: 'locked', label: '锁定库存' },
+    { name: 'warningThreshold', label: '预警阈值' },
+    { name: 'owner', label: '负责人' },
+    { name: 'status', label: '状态' },
+    { name: 'updatedAt', label: '更新时间' },
+  ],
+};
 
 const RetailManagement: React.FC = () => {
   const [productForm] = Form.useForm<RetailProductRecord>();
-  const [stockForm] = Form.useForm<StockRecord>();
-  const [products, setProducts] = useState(initialProducts);
-  const [stocks, setStocks] = useState(initialStocks);
+  const [stockForm] = Form.useForm<RetailStockRecord>();
+  const queryClient = useQueryClient();
+  const productQuery = useQuery({ queryKey: ['retailProducts'], queryFn: async () => (await api.valuePlanning.retailProducts.page({ pageNum: 1, pageSize: 200 })).data });
+  const stockQuery = useQuery({ queryKey: ['retailStocks'], queryFn: async () => (await api.valuePlanning.retailStocks.page({ pageNum: 1, pageSize: 200 })).data });
+  const products = productQuery.data?.records || [];
+  const stocks = stockQuery.data?.records || [];
   const [productVisible, setProductVisible] = useState(false);
   const [stockVisible, setStockVisible] = useState(false);
-  const [detail, setDetail] = useState<RetailProductRecord | StockRecord | null>(null);
-  const [helperVisible, setHelperVisible] = useState(false);
-  const [helperTitle, setHelperTitle] = useState('');
+  const [detail, setDetail] = useState<RetailProductRecord | RetailStockRecord | null>(null);
+  const [editingProduct, setEditingProduct] = useState<RetailProductRecord | null>(null);
+  const [editingStock, setEditingStock] = useState<RetailStockRecord | null>(null);
 
+  const saveProductMutation = useMutation<unknown, Error, Record<string, unknown>>({
+    mutationFn: (values: Record<string, unknown>) => editingProduct ? api.valuePlanning.retailProducts.edit({ ...values, id: editingProduct.id }) : api.valuePlanning.retailProducts.add(values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['retailProducts'] });
+      message.success(editingProduct ? '零售商品已更新' : '零售商品已创建');
+    },
+  });
   const handleProductSubmit = async () => {
     const values = await productForm.validateFields();
-    setProducts((prev) => [{ ...values, id: `product-${Date.now()}` }, ...prev]);
+    await saveProductMutation.mutateAsync(values as unknown as Record<string, unknown>);
     setProductVisible(false);
+    setEditingProduct(null);
     productForm.resetFields();
-    message.success('零售商品已创建');
   };
 
+  const saveStockMutation = useMutation<unknown, Error, Record<string, unknown>>({
+    mutationFn: (values: Record<string, unknown>) => editingStock ? api.valuePlanning.retailStocks.edit({ ...values, id: editingStock.id }) : api.valuePlanning.retailStocks.add(values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['retailStocks'] });
+      message.success(editingStock ? '库存台账已更新' : '库存台账已创建');
+    },
+  });
   const handleStockSubmit = async () => {
     const values = await stockForm.validateFields();
-    setStocks((prev) => [{ ...values, id: `stock-${Date.now()}` }, ...prev]);
+    await saveStockMutation.mutateAsync(values as unknown as Record<string, unknown>);
     setStockVisible(false);
+    setEditingStock(null);
     stockForm.resetFields();
-    message.success('库存台账已创建');
-  };
-
-  const openHelper = (title: string) => {
-    setHelperTitle(title);
-    setHelperVisible(true);
   };
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="商城零售" subtitle="管理零售商品、库存、负责人和履约方式，不再只是阶段说明页。" icon={<ShoppingCartOutlined />} />
+      <PageBanner title="商城零售" subtitle="管理零售商品、库存、负责人和履约方式。" icon={<ShoppingCartOutlined />} />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={6}><Card title="商品域">零食 / 饮料 / 自提 / 积分兑换</Card></Col>
         <Col xs={24} sm={12} xl={6}><Card title="库存层级">平台 / 门店 / 设备</Card></Col>
         <Col xs={24} sm={12} xl={6}><Card title="履约方式">出货 / 自提 / 虚拟发放</Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card title="版本阶段">第三期起逐步扩展</Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card title="运营状态">商品和库存均已接入后台维护</Card></Col>
       </Row>
 
       <Tabs
@@ -101,7 +105,7 @@ const RetailManagement: React.FC = () => {
             key: 'product',
             label: '零售商品',
             children: (
-              <Card extra={<Space><Button onClick={() => openHelper('商品域说明')}>商品域说明</Button><Button type="primary" onClick={() => setProductVisible(true)}>新建商品</Button></Space>}>
+              <Card extra={<Button type="primary" onClick={() => { setEditingProduct(null); productForm.resetFields(); setProductVisible(true); }}>新建商品</Button>}>
                 <Table
                   pagination={false}
                   rowKey="id"
@@ -115,7 +119,12 @@ const RetailManagement: React.FC = () => {
                     { title: '库存摘要', dataIndex: 'stockSummary', width: 160 },
                     { title: '履约方式', dataIndex: 'delivery', width: 140, render: (value: string) => renderStatusTag(value, deliveryMap) },
                     { title: '状态', dataIndex: 'status', width: 110, render: (value: string) => renderStatusTag(value, productStatusMap) },
-                    { title: '操作', width: 100, render: (_, record: RetailProductRecord) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
+                    { title: '操作', width: 150, render: (_, record: RetailProductRecord) => (
+                      <>
+                        <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+                        <Button size="small" type="link" onClick={() => { setEditingProduct(record); productForm.setFieldsValue(record); setProductVisible(true); }}>编辑</Button>
+                      </>
+                    ) },
                   ]}
                 />
               </Card>
@@ -125,7 +134,7 @@ const RetailManagement: React.FC = () => {
             key: 'stock',
             label: '库存台账',
             children: (
-              <Card extra={<Space><Button onClick={() => openHelper('库存规则')}>库存规则</Button><Button onClick={() => setStockVisible(true)}>新建库存记录</Button></Space>}>
+              <Card extra={<Button type="primary" onClick={() => { setEditingStock(null); stockForm.resetFields(); setStockVisible(true); }}>新建库存记录</Button>}>
                 <Table
                   pagination={false}
                   rowKey="id"
@@ -139,6 +148,12 @@ const RetailManagement: React.FC = () => {
                     { title: '锁定库存', dataIndex: 'locked', width: 120 },
                     { title: '预警阈值', dataIndex: 'warningThreshold', width: 120 },
                     { title: '负责人', dataIndex: 'owner', width: 140 },
+                    { title: '操作', width: 150, render: (_, record: RetailStockRecord) => (
+                      <>
+                        <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+                        <Button size="small" type="link" onClick={() => { setEditingStock(record); stockForm.setFieldsValue(record); setStockVisible(true); }}>编辑</Button>
+                      </>
+                    ) },
                   ]}
                 />
               </Card>
@@ -147,7 +162,7 @@ const RetailManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="新建零售商品" open={productVisible} onOk={handleProductSubmit} onCancel={() => { setProductVisible(false); productForm.resetFields(); }} width={860}>
+      <Modal title={editingProduct ? `编辑零售商品 · ${editingProduct.name || editingProduct.productCode}` : '新建零售商品'} open={productVisible} onOk={handleProductSubmit} onCancel={() => { setProductVisible(false); setEditingProduct(null); productForm.resetFields(); }} width={860} confirmLoading={saveProductMutation.isPending}>
         <Form form={productForm} layout="vertical">
           <div className="modal-grid">
             <Form.Item name="productCode" label="商品编码" rules={[{ required: true, message: '请输入商品编码' }]}><Input /></Form.Item>
@@ -163,7 +178,7 @@ const RetailManagement: React.FC = () => {
         </Form>
       </Modal>
 
-      <Modal title="新建库存台账" open={stockVisible} onOk={handleStockSubmit} onCancel={() => { setStockVisible(false); stockForm.resetFields(); }} width={860}>
+      <Modal title={editingStock ? `编辑库存台账 · ${editingStock.sku}` : '新建库存台账'} open={stockVisible} onOk={handleStockSubmit} onCancel={() => { setStockVisible(false); setEditingStock(null); stockForm.resetFields(); }} width={860} confirmLoading={saveStockMutation.isPending}>
         <Form form={stockForm} layout="vertical">
           <div className="modal-grid">
             <Form.Item name="scope" label="库存层级" rules={[{ required: true, message: '请选择库存层级' }]}><Select options={retailStockScopeOptions} /></Form.Item>
@@ -181,22 +196,15 @@ const RetailManagement: React.FC = () => {
 
       <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 100 }}>
-            {Object.entries(detail).map(([key, value]) => (
-              <Descriptions.Item key={key} label={key}>
-                {String(value)}
-              </Descriptions.Item>
-            ))}
-          </Descriptions>
+          <SchemaDetail
+            record={detail as Record<string, any>}
+            fields={('productCode' in detail ? retailDetailFields.product : retailDetailFields.stock) as DetailField<Record<string, any>>[]}
+            column={2}
+            labelWidth={100}
+          />
         ) : null}
       </Modal>
 
-      <Modal title={helperTitle} open={helperVisible} footer={null} onCancel={() => setHelperVisible(false)} width={680}>
-        <Descriptions column={1} labelStyle={{ width: 120 }}>
-          <Descriptions.Item label="说明">这里用于承接零售模块的辅助配置入口，后续可以继续拆成商品分类、库存预警、履约策略等独立页。</Descriptions.Item>
-          <Descriptions.Item label="当前入口">{helperTitle}</Descriptions.Item>
-        </Descriptions>
-      </Modal>
     </div>
   );
 };

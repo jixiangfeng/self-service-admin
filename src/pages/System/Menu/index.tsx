@@ -4,6 +4,7 @@ import type { ProColumns } from '@ant-design/pro-components';
 import { Button, Card, Form, Input, Modal, Select, Space, Tag } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { useCreateMenu, useDeleteMenu, useMenuTree, useUpdateMenu } from '@/hooks/useApi';
 
 interface MenuItem {
@@ -34,6 +35,21 @@ const TYPE_MAP: Record<string, string> = {
   F: '按钮',
 };
 
+const menuDetailFields: DetailField<Record<string, any>>[] = [
+  { name: 'id', label: '菜单ID' },
+  { name: 'parentId', label: '上级ID' },
+  { name: 'permissionName', label: '名称' },
+  { name: 'permissionCode', label: '编码' },
+  { name: 'permissionType', label: '类型', render: (value) => TYPE_MAP[String(value ?? '')] || String(value ?? '-') },
+  { name: 'path', label: '路径' },
+  { name: 'component', label: '组件' },
+  { name: 'icon', label: '图标' },
+  { name: 'sort', label: '排序' },
+  { name: 'visible', label: '可见', render: (value) => <Tag color={value === 1 ? 'processing' : 'default'}>{value === 1 ? '显示' : '隐藏'}</Tag> },
+  { name: 'status', label: '状态', render: (value) => <Tag color={value === 1 ? 'success' : 'default'}>{value === 1 ? '正常' : '禁用'}</Tag> },
+  { name: 'updateTime', label: '更新时间', render: (value) => formatDateTime(value) },
+];
+
 const normalizeType = (value: string | number | undefined) => {
   if (value === 'M' || value === 0 || value === '0') return 0;
   if (value === 'F' || value === 2 || value === '2') return 2;
@@ -43,6 +59,7 @@ const normalizeType = (value: string | number | undefined) => {
 const MenuManagement: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMenu, setEditingMenu] = useState<MenuItem | null>(null);
+  const [detailMenu, setDetailMenu] = useState<MenuItem | null>(null);
   const [form] = Form.useForm();
   const [searchForm] = Form.useForm();
 
@@ -152,6 +169,7 @@ const MenuManagement: React.FC = () => {
       width: 280,
       render: (_, record) => (
         <Space size="small">
+          <Button size="small" onClick={() => setDetailMenu(record)}>详情</Button>
           <Button size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)}>编辑</Button>
           <Button size="small" icon={<PlusCircleOutlined />} onClick={() => handleCreate(record.id)}>新增下级</Button>
           <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)}>删除</Button>
@@ -256,6 +274,17 @@ const MenuManagement: React.FC = () => {
           </Button>,
         ]}
       />
+
+      <Modal title="菜单详情" open={!!detailMenu} footer={null} onCancel={() => setDetailMenu(null)} width={760}>
+        {detailMenu ? (
+          <SchemaDetail
+            record={detailMenu as Record<string, any>}
+            fields={menuDetailFields}
+            column={2}
+            labelWidth={110}
+          />
+        ) : null}
+      </Modal>
 
       <Modal
         title={editingMenu ? '编辑菜单' : '新建菜单'}

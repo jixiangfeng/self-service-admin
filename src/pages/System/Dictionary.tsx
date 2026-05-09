@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { BookOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { Button, Card, Form, Input, Modal, Select, Space, Table, Tabs, Tag, message } from 'antd';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
 import {
   useCreateDictionary,
@@ -15,6 +16,28 @@ import {
 const SEARCH_FIELD_WIDTH = 240;
 const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleString('zh-CN') : '-');
 
+const dictionaryDetailFields: DetailField<Record<string, any>>[] = [
+  { name: 'id', label: '字典ID' },
+  { name: 'dictName', label: '字典名称' },
+  { name: 'dictCode', label: '字典编码' },
+  { name: 'remark', label: '备注' },
+  { name: 'status', label: '状态', render: (value) => <Tag color={value === 1 ? 'success' : 'default'}>{value === 1 ? '启用' : '禁用'}</Tag> },
+  { name: 'createTime', label: '创建时间', render: (value) => formatDateTime(value) },
+  { name: 'updateTime', label: '更新时间', render: (value) => formatDateTime(value) },
+];
+
+const dictionaryItemDetailFields: DetailField<Record<string, any>>[] = [
+  { name: 'id', label: '字典项ID' },
+  { name: 'dictCode', label: '字典编码' },
+  { name: 'dictLabel', label: '标签' },
+  { name: 'dictValue', label: '值' },
+  { name: 'dictSort', label: '排序' },
+  { name: 'remark', label: '备注' },
+  { name: 'status', label: '状态', render: (value) => <Tag color={value === 1 ? 'success' : 'default'}>{value === 1 ? '启用' : '禁用'}</Tag> },
+  { name: 'createTime', label: '创建时间', render: (value) => formatDateTime(value) },
+  { name: 'updateTime', label: '更新时间', render: (value) => formatDateTime(value) },
+];
+
 const Dictionary: React.FC = () => {
   const [form] = Form.useForm();
   const [itemForm] = Form.useForm();
@@ -24,6 +47,8 @@ const Dictionary: React.FC = () => {
   const [itemModalVisible, setItemModalVisible] = useState(false);
   const [editingDict, setEditingDict] = useState<any>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
+  const [detailRecord, setDetailRecord] = useState<any>(null);
+  const [detailType, setDetailType] = useState<'dict' | 'item'>('dict');
   const [selectedCode, setSelectedCode] = useState<string>();
   const queryClient = useQueryClient();
   const [queryParams, setQueryParams] = useState({
@@ -197,6 +222,7 @@ const Dictionary: React.FC = () => {
       width: 220,
       render: (_: any, record: any) => (
         <Space>
+          <Button size="small" onClick={() => { setDetailRecord(record); setDetailType('dict'); }}>详情</Button>
           <Button size="small" onClick={() => setSelectedCode(record.dictCode)}>查看项</Button>
           <Button size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)}>编辑</Button>
           <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)}>删除</Button>
@@ -222,6 +248,7 @@ const Dictionary: React.FC = () => {
       width: 180,
       render: (_: any, record: any) => (
         <Space>
+          <Button size="small" onClick={() => { setDetailRecord(record); setDetailType('item'); }}>详情</Button>
           <Button size="small" onClick={() => handleEditItem(record)}>编辑</Button>
           <Button size="small" danger onClick={() => handleDeleteItem(record.id)}>删除</Button>
         </Space>
@@ -327,6 +354,17 @@ const Dictionary: React.FC = () => {
           },
         ]}
       />
+
+      <Modal title={detailType === 'dict' ? '字典详情' : '字典项详情'} open={!!detailRecord} footer={null} onCancel={() => setDetailRecord(null)} width={760}>
+        {detailRecord ? (
+          <SchemaDetail
+            record={detailRecord}
+            fields={detailType === 'dict' ? dictionaryDetailFields : dictionaryItemDetailFields}
+            column={2}
+            labelWidth={110}
+          />
+        ) : null}
+      </Modal>
 
       <Modal
         title={editingDict ? '编辑字典' : '新建字典'}

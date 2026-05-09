@@ -107,6 +107,28 @@ export const useUpdateUserStatus = (options?: UseMutationOptions<any, any, any>)
   } as any);
 };
 
+export const useDeleteUser = (options?: UseMutationOptions<any, any, number>) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => api.user.remove(id),
+    onSuccess: () => {
+      message.success('用户删除成功');
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: () => message.error('用户删除失败'),
+    ...options,
+  } as any);
+};
+
+export const useResetUserPassword = (options?: UseMutationOptions<any, any, { id: number; newPassword: string }>) => {
+  return useMutation({
+    mutationFn: async ({ id, newPassword }: { id: number; newPassword: string }) => api.user.resetPassword(id, newPassword),
+    onSuccess: () => message.success('密码重置成功'),
+    onError: () => message.error('密码重置失败'),
+    ...options,
+  } as any);
+};
+
 export const useCreateRole = (options?: UseMutationOptions<any, any, any>) => {
   const queryClient = useQueryClient();
   return useMutation({

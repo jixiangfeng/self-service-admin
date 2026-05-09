@@ -1,89 +1,89 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
-import { GiftOutlined } from '@ant-design/icons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import { GiftOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
+import { useNavigate } from 'react-router-dom';
 import { activityStatusOptions, costBearerOptions, couponTypeOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
+import api, { type CouponTemplateRecord, type InviteActivityRecord, type RechargeActivityRecord } from '@/services/backendService';
 
-type ActivityStatus = 'DRAFT' | 'NOT_STARTED' | 'RUNNING' | 'PAUSED' | 'ENDED' | 'DISABLED';
+type ActivityStatus = 'DRAFT' | 'NOT_STARTED' | 'RUNNING' | 'PAUSED' | 'ENDED' | 'DISABLED' | 'ENABLED';
 type ActivityTab = 'coupon' | 'invite' | 'recharge';
+type MarketingRecord = CouponTemplateRecord | InviteActivityRecord | RechargeActivityRecord;
 
-interface CouponActivity {
-  id: string;
-  activityCode: string;
-  activityName: string;
-  couponType: string;
-  scope: string;
-  triggerRule: string;
-  grantCount: number;
-  budget: number;
-  status: ActivityStatus;
-  updatedAt: string;
-}
-
-interface InviteActivity {
-  id: string;
-  activityCode: string;
-  activityName: string;
-  qualifyRule: string;
-  inviterReward: string;
-  inviteeReward: string;
-  dailyLimit: string;
-  antiFraud: string;
-  status: ActivityStatus;
-  updatedAt: string;
-}
-
-interface RechargeActivity {
-  id: string;
-  activityCode: string;
-  activityName: string;
-  rechargeRule: string;
-  rewardRule: string;
-  scope: string;
-  costOwner: string;
-  status: ActivityStatus;
-  updatedAt: string;
-}
-
-const statusMap = buildValueEnum(activityStatusOptions);
+const statusMap = buildValueEnum([...activityStatusOptions, { label: '启用', value: 'ENABLED' }]);
 const couponTypeMap = buildValueEnum(couponTypeOptions);
 const costBearerMap = buildValueEnum(costBearerOptions);
 
-const initialCouponActivities: CouponActivity[] = [
-  { id: 'ca1', activityCode: 'MKT-CPN-001', activityName: '夜洗券包发放', couponType: 'FULL_REDUCTION', scope: '指定门店组', triggerRule: '晚 20:00 后下发', grantCount: 520, budget: 6800, status: 'RUNNING', updatedAt: '2026-04-18 09:20:00' },
-  { id: 'ca2', activityCode: 'MKT-CPN-002', activityName: '新人首单礼', couponType: 'DIRECT', scope: '平台', triggerRule: '注册后自动领券', grantCount: 1600, budget: 4200, status: 'RUNNING', updatedAt: '2026-04-17 20:12:00' },
-];
-
-const initialInviteActivities: InviteActivity[] = [
-  { id: 'ia1', activityCode: 'MKT-INV-001', activityName: '邀请好友首充得奖励', qualifyRule: '好友首充满 50 元', inviterReward: '10 元余额', inviteeReward: '5 元洗车券', dailyLimit: '10 人 / 天', antiFraud: '同设备 / 同手机号 / 同支付账户限制', status: 'DRAFT', updatedAt: '2026-04-18 08:45:00' },
-  { id: 'ia2', activityCode: 'MKT-INV-003', activityName: '三人邀请进阶奖励', qualifyRule: '累计邀请 3 人达标', inviterReward: '30 元余额', inviteeReward: '新人礼券包', dailyLimit: '20 人 / 天', antiFraud: '黑名单 / 退款回收 / 人工审核', status: 'PAUSED', updatedAt: '2026-04-15 18:30:00' },
-];
-
-const initialRechargeActivities: RechargeActivity[] = [
-  { id: 'ra1', activityCode: 'MKT-RCG-001', activityName: '首充礼包', rechargeRule: '首次充值满 50 元', rewardRule: '赠 10 元余额 + 5 元券', scope: '平台', costOwner: 'PLATFORM', status: 'DRAFT', updatedAt: '2026-04-18 09:00:00' },
-  { id: 'ra2', activityCode: 'MKT-RCG-002', activityName: '夜洗充值返利', rechargeRule: '充值 100 元', rewardRule: '赠 15 元余额', scope: '指定门店', costOwner: 'STORE', status: 'PAUSED', updatedAt: '2026-04-16 21:10:00' },
-];
+const marketingDetailFields: Record<ActivityTab, DetailField<any>[]> = {
+  coupon: [
+    { name: 'templateCode', label: '券模板编码' },
+    { name: 'templateName', label: '券模板名称' },
+    { name: 'couponType', label: '券类型' },
+    { name: 'scope', label: '作用范围' },
+    { name: 'issueRule', label: '发放规则' },
+    { name: 'threshold', label: '使用门槛' },
+    { name: 'stock', label: '库存' },
+    { name: 'status', label: '状态' },
+    { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
+  ],
+  invite: [
+    { name: 'activityCode', label: '活动编码' },
+    { name: 'activityName', label: '活动名称' },
+    { name: 'qualifyRule', label: '达标规则' },
+    { name: 'dailyLimit', label: '每日上限' },
+    { name: 'inviterReward', label: '邀请人奖励' },
+    { name: 'inviteeReward', label: '被邀请人奖励' },
+    { name: 'antiFraud', label: '防刷规则' },
+    { name: 'status', label: '状态' },
+    { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
+  ],
+  recharge: [
+    { name: 'activityCode', label: '活动编码' },
+    { name: 'activityName', label: '活动名称' },
+    { name: 'rechargeRule', label: '充值规则' },
+    { name: 'rewardRule', label: '奖励规则' },
+    { name: 'scope', label: '作用范围' },
+    { name: 'costOwner', label: '成本承担' },
+    { name: 'status', label: '状态' },
+    { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
+  ],
+};
 
 const MarketingManagement: React.FC = () => {
-  const [form] = Form.useForm();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [form] = Form.useForm<MarketingRecord>();
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState<string | undefined>();
   const [activeTab, setActiveTab] = useState<ActivityTab>('coupon');
   const [modalType, setModalType] = useState<ActivityTab | null>(null);
-  const [detail, setDetail] = useState<CouponActivity | InviteActivity | RechargeActivity | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [helperVisible, setHelperVisible] = useState(false);
-  const [helperTitle, setHelperTitle] = useState('');
-  const [couponActivities, setCouponActivities] = useState(initialCouponActivities);
-  const [inviteActivities, setInviteActivities] = useState(initialInviteActivities);
-  const [rechargeActivities, setRechargeActivities] = useState(initialRechargeActivities);
+  const [detail, setDetail] = useState<MarketingRecord | null>(null);
+  const [editingRecord, setEditingRecord] = useState<MarketingRecord | null>(null);
+  const couponQuery = useQuery({
+    queryKey: ['marketingOverview', 'couponTemplates', keyword, status],
+    queryFn: async () => (await api.marketing.couponTemplates.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status })).data,
+  });
+  const inviteQuery = useQuery({
+    queryKey: ['marketingOverview', 'inviteActivities', keyword, status],
+    queryFn: async () => (await api.marketing.inviteActivities.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status })).data,
+  });
+  const rechargeQuery = useQuery({
+    queryKey: ['marketingOverview', 'rechargeActivities', keyword, status],
+    queryFn: async () => (await api.marketing.rechargeActivities.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status })).data,
+  });
+
+  const couponActivities = couponQuery.data?.records || [];
+  const inviteActivities = inviteQuery.data?.records || [];
+  const rechargeActivities = rechargeQuery.data?.records || [];
 
   const filteredCoupons = useMemo(
-    () => couponActivities.filter((item) => containsKeyword(keyword, [item.activityCode, item.activityName, item.couponType, item.scope, item.triggerRule]) && (!status || item.status === status)),
+    () => couponActivities.filter((item) => containsKeyword(keyword, [item.templateCode, item.templateName, item.couponType, item.scope, item.issueRule]) && (!status || item.status === status)),
     [couponActivities, keyword, status]
   );
   const filteredInvites = useMemo(
@@ -95,9 +95,38 @@ const MarketingManagement: React.FC = () => {
     [keyword, rechargeActivities, status]
   );
 
-  const openModal = (type: ActivityTab, record?: CouponActivity | InviteActivity | RechargeActivity) => {
+  const saveMutation = useMutation({
+    mutationFn: async ({ type, values }: { type: ActivityTab; values: Record<string, unknown> }) => {
+      if (type === 'coupon') {
+        return values.id ? api.marketing.couponTemplates.edit(values) : api.marketing.couponTemplates.add(values);
+      }
+      if (type === 'invite') {
+        return values.id ? api.marketing.inviteActivities.edit(values) : api.marketing.inviteActivities.add(values);
+      }
+      return values.id ? api.marketing.rechargeActivities.edit(values) : api.marketing.rechargeActivities.add(values);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['marketingOverview', variables.type === 'coupon' ? 'couponTemplates' : variables.type === 'invite' ? 'inviteActivities' : 'rechargeActivities'] });
+      message.success(editingRecord ? '活动已更新' : '活动已创建');
+    },
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: ({ type, record, nextStatus }: { type: ActivityTab; record: MarketingRecord; nextStatus: ActivityStatus }) => {
+      const values = { ...record, status: nextStatus };
+      if (type === 'coupon') return api.marketing.couponTemplates.edit(values);
+      if (type === 'invite') return api.marketing.inviteActivities.edit(values);
+      return api.marketing.rechargeActivities.edit(values);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['marketingOverview', variables.type === 'coupon' ? 'couponTemplates' : variables.type === 'invite' ? 'inviteActivities' : 'rechargeActivities'] });
+      message.success('活动状态已更新');
+    },
+  });
+
+  const openModal = (type: ActivityTab, record?: MarketingRecord) => {
     setModalType(type);
-    setEditingId(record?.id || null);
+    setEditingRecord(record || null);
     form.resetFields();
     if (record) {
       form.setFieldsValue(record);
@@ -108,48 +137,33 @@ const MarketingManagement: React.FC = () => {
 
   const closeModal = () => {
     setModalType(null);
-    setEditingId(null);
+    setEditingRecord(null);
     form.resetFields();
   };
 
-  const openHelper = (title: string) => {
-    setHelperTitle(title);
-    setHelperVisible(true);
+  const updateStatus = (type: ActivityTab, record: MarketingRecord, nextStatus: ActivityStatus) => {
+    statusMutation.mutate({ type, record, nextStatus });
   };
 
-  const updateStatus = (type: ActivityTab, id: string, nextStatus: ActivityStatus) => {
-    const stamp = new Date().toISOString();
-
-    if (type === 'coupon') {
-      setCouponActivities((prev) => prev.map((item) => (item.id === id ? { ...item, status: nextStatus, updatedAt: stamp } : item)));
-    }
-    if (type === 'invite') {
-      setInviteActivities((prev) => prev.map((item) => (item.id === id ? { ...item, status: nextStatus, updatedAt: stamp } : item)));
-    }
-    if (type === 'recharge') {
-      setRechargeActivities((prev) => prev.map((item) => (item.id === id ? { ...item, status: nextStatus, updatedAt: stamp } : item)));
-    }
-  };
-
-  const couponColumns: ProColumns<CouponActivity>[] = [
+  const couponColumns: ProColumns<CouponTemplateRecord>[] = [
     {
-      title: '活动名称',
-      dataIndex: 'activityName',
+      title: '券模板',
+      dataIndex: 'templateName',
       width: 220,
       hideInSearch: true,
       render: (_, record) => (
         <div>
-          <div>{record.activityName}</div>
-          <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>{record.activityCode}</div>
+          <div>{record.templateName}</div>
+          <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>{record.templateCode}</div>
         </div>
       ),
     },
-    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '活动名称 / 编码 / 券类型 / 范围' } },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '模板名称 / 编码 / 券类型 / 范围' } },
     { title: '券类型', dataIndex: 'couponType', width: 120, valueType: 'select', valueEnum: couponTypeMap, render: (_, record) => renderStatusTag(record.couponType, couponTypeMap) },
     { title: '范围', dataIndex: 'scope', width: 180, search: false },
-    { title: '触发规则', dataIndex: 'triggerRule', width: 220, search: false },
-    { title: '发券量', dataIndex: 'grantCount', width: 120, search: false },
-    { title: '预算', dataIndex: 'budget', width: 120, search: false, render: (_, record) => formatAmount(record.budget) },
+    { title: '发放规则', dataIndex: 'issueRule', width: 220, search: false },
+    { title: '使用门槛', dataIndex: 'threshold', width: 160, search: false },
+    { title: '库存', dataIndex: 'stock', width: 120, search: false },
     { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
     {
@@ -160,15 +174,15 @@ const MarketingManagement: React.FC = () => {
         <Space>
           <Button size="small" onClick={() => setDetail(record)}>详情</Button>
           <Button size="small" onClick={() => openModal('coupon', record)}>编辑</Button>
-          <Button size="small" onClick={() => updateStatus('coupon', record.id, record.status === 'RUNNING' ? 'PAUSED' : 'RUNNING')}>
-            {record.status === 'RUNNING' ? '暂停' : '启动'}
+          <Button size="small" onClick={() => updateStatus('coupon', record, record.status === 'ENABLED' || record.status === 'RUNNING' ? 'PAUSED' : 'ENABLED')}>
+            {record.status === 'RUNNING' || record.status === 'ENABLED' ? '暂停' : '启动'}
           </Button>
         </Space>
       ),
     },
   ];
 
-  const inviteColumns: ProColumns<InviteActivity>[] = [
+  const inviteColumns: ProColumns<InviteActivityRecord>[] = [
     {
       title: '活动名称',
       dataIndex: 'activityName',
@@ -196,7 +210,7 @@ const MarketingManagement: React.FC = () => {
         <Space>
           <Button size="small" onClick={() => setDetail(record)}>详情</Button>
           <Button size="small" onClick={() => openModal('invite', record)}>配置</Button>
-          <Button size="small" onClick={() => updateStatus('invite', record.id, record.status === 'RUNNING' ? 'PAUSED' : 'RUNNING')}>
+          <Button size="small" onClick={() => updateStatus('invite', record, record.status === 'RUNNING' ? 'PAUSED' : 'RUNNING')}>
             {record.status === 'RUNNING' ? '暂停' : '启动'}
           </Button>
         </Space>
@@ -204,7 +218,7 @@ const MarketingManagement: React.FC = () => {
     },
   ];
 
-  const rechargeColumns: ProColumns<RechargeActivity>[] = [
+  const rechargeColumns: ProColumns<RechargeActivityRecord>[] = [
     {
       title: '活动名称',
       dataIndex: 'activityName',
@@ -232,7 +246,7 @@ const MarketingManagement: React.FC = () => {
         <Space>
           <Button size="small" onClick={() => setDetail(record)}>详情</Button>
           <Button size="small" onClick={() => openModal('recharge', record)}>编辑</Button>
-          <Button size="small" onClick={() => updateStatus('recharge', record.id, record.status === 'RUNNING' ? 'PAUSED' : 'RUNNING')}>
+          <Button size="small" onClick={() => updateStatus('recharge', record, record.status === 'RUNNING' ? 'PAUSED' : 'RUNNING')}>
             {record.status === 'RUNNING' ? '暂停' : '启动'}
           </Button>
         </Space>
@@ -241,43 +255,16 @@ const MarketingManagement: React.FC = () => {
   ];
 
   const handleSubmit = async () => {
+    if (!modalType) return;
     const values = await form.validateFields();
-    const stamp = new Date().toISOString();
-
-    if (modalType === 'coupon') {
-      if (editingId) {
-        setCouponActivities((prev) => prev.map((item) => (item.id === editingId ? { ...item, ...values, updatedAt: stamp } : item)));
-        message.success('优惠券活动已更新');
-      } else {
-        setCouponActivities((prev) => [{ ...values, id: `coupon-${Date.now()}`, updatedAt: stamp }, ...prev]);
-        message.success('优惠券活动已创建');
-      }
-    }
-
-    if (modalType === 'invite') {
-      if (editingId) {
-        setInviteActivities((prev) => prev.map((item) => (item.id === editingId ? { ...item, ...values, updatedAt: stamp } : item)));
-        message.success('邀请活动已更新');
-      } else {
-        setInviteActivities((prev) => [{ ...values, id: `invite-${Date.now()}`, updatedAt: stamp }, ...prev]);
-        message.success('邀请活动已创建');
-      }
-    }
-
-    if (modalType === 'recharge') {
-      if (editingId) {
-        setRechargeActivities((prev) => prev.map((item) => (item.id === editingId ? { ...item, ...values, updatedAt: stamp } : item)));
-        message.success('充值活动已更新');
-      } else {
-        setRechargeActivities((prev) => [{ ...values, id: `recharge-${Date.now()}`, updatedAt: stamp }, ...prev]);
-        message.success('充值活动已创建');
-      }
-    }
-
+    await saveMutation.mutateAsync({
+      type: modalType,
+      values: editingRecord ? ({ ...values, id: editingRecord.id } as unknown as Record<string, unknown>) : (values as unknown as Record<string, unknown>),
+    });
     closeModal();
   };
 
-  const totalBudget = couponActivities.reduce((sum, item) => sum + item.budget, 0) + rechargeActivities.length * 3000 + inviteActivities.length * 2000;
+  const totalBudget = couponActivities.reduce((sum, item) => sum + Number(item.stock || 0), 0) + rechargeActivities.reduce((sum, item) => sum + Number(item.rewardValue || 0), 0) + inviteActivities.length * 2000;
 
   return (
     <div style={{ padding: 24 }}>
@@ -308,15 +295,16 @@ const MarketingManagement: React.FC = () => {
             key: 'coupon',
             label: '优惠券活动',
             children: (
-              <ProTable<CouponActivity>
+              <ProTable<CouponTemplateRecord>
                 cardBordered
                 rowKey="id"
                 columns={couponColumns}
                 dataSource={filteredCoupons}
+                loading={couponQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1800 }}
-                toolBarRender={() => [<Button key="template" onClick={() => openHelper('券模板管理')}>券模板管理</Button>, <Button key="new" type="primary" onClick={() => openModal('coupon')}>新建活动</Button>]}
+                toolBarRender={() => [<Button key="template" onClick={() => navigate('/marketing/coupon-templates')}>券模板管理</Button>, <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('coupon')}>新建券模板</Button>]}
                 onSubmit={(values) => { setKeyword(String(values.keyword || '')); setStatus(values.status as string | undefined); }}
                 onReset={() => { setKeyword(''); setStatus(undefined); }}
               />
@@ -326,15 +314,16 @@ const MarketingManagement: React.FC = () => {
             key: 'invite',
             label: '邀请裂变',
             children: (
-              <ProTable<InviteActivity>
+              <ProTable<InviteActivityRecord>
                 cardBordered
                 rowKey="id"
                 columns={inviteColumns}
                 dataSource={filteredInvites}
+                loading={inviteQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1720 }}
-                toolBarRender={() => [<Button key="anti-fraud" onClick={() => openHelper('防刷规则')}>防刷规则</Button>, <Button key="new" type="primary" onClick={() => openModal('invite')}>新建邀请活动</Button>]}
+                toolBarRender={() => [<Button key="anti-fraud" onClick={() => navigate('/risk-schedule-alarms')}>防刷规则</Button>, <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('invite')}>新建邀请活动</Button>]}
                 onSubmit={(values) => { setKeyword(String(values.keyword || '')); setStatus(values.status as string | undefined); }}
                 onReset={() => { setKeyword(''); setStatus(undefined); }}
               />
@@ -344,15 +333,16 @@ const MarketingManagement: React.FC = () => {
             key: 'recharge',
             label: '充值活动',
             children: (
-              <ProTable<RechargeActivity>
+              <ProTable<RechargeActivityRecord>
                 cardBordered
                 rowKey="id"
                 columns={rechargeColumns}
                 dataSource={filteredRecharge}
+                loading={rechargeQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1760 }}
-                toolBarRender={() => [<Button key="tiers" onClick={() => openHelper('固定档位模板')}>固定档位模板</Button>, <Button key="new" type="primary" onClick={() => openModal('recharge')}>新建充值活动</Button>]}
+                toolBarRender={() => [<Button key="tiers" onClick={() => navigate('/marketing/recharge-activities')}>固定档位模板</Button>, <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('recharge')}>新建充值活动</Button>]}
                 onSubmit={(values) => { setKeyword(String(values.keyword || '')); setStatus(values.status as string | undefined); }}
                 onReset={() => { setKeyword(''); setStatus(undefined); }}
               />
@@ -366,20 +356,21 @@ const MarketingManagement: React.FC = () => {
         open={!!modalType}
         onOk={handleSubmit}
         onCancel={closeModal}
+        confirmLoading={saveMutation.isPending}
         destroyOnClose
         width={900}
       >
         <Form form={form} layout="vertical">
           {modalType === 'coupon' ? (
             <div className="modal-grid">
-              <Form.Item name="activityCode" label="活动编码" rules={[{ required: true, message: '请输入活动编码' }]}><Input /></Form.Item>
-              <Form.Item name="activityName" label="活动名称" rules={[{ required: true, message: '请输入活动名称' }]}><Input /></Form.Item>
+              <Form.Item name="templateCode" label="券模板编码" rules={[{ required: true, message: '请输入券模板编码' }]}><Input /></Form.Item>
+              <Form.Item name="templateName" label="券模板名称" rules={[{ required: true, message: '请输入券模板名称' }]}><Input /></Form.Item>
               <Form.Item name="couponType" label="券类型"><Select options={couponTypeOptions} /></Form.Item>
               <Form.Item name="scope" label="作用范围"><Input /></Form.Item>
-              <Form.Item className="modal-span-2" name="triggerRule" label="触发规则"><Input /></Form.Item>
-              <Form.Item name="grantCount" label="发券量"><Input /></Form.Item>
-              <Form.Item name="budget" label="预算"><Input /></Form.Item>
-              <Form.Item name="status" label="状态"><Select options={activityStatusOptions} /></Form.Item>
+              <Form.Item className="modal-span-2" name="issueRule" label="发放规则"><Input /></Form.Item>
+              <Form.Item name="threshold" label="使用门槛"><Input /></Form.Item>
+              <Form.Item name="stock" label="库存"><Input /></Form.Item>
+              <Form.Item name="status" label="状态"><Select options={[...activityStatusOptions, { label: '启用', value: 'ENABLED' }]} /></Form.Item>
             </div>
           ) : null}
           {modalType === 'invite' ? (
@@ -410,23 +401,15 @@ const MarketingManagement: React.FC = () => {
 
       <Modal title="活动详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={720}>
         {detail ? (
-          <Descriptions column={1} labelStyle={{ width: 120 }}>
-            {Object.entries(detail).map(([key, value]) => (
-              <Descriptions.Item key={key} label={key}>
-                {typeof value === 'number' && (key === 'budget' || key === 'grantCount') ? String(value) : String(value)}
-              </Descriptions.Item>
-            ))}
-          </Descriptions>
+          <SchemaDetail
+            record={detail as Record<string, any>}
+            fields={('templateCode' in detail ? marketingDetailFields.coupon : 'qualifyRule' in detail ? marketingDetailFields.invite : marketingDetailFields.recharge) as DetailField<Record<string, any>>[]}
+            column={1}
+            labelWidth={120}
+          />
         ) : null}
       </Modal>
 
-      <Modal title={helperTitle} open={helperVisible} footer={null} onCancel={() => setHelperVisible(false)} width={680}>
-        <Descriptions column={1} labelStyle={{ width: 120 }}>
-          <Descriptions.Item label="说明">这里保留聚合页的辅助配置入口，后续可以进一步拆到独立配置模块。</Descriptions.Item>
-          <Descriptions.Item label="当前标签">{activeTab}</Descriptions.Item>
-          <Descriptions.Item label="建议动作">根据当前活动类型继续维护模板、规则、门店组和奖励预算。</Descriptions.Item>
-        </Descriptions>
-      </Modal>
     </div>
   );
 };

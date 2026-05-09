@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Descriptions, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Col, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, Statistic, Tabs, message } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined, TagsOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -11,6 +11,7 @@ import {
   statusOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
 import type { PricingRuleRecord, ServiceProductRecord } from '@/services/backendService';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
@@ -22,6 +23,44 @@ const categoryMap = buildValueEnum(categoryOptions);
 const billingModeMap = buildValueEnum(billingModeOptions);
 const statusMap = buildValueEnum(statusOptions);
 const scopeMap = buildValueEnum(scopeTypeOptions);
+
+const productDetailFields: DetailField<ServiceProductRecord>[] = [
+  { name: 'productCode', label: '商品编码' },
+  { name: 'productName', label: '商品名称' },
+  { name: 'categoryCode', label: '商品分类' },
+  { name: 'billingMode', label: '计费模式' },
+  { name: 'scopeType', label: '范围类型' },
+  { name: 'scopeId', label: '范围ID' },
+  { name: 'scopeName', label: '范围名称' },
+  { name: 'priceVersion', label: '价格版本' },
+  { name: 'priceDesc', label: '价格描述' },
+  { name: 'serviceDuration', label: '服务周期' },
+  { name: 'rightsContent', label: '权益内容' },
+  { name: 'refundRule', label: '退款规则' },
+  { name: 'effectiveAt', label: '生效时间' },
+  { name: 'expireAt', label: '失效时间' },
+  { name: 'status', label: '状态' },
+];
+
+const pricingDetailFields: DetailField<PricingRuleRecord>[] = [
+  { name: 'ruleCode', label: '规则编码' },
+  { name: 'ruleName', label: '规则名称' },
+  { name: 'storeName', label: '门店' },
+  { name: 'productName', label: '服务商品' },
+  { name: 'versionNo', label: '版本号' },
+  { name: 'startPrice', label: '起步价' },
+  { name: 'minutePrice', label: '分钟单价' },
+  { name: 'countPrice', label: '按次单价' },
+  { name: 'capAmount', label: '封顶金额' },
+  { name: 'freeMinutes', label: '免费分钟' },
+  { name: 'timeSegment', label: '时段规则' },
+  { name: 'nightPriceDesc', label: '夜间价格' },
+  { name: 'holidayRule', label: '节假日规则' },
+  { name: 'holidayPriceDesc', label: '节假日价格' },
+  { name: 'effectiveAt', label: '生效时间' },
+  { name: 'expireAt', label: '失效时间' },
+  { name: 'status', label: '状态' },
+];
 
 const ProductPricingManagement: React.FC = () => {
   const queryClient = useQueryClient();
@@ -228,13 +267,7 @@ const ProductPricingManagement: React.FC = () => {
       />
 
       <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
-        {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 110 }}>
-            {Object.entries(detail).map(([key, value]) => (
-              <Descriptions.Item key={key} label={key}>{String(value ?? '-')}</Descriptions.Item>
-            ))}
-          </Descriptions>
-        ) : null}
+        {detail ? <SchemaDetail record={detail as Record<string, any>} fields={('productCode' in detail ? productDetailFields : pricingDetailFields) as DetailField<Record<string, any>>[]} /> : null}
       </Modal>
 
       <Modal

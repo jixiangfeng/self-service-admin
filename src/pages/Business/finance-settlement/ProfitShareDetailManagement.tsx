@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
 import { SplitCellsOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -9,106 +10,116 @@ import {
   profitRelationStatusOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
-
-interface PartnerRelationRecord {
-  id: string;
-  relationNo: string;
-  storeName: string;
-  partnerName: string;
-  partnerRole: string;
-  shareRatio: string;
-  primarySettlement: string;
-  status: string;
-}
-
-interface RatioVersionRecord {
-  id: string;
-  versionNo: string;
-  relationNo: string;
-  beforeRatio: string;
-  afterRatio: string;
-  effectiveAt: string;
-  auditStatus: string;
-}
-
-interface ProfitDetailRecord {
-  id: string;
-  detailNo: string;
-  settlementBillNo: string;
-  serviceOrderNo: string;
-  partnerName: string;
-  shareAmount: number;
-  refundAmount: number;
-  status: string;
-}
-
-interface ChargebackRecord {
-  id: string;
-  chargebackNo: string;
-  detailNo: string;
-  refundNo: string;
-  partnerName: string;
-  chargebackAmount: number;
-  createdAt: string;
-}
-
-interface ConfirmRecord {
-  id: string;
-  confirmNo: string;
-  settlementBillNo: string;
-  partnerName: string;
-  confirmAmount: number;
-  confirmer: string;
-  confirmedAt: string;
-}
+import api, {
+  type ProfitChargebackRecord,
+  type ProfitConfirmRecord,
+  type ProfitPartnerRelationRecord,
+  type ProfitRatioVersionRecord,
+  type ProfitShareDetailRecord,
+} from '@/services/backendService';
 
 const partnerRoleMap = buildValueEnum(partnerRoleOptions);
 const relationStatusMap = buildValueEnum(profitRelationStatusOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
 
-const relations: PartnerRelationRecord[] = [
-  { id: 'pr1', relationNo: 'REL202604180001', storeName: '虹桥旗舰洗车站', partnerName: '平台方', partnerRole: 'PLATFORM', shareRatio: '30%', primarySettlement: '否', status: 'EFFECTIVE' },
-  { id: 'pr2', relationNo: 'REL202604180002', storeName: '虹桥旗舰洗车站', partnerName: '门店合伙人-李总', partnerRole: 'PARTNER', shareRatio: '70%', primarySettlement: '是', status: 'EFFECTIVE' },
-];
-
-const versions: RatioVersionRecord[] = [
-  { id: 'rv1', versionNo: 'PSV20260418', relationNo: 'REL202604180002', beforeRatio: '65%', afterRatio: '70%', effectiveAt: '2026-04-18 00:00:00', auditStatus: 'APPROVED' },
-  { id: 'rv2', versionNo: 'PSV20260501', relationNo: 'REL202604180001', beforeRatio: '30%', afterRatio: '28%', effectiveAt: '2026-05-01 00:00:00', auditStatus: 'PENDING' },
-];
-
-const details: ProfitDetailRecord[] = [
-  { id: 'pd1', detailNo: 'PSD202604180001', settlementBillNo: 'SET202604180001', serviceOrderNo: 'SO202604180019', partnerName: '门店合伙人-李总', shareAmount: 24.43, refundAmount: 0, status: 'APPROVED' },
-  { id: 'pd2', detailNo: 'PSD202604180002', settlementBillNo: 'SET202604180001', serviceOrderNo: 'SO202604170113', partnerName: '平台方', shareAmount: 9.2, refundAmount: 3, status: 'PENDING' },
-];
-
-const chargebacks: ChargebackRecord[] = [
-  { id: 'cb1', chargebackNo: 'PCB202604180001', detailNo: 'PSD202604180002', refundNo: 'RF202604180006', partnerName: '平台方', chargebackAmount: 3, createdAt: '2026-04-18 10:10:00' },
-  { id: 'cb2', chargebackNo: 'PCB202604180002', detailNo: 'PSD202604180003', refundNo: 'RF202604180007', partnerName: '门店合伙人-李总', chargebackAmount: 7, createdAt: '2026-04-18 10:18:00' },
-];
-
-const confirms: ConfirmRecord[] = [
-  { id: 'cf1', confirmNo: 'PSC202604180001', settlementBillNo: 'SET202604180001', partnerName: '门店合伙人-李总', confirmAmount: 1860.5, confirmer: '财务-许鸣', confirmedAt: '2026-04-18 11:00:00' },
-  { id: 'cf2', confirmNo: 'PSC202604180002', settlementBillNo: 'SET202604180001', partnerName: '平台方', confirmAmount: 820.2, confirmer: '财务-许鸣', confirmedAt: '2026-04-18 11:10:00' },
-];
+const profitShareCenterDetailFields: Record<'relation' | 'version' | 'detail' | 'chargeback' | 'confirm', DetailField<any>[]> = {
+  relation: [
+    { name: 'relationNo', label: '关系编号' },
+    { name: 'storeName', label: '门店' },
+    { name: 'partnerName', label: '合伙人' },
+    { name: 'partnerRole', label: '角色' },
+    { name: 'shareRatio', label: '比例' },
+    { name: 'primarySettlement', label: '主结算人' },
+    { name: 'status', label: '状态' },
+  ],
+  version: [
+    { name: 'versionNo', label: '版本号' },
+    { name: 'relationNo', label: '关系编号' },
+    { name: 'beforeRatio', label: '原比例' },
+    { name: 'afterRatio', label: '新比例' },
+    { name: 'effectiveAt', label: '生效时间', render: (value) => formatDateTime(value) },
+    { name: 'auditStatus', label: '审核状态' },
+    { name: 'remark', label: '备注' },
+  ],
+  detail: [
+    { name: 'detailNo', label: '分润明细' },
+    { name: 'settlementBillNo', label: '结算单' },
+    { name: 'serviceOrderNo', label: '订单号' },
+    { name: 'partnerName', label: '合伙人' },
+    { name: 'baseAmount', label: '分润基数', render: (value) => formatAmount(value) },
+    { name: 'shareAmount', label: '分润金额', render: (value) => formatAmount(value) },
+    { name: 'refundAmount', label: '退款回冲', render: (value) => formatAmount(value) },
+    { name: 'status', label: '状态' },
+  ],
+  chargeback: [
+    { name: 'chargebackNo', label: '回冲单号' },
+    { name: 'detailNo', label: '分润明细' },
+    { name: 'refundNo', label: '退款单号' },
+    { name: 'partnerName', label: '合伙人' },
+    { name: 'chargebackAmount', label: '回冲金额', render: (value) => formatAmount(value) },
+    { name: 'status', label: '状态' },
+    { name: 'createdAt', label: '创建时间', render: (value) => formatDateTime(value) },
+  ],
+  confirm: [
+    { name: 'confirmNo', label: '确认单号' },
+    { name: 'settlementBillNo', label: '结算单' },
+    { name: 'partnerName', label: '合伙人' },
+    { name: 'confirmAmount', label: '确认金额', render: (value) => formatAmount(value) },
+    { name: 'confirmer', label: '确认人' },
+    { name: 'confirmStatus', label: '确认状态' },
+    { name: 'confirmedAt', label: '确认时间', render: (value) => formatDateTime(value) },
+  ],
+};
 
 const ProfitShareDetailManagement: React.FC = () => {
+  const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
-  const [detail, setDetail] = useState<PartnerRelationRecord | RatioVersionRecord | ProfitDetailRecord | ChargebackRecord | ConfirmRecord | null>(null);
+  const [detail, setDetail] = useState<ProfitPartnerRelationRecord | ProfitRatioVersionRecord | ProfitShareDetailRecord | ProfitChargebackRecord | ProfitConfirmRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [form] = Form.useForm<{ bizNo: string; status: string; remark: string }>();
 
-  const filter = <T extends object>(items: T[]) =>
-    items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
-
-  const openModal = (title: string) => {
+  const openAction = (title: string) => {
     setModalTitle(title);
     form.resetFields();
     setModalVisible(true);
   };
 
-  const relationColumns = useMemo<ProColumns<PartnerRelationRecord>[]>(() => [
+  const filter = <T extends object>(items: T[]) =>
+    items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
+
+  const relationQuery = useQuery({ queryKey: ['profitDetailRelations', keyword], queryFn: async () => (await api.profitPartnerRelation.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
+  const versionQuery = useQuery({ queryKey: ['profitDetailVersions', keyword], queryFn: async () => (await api.profitRatioVersion.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
+  const detailQuery = useQuery({ queryKey: ['profitDetailDetails', keyword], queryFn: async () => (await api.profitShareDetail.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
+  const chargebackQuery = useQuery({ queryKey: ['profitDetailChargebacks', keyword], queryFn: async () => (await api.profitChargeback.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
+  const confirmQuery = useQuery({ queryKey: ['profitDetailConfirms', keyword], queryFn: async () => (await api.profitConfirm.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
+  const actionMutation = useMutation<unknown, Error, Record<string, unknown>>({
+    mutationFn: (values: Record<string, unknown>) => {
+      if (modalTitle === '新增合伙关系') {
+        return api.profitPartnerRelation.add({ relationNo: values.bizNo || `REL${Date.now()}`, storeName: values.remark || '-', partnerName: values.remark || '-', partnerRole: 'PARTNER', shareRatio: 0, status: values.status || 'PENDING' });
+      }
+      if (modalTitle === '审核比例版本') {
+        return api.profitRatioVersion.add({ versionNo: values.bizNo || `PSV${Date.now()}`, relationNo: values.bizNo, afterRatio: 0, auditStatus: values.status || 'APPROVED', remark: values.remark });
+      }
+      return api.profitConfirm.add({ confirmNo: values.bizNo || `PSC${Date.now()}`, settlementBillNo: values.bizNo, partnerName: values.remark || '-', confirmAmount: 0, confirmer: '财务管理员', confirmStatus: values.status || 'APPROVED', confirmRemark: values.remark });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profitDetailRelations'] });
+      queryClient.invalidateQueries({ queryKey: ['profitDetailVersions'] });
+      queryClient.invalidateQueries({ queryKey: ['profitDetailConfirms'] });
+      message.success('分润操作已保存');
+    },
+  });
+
+  const relations = (relationQuery.data?.records || []) as ProfitPartnerRelationRecord[];
+  const versions = (versionQuery.data?.records || []) as ProfitRatioVersionRecord[];
+  const details = (detailQuery.data?.records || []) as ProfitShareDetailRecord[];
+  const chargebacks = (chargebackQuery.data?.records || []) as ProfitChargebackRecord[];
+  const confirms = (confirmQuery.data?.records || []) as ProfitConfirmRecord[];
+
+  const relationColumns = useMemo<ProColumns<ProfitPartnerRelationRecord>[]>(() => [
     { title: '关系编号', dataIndex: 'relationNo', width: 180 },
     { title: '门店', dataIndex: 'storeName', width: 180 },
     { title: '合伙人', dataIndex: 'partnerName', width: 180 },
@@ -119,16 +130,17 @@ const ProfitShareDetailManagement: React.FC = () => {
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
-  const versionColumns = useMemo<ProColumns<RatioVersionRecord>[]>(() => [
+  const versionColumns = useMemo<ProColumns<ProfitRatioVersionRecord>[]>(() => [
     { title: '版本号', dataIndex: 'versionNo', width: 160 },
     { title: '关系编号', dataIndex: 'relationNo', width: 180 },
     { title: '原比例', dataIndex: 'beforeRatio', width: 100 },
     { title: '新比例', dataIndex: 'afterRatio', width: 100 },
     { title: '生效时间', dataIndex: 'effectiveAt', width: 180, render: (_, record) => formatDateTime(record.effectiveAt) },
     { title: '审核状态', dataIndex: 'auditStatus', width: 120, render: (_, record) => renderStatusTag(record.auditStatus, auditStatusMap) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
-  const detailColumns = useMemo<ProColumns<ProfitDetailRecord>[]>(() => [
+  const detailColumns = useMemo<ProColumns<ProfitShareDetailRecord>[]>(() => [
     { title: '分润明细', dataIndex: 'detailNo', width: 180 },
     { title: '结算单', dataIndex: 'settlementBillNo', width: 180 },
     { title: '订单号', dataIndex: 'serviceOrderNo', width: 180 },
@@ -136,24 +148,27 @@ const ProfitShareDetailManagement: React.FC = () => {
     { title: '分润金额', dataIndex: 'shareAmount', width: 120, render: (_, record) => formatAmount(record.shareAmount) },
     { title: '退款回冲', dataIndex: 'refundAmount', width: 120, render: (_, record) => formatAmount(record.refundAmount) },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, auditStatusMap) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
-  const chargebackColumns = useMemo<ProColumns<ChargebackRecord>[]>(() => [
+  const chargebackColumns = useMemo<ProColumns<ProfitChargebackRecord>[]>(() => [
     { title: '回冲单号', dataIndex: 'chargebackNo', width: 180 },
     { title: '分润明细', dataIndex: 'detailNo', width: 180 },
     { title: '退款单号', dataIndex: 'refundNo', width: 180 },
     { title: '合伙人', dataIndex: 'partnerName', width: 180 },
     { title: '回冲金额', dataIndex: 'chargebackAmount', width: 120, render: (_, record) => formatAmount(record.chargebackAmount) },
     { title: '创建时间', dataIndex: 'createdAt', width: 180, render: (_, record) => formatDateTime(record.createdAt) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
-  const confirmColumns = useMemo<ProColumns<ConfirmRecord>[]>(() => [
+  const confirmColumns = useMemo<ProColumns<ProfitConfirmRecord>[]>(() => [
     { title: '确认单号', dataIndex: 'confirmNo', width: 180 },
     { title: '结算单', dataIndex: 'settlementBillNo', width: 180 },
     { title: '合伙人', dataIndex: 'partnerName', width: 180 },
     { title: '确认金额', dataIndex: 'confirmAmount', width: 120, render: (_, record) => formatAmount(record.confirmAmount) },
     { title: '确认人', dataIndex: 'confirmer', width: 130 },
     { title: '确认时间', dataIndex: 'confirmedAt', width: 180, render: (_, record) => formatDateTime(record.confirmedAt) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
   return (
@@ -163,8 +178,8 @@ const ProfitShareDetailManagement: React.FC = () => {
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="合伙关系" value={relations.length} suffix="条" /></Card></Col>
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="待审版本" value={versions.filter((item) => item.auditStatus === 'PENDING').length} suffix="个" /></Card></Col>
-        <Col xs={24} sm={12} xl={5}><Card><Statistic title="分润金额" value={formatAmount(details.reduce((sum, item) => sum + item.shareAmount, 0))} /></Card></Col>
-        <Col xs={24} sm={12} xl={5}><Card><Statistic title="回冲金额" value={formatAmount(chargebacks.reduce((sum, item) => sum + item.chargebackAmount, 0))} /></Card></Col>
+        <Col xs={24} sm={12} xl={5}><Card><Statistic title="分润金额" value={formatAmount(details.reduce((sum, item) => sum + Number(item.shareAmount || 0), 0))} /></Card></Col>
+        <Col xs={24} sm={12} xl={5}><Card><Statistic title="回冲金额" value={formatAmount(chargebacks.reduce((sum, item) => sum + Number(item.chargebackAmount || 0), 0))} /></Card></Col>
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="确认记录" value={confirms.length} suffix="条" /></Card></Col>
       </Row>
 
@@ -181,21 +196,22 @@ const ProfitShareDetailManagement: React.FC = () => {
 
       <Tabs
         items={[
-          { key: 'relation', label: '合伙关系', children: <ProTable<PartnerRelationRecord> cardBordered rowKey="id" columns={relationColumns} dataSource={filter(relations) as PartnerRelationRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新增合伙关系')}>新增关系</Button>]} /> },
-          { key: 'version', label: '比例版本', children: <ProTable<RatioVersionRecord> cardBordered rowKey="id" columns={versionColumns} dataSource={filter(versions) as RatioVersionRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1080 }} toolBarRender={() => [<Button key="audit" type="primary" onClick={() => openModal('审核比例版本')}>审核版本</Button>]} /> },
-          { key: 'detail', label: '分润明细', children: <ProTable<ProfitDetailRecord> cardBordered rowKey="id" columns={detailColumns} dataSource={filter(details) as ProfitDetailRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} /> },
-          { key: 'chargeback', label: '退款回冲', children: <ProTable<ChargebackRecord> cardBordered rowKey="id" columns={chargebackColumns} dataSource={filter(chargebacks) as ChargebackRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1120 }} /> },
-          { key: 'confirm', label: '分润确认', children: <ProTable<ConfirmRecord> cardBordered rowKey="id" columns={confirmColumns} dataSource={filter(confirms) as ConfirmRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1080 }} toolBarRender={() => [<Button key="confirm" type="primary" onClick={() => openModal('确认分润')}>确认分润</Button>]} /> },
+          { key: 'relation', label: '合伙关系', children: <ProTable<ProfitPartnerRelationRecord> cardBordered rowKey="id" columns={relationColumns} dataSource={filter(relations) as ProfitPartnerRelationRecord[]} loading={relationQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openAction('新增合伙关系')}>新增关系</Button>]} /> },
+          { key: 'version', label: '比例版本', children: <ProTable<ProfitRatioVersionRecord> cardBordered rowKey="id" columns={versionColumns} dataSource={filter(versions) as ProfitRatioVersionRecord[]} loading={versionQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="audit" type="primary" onClick={() => openAction('审核比例版本')}>审核版本</Button>]} /> },
+          { key: 'detail', label: '分润明细', children: <ProTable<ProfitShareDetailRecord> cardBordered rowKey="id" columns={detailColumns} dataSource={filter(details) as ProfitShareDetailRecord[]} loading={detailQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1380 }} /> },
+          { key: 'chargeback', label: '退款回冲', children: <ProTable<ProfitChargebackRecord> cardBordered rowKey="id" columns={chargebackColumns} dataSource={filter(chargebacks) as ProfitChargebackRecord[]} loading={chargebackQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1220 }} /> },
+          { key: 'confirm', label: '分润确认', children: <ProTable<ProfitConfirmRecord> cardBordered rowKey="id" columns={confirmColumns} dataSource={filter(confirms) as ProfitConfirmRecord[]} loading={confirmQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="confirm" type="primary" onClick={() => openAction('确认分润')}>确认分润</Button>]} /> },
         ]}
       />
 
       <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 110 }}>
-            {Object.entries(detail).map(([key, value]) => (
-              <Descriptions.Item key={key} label={key}>{String(value ?? '-')}</Descriptions.Item>
-            ))}
-          </Descriptions>
+          <SchemaDetail
+            record={detail as Record<string, any>}
+            fields={('versionNo' in detail ? profitShareCenterDetailFields.version : 'detailNo' in detail && 'chargebackAmount' in detail ? profitShareCenterDetailFields.chargeback : 'detailNo' in detail ? profitShareCenterDetailFields.detail : 'confirmNo' in detail ? profitShareCenterDetailFields.confirm : profitShareCenterDetailFields.relation) as DetailField<Record<string, any>>[]}
+            column={2}
+            labelWidth={110}
+          />
         ) : null}
       </Modal>
 
@@ -205,8 +221,8 @@ const ProfitShareDetailManagement: React.FC = () => {
         onCancel={() => setModalVisible(false)}
         onOk={async () => {
           await form.validateFields();
+          await actionMutation.mutateAsync(form.getFieldsValue());
           setModalVisible(false);
-          message.success('分润明细操作已记录');
         }}
         width={760}
       >

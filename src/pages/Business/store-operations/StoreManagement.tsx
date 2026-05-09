@@ -177,7 +177,7 @@ const StoreManagement: React.FC = () => {
       <PageBanner title="门店管理" subtitle="维护门店档案、营业配置、营销开关和服务能力。" icon={<ShopOutlined />} />
       <WorkflowGuide
         title="门店经营闭环"
-        summary="门店不是地址条目，而是后续点位、设备、商品、活动和门店运营的统一承载主体。"
+        summary="门店不是地址条目，而是点位、设备、商品、活动和门店运营的统一承载主体。"
         steps={[
           { title: '门店建档', description: '补齐地址、营业时间、公告和联系方式', status: 'finish', tag: '当前页' },
           { title: '点位设备', description: '配置点位、二维码和设备绑定', status: 'process', tag: '下一步：点位 / 设备' },

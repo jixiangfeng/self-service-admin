@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Table, message } from 'antd';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Card, Col, Form, Input, Modal, Row, Select, Table, message } from 'antd';
 import { NotificationOutlined } from '@ant-design/icons';
 import {
   adContentTypeOptions,
@@ -9,44 +10,9 @@ import {
   scopeTypeOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, formatAmount, renderStatusTag } from '@/pages/Business/shared';
-
-interface SlotRecord {
-  id: string;
-  slotCode: string;
-  slotName: string;
-  placement: string;
-  scope: string;
-  contentType: string;
-  sizeSpec: string;
-  sortWeight: number;
-  status: string;
-}
-
-interface DeliveryRecord {
-  id: string;
-  campaignCode: string;
-  campaign: string;
-  slotName: string;
-  target: string;
-  timing: string;
-  budget: number;
-  exposure: number;
-  click: number;
-  conversion: number;
-  owner: string;
-  status: string;
-}
-
-interface AdEventRecord {
-  id: string;
-  campaign: string;
-  eventType: string;
-  userName: string;
-  storeName: string;
-  orderNo: string;
-  occurredAt: string;
-}
+import api, { type AdCampaignRecord, type AdEventRecord, type AdSlotRecord } from '@/services/backendService';
 
 const placementMap = buildValueEnum(adSlotPlacementOptions);
 const contentTypeMap = buildValueEnum(adContentTypeOptions);
@@ -54,56 +20,98 @@ const adStatusMap = buildValueEnum(adStatusOptions);
 const deliveryStatusMap = buildValueEnum(adDeliveryStatusOptions);
 const scopeTypeMap = buildValueEnum(scopeTypeOptions);
 
-const initialSlots: SlotRecord[] = [
-  { id: 'slot-1', slotCode: 'ADS-HOME-BANNER', slotName: '首页 Banner 位', placement: 'HOME_BANNER', scope: 'PLATFORM', contentType: 'IMAGE', sizeSpec: '750x320', sortWeight: 100, status: 'DRAFT' },
-  { id: 'slot-2', slotCode: 'ADS-PAY-SUCC', slotName: '支付完成页广告位', placement: 'PAY_SUCCESS', scope: 'STORE', contentType: 'TEXT_IMAGE', sizeSpec: '690x240', sortWeight: 80, status: 'DRAFT' },
-  { id: 'slot-3', slotCode: 'ADS-STORE-DETAIL', slotName: '门店详情页广告位', placement: 'STORE_DETAIL', scope: 'STORE', contentType: 'POPUP', sizeSpec: '690x360', sortWeight: 60, status: 'DESIGNING' },
-];
-
-const initialDeliveries: DeliveryRecord[] = [
-  { id: 'delivery-1', campaignCode: 'ADC-202604-001', campaign: '夏季联名投放', slotName: '首页 Banner 位', target: '上海直营门店', timing: '12:00 - 20:00', budget: 5000, exposure: 12600, click: 860, conversion: 72, owner: '平台运营', status: 'PENDING' },
-  { id: 'delivery-2', campaignCode: 'ADC-202604-002', campaign: '夜洗合作品牌', slotName: '支付完成页广告位', target: '夜洗门店组', timing: '20:00 - 02:00', budget: 3200, exposure: 8600, click: 520, conversion: 48, owner: '区域运营', status: 'RUNNING' },
-];
-
-const initialEvents: AdEventRecord[] = [
-  { id: 'event-1', campaign: '夜洗合作品牌', eventType: 'CLICK', userName: '张晨', storeName: '徐汇夜洗门店', orderNo: '-', occurredAt: '2026-04-18 09:12:00' },
-  { id: 'event-2', campaign: '夜洗合作品牌', eventType: 'CONVERSION', userName: '陈越', storeName: '徐汇夜洗门店', orderNo: 'SO202604180019', occurredAt: '2026-04-18 09:20:00' },
-];
+const adDetailFields: Record<'slot' | 'campaign' | 'event', DetailField<any>[]> = {
+  slot: [
+    { name: 'slotCode', label: '广告位编码' },
+    { name: 'slotName', label: '广告位' },
+    { name: 'placement', label: '页面位置' },
+    { name: 'scope', label: '投放范围' },
+    { name: 'contentType', label: '内容类型' },
+    { name: 'sizeSpec', label: '尺寸' },
+    { name: 'sortWeight', label: '排序权重' },
+    { name: 'status', label: '状态' },
+  ],
+  campaign: [
+    { name: 'campaignCode', label: '计划编码' },
+    { name: 'campaign', label: '计划名称' },
+    { name: 'slotName', label: '广告位' },
+    { name: 'target', label: '投放对象' },
+    { name: 'timing', label: '时段' },
+    { name: 'budget', label: '预算', render: (value) => formatAmount(value) },
+    { name: 'exposure', label: '曝光' },
+    { name: 'click', label: '点击' },
+    { name: 'conversion', label: '转化' },
+    { name: 'owner', label: '负责人' },
+    { name: 'status', label: '状态' },
+  ],
+  event: [
+    { name: 'eventNo', label: '事件编号' },
+    { name: 'campaignCode', label: '计划编码' },
+    { name: 'campaign', label: '计划名称' },
+    { name: 'slotName', label: '广告位' },
+    { name: 'eventType', label: '事件类型' },
+    { name: 'userName', label: '用户' },
+    { name: 'storeName', label: '门店' },
+    { name: 'orderNo', label: '转化订单' },
+    { name: 'eventTime', label: '事件时间' },
+    { name: 'occurredAt', label: '发生时间' },
+  ],
+};
 
 const AdManagement: React.FC = () => {
-  const [slotForm] = Form.useForm<SlotRecord>();
-  const [deliveryForm] = Form.useForm<DeliveryRecord>();
-  const [slots, setSlots] = useState(initialSlots);
-  const [deliveries, setDeliveries] = useState(initialDeliveries);
-  const [events] = useState(initialEvents);
+  const [slotForm] = Form.useForm<AdSlotRecord>();
+  const [deliveryForm] = Form.useForm<AdCampaignRecord>();
+  const queryClient = useQueryClient();
+  const slotQuery = useQuery({ queryKey: ['adSlots'], queryFn: async () => (await api.valuePlanning.adSlots.page({ pageNum: 1, pageSize: 200 })).data });
+  const deliveryQuery = useQuery({ queryKey: ['adCampaigns'], queryFn: async () => (await api.valuePlanning.adCampaigns.page({ pageNum: 1, pageSize: 200 })).data });
+  const eventQuery = useQuery({ queryKey: ['adEvents'], queryFn: async () => (await api.valuePlanning.adEvents.page({ pageNum: 1, pageSize: 200 })).data });
+  const slots = slotQuery.data?.records || [];
+  const deliveries = deliveryQuery.data?.records || [];
+  const events = eventQuery.data?.records || [];
   const [slotVisible, setSlotVisible] = useState(false);
   const [deliveryVisible, setDeliveryVisible] = useState(false);
-  const [detail, setDetail] = useState<SlotRecord | DeliveryRecord | AdEventRecord | null>(null);
+  const [detail, setDetail] = useState<AdSlotRecord | AdCampaignRecord | AdEventRecord | null>(null);
+  const [editingSlot, setEditingSlot] = useState<AdSlotRecord | null>(null);
+  const [editingDelivery, setEditingDelivery] = useState<AdCampaignRecord | null>(null);
 
   const summary = useMemo(
     () => ({
       slotCount: slots.length,
       deliveryCount: deliveries.length,
-      exposureCount: deliveries.reduce((sum, item) => sum + item.exposure, 0),
-      conversionCount: deliveries.reduce((sum, item) => sum + item.conversion, 0),
+      exposureCount: deliveries.reduce((sum, item) => sum + Number(item.exposure || 0), 0),
+      conversionCount: deliveries.reduce((sum, item) => sum + Number(item.conversion || 0), 0),
     }),
     [deliveries, slots.length]
   );
 
+  const saveSlotMutation = useMutation<unknown, Error, Record<string, unknown>>({
+    mutationFn: (values: Record<string, unknown>) => editingSlot ? api.valuePlanning.adSlots.edit({ ...values, id: editingSlot.id }) : api.valuePlanning.adSlots.add(values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adSlots'] });
+      message.success(editingSlot ? '广告位已更新' : '广告位已创建');
+    },
+  });
   const handleSlotSubmit = async () => {
     const values = await slotForm.validateFields();
-    setSlots((prev) => [{ ...values, id: `slot-${Date.now()}` }, ...prev]);
+    await saveSlotMutation.mutateAsync(values as unknown as Record<string, unknown>);
     setSlotVisible(false);
+    setEditingSlot(null);
     slotForm.resetFields();
-    message.success('广告位已创建');
   };
 
+  const saveDeliveryMutation = useMutation<unknown, Error, Record<string, unknown>>({
+    mutationFn: (values: Record<string, unknown>) => editingDelivery ? api.valuePlanning.adCampaigns.edit({ ...values, id: editingDelivery.id }) : api.valuePlanning.adCampaigns.add(values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adCampaigns'] });
+      message.success(editingDelivery ? '投放计划已更新' : '投放计划已创建');
+    },
+  });
   const handleDeliverySubmit = async () => {
     const values = await deliveryForm.validateFields();
-    setDeliveries((prev) => [{ ...values, id: `delivery-${Date.now()}` }, ...prev]);
+    await saveDeliveryMutation.mutateAsync(values as unknown as Record<string, unknown>);
     setDeliveryVisible(false);
+    setEditingDelivery(null);
     deliveryForm.resetFields();
-    message.success('投放计划已创建');
   };
 
   return (
@@ -117,7 +125,7 @@ const AdManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={6}><Card title="转化订单">{summary.conversionCount} 单</Card></Col>
       </Row>
 
-      <Card title="广告位管理" extra={<Button type="primary" onClick={() => setSlotVisible(true)}>新建广告位</Button>} style={{ marginBottom: 16 }}>
+      <Card title="广告位管理" extra={<Button type="primary" onClick={() => { setEditingSlot(null); slotForm.resetFields(); setSlotVisible(true); }}>新建广告位</Button>} style={{ marginBottom: 16 }}>
         <Table
           pagination={false}
           rowKey="id"
@@ -131,12 +139,17 @@ const AdManagement: React.FC = () => {
             { title: '尺寸', dataIndex: 'sizeSpec', width: 110 },
             { title: '排序权重', dataIndex: 'sortWeight', width: 100 },
             { title: '状态', dataIndex: 'status', width: 110, render: (value: string) => renderStatusTag(value, adStatusMap) },
-            { title: '操作', width: 100, render: (_, record: SlotRecord) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
+            { title: '操作', width: 150, render: (_, record: AdSlotRecord) => (
+              <>
+                <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+                <Button size="small" type="link" onClick={() => { setEditingSlot(record); slotForm.setFieldsValue(record); setSlotVisible(true); }}>编辑</Button>
+              </>
+            ) },
           ]}
         />
       </Card>
 
-      <Card title="投放计划" extra={<Button onClick={() => setDeliveryVisible(true)}>新建投放</Button>}>
+      <Card title="投放计划" extra={<Button onClick={() => { setEditingDelivery(null); deliveryForm.resetFields(); setDeliveryVisible(true); }}>新建投放</Button>}>
         <Table
           pagination={false}
           rowKey="id"
@@ -153,6 +166,12 @@ const AdManagement: React.FC = () => {
             { title: '转化', dataIndex: 'conversion', width: 90 },
             { title: '负责人', dataIndex: 'owner', width: 140 },
             { title: '状态', dataIndex: 'status', width: 120, render: (value: string) => renderStatusTag(value, deliveryStatusMap) },
+            { title: '操作', width: 150, render: (_, record: AdCampaignRecord) => (
+              <>
+                <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+                <Button size="small" type="link" onClick={() => { setEditingDelivery(record); deliveryForm.setFieldsValue(record); setDeliveryVisible(true); }}>编辑</Button>
+              </>
+            ) },
           ]}
         />
       </Card>
@@ -174,7 +193,7 @@ const AdManagement: React.FC = () => {
         />
       </Card>
 
-      <Modal title="新建广告位" open={slotVisible} onOk={handleSlotSubmit} onCancel={() => { setSlotVisible(false); slotForm.resetFields(); }} width={860}>
+      <Modal title={editingSlot ? `编辑广告位 · ${editingSlot.slotName || editingSlot.slotCode}` : '新建广告位'} open={slotVisible} onOk={handleSlotSubmit} onCancel={() => { setSlotVisible(false); setEditingSlot(null); slotForm.resetFields(); }} width={860} confirmLoading={saveSlotMutation.isPending}>
         <Form form={slotForm} layout="vertical">
           <div className="modal-grid">
             <Form.Item name="slotCode" label="广告位编码" rules={[{ required: true, message: '请输入广告位编码' }]}><Input /></Form.Item>
@@ -191,7 +210,7 @@ const AdManagement: React.FC = () => {
         </Form>
       </Modal>
 
-      <Modal title="新建投放计划" open={deliveryVisible} onOk={handleDeliverySubmit} onCancel={() => { setDeliveryVisible(false); deliveryForm.resetFields(); }} width={860}>
+      <Modal title={editingDelivery ? `编辑投放计划 · ${editingDelivery.campaign || editingDelivery.campaignCode}` : '新建投放计划'} open={deliveryVisible} onOk={handleDeliverySubmit} onCancel={() => { setDeliveryVisible(false); setEditingDelivery(null); deliveryForm.resetFields(); }} width={860} confirmLoading={saveDeliveryMutation.isPending}>
         <Form form={deliveryForm} layout="vertical">
           <div className="modal-grid">
             <Form.Item name="campaignCode" label="计划编码" rules={[{ required: true, message: '请输入计划编码' }]}><Input /></Form.Item>
@@ -208,13 +227,12 @@ const AdManagement: React.FC = () => {
 
       <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 100 }}>
-            {Object.entries(detail).map(([key, value]) => (
-              <Descriptions.Item key={key} label={key}>
-                {String(value)}
-              </Descriptions.Item>
-            ))}
-          </Descriptions>
+          <SchemaDetail
+            record={detail as Record<string, any>}
+            fields={('eventNo' in detail ? adDetailFields.event : 'campaignCode' in detail ? adDetailFields.campaign : adDetailFields.slot) as DetailField<Record<string, any>>[]}
+            column={2}
+            labelWidth={100}
+          />
         ) : null}
       </Modal>
     </div>

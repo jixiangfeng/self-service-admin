@@ -1,127 +1,106 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Col, Form, Input, Modal, Row, Space, Statistic, Tabs, message } from 'antd';
 import { SafetyOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import {
-  auditStatusOptions,
-  publishStatusOptions,
-  riskStatusOptions,
-  ticketPriorityOptions,
-} from '@/constants/businessCatalog';
+import { useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { auditStatusOptions, publishStatusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
-import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
-
-interface FileAssetRecord {
-  id: string;
-  fileName: string;
-  bizType: string;
-  bizNo: string;
-  fileType: string;
-  uploader: string;
-  status: string;
-  uploadedAt: string;
-}
-
-interface ApprovalRecord {
-  id: string;
-  processNo: string;
-  bizType: string;
-  bizNo: string;
-  applicant: string;
-  currentNode: string;
-  approver: string;
-  status: string;
-  updatedAt: string;
-}
-
-interface TaskRecord {
-  id: string;
-  taskNo: string;
-  taskType: string;
-  bizType: string;
-  fileName: string;
-  operator: string;
-  status: string;
-  updatedAt: string;
-}
-
-interface RiskRecord {
-  id: string;
-  ruleName: string;
-  hitObject: string;
-  hitType: string;
-  level: string;
-  status: string;
-  owner: string;
-  hitAt: string;
-}
-
-interface JobRecord {
-  id: string;
-  jobCode: string;
-  jobName: string;
-  cron: string;
-  lastResult: string;
-  nextRunAt: string;
-  status: string;
-}
-
-interface AlarmRecord {
-  id: string;
-  alarmNo: string;
-  alarmType: string;
-  source: string;
-  level: string;
-  status: string;
-  owner: string;
-  triggeredAt: string;
-}
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import api, {
+  type AlarmRecord,
+  type ApprovalTaskRecord,
+  type FileAssetRecord,
+  type ImportExportTaskRecord,
+  type RiskHitRecord,
+  type ScheduledJobRecord,
+} from '@/services/backendService';
 
 const auditStatusMap = buildValueEnum(auditStatusOptions);
 const publishStatusMap = buildValueEnum(publishStatusOptions);
-const riskStatusMap = buildValueEnum(riskStatusOptions);
-const priorityMap = buildValueEnum(ticketPriorityOptions);
 
-const fileAssets: FileAssetRecord[] = [
-  { id: 'f1', fileName: '营业执照-鲸洗直营.pdf', bizType: '商户资质', bizNo: 'MCH-DIRECT-001', fileType: 'PDF', uploader: '平台招商', status: 'APPROVED', uploadedAt: '2026-04-18 09:20:00' },
-  { id: 'f2', fileName: '门店封面-虹桥.jpg', bizType: '门店图片', bizNo: 'STORE-HQ-001', fileType: 'IMAGE', uploader: '店长-李思远', status: 'PENDING', uploadedAt: '2026-04-18 10:02:00' },
-];
-
-const approvals: ApprovalRecord[] = [
-  { id: 'a1', processNo: 'AP202604180001', bizType: '结算账户变更', bizNo: 'MCH-DIRECT-001', applicant: '财务-林悦', currentNode: '财务复核', approver: '财务主管-许鸣', status: 'PENDING', updatedAt: '2026-04-18 10:12:00' },
-  { id: 'a2', processNo: 'AP202604180002', bizType: '活动上线', bizNo: 'RCG-006', applicant: '运营-何铭', currentNode: '预算审批', approver: '财务-林悦', status: 'APPROVED', updatedAt: '2026-04-18 09:40:00' },
-];
-
-const tasks: TaskRecord[] = [
-  { id: 't1', taskNo: 'IMP202604180001', taskType: '导入', bizType: '批量发券', fileName: 'coupon_user_list.xlsx', operator: '运营-陶然', status: 'PROCESSING', updatedAt: '2026-04-18 10:18:00' },
-  { id: 't2', taskNo: 'EXP202604180008', taskType: '导出', bizType: '结算明细', fileName: 'settlement_detail.csv', operator: '财务-许鸣', status: 'DONE', updatedAt: '2026-04-18 10:05:00' },
-];
-
-const risks: RiskRecord[] = [
-  { id: 'r1', ruleName: '邀请同设备限制', hitObject: '用户 13800002222', hitType: '邀请防刷', level: 'HIGH', status: 'WATCH', owner: '风控-沈一', hitAt: '2026-04-18 09:42:00' },
-  { id: 'r2', ruleName: '退款频次异常', hitObject: 'SO202604170113', hitType: '退款风控', level: 'MEDIUM', status: 'NORMAL', owner: '客服-刘莎', hitAt: '2026-04-17 22:12:00' },
-];
-
-const jobs: JobRecord[] = [
-  { id: 'j1', jobCode: 'JOB_SETTLEMENT_WEEKLY', jobName: '周结算单生成', cron: '0 0 2 ? * MON', lastResult: '成功生成 12 张结算单', nextRunAt: '2026-05-11 02:00:00', status: 'PUBLISHED' },
-  { id: 'j2', jobCode: 'JOB_COUPON_EXPIRE', jobName: '优惠券过期处理', cron: '0 10 0 * * ?', lastResult: '处理 326 张券', nextRunAt: '2026-05-08 00:10:00', status: 'PUBLISHED' },
-];
-
-const alarms: AlarmRecord[] = [
-  { id: 'al1', alarmNo: 'AL202604180001', alarmType: '设备离线', source: 'DEV-HQ-003', level: 'HIGH', status: 'PENDING', owner: '运维-李维', triggeredAt: '2026-04-18 08:57:00' },
-  { id: 'al2', alarmNo: 'AL202604180006', alarmType: '支付回调失败', source: 'PAY202604180019', level: 'MEDIUM', status: 'PROCESSING', owner: '技术值班', triggeredAt: '2026-04-18 09:31:00' },
-];
-
+const supportDetailFields: Record<'file' | 'approval' | 'task' | 'risk' | 'job' | 'alarm', DetailField<any>[]> = {
+  file: [
+    { name: 'fileName', label: '文件名' },
+    { name: 'bizType', label: '业务类型' },
+    { name: 'bizNo', label: '业务单号' },
+    { name: 'fileType', label: '文件类型' },
+    { name: 'uploader', label: '上传人' },
+    { name: 'status', label: '状态' },
+    { name: 'uploadedAt', label: '上传时间', render: (value) => formatDateTime(value) },
+  ],
+  approval: [
+    { name: 'processNo', label: '审批单号' },
+    { name: 'bizType', label: '业务类型' },
+    { name: 'bizNo', label: '业务单号' },
+    { name: 'applicant', label: '申请人' },
+    { name: 'currentNode', label: '当前节点' },
+    { name: 'approver', label: '审批人' },
+    { name: 'status', label: '状态' },
+    { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
+  ],
+  task: [
+    { name: 'taskNo', label: '任务号' },
+    { name: 'taskType', label: '任务类型' },
+    { name: 'bizType', label: '业务类型' },
+    { name: 'bizNo', label: '业务单号' },
+    { name: 'fileName', label: '文件名' },
+    { name: 'operator', label: '操作人' },
+    { name: 'status', label: '状态' },
+    { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
+  ],
+  risk: [
+    { name: 'ruleName', label: '规则' },
+    { name: 'bizId', label: '命中对象' },
+    { name: 'riskScene', label: '命中类型' },
+    { name: 'actionType', label: '处置动作' },
+    { name: 'handleStatus', label: '状态' },
+    { name: 'appUserName', label: '用户' },
+    { name: 'createdAt', label: '命中时间', render: (value) => formatDateTime(value) },
+  ],
+  job: [
+    { name: 'jobCode', label: '任务编码' },
+    { name: 'jobName', label: '任务名称' },
+    { name: 'cronExpression', label: 'Cron' },
+    { name: 'jobHandler', label: '执行器' },
+    { name: 'jobParam', label: '参数' },
+    { name: 'status', label: '状态' },
+  ],
+  alarm: [
+    { name: 'ruleName', label: '规则' },
+    { name: 'alarmScene', label: '告警类型' },
+    { name: 'bizId', label: '来源' },
+    { name: 'alarmLevel', label: '等级' },
+    { name: 'handleStatus', label: '状态' },
+    { name: 'handledBy', label: '负责人' },
+    { name: 'createdAt', label: '触发时间', render: (value) => formatDateTime(value) },
+  ],
+};
 const OperationsSupportManagement: React.FC = () => {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [keyword, setKeyword] = useState('');
-  const [detail, setDetail] = useState<FileAssetRecord | ApprovalRecord | TaskRecord | RiskRecord | JobRecord | AlarmRecord | null>(null);
+  const [detail, setDetail] = useState<FileAssetRecord | ApprovalTaskRecord | ImportExportTaskRecord | RiskHitRecord | ScheduledJobRecord | AlarmRecord | null>(null);
   const [helperVisible, setHelperVisible] = useState(false);
   const [helperTitle, setHelperTitle] = useState('');
   const [form] = Form.useForm<{ name: string; owner: string; remark: string }>();
 
-  const filter = <T extends object>(items: T[]) =>
-    items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
+  const queryParams = useMemo(() => ({ keyword, current: 1, size: 50 }), [keyword]);
+  const fileQuery = useQuery({ queryKey: ['ops-support-files', queryParams], queryFn: () => api.file.assets.page(queryParams) });
+  const approvalQuery = useQuery({ queryKey: ['ops-support-approvals', queryParams], queryFn: () => api.approval.tasks.page(queryParams) });
+  const taskQuery = useQuery({ queryKey: ['ops-support-import-export-tasks', queryParams], queryFn: () => api.file.importExportTasks.page(queryParams) });
+  const riskQuery = useQuery({ queryKey: ['ops-support-risks', queryParams], queryFn: () => api.riskScheduleAlarm.riskHits.page(queryParams) });
+  const jobQuery = useQuery({ queryKey: ['ops-support-jobs', queryParams], queryFn: () => api.riskScheduleAlarm.jobs.page(queryParams) });
+  const alarmQuery = useQuery({ queryKey: ['ops-support-alarms', queryParams], queryFn: () => api.riskScheduleAlarm.alarms.page(queryParams) });
+
+  const fileAssets = fileQuery.data?.data.records ?? [];
+  const approvals = approvalQuery.data?.data.records ?? [];
+  const tasks = taskQuery.data?.data.records ?? [];
+  const risks = riskQuery.data?.data.records ?? [];
+  const jobs = jobQuery.data?.data.records ?? [];
+  const alarms = alarmQuery.data?.data.records ?? [];
 
   const fileColumns = useMemo<ProColumns<FileAssetRecord>[]>(() => [
     { title: '文件名', dataIndex: 'fileName', width: 220 },
@@ -130,11 +109,11 @@ const OperationsSupportManagement: React.FC = () => {
     { title: '文件类型', dataIndex: 'fileType', width: 100 },
     { title: '上传人', dataIndex: 'uploader', width: 120 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, auditStatusMap) },
-    { title: '上传时间', dataIndex: 'uploadedAt', width: 180, render: (_, record) => formatDateTime(record.uploadedAt) },
+    { title: '上传时间', dataIndex: 'uploadedAt', width: 180, render: (_, record) => formatDateTime(record.uploadedAt || record.createdAt) },
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
-  const approvalColumns = useMemo<ProColumns<ApprovalRecord>[]>(() => [
+  const approvalColumns = useMemo<ProColumns<ApprovalTaskRecord>[]>(() => [
     { title: '审批单号', dataIndex: 'processNo', width: 180 },
     { title: '业务类型', dataIndex: 'bizType', width: 150 },
     { title: '业务单号', dataIndex: 'bizNo', width: 160 },
@@ -146,7 +125,7 @@ const OperationsSupportManagement: React.FC = () => {
     { title: '操作', width: 120, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>审批流</Button> },
   ], []);
 
-  const taskColumns = useMemo<ProColumns<TaskRecord>[]>(() => [
+  const taskColumns = useMemo<ProColumns<ImportExportTaskRecord>[]>(() => [
     { title: '任务号', dataIndex: 'taskNo', width: 180 },
     { title: '任务类型', dataIndex: 'taskType', width: 100 },
     { title: '业务类型', dataIndex: 'bizType', width: 140 },
@@ -154,35 +133,65 @@ const OperationsSupportManagement: React.FC = () => {
     { title: '操作人', dataIndex: 'operator', width: 120 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
-  ], []);
+    {
+      title: '操作',
+      width: 160,
+      render: (_, record) => (
+        <>
+          <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+          <Button size="small" type="link" onClick={async () => {
+            await api.file.importExportTasks.run(record.id);
+            await queryClient.invalidateQueries({ queryKey: ['ops-support-import-export-tasks'] });
+            message.success('任务已执行');
+          }}>执行</Button>
+        </>
+      ),
+    },
+  ], [queryClient]);
 
-  const riskColumns = useMemo<ProColumns<RiskRecord>[]>(() => [
+  const riskColumns = useMemo<ProColumns<RiskHitRecord>[]>(() => [
     { title: '规则', dataIndex: 'ruleName', width: 180 },
-    { title: '命中对象', dataIndex: 'hitObject', width: 180 },
-    { title: '命中类型', dataIndex: 'hitType', width: 140 },
-    { title: '等级', dataIndex: 'level', width: 100, render: (_, record) => renderStatusTag(record.level, priorityMap) },
-    { title: '风控状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, riskStatusMap) },
-    { title: '负责人', dataIndex: 'owner', width: 120 },
-    { title: '命中时间', dataIndex: 'hitAt', width: 180, render: (_, record) => formatDateTime(record.hitAt) },
+    { title: '命中对象', dataIndex: 'bizId', width: 180 },
+    { title: '命中类型', dataIndex: 'riskScene', width: 140 },
+    { title: '处置动作', dataIndex: 'actionType', width: 120 },
+    { title: '状态', dataIndex: 'handleStatus', width: 120, render: (_, record) => renderStatusTag(record.handleStatus, publishStatusMap) },
+    { title: '用户', dataIndex: 'appUserName', width: 120 },
+    { title: '命中时间', dataIndex: 'createdAt', width: 180, render: (_, record) => formatDateTime(record.createdAt) },
+    { title: '操作', width: 90, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
-  const jobColumns = useMemo<ProColumns<JobRecord>[]>(() => [
+  const jobColumns = useMemo<ProColumns<ScheduledJobRecord>[]>(() => [
     { title: '任务编码', dataIndex: 'jobCode', width: 200 },
     { title: '任务名称', dataIndex: 'jobName', width: 180 },
-    { title: 'Cron', dataIndex: 'cron', width: 160 },
-    { title: '最近结果', dataIndex: 'lastResult', width: 220 },
-    { title: '下次执行', dataIndex: 'nextRunAt', width: 180, render: (_, record) => formatDateTime(record.nextRunAt) },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
-  ], []);
+    { title: 'Cron', dataIndex: 'cronExpression', width: 160 },
+    { title: '执行器', dataIndex: 'jobHandler', width: 220 },
+    { title: '参数', dataIndex: 'jobParam', width: 180 },
+    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, auditStatusMap) },
+    {
+      title: '操作',
+      width: 140,
+      render: (_, record) => (
+        <Space>
+          <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+          <Button size="small" type="link" onClick={async () => {
+            await api.riskScheduleAlarm.jobs.run(record.id);
+            await queryClient.invalidateQueries({ queryKey: ['ops-support-jobs'] });
+            message.success('任务已执行');
+          }}>执行</Button>
+        </Space>
+      ),
+    },
+  ], [queryClient]);
 
   const alarmColumns = useMemo<ProColumns<AlarmRecord>[]>(() => [
-    { title: '告警号', dataIndex: 'alarmNo', width: 180 },
-    { title: '告警类型', dataIndex: 'alarmType', width: 140 },
-    { title: '来源', dataIndex: 'source', width: 160 },
-    { title: '等级', dataIndex: 'level', width: 100, render: (_, record) => renderStatusTag(record.level, priorityMap) },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
-    { title: '负责人', dataIndex: 'owner', width: 120 },
-    { title: '触发时间', dataIndex: 'triggeredAt', width: 180, render: (_, record) => formatDateTime(record.triggeredAt) },
+    { title: '规则', dataIndex: 'ruleName', width: 180 },
+    { title: '告警类型', dataIndex: 'alarmScene', width: 140 },
+    { title: '来源', dataIndex: 'bizId', width: 160 },
+    { title: '等级', dataIndex: 'alarmLevel', width: 100, render: (_, record) => renderStatusTag(record.alarmLevel, publishStatusMap) },
+    { title: '状态', dataIndex: 'handleStatus', width: 120, render: (_, record) => renderStatusTag(record.handleStatus, publishStatusMap) },
+    { title: '负责人', dataIndex: 'handledBy', width: 120 },
+    { title: '触发时间', dataIndex: 'createdAt', width: 180, render: (_, record) => formatDateTime(record.createdAt) },
+    { title: '操作', width: 90, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
   const openHelper = (title: string) => {
@@ -201,7 +210,7 @@ const OperationsSupportManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="任务队列" value={tasks.length} suffix="条" /></Card></Col>
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="风控命中" value={risks.length} suffix="条" /></Card></Col>
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="定时任务" value={jobs.length} suffix="个" /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="未处理告警" value={alarms.filter((item) => item.status !== 'DONE').length} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card><Statistic title="未处理告警" value={alarms.filter((item) => item.handleStatus !== 'HANDLED').length} suffix="条" /></Card></Col>
       </Row>
 
       <ProTable
@@ -217,22 +226,23 @@ const OperationsSupportManagement: React.FC = () => {
 
       <Tabs
         items={[
-          { key: 'file', label: '文件资产', children: <ProTable<FileAssetRecord> cardBordered rowKey="id" columns={fileColumns} dataSource={filter(fileAssets) as FileAssetRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="upload" type="primary" onClick={() => openHelper('上传文件')}>上传文件</Button>]} /> },
-          { key: 'approval', label: '审批中心', children: <ProTable<ApprovalRecord> cardBordered rowKey="id" columns={approvalColumns} dataSource={filter(approvals) as ApprovalRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1380 }} toolBarRender={() => [<Button key="process" type="primary" onClick={() => openHelper('新建审批流')}>新建审批流</Button>]} /> },
-          { key: 'task', label: '导入导出', children: <ProTable<TaskRecord> cardBordered rowKey="id" columns={taskColumns} dataSource={filter(tasks) as TaskRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="import" onClick={() => openHelper('新建导入任务')}>新建导入</Button>, <Button key="export" type="primary" onClick={() => openHelper('新建导出任务')}>新建导出</Button>]} /> },
-          { key: 'risk', label: '风控中心', children: <ProTable<RiskRecord> cardBordered rowKey="id" columns={riskColumns} dataSource={filter(risks) as RiskRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="rule" type="primary" onClick={() => openHelper('维护风控规则')}>维护规则</Button>]} /> },
-          { key: 'job', label: '定时任务', children: <ProTable<JobRecord> cardBordered rowKey="id" columns={jobColumns} dataSource={filter(jobs) as JobRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="run" onClick={() => openHelper('手动执行任务')}>手动执行</Button>, <Button key="new" type="primary" onClick={() => openHelper('新建定时任务')}>新建任务</Button>]} /> },
-          { key: 'alarm', label: '告警监控', children: <ProTable<AlarmRecord> cardBordered rowKey="id" columns={alarmColumns} dataSource={filter(alarms) as AlarmRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="rule" type="primary" onClick={() => openHelper('维护告警规则')}>维护规则</Button>]} /> },
+          { key: 'file', label: '文件资产', children: <ProTable<FileAssetRecord> cardBordered rowKey="id" columns={fileColumns} dataSource={fileAssets} loading={fileQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="upload" type="primary" onClick={() => openHelper('上传文件')}>上传文件</Button>]} /> },
+          { key: 'approval', label: '审批中心', children: <ProTable<ApprovalTaskRecord> cardBordered rowKey="id" columns={approvalColumns} dataSource={approvals} loading={approvalQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1380 }} toolBarRender={() => [<Button key="process" type="primary" onClick={() => openHelper('新建审批流')}>新建审批流</Button>]} /> },
+          { key: 'task', label: '导入导出', children: <ProTable<ImportExportTaskRecord> cardBordered rowKey="id" columns={taskColumns} dataSource={tasks} loading={taskQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1320 }} toolBarRender={() => [<Button key="import" onClick={() => openHelper('新建导入任务')}>新建导入</Button>, <Button key="export" type="primary" onClick={() => openHelper('新建导出任务')}>新建导出</Button>]} /> },
+          { key: 'risk', label: '风控中心', children: <ProTable<RiskHitRecord> cardBordered rowKey="id" columns={riskColumns} dataSource={risks} loading={riskQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="rule" type="primary" onClick={() => navigate('/risk-schedule-alarms')}>维护规则</Button>]} /> },
+          { key: 'job', label: '定时任务', children: <ProTable<ScheduledJobRecord> cardBordered rowKey="id" columns={jobColumns} dataSource={jobs} loading={jobQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1320 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openHelper('新建定时任务')}>新建任务</Button>]} /> },
+          { key: 'alarm', label: '告警监控', children: <ProTable<AlarmRecord> cardBordered rowKey="id" columns={alarmColumns} dataSource={alarms} loading={alarmQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="rule" type="primary" onClick={() => navigate('/risk-schedule-alarms')}>维护规则</Button>]} /> },
         ]}
       />
 
       <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 110 }}>
-            {Object.entries(detail).map(([key, value]) => (
-              <Descriptions.Item key={key} label={key}>{String(value ?? '-')}</Descriptions.Item>
-            ))}
-          </Descriptions>
+          <SchemaDetail
+            record={detail as Record<string, any>}
+            fields={('fileName' in detail ? supportDetailFields.file : 'processNo' in detail ? supportDetailFields.approval : 'taskNo' in detail ? supportDetailFields.task : 'ruleName' in detail && 'alarmScene' in detail ? supportDetailFields.alarm : 'jobCode' in detail ? supportDetailFields.job : supportDetailFields.risk) as DetailField<Record<string, any>>[]}
+            column={2}
+            labelWidth={110}
+          />
         ) : null}
       </Modal>
 
@@ -241,9 +251,28 @@ const OperationsSupportManagement: React.FC = () => {
         open={helperVisible}
         onCancel={() => setHelperVisible(false)}
         onOk={async () => {
-          await form.validateFields();
+          const values = await form.validateFields();
+          if (helperTitle === '新建审批流') {
+            await api.approval.tasks.add({ taskNo: values.name, processNo: values.name, bizType: values.name, bizNo: values.name, applicant: values.owner, status: 'PENDING', currentNode: '人工创建', approver: values.owner, remark: values.remark });
+            await queryClient.invalidateQueries({ queryKey: ['ops-support-approvals'] });
+          } else if (helperTitle === '新建导入任务' || helperTitle === '新建导出任务') {
+            await api.file.importExportTasks.add({ taskType: helperTitle === '新建导出任务' ? 'EXPORT' : 'IMPORT', bizType: values.name, bizNo: values.name, fileName: values.remark || `${values.name}.xlsx`, operator: values.owner, status: 'PENDING', remark: values.remark });
+            await queryClient.invalidateQueries({ queryKey: ['ops-support-import-export-tasks'] });
+          } else if (helperTitle === '维护风控规则') {
+            await api.riskScheduleAlarm.riskRules.add({ ruleName: values.name, ruleCode: values.name, riskScene: 'MANUAL', actionType: 'WARN', ruleConfig: values.remark, status: 1 });
+            await queryClient.invalidateQueries({ queryKey: ['ops-support-risks'] });
+          } else if (helperTitle === '新建定时任务') {
+            await api.riskScheduleAlarm.jobs.add({ jobName: values.name, jobCode: values.name, cronExpression: values.remark || '0 0 0 * * ?', jobHandler: values.owner || 'manualHandler', status: 1 });
+            await queryClient.invalidateQueries({ queryKey: ['ops-support-jobs'] });
+          } else if (helperTitle === '维护告警规则') {
+            await api.riskScheduleAlarm.alarmRules.add({ ruleName: values.name, alarmScene: 'MANUAL', ruleConfig: values.remark, receiverConfig: values.owner, status: 1 });
+            await queryClient.invalidateQueries({ queryKey: ['ops-support-alarms'] });
+          } else if (helperTitle === '上传文件') {
+            await api.file.assets.add({ fileAssetId: `FILE-${Date.now()}`, fileName: values.name, fileType: 'OPS', storageProvider: values.owner || 'LOCAL', status: 'PENDING' });
+            await queryClient.invalidateQueries({ queryKey: ['ops-support-files'] });
+          }
           setHelperVisible(false);
-          message.success('操作已记录');
+          message.success('已保存到后端');
         }}
         width={760}
       >

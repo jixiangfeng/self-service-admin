@@ -5,8 +5,21 @@ import { Button, Form, Input, Modal, Select, Space, Tag, Tree } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined, SafetyOutlined } from '@ant-design/icons';
 import { useCreateRole, useDeleteRole, usePermissionTree, useRolePermissionIds, useRoles, useUpdateRole } from '@/hooks/useApi';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 
 const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleString('zh-CN') : '-');
+
+const roleDetailFields: DetailField<Record<string, any>>[] = [
+  { name: 'id', label: '角色ID' },
+  { name: 'roleName', label: '角色名称' },
+  { name: 'roleCode', label: '角色编码' },
+  { name: 'sort', label: '排序' },
+  { name: 'permissionCount', label: '权限数' },
+  { name: 'description', label: '描述' },
+  { name: 'status', label: '状态', render: (value) => <Tag color={value === 1 ? 'success' : 'default'}>{value === 1 ? '正常' : '禁用'}</Tag> },
+  { name: 'createTime', label: '创建时间', render: (value) => formatDateTime(value) },
+  { name: 'updateTime', label: '更新时间', render: (value) => formatDateTime(value) },
+];
 
 const normalizeTree = (nodes: any[] = []): any[] =>
   nodes.map((node) => ({
@@ -19,6 +32,7 @@ const RoleManagement: React.FC = () => {
   const [form] = Form.useForm();
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRole, setEditingRole] = useState<any>(null);
+  const [detailRole, setDetailRole] = useState<any>(null);
   const checkedPermissionIds = Form.useWatch('permissionIds', form) || [];
   const [queryParams, setQueryParams] = useState({
     pageNum: 1,
@@ -175,6 +189,9 @@ const RoleManagement: React.FC = () => {
       search: false,
       render: (_: any, record: any) => (
         <Space>
+          <Button size="small" onClick={() => setDetailRole(record)}>
+            详情
+          </Button>
           <Button size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)}>
             编辑
           </Button>
@@ -236,6 +253,17 @@ const RoleManagement: React.FC = () => {
           }));
         }}
       />
+
+      <Modal title="角色详情" open={!!detailRole} footer={null} onCancel={() => setDetailRole(null)} width={760}>
+        {detailRole ? (
+          <SchemaDetail
+            record={detailRole}
+            fields={roleDetailFields}
+            column={2}
+            labelWidth={110}
+          />
+        ) : null}
+      </Modal>
 
       <Modal
         title={editingRole ? '编辑角色' : '新建角色'}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Popconfirm, Row, Select, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Col, Form, Input, Modal, Popconfirm, Row, Select, Statistic, Tabs, message } from 'antd';
 import { DeleteOutlined, EditOutlined, HomeOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -10,6 +10,7 @@ import {
   storeStatusOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
 import type {
   StoreBusinessHoursRecord,
@@ -26,6 +27,49 @@ type EditableRecord = StoreImageRecord | StoreBusinessHoursRecord | StoreTempClo
 const publishStatusMap = buildValueEnum(publishStatusOptions);
 const storeStatusMap = buildValueEnum(storeStatusOptions);
 const capabilityMap = buildValueEnum(storeServiceCapabilityOptions);
+
+const storeProfileDetailFields: Record<StoreProfileTab, DetailField<any>[]> = {
+  image: [
+    { name: 'storeName', label: '门店' },
+    { name: 'imageType', label: '图片类型' },
+    { name: 'imageUrl', label: '图片地址' },
+    { name: 'sortNo', label: '排序' },
+    { name: 'status', label: '状态' },
+    { name: 'createdAt', label: '创建时间' },
+    { name: 'updatedAt', label: '更新时间' },
+  ],
+  business: [
+    { name: 'storeName', label: '门店' },
+    { name: 'weekday', label: '星期' },
+    { name: 'openTime', label: '开门时间' },
+    { name: 'closeTime', label: '闭店时间' },
+    { name: 'status', label: '状态' },
+  ],
+  tempClose: [
+    { name: 'storeName', label: '门店' },
+    { name: 'closeReason', label: '临停原因' },
+    { name: 'startAt', label: '开始时间' },
+    { name: 'endAt', label: '结束时间' },
+    { name: 'operator', label: '操作人' },
+    { name: 'status', label: '状态' },
+  ],
+  capability: [
+    { name: 'storeName', label: '门店' },
+    { name: 'capabilityCode', label: '能力' },
+    { name: 'configJson', label: '配置' },
+    { name: 'status', label: '状态' },
+    { name: 'updatedAt', label: '更新时间' },
+  ],
+  change: [
+    { name: 'changeNo', label: '变更单号' },
+    { name: 'storeName', label: '门店' },
+    { name: 'changeType', label: '变更类型' },
+    { name: 'beforeValue', label: '变更前' },
+    { name: 'afterValue', label: '变更后' },
+    { name: 'operator', label: '操作人' },
+    { name: 'changedAt', label: '变更时间' },
+  ],
+};
 
 const StoreProfileManagement: React.FC = () => {
   const queryClient = useQueryClient();
@@ -209,13 +253,7 @@ const StoreProfileManagement: React.FC = () => {
       />
 
       <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
-        {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 110 }}>
-            {Object.entries(detail).map(([key, value]) => (
-              <Descriptions.Item key={key} label={key}>{String(value ?? '-')}</Descriptions.Item>
-            ))}
-          </Descriptions>
-        ) : null}
+        {detail ? <SchemaDetail record={detail as Record<string, any>} fields={storeProfileDetailFields[activeTab]} /> : null}
       </Modal>
 
       <Modal

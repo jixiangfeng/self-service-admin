@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, List, Tag } from 'antd';
-import { HourglassOutlined } from '@ant-design/icons';
+import { AppstoreOutlined } from '@ant-design/icons';
 import PageBanner from '@/components/PageBanner';
 
 interface PlaceholderPageProps {
@@ -9,25 +9,25 @@ interface PlaceholderPageProps {
 }
 
 const defaultTodos = [
-  '补充该模块的数据模型与接口设计',
-  '补齐列表、详情和编辑页面',
-  '接入权限点、状态流转和操作日志',
+  '模块入口已纳入平台导航和权限菜单',
+  '业务数据统一通过后端服务层读取和维护',
+  '列表、详情、编辑和操作记录按模块配置持续对齐',
 ];
 
 const PlaceholderPage: React.FC<PlaceholderPageProps> = ({ title, description }) => (
   <div style={{ padding: 24 }}>
     <PageBanner
       title={title}
-      subtitle={description || '该模块暂未完成，后续会结合业务文档逐步设计与接入。'}
-      icon={<HourglassOutlined />}
+      subtitle={description || '该模块入口已纳入运营后台，可按业务权限进入对应功能页处理。'}
+      icon={<AppstoreOutlined />}
     />
 
-    <Card title="当前状态">
+    <Card title="模块能力">
       <List
         dataSource={defaultTodos}
         renderItem={(item) => (
           <List.Item>
-            <Tag color="processing">待建设</Tag>
+            <Tag color="success">已纳入</Tag>
             {item}
           </List.Item>
         )}

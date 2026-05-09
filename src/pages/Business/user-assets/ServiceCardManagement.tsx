@@ -1,98 +1,135 @@
-import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import React, { useState } from 'react';
+import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
 import { WalletOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { serviceCardStatusOptions, serviceCardTypeOptions, templateStatusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
-import { buildValueEnum, containsKeyword, formatAmount, renderStatusTag } from '@/pages/Business/shared';
-
-interface ServiceCardRecord {
-  id: string;
-  cardCode: string;
-  cardName: string;
-  cardType: string;
-  scope: string;
-  rights: string;
-  salePrice: number;
-  validity: string;
-  stock: number;
-  issueRule: string;
-  status: string;
-}
-
-interface UserServiceCardRecord {
-  id: string;
-  cardNo: string;
-  cardName: string;
-  userName: string;
-  phone: string;
-  totalTimes: number;
-  remainTimes: number;
-  validFrom: string;
-  validTo: string;
-  status: string;
-}
-
-interface ServiceCardUsageRecord {
-  id: string;
-  cardNo: string;
-  serviceOrderNo: string;
-  storeName: string;
-  useTimes: number;
-  usedAt: string;
-  remark: string;
-}
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import { buildValueEnum, formatAmount, renderStatusTag } from '@/pages/Business/shared';
+import api from '@/services/backendService';
+import type { ServiceCardRecord, ServiceCardUsageRecord, UserServiceCardRecord } from '@/services/backendService';
 
 const cardTypeMap = buildValueEnum(serviceCardTypeOptions);
 const statusMap = buildValueEnum(templateStatusOptions);
 const userCardStatusMap = buildValueEnum(serviceCardStatusOptions);
 
-const initialCards: ServiceCardRecord[] = [
-  { id: 'sc1', cardCode: 'CARD-MONTH-001', cardName: '夜洗月卡', cardType: 'MONTH_CARD', scope: '夜洗门店组', rights: '30 天内不限次夜洗优惠', salePrice: 199, validity: '30 天', stock: 200, issueRule: '支持购买与活动发放', status: 'ENABLED' },
-  { id: 'sc2', cardCode: 'CARD-COUNT-005', cardName: '精洗 5 次卡', cardType: 'COUNT_CARD', scope: '直营门店', rights: '泡沫精洗 5 次', salePrice: 169, validity: '90 天', stock: 80, issueRule: '新客首充赠送', status: 'PAUSED' },
-  { id: 'sc3', cardCode: 'CARD-SVC-020', cardName: '会员服务包', cardType: 'SERVICE_CARD', scope: '平台', rights: '洗车 + 吸尘权益包', salePrice: 129, validity: '180 天', stock: 60, issueRule: '仅运营后台补发', status: 'ENABLED' },
+const serviceCardDetailFields: DetailField<ServiceCardRecord>[] = [
+  { name: 'cardCode', label: '编码' },
+  { name: 'cardName', label: '名称' },
+  { name: 'cardType', label: '类型', render: (value) => cardTypeMap[value as keyof typeof cardTypeMap]?.text || value },
+  { name: 'scope', label: '作用范围' },
+  { name: 'rights', label: '权益内容' },
+  { name: 'salePrice', label: '售价', render: (value) => formatAmount(value) },
+  { name: 'validity', label: '有效期' },
+  { name: 'stock', label: '库存' },
+  { name: 'issueRule', label: '发放规则' },
+  { name: 'status', label: '状态', render: (value) => statusMap[value as keyof typeof statusMap]?.text || value },
 ];
 
-const initialUserCards: UserServiceCardRecord[] = [
-  { id: 'usc1', cardNo: 'UC202604180001', cardName: '夜洗月卡', userName: '张晨', phone: '13800001111', totalTimes: 30, remainTimes: 24, validFrom: '2026-04-18', validTo: '2026-05-18', status: 'USING' },
-  { id: 'usc2', cardNo: 'UC202604170018', cardName: '精洗 5 次卡', userName: '陈越', phone: '13800002222', totalTimes: 5, remainTimes: 1, validFrom: '2026-04-01', validTo: '2026-06-30', status: 'USING' },
+const userServiceCardDetailFields: DetailField<UserServiceCardRecord>[] = [
+  { name: 'cardNo', label: '用户卡号' },
+  { name: 'cardName', label: '卡名称' },
+  { name: 'userName', label: '用户' },
+  { name: 'phone', label: '手机号' },
+  { name: 'totalTimes', label: '总次数' },
+  { name: 'remainTimes', label: '剩余次数' },
+  { name: 'validFrom', label: '有效期开始' },
+  { name: 'validTo', label: '有效期结束' },
+  { name: 'status', label: '状态', render: (value) => userCardStatusMap[value as keyof typeof userCardStatusMap]?.text || value },
 ];
 
-const initialUsageRecords: ServiceCardUsageRecord[] = [
-  { id: 'use1', cardNo: 'UC202604180001', serviceOrderNo: 'SO202604180019', storeName: '徐汇夜洗门店', useTimes: 1, usedAt: '2026-04-18 09:27:00', remark: '夜洗权益核销' },
-  { id: 'use2', cardNo: 'UC202604170018', serviceOrderNo: 'SO202604170101', storeName: '嘉定联营门店', useTimes: 1, usedAt: '2026-04-17 19:42:00', remark: '精洗次卡核销' },
+const serviceCardUsageDetailFields: DetailField<ServiceCardUsageRecord>[] = [
+  { name: 'cardNo', label: '用户卡号' },
+  { name: 'serviceOrderNo', label: '服务订单' },
+  { name: 'storeName', label: '门店' },
+  { name: 'useTimes', label: '使用次数' },
+  { name: 'usedAt', label: '使用时间' },
+  { name: 'remark', label: '备注' },
 ];
 
 const ServiceCardManagement: React.FC = () => {
+  const queryClient = useQueryClient();
   const [form] = Form.useForm<ServiceCardRecord>();
-  const [records, setRecords] = useState(initialCards);
-  const [userCards] = useState(initialUserCards);
-  const [usageRecords] = useState(initialUsageRecords);
   const [keyword, setKeyword] = useState('');
   const [typeFilter, setTypeFilter] = useState<string | undefined>();
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<ServiceCardRecord | null>(null);
-  const [detail, setDetail] = useState<ServiceCardRecord | null>(null);
-  const [helperVisible, setHelperVisible] = useState(false);
+  const [detail, setDetail] = useState<ServiceCardRecord | UserServiceCardRecord | ServiceCardUsageRecord | null>(null);
+  const [issueVisible, setIssueVisible] = useState(false);
+  const [deductVisible, setDeductVisible] = useState(false);
+  const [currentCard, setCurrentCard] = useState<ServiceCardRecord | null>(null);
+  const [currentUserCard, setCurrentUserCard] = useState<UserServiceCardRecord | null>(null);
+  const [issueForm] = Form.useForm();
+  const [deductForm] = Form.useForm();
+  const cardQuery = useQuery({
+    queryKey: ['serviceCards', keyword, typeFilter, statusFilter],
+    queryFn: async () => (await api.asset.serviceCards.page({ pageNum: 1, pageSize: 200, keyword, cardType: typeFilter, status: statusFilter })).data,
+  });
+  const userCardQuery = useQuery({
+    queryKey: ['userServiceCards', keyword],
+    queryFn: async () => (await api.asset.userServiceCards.page({ pageNum: 1, pageSize: 200, keyword })).data,
+  });
+  const usageQuery = useQuery({
+    queryKey: ['serviceCardUsages', keyword],
+    queryFn: async () => (await api.asset.serviceCardUsages.page({ pageNum: 1, pageSize: 200, keyword })).data,
+  });
+  const saveMutation = useMutation({
+    mutationFn: async (values: Record<string, unknown>) => editingRecord?.id ? api.asset.serviceCards.edit({ ...values, id: editingRecord.id }) : api.asset.serviceCards.add(values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['serviceCards'] });
+      message.success(editingRecord ? '卡产品已更新' : '卡产品已创建');
+    },
+  });
+  const statusMutation = useMutation({
+    mutationFn: async (record: ServiceCardRecord) => api.asset.serviceCards.changeStatus(record.id, record.status === 'ENABLED' ? 'PAUSED' : 'ENABLED'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['serviceCards'] });
+      message.success('卡产品状态已更新');
+    },
+  });
+  const issueMutation = useMutation({
+    mutationFn: async (values: Record<string, unknown>) => api.asset.serviceCards.issue(Number(currentCard?.id), values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['serviceCards'] });
+      queryClient.invalidateQueries({ queryKey: ['userServiceCards'] });
+      message.success('服务卡已发放');
+    },
+  });
+  const deductMutation = useMutation({
+    mutationFn: async (values: Record<string, unknown>) => api.asset.userServiceCards.deduct(Number(currentUserCard?.id), values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userServiceCards'] });
+      queryClient.invalidateQueries({ queryKey: ['serviceCardUsages'] });
+      message.success('扣次已完成');
+    },
+  });
+
+  const cards = cardQuery.data?.records || [];
+  const userCards = userCardQuery.data?.records || [];
+  const usageRecords = usageQuery.data?.records || [];
+
+  const openIssue = (record: ServiceCardRecord) => {
+    setCurrentCard(record);
+    issueForm.resetFields();
+    issueForm.setFieldsValue({ totalTimes: 1, remainTimes: 1, validDays: 365, sourceBizNo: 'BACKEND' });
+    setIssueVisible(true);
+  };
+
+  const openDeduct = (record: UserServiceCardRecord) => {
+    setCurrentUserCard(record);
+    deductForm.resetFields();
+    deductForm.setFieldsValue({ cardNo: record.cardNo, userName: record.userName, deductCount: 1 });
+    setDeductVisible(true);
+  };
 
   const closeModal = () => {
     setModalVisible(false);
     setEditingRecord(null);
     form.resetFields();
   };
-
-  const dataSource = useMemo(
-    () =>
-      records.filter(
-        (item) =>
-          containsKeyword(keyword, [item.cardCode, item.cardName, item.scope, item.rights, item.issueRule]) &&
-          (!typeFilter || item.cardType === typeFilter) &&
-          (!statusFilter || item.status === statusFilter)
-      ),
-    [keyword, records, statusFilter, typeFilter]
-  );
 
   const columns: ProColumns<ServiceCardRecord>[] = [
     {
@@ -142,17 +179,12 @@ const ServiceCardManagement: React.FC = () => {
           </Button>
           <Button
             size="small"
-            onClick={() => {
-              setRecords((prev) =>
-                prev.map((item) =>
-                  item.id === record.id ? { ...item, status: item.status === 'ENABLED' ? 'PAUSED' : 'ENABLED' } : item
-                )
-              );
-              message.success('卡产品状态已更新');
-            }}
+            loading={statusMutation.isPending}
+            onClick={() => statusMutation.mutate(record)}
           >
             {record.status === 'ENABLED' ? '暂停' : '启用'}
           </Button>
+          <Button size="small" onClick={() => openIssue(record)}>发卡</Button>
         </Space>
       ),
     },
@@ -169,6 +201,12 @@ const ServiceCardManagement: React.FC = () => {
     { title: '有效期开始', dataIndex: 'validFrom', width: 120, search: false },
     { title: '有效期结束', dataIndex: 'validTo', width: 120, search: false },
     { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: userCardStatusMap, render: (_, record) => renderStatusTag(record.status, userCardStatusMap) },
+    { title: '操作', width: 150, search: false, render: (_, record) => (
+      <Space>
+        <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+        <Button size="small" onClick={() => openDeduct(record)}>扣次</Button>
+      </Space>
+    ) },
   ];
 
   const usageColumns: ProColumns<ServiceCardUsageRecord>[] = [
@@ -179,17 +217,17 @@ const ServiceCardManagement: React.FC = () => {
     { title: '使用次数', dataIndex: 'useTimes', width: 100, search: false },
     { title: '使用时间', dataIndex: 'usedAt', width: 180, search: false },
     { title: '备注', dataIndex: 'remark', width: 220, search: false },
+    { title: '操作', width: 150, search: false, render: (_, record) => (
+      <Space>
+        <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+        <Button size="small" onClick={async () => { await api.asset.serviceCardUsages.rollback(record.id, { remark: '后台回滚扣次' }); queryClient.invalidateQueries({ queryKey: ['serviceCardUsages'] }); queryClient.invalidateQueries({ queryKey: ['userServiceCards'] }); message.success('扣次已回滚'); }}>回滚</Button>
+      </Space>
+    ) },
   ];
 
   const handleSubmit = async () => {
     const values = await form.validateFields();
-    if (editingRecord) {
-      setRecords((prev) => prev.map((item) => (item.id === editingRecord.id ? { ...item, ...values } : item)));
-      message.success('卡产品已更新');
-    } else {
-      setRecords((prev) => [{ ...values, id: `card-${Date.now()}` }, ...prev]);
-      message.success('卡产品已创建');
-    }
+    await saveMutation.mutateAsync(values as unknown as Record<string, unknown>);
     closeModal();
   };
 
@@ -198,10 +236,10 @@ const ServiceCardManagement: React.FC = () => {
       <PageBanner title="服务卡与次卡" subtitle="补齐服务卡、次卡、月卡的产品配置、售价、发放规则和上下架状态。" icon={<WalletOutlined />} />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="卡产品" value={records.length} suffix="种" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="服务卡" value={records.filter((item) => item.cardType === 'SERVICE_CARD').length} suffix="种" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="次卡 / 月卡" value={records.filter((item) => item.cardType !== 'SERVICE_CARD').length} suffix="种" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="可售库存" value={records.reduce((sum, item) => sum + item.stock, 0)} suffix="份" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="卡产品" value={cards.length} suffix="种" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="服务卡" value={cards.filter((item) => item.cardType === 'SERVICE_CARD').length} suffix="种" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="次卡 / 月卡" value={cards.filter((item) => item.cardType !== 'SERVICE_CARD').length} suffix="种" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="可售库存" value={cards.reduce((sum, item) => sum + Number(item.stock || 0), 0)} suffix="份" /></Card></Col>
       </Row>
 
       <Tabs
@@ -214,12 +252,15 @@ const ServiceCardManagement: React.FC = () => {
                 cardBordered
                 rowKey="id"
                 columns={columns}
-                dataSource={dataSource}
+                dataSource={cards}
+                loading={cardQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1780 }}
                 toolBarRender={() => [
-                  <Button key="issue" onClick={() => setHelperVisible(true)}>批量发卡</Button>,
+                  <Button key="issue" onClick={() => {
+                    if (cards[0]) openIssue(cards[0]);
+                  }}>批量发卡</Button>,
                   <Button
                     key="new"
                     type="primary"
@@ -256,6 +297,7 @@ const ServiceCardManagement: React.FC = () => {
                 rowKey="id"
                 columns={userCardColumns}
                 dataSource={userCards}
+                loading={userCardQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1480 }}
@@ -271,6 +313,7 @@ const ServiceCardManagement: React.FC = () => {
                 rowKey="id"
                 columns={usageColumns}
                 dataSource={usageRecords}
+                loading={usageQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1320 }}
@@ -324,28 +367,61 @@ const ServiceCardManagement: React.FC = () => {
         </Form>
       </Modal>
 
-      <Modal title="卡产品详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={820}>
+      <Modal title={detail && 'serviceOrderNo' in detail ? '使用记录详情' : detail && 'cardNo' in detail ? '用户服务卡详情' : '卡产品详情'} open={!!detail} footer={null} onCancel={() => setDetail(null)} width={820}>
         {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 100 }}>
-            <Descriptions.Item label="编码">{detail.cardCode}</Descriptions.Item>
-            <Descriptions.Item label="名称">{detail.cardName}</Descriptions.Item>
-            <Descriptions.Item label="类型">{cardTypeMap[detail.cardType as keyof typeof cardTypeMap]?.text || detail.cardType}</Descriptions.Item>
-            <Descriptions.Item label="作用范围">{detail.scope}</Descriptions.Item>
-            <Descriptions.Item label="权益内容">{detail.rights}</Descriptions.Item>
-            <Descriptions.Item label="售价">{formatAmount(detail.salePrice)}</Descriptions.Item>
-            <Descriptions.Item label="有效期">{detail.validity}</Descriptions.Item>
-            <Descriptions.Item label="库存">{detail.stock}</Descriptions.Item>
-            <Descriptions.Item label="发放规则">{detail.issueRule}</Descriptions.Item>
-            <Descriptions.Item label="状态">{statusMap[detail.status as keyof typeof statusMap]?.text || detail.status}</Descriptions.Item>
-          </Descriptions>
+          <SchemaDetail
+            record={detail as Record<string, any>}
+            fields={('serviceOrderNo' in detail ? serviceCardUsageDetailFields : 'cardNo' in detail ? userServiceCardDetailFields : serviceCardDetailFields) as DetailField<Record<string, any>>[]}
+            column={2}
+            labelWidth={100}
+          />
         ) : null}
       </Modal>
 
-      <Modal title="批量发卡说明" open={helperVisible} footer={null} onCancel={() => setHelperVisible(false)} width={680}>
-        <Descriptions column={1} labelStyle={{ width: 120 }}>
-          <Descriptions.Item label="适用场景">首充活动发卡、售后补偿发卡、会员权益批量发放。</Descriptions.Item>
-          <Descriptions.Item label="建议流程">先筛用户，再选卡产品，最后确认生效期与回收规则。</Descriptions.Item>
-        </Descriptions>
+      <Modal
+        title={`发放服务卡 · ${currentCard?.cardName || ''}`}
+        open={issueVisible}
+        onCancel={() => setIssueVisible(false)}
+        onOk={async () => {
+          const values = await issueForm.validateFields();
+          await issueMutation.mutateAsync(values);
+          setIssueVisible(false);
+        }}
+        width={760}
+      >
+        <Form form={issueForm} layout="vertical">
+          <div className="modal-grid">
+            <Form.Item name="userName" label="用户" rules={[{ required: true, message: '请输入用户' }]}><Input /></Form.Item>
+            <Form.Item name="phone" label="手机号"><Input /></Form.Item>
+            <Form.Item name="totalTimes" label="总次数" rules={[{ required: true, message: '请输入总次数' }]}><Input /></Form.Item>
+            <Form.Item name="remainTimes" label="剩余次数"><Input /></Form.Item>
+            <Form.Item name="validDays" label="有效天数"><Input /></Form.Item>
+            <Form.Item name="sourceBizNo" label="来源单号"><Input /></Form.Item>
+          </div>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={`服务卡扣次 · ${currentUserCard?.cardNo || ''}`}
+        open={deductVisible}
+        onCancel={() => setDeductVisible(false)}
+        onOk={async () => {
+          const values = await deductForm.validateFields();
+          await deductMutation.mutateAsync(values);
+          setDeductVisible(false);
+        }}
+        width={760}
+      >
+        <Form form={deductForm} layout="vertical">
+          <div className="modal-grid">
+            <Form.Item name="cardNo" label="用户卡号"><Input disabled /></Form.Item>
+            <Form.Item name="userName" label="用户"><Input disabled /></Form.Item>
+            <Form.Item name="deductCount" label="扣减次数" rules={[{ required: true, message: '请输入扣减次数' }]}><Input /></Form.Item>
+            <Form.Item name="serviceOrderNo" label="服务订单号"><Input /></Form.Item>
+            <Form.Item name="storeName" label="门店"><Input /></Form.Item>
+            <Form.Item className="modal-span-2" name="remark" label="备注"><Input.TextArea rows={3} /></Form.Item>
+          </div>
+        </Form>
       </Modal>
     </div>
   );

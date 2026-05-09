@@ -1,37 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
 import { ApiOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { statusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
-import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
-
-interface OpenApiClientRecord {
-  id: string;
-  clientName: string;
-  clientCode: string;
-  appKey: string;
-  appSecret: string;
-  callbackUrl: string;
-  ipWhitelist: string;
-  status: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface OpenApiCallLogRecord {
-  id: string;
-  clientName: string;
-  apiPath: string;
-  requestMethod: string;
-  requestPayload: string;
-  responsePayload: string;
-  responseCode: number;
-  callStatus: string;
-  costMs: number;
-  createdAt: string;
-}
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import api, { type OpenApiCallLogRecord, type OpenApiClientRecord } from '@/services/backendService';
 
 type DetailRecord = OpenApiClientRecord | OpenApiCallLogRecord;
 
@@ -47,34 +24,55 @@ const callStatusOptions = [
   { value: 'FAILED', label: '失败' },
 ];
 
-const clients: OpenApiClientRecord[] = [
-  { id: 'cli1', clientName: '泡沫设备厂商', clientCode: 'VENDOR_FOAM', appKey: 'ak_foam_202605', appSecret: '******', callbackUrl: 'https://vendor.example.com/device/callback', ipWhitelist: '10.10.20.11,10.10.20.12', status: 1, createdAt: '2026-05-01 09:00:00', updatedAt: '2026-05-07 09:10:00' },
-  { id: 'cli2', clientName: '短信服务商', clientCode: 'VENDOR_SMS', appKey: 'ak_sms_202605', appSecret: '******', callbackUrl: 'https://sms.example.com/report', ipWhitelist: '10.11.20.21', status: 1, createdAt: '2026-05-02 10:20:00', updatedAt: '2026-05-06 18:00:00' },
-  { id: 'cli3', clientName: '支付对账服务', clientCode: 'VENDOR_PAY_RECON', appKey: 'ak_pay_202605', appSecret: '******', callbackUrl: 'https://pay.example.com/recon/callback', ipWhitelist: '10.12.10.8', status: 0, createdAt: '2026-05-03 11:30:00', updatedAt: '2026-05-05 16:20:00' },
-];
-
-const callLogs: OpenApiCallLogRecord[] = [
-  { id: 'log1', clientName: '泡沫设备厂商', apiPath: '/open/device/callback', requestMethod: 'POST', requestPayload: '{"deviceCode":"DEV-HQ-003","status":"FINISHED"}', responsePayload: '{"code":0,"message":"success"}', responseCode: 200, callStatus: 'SUCCESS', costMs: 82, createdAt: '2026-05-07 09:27:08' },
-  { id: 'log2', clientName: '短信服务商', apiPath: '/open/sms/report', requestMethod: 'POST', requestPayload: '{"messageNo":"MS202605070003"}', responsePayload: '{"code":500,"message":"timeout"}', responseCode: 500, callStatus: 'FAILED', costMs: 3000, createdAt: '2026-05-07 08:58:10' },
-  { id: 'log3', clientName: '支付对账服务', apiPath: '/open/pay/recon', requestMethod: 'GET', requestPayload: '{"date":"2026-05-06"}', responsePayload: '{"code":0,"count":126}', responseCode: 200, callStatus: 'SUCCESS', costMs: 146, createdAt: '2026-05-07 02:10:00' },
-];
-
 const statusMap = buildValueEnum(statusOptions);
 const methodMap = buildValueEnum(methodOptions);
 const callStatusMap = buildValueEnum(callStatusOptions);
 
+const openApiDetailFields: Record<'client' | 'log', DetailField<any>[]> = {
+  client: [
+    { name: 'clientName', label: '客户端名称' },
+    { name: 'clientCode', label: '客户端编码' },
+    { name: 'appKey', label: 'AppKey' },
+    { name: 'appSecret', label: 'AppSecret' },
+    { name: 'callbackUrl', label: '回调地址' },
+    { name: 'ipWhitelist', label: 'IP 白名单' },
+    { name: 'status', label: '状态' },
+    { name: 'createdAt', label: '创建时间', render: (value) => formatDateTime(value) },
+    { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
+  ],
+  log: [
+    { name: 'clientName', label: '客户端' },
+    { name: 'apiPath', label: '接口路径' },
+    { name: 'requestMethod', label: '方法' },
+    { name: 'requestPayload', label: '请求内容' },
+    { name: 'responsePayload', label: '响应内容' },
+    { name: 'responseCode', label: '响应码' },
+    { name: 'callStatus', label: '状态' },
+    { name: 'costMs', label: '耗时' },
+    { name: 'createdAt', label: '调用时间', render: (value) => formatDateTime(value) },
+  ],
+};
+
 const OpenApiManagement: React.FC = () => {
+  const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
   const [detail, setDetail] = useState<DetailRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [form] = Form.useForm();
 
-  const filter = <T extends object>(records: T[]) => records.filter((record) => containsKeyword(keyword, Object.values(record).map((value) => String(value ?? ''))));
+  const queryParams = useMemo(() => ({ keyword, current: 1, size: 50 }), [keyword]);
+  const clientsQuery = useQuery({ queryKey: ['open-api-clients', queryParams], queryFn: () => api.openApi.clients.page(queryParams) });
+  const callLogsQuery = useQuery({ queryKey: ['open-api-call-logs', queryParams], queryFn: () => api.openApi.callLogs.page(queryParams) });
+
+  const clients = clientsQuery.data?.data.records ?? [];
+  const callLogs = callLogsQuery.data?.data.records ?? [];
 
   const handleSubmit = async () => {
-    await form.validateFields();
+    const values = await form.validateFields();
+    await api.openApi.clients.add(values);
+    await queryClient.invalidateQueries({ queryKey: ['open-api-clients'] });
     setModalVisible(false);
-    message.success('开放接口配置已保存');
+    message.success('已保存到后端');
   };
 
   const clientColumns = useMemo<ProColumns<OpenApiClientRecord>[]>(() => [
@@ -137,16 +135,19 @@ const OpenApiManagement: React.FC = () => {
 
       <Tabs
         items={[
-          { key: 'client', label: '客户端配置', children: <ProTable<OpenApiClientRecord> cardBordered rowKey="id" columns={clientColumns} dataSource={filter(clients) as OpenApiClientRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1800 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => { form.resetFields(); setModalVisible(true); }}>新建客户端</Button>]} /> },
-          { key: 'log', label: '调用日志', children: <ProTable<OpenApiCallLogRecord> cardBordered rowKey="id" columns={logColumns} dataSource={filter(callLogs) as OpenApiCallLogRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1700 }} /> },
+          { key: 'client', label: '客户端配置', children: <ProTable<OpenApiClientRecord> cardBordered rowKey="id" columns={clientColumns} dataSource={clients} loading={clientsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1800 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => { form.resetFields(); setModalVisible(true); }}>新建客户端</Button>]} /> },
+          { key: 'log', label: '调用日志', children: <ProTable<OpenApiCallLogRecord> cardBordered rowKey="id" columns={logColumns} dataSource={callLogs} loading={callLogsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1700 }} /> },
         ]}
       />
 
       <Modal title="详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={860}>
         {detail && (
-          <Descriptions bordered size="small" column={2}>
-            {Object.entries(detail).map(([key, value]) => <Descriptions.Item key={key} label={key}>{String(value || '-')}</Descriptions.Item>)}
-          </Descriptions>
+          <SchemaDetail
+            record={detail as Record<string, any>}
+            fields={('apiPath' in detail ? openApiDetailFields.log : openApiDetailFields.client) as DetailField<Record<string, any>>[]}
+            column={2}
+            labelWidth={110}
+          />
         )}
       </Modal>
 
@@ -158,6 +159,7 @@ const OpenApiManagement: React.FC = () => {
             <Col span={12}><Form.Item name="appKey" label="AppKey" rules={[{ required: true, message: '请输入 AppKey' }]}><Input /></Form.Item></Col>
             <Col span={12}><Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={statusOptions} /></Form.Item></Col>
             <Col span={24}><Form.Item name="callbackUrl" label="回调地址" rules={[{ required: true, message: '请输入回调地址' }]}><Input /></Form.Item></Col>
+            <Col span={24}><Form.Item name="appSecret" label="AppSecret"><Input /></Form.Item></Col>
             <Col span={24}><Form.Item name="ipWhitelist" label="IP 白名单"><Input.TextArea rows={3} /></Form.Item></Col>
           </Row>
         </Form>

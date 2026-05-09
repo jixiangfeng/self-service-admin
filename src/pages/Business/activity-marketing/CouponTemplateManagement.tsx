@@ -1,47 +1,68 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Statistic, message } from 'antd';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Statistic, message } from 'antd';
 import { GiftOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { couponTypeOptions, templateStatusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
-import api from '@/services/backendService';
-
-interface CouponTemplateRecord {
-  id: string;
-  templateCode: string;
-  templateName: string;
-  couponType: string;
-  scope: string;
-  threshold: string;
-  validity: string;
-  issueRule: string;
-  stackRule: string;
-  stock: number;
-  status: string;
-  updatedAt: string;
-}
+import api, { type CouponTemplateRecord } from '@/services/backendService';
 
 const typeMap = buildValueEnum(couponTypeOptions);
 const statusMap = buildValueEnum(templateStatusOptions);
 
-const initialTemplates: CouponTemplateRecord[] = [
-  { id: 'ct1', templateCode: 'CPN-NIGHT-008', templateName: '夜洗 8 元满减券', couponType: 'FULL_REDUCTION', scope: '指定门店组', threshold: '满 39 元可用', validity: '领券后 7 天', issueRule: '夜洗活动自动发放', stackRule: '可与余额同用，不可叠同类券', stock: 520, status: 'ENABLED', updatedAt: '2026-04-18 09:16:00' },
-  { id: 'ct2', templateCode: 'CPN-INVITE-005', templateName: '邀请首充 5 元券', couponType: 'DIRECT', scope: '平台', threshold: '满 20 元可用', validity: '到账后 5 天', issueRule: '邀请达标实时发券', stackRule: '不可与新人礼叠加', stock: 320, status: 'ENABLED', updatedAt: '2026-04-18 08:48:00' },
-  { id: 'ct3', templateCode: 'CPN-FOAM-TRY', templateName: '泡沫精洗体验券', couponType: 'FREE_SERVICE', scope: '直营门店', threshold: '指定服务可核销', validity: '活动期内', issueRule: '线下活动补发', stackRule: '仅限单次核销', stock: 0, status: 'EXPIRED', updatedAt: '2026-04-16 16:22:00' },
+const couponTemplateDetailFields: DetailField<CouponTemplateRecord>[] = [
+  { name: 'templateCode', label: '编码' },
+  { name: 'templateName', label: '名称' },
+  { name: 'couponType', label: '券类型', render: (value) => typeMap[value as keyof typeof typeMap]?.text || value },
+  { name: 'scope', label: '作用范围' },
+  { name: 'threshold', label: '使用门槛' },
+  { name: 'validity', label: '有效期' },
+  { name: 'issueRule', label: '发放规则' },
+  { name: 'stackRule', label: '叠加规则' },
+  { name: 'stock', label: '库存' },
+  { name: 'status', label: '状态', render: (value) => statusMap[value as keyof typeof statusMap]?.text || value },
+  { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
 ];
 
 const CouponTemplateManagement: React.FC = () => {
+  const queryClient = useQueryClient();
   const [form] = Form.useForm<CouponTemplateRecord>();
-  const [records, setRecords] = useState(initialTemplates);
   const [keyword, setKeyword] = useState('');
   const [typeFilter, setTypeFilter] = useState<string | undefined>();
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<CouponTemplateRecord | null>(null);
   const [detail, setDetail] = useState<CouponTemplateRecord | null>(null);
-  const [helperVisible, setHelperVisible] = useState(false);
+
+  const templateQuery = useQuery({
+    queryKey: ['couponTemplates', keyword, typeFilter, statusFilter],
+    queryFn: async () => (await api.marketing.couponTemplates.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, couponType: typeFilter, status: statusFilter })).data,
+  });
+  const saveMutation = useMutation({
+    mutationFn: async (values: Record<string, unknown>) => {
+      if (values.id) {
+        await api.marketing.couponTemplates.edit(values);
+      } else {
+        await api.marketing.couponTemplates.add(values);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['couponTemplates'] });
+      message.success(editingRecord ? '券模板已更新' : '券模板已创建');
+    },
+  });
+  const statusMutation = useMutation({
+    mutationFn: (record: CouponTemplateRecord) => api.marketing.couponTemplates.edit({ ...record, status: record.status === 'ENABLED' ? 'PAUSED' : 'ENABLED' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['couponTemplates'] });
+      message.success('券模板状态已更新');
+    },
+  });
+
+  const records = templateQuery.data?.records || [];
 
   const closeModal = () => {
     setModalVisible(false);
@@ -117,9 +138,7 @@ const CouponTemplateManagement: React.FC = () => {
           <Button
             size="small"
             onClick={() => {
-              api.marketing.couponTemplates.edit({ id: Number(record.id), status: record.status === 'ENABLED' ? 'PAUSED' : 'ENABLED' } as Record<string, unknown>);
-              setRecords((prev) => prev.map((item) => item.id === record.id ? { ...item, status: item.status === 'ENABLED' ? 'PAUSED' : 'ENABLED', updatedAt: new Date().toISOString() } : item));
-              message.success('券模板状态已更新');
+              statusMutation.mutate(record);
             }}
           >
             {record.status === 'ENABLED' ? '暂停' : '启用'}
@@ -132,13 +151,9 @@ const CouponTemplateManagement: React.FC = () => {
   const handleSubmit = async () => {
     const values = await form.validateFields();
     if (editingRecord) {
-      await api.marketing.couponTemplates.edit({ ...values, id: Number(editingRecord.id) } as Record<string, unknown>);
-      setRecords((prev) => prev.map((item) => (item.id === editingRecord.id ? { ...item, ...values, updatedAt: new Date().toISOString() } : item)));
-      message.success('券模板已更新');
+      await saveMutation.mutateAsync({ ...values, id: editingRecord.id } as Record<string, unknown>);
     } else {
-      await api.marketing.couponTemplates.add(values as unknown as Record<string, unknown>);
-      setRecords((prev) => [{ ...values, id: `${Date.now()}`, updatedAt: new Date().toISOString() }, ...prev]);
-      message.success('券模板已创建');
+      await saveMutation.mutateAsync(values as unknown as Record<string, unknown>);
     }
     closeModal();
   };
@@ -151,7 +166,7 @@ const CouponTemplateManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="券模板数" value={records.length} suffix="个" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="启用模板" value={records.filter((item) => item.status === 'ENABLED').length} suffix="个" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="作用范围" value={3} suffix="层" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="库存总量" value={records.reduce((sum, item) => sum + item.stock, 0)} suffix="张" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="库存总量" value={records.reduce((sum, item) => sum + Number(item.stock || 0), 0)} suffix="张" /></Card></Col>
       </Row>
 
       <ProTable<CouponTemplateRecord>
@@ -159,11 +174,17 @@ const CouponTemplateManagement: React.FC = () => {
         rowKey="id"
         columns={columns}
         dataSource={dataSource}
+        loading={templateQuery.isLoading}
         search={{ labelWidth: 'auto', defaultCollapsed: false }}
         pagination={{ pageSize: 8 }}
         scroll={{ x: 1960 }}
         toolBarRender={() => [
-          <Button key="rules" onClick={() => setHelperVisible(true)}>叠加规则</Button>,
+          <Button key="rules" onClick={() => {
+            setEditingRecord(null);
+            form.resetFields();
+            form.setFieldsValue({ couponType: 'FULL_REDUCTION', status: 'ENABLED', stock: 0, stackRule: '同类券不可叠加；立减券与服务券互斥；余额可与单张券混用' });
+            setModalVisible(true);
+          }}>叠加规则</Button>,
           <Button
             key="new"
             type="primary"
@@ -188,13 +209,9 @@ const CouponTemplateManagement: React.FC = () => {
           setTypeFilter(undefined);
           setStatusFilter(undefined);
         }}
-        request={async (params) => {
-          const res = await api.marketing.couponTemplates.page(params);
-          return { data: res.data.records as any, success: true, total: res.data.total };
-        }}
       />
 
-      <Modal title={editingRecord ? `编辑券模板 · ${editingRecord.templateName}` : '新建券模板'} open={modalVisible} onOk={handleSubmit} onCancel={closeModal} width={860}>
+      <Modal title={editingRecord ? `编辑券模板 · ${editingRecord.templateName}` : '新建券模板'} open={modalVisible} onOk={handleSubmit} confirmLoading={saveMutation.isPending} onCancel={closeModal} width={860}>
         <Form form={form} layout="vertical">
           <div className="modal-grid">
             <Form.Item name="templateCode" label="券模板编码" rules={[{ required: true, message: '请输入券模板编码' }]}>
@@ -233,26 +250,10 @@ const CouponTemplateManagement: React.FC = () => {
 
       <Modal title="券模板详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={820}>
         {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 100 }}>
-            <Descriptions.Item label="编码">{detail.templateCode}</Descriptions.Item>
-            <Descriptions.Item label="名称">{detail.templateName}</Descriptions.Item>
-            <Descriptions.Item label="券类型">{typeMap[detail.couponType]?.text || detail.couponType}</Descriptions.Item>
-            <Descriptions.Item label="作用范围">{detail.scope}</Descriptions.Item>
-            <Descriptions.Item label="使用门槛">{detail.threshold}</Descriptions.Item>
-            <Descriptions.Item label="有效期">{detail.validity}</Descriptions.Item>
-            <Descriptions.Item label="发放规则">{detail.issueRule}</Descriptions.Item>
-            <Descriptions.Item label="叠加规则">{detail.stackRule}</Descriptions.Item>
-            <Descriptions.Item label="更新时间">{formatDateTime(detail.updatedAt)}</Descriptions.Item>
-          </Descriptions>
+          <SchemaDetail record={detail} fields={couponTemplateDetailFields} column={2} labelWidth={100} />
         ) : null}
       </Modal>
 
-      <Modal title="叠加规则说明" open={helperVisible} footer={null} onCancel={() => setHelperVisible(false)} width={680}>
-        <Descriptions column={1} labelStyle={{ width: 120 }}>
-          <Descriptions.Item label="规则目标">控制券与余额、服务卡、新人礼、邀请券之间的叠加边界。</Descriptions.Item>
-          <Descriptions.Item label="当前建议">同类券不可叠加，立减券与服务券互斥，余额可与单张券混用。</Descriptions.Item>
-        </Descriptions>
-      </Modal>
     </div>
   );
 };

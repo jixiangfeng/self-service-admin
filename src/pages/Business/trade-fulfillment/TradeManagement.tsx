@@ -1,8 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, List, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Card, Col, Form, Input, List, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
 import { ProfileOutlined, ReloadOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
+import { useNavigate } from 'react-router-dom';
 import {
   orderStatusOptions,
   payModeOptions as catalogPayModeOptions,
@@ -10,6 +12,9 @@ import {
   ticketStatusOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import api from '@/services/backendService';
+import type { SelectOptionRecord } from '@/services/backendService';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 
@@ -68,37 +73,131 @@ const orderStatusMap = buildValueEnum(orderStatusOptions);
 const refundStatusMap = buildValueEnum(refundStatusOptions);
 const afterSaleStatusMap = buildValueEnum(ticketStatusOptions);
 
-const initialOrders: TradeOrderRecord[] = [
-  { id: 'o1', orderNo: 'SO202604180001', orderType: 'SCAN', storeName: '虹桥旗舰洗车站', pointCode: 'BAY-01', serviceName: '快速冲洗套餐', payMode: 'WX', amount: 29, userName: '张晨', status: 'PENDING_PAYMENT', createdAt: '2026-04-18 09:12:00' },
-  { id: 'o2', orderNo: 'SO202604180019', orderType: 'POINT_SELECT', storeName: '虹桥旗舰洗车站', pointCode: 'BAY-03', serviceName: '夜间按时长服务', payMode: 'BALANCE', amount: 18, userName: '李波', status: 'IN_PROGRESS', createdAt: '2026-04-18 09:27:00' },
-  { id: 'o3', orderNo: 'SO202604170113', orderType: 'MIXED', storeName: '徐汇夜洗门店', pointCode: 'BAY-07', serviceName: '泡沫精洗套餐', payMode: 'MIXED', amount: 46, userName: '陈越', status: 'AFTER_SALE', createdAt: '2026-04-17 22:08:00' },
-  { id: 'o4', orderNo: 'SO202604170101', orderType: 'PACKAGE', storeName: '嘉定联营门店', pointCode: 'BAY-02', serviceName: '快速冲洗套餐', payMode: 'WX', amount: 29, userName: '王涵', status: 'COMPLETED', createdAt: '2026-04-17 19:42:00' },
-];
-
-const initialRefunds: RefundRecord[] = [
-  { id: 'r1', refundNo: 'RF202604180011', orderNo: 'SO202604170113', refundType: 'EXCEPTION', amount: 12, reason: '设备中断自动退款', applicant: '系统触发', status: 'PROCESSING', createdAt: '2026-04-18 09:32:00' },
-  { id: 'r2', refundNo: 'RF202604170032', orderNo: 'SO202604170098', refundType: 'AUDIT', amount: 29, reason: '用户申诉未完成服务', applicant: '客服-刘莎', status: 'PENDING', createdAt: '2026-04-17 20:11:00' },
-];
-
-const initialAfterSales: AfterSaleRecord[] = [
-  { id: 'a1', ticketNo: 'AS202604180003', orderNo: 'SO202604170113', ticketType: 'FAULT', content: '风干设备启动失败，订单中断', owner: '客服-刘莎', compensation: '补 5 元洗车券', status: 'PROCESSING', createdAt: '2026-04-18 09:30:00' },
-  { id: 'a2', ticketNo: 'AS202604170020', orderNo: 'SO202604170054', ticketType: 'COMPLAINT', content: '夜间价格说明不清晰', owner: '运营-何铭', compensation: '补 8 元余额', status: 'PENDING', createdAt: '2026-04-17 21:08:00' },
-];
+const tradeDetailFields: Record<'order' | 'refund' | 'afterSale', DetailField<any>[]> = {
+  order: [
+    { name: 'orderNo', label: '订单号' },
+    { name: 'orderType', label: '订单类型' },
+    { name: 'storeName', label: '门店' },
+    { name: 'pointCode', label: '点位' },
+    { name: 'serviceName', label: '服务商品' },
+    { name: 'payMode', label: '支付方式' },
+    { name: 'amount', label: '订单金额', render: (value) => formatAmount(value) },
+    { name: 'userName', label: '用户' },
+    { name: 'status', label: '状态' },
+    { name: 'note', label: '备注' },
+    { name: 'createdAt', label: '创建时间', render: (value) => formatDateTime(value) },
+  ],
+  refund: [
+    { name: 'refundNo', label: '退款单号' },
+    { name: 'orderNo', label: '关联订单' },
+    { name: 'refundType', label: '退款类型' },
+    { name: 'amount', label: '退款金额', render: (value) => formatAmount(value) },
+    { name: 'reason', label: '退款原因' },
+    { name: 'applicant', label: '申请来源' },
+    { name: 'status', label: '状态' },
+    { name: 'auditNote', label: '审核备注' },
+    { name: 'createdAt', label: '创建时间', render: (value) => formatDateTime(value) },
+  ],
+  afterSale: [
+    { name: 'ticketNo', label: '售后单号' },
+    { name: 'orderNo', label: '关联订单' },
+    { name: 'ticketType', label: '售后类型' },
+    { name: 'content', label: '问题描述' },
+    { name: 'owner', label: '处理人' },
+    { name: 'compensation', label: '补偿方案' },
+    { name: 'status', label: '状态' },
+    { name: 'result', label: '处理结果' },
+    { name: 'createdAt', label: '创建时间', render: (value) => formatDateTime(value) },
+  ],
+};
 
 const TradeManagement: React.FC = () => {
-  const [orders, setOrders] = useState(initialOrders);
-  const [refunds, setRefunds] = useState(initialRefunds);
-  const [afterSales, setAfterSales] = useState(initialAfterSales);
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [detail, setDetail] = useState<TradeOrderRecord | RefundRecord | AfterSaleRecord | null>(null);
   const [actionModalType, setActionModalType] = useState<ActionModalType>(null);
   const [actionTargetId, setActionTargetId] = useState<string | null>(null);
   const [actionForm] = Form.useForm<{ status: string; note: string }>();
-  const [helperVisible, setHelperVisible] = useState(false);
-  const [helperTitle, setHelperTitle] = useState('');
-  const [helperDesc, setHelperDesc] = useState('');
+  const [createOrderVisible, setCreateOrderVisible] = useState(false);
   const [orderFilters, setOrderFilters] = useState({ keyword: '', orderType: undefined as string | undefined, payMode: undefined as string | undefined, status: undefined as string | undefined });
   const [refundFilters, setRefundFilters] = useState({ keyword: '', status: undefined as string | undefined });
   const [afterSaleFilters, setAfterSaleFilters] = useState({ keyword: '', status: undefined as string | undefined });
+  const orderQuery = useQuery({
+    queryKey: ['tradeOrders', orderFilters],
+    queryFn: async () => (await api.serviceOrder.page({ pageNum: 1, pageSize: 200, ...orderFilters })).data,
+  });
+  const refundQuery = useQuery({
+    queryKey: ['refundOrders', refundFilters],
+    queryFn: async () => (await api.refundOrder.page({ pageNum: 1, pageSize: 200, ...refundFilters })).data,
+  });
+  const afterSaleQuery = useQuery({
+    queryKey: ['afterSaleTickets', afterSaleFilters],
+    queryFn: async () => (await api.afterSaleTicket.page({ pageNum: 1, pageSize: 200, ...afterSaleFilters })).data,
+  });
+  const orders = ((orderQuery.data as any)?.records || []) as TradeOrderRecord[];
+  const refunds = ((refundQuery.data as any)?.records || []) as RefundRecord[];
+  const afterSales = ((afterSaleQuery.data as any)?.records || []) as AfterSaleRecord[];
+  const [createOrderForm] = Form.useForm();
+  const merchantOptionsQuery = useQuery({ queryKey: ['merchantOptionsForTrade'], queryFn: async () => (await api.merchant.options()).data });
+  const storeOptionsQuery = useQuery({ queryKey: ['storeOptionsForTrade'], queryFn: async () => (await api.store.options()).data });
+  const servicePointOptionsQuery = useQuery({ queryKey: ['servicePointOptionsForTrade'], queryFn: async () => (await api.servicePoint.options()).data });
+  const serviceProductOptionsQuery = useQuery({ queryKey: ['serviceProductOptionsForTrade'], queryFn: async () => (await api.serviceProduct.options()).data });
+  const merchantOptions = (merchantOptionsQuery.data || []) as SelectOptionRecord[];
+  const storeOptions = (storeOptionsQuery.data || []) as SelectOptionRecord[];
+  const servicePointOptions = (servicePointOptionsQuery.data || []) as SelectOptionRecord[];
+  const serviceProductOptions = (serviceProductOptionsQuery.data || []) as SelectOptionRecord[];
+  const storeOptionMap = useMemo(() => new Map(storeOptions.map((item) => [item.value, item.label])), [storeOptions]);
+  const servicePointOptionMap = useMemo(() => new Map(servicePointOptions.map((item) => [item.value, item.label])), [servicePointOptions]);
+  const serviceProductOptionMap = useMemo(() => new Map(serviceProductOptions.map((item) => [item.value, item.label])), [serviceProductOptions]);
+
+  const updateOrderMutation = useMutation({
+    mutationFn: async ({ id, status, note }: { id: string; status: string; note?: string }) => api.serviceOrder.updateStatus(Number(id), { status, remark: note }),
+    onSuccess: () => {
+      message.success('订单处置结果已更新');
+      queryClient.invalidateQueries({ queryKey: ['tradeOrders'] });
+    },
+  });
+  const updateRefundMutation = useMutation({
+    mutationFn: async ({ id, status, note }: { id: string; status: string; note?: string }) => api.refundOrder.updateStatus(Number(id), { status, note }),
+    onSuccess: () => {
+      message.success('退款审核结果已更新');
+      queryClient.invalidateQueries({ queryKey: ['refundOrders'] });
+    },
+  });
+  const updateAfterSaleMutation = useMutation({
+    mutationFn: async ({ id, status, note }: { id: string; status: string; note?: string }) => api.afterSaleTicket.updateStatus(Number(id), { status, note }),
+    onSuccess: () => {
+      message.success('售后工单已更新');
+      queryClient.invalidateQueries({ queryKey: ['afterSaleTickets'] });
+    },
+  });
+  const createOrderMutation = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => api.serviceOrder.add(data),
+    onSuccess: () => {
+      message.success('人工补单已创建');
+      queryClient.invalidateQueries({ queryKey: ['tradeOrders'] });
+    },
+  });
+  const exportTaskMutation = useMutation({
+    mutationFn: (values: Record<string, unknown>) => api.file.importExportTasks.add(values),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['operationImportExportTasks'] });
+      message.success('订单导出任务已创建');
+      navigate('/operations-support');
+    },
+  });
+  const createExportTask = () => {
+    exportTaskMutation.mutate({
+      taskNo: `EXP-${Date.now()}`,
+      taskName: '订单导出',
+      taskType: 'TRADE_ORDER_EXPORT',
+      bizNo: orderFilters.keyword || undefined,
+      fileName: `订单导出-${Date.now()}.xlsx`,
+      status: 'PENDING',
+      createdBy: '系统管理员',
+      createdAt: new Date().toISOString(),
+    });
+  };
 
   const filteredOrders = useMemo(
     () =>
@@ -138,16 +237,23 @@ const TradeManagement: React.FC = () => {
     actionForm.setFieldsValue({ status: currentStatus, note: currentNote || '' });
   };
 
+  const openDetailAction = () => {
+    if (!detail) return;
+    if ('refundNo' in detail) {
+      openActionModal('refund', detail.id, detail.status, detail.auditNote);
+      return;
+    }
+    if ('ticketNo' in detail) {
+      openActionModal('afterSale', detail.id, detail.status, detail.result || detail.compensation);
+      return;
+    }
+    openActionModal('order', detail.id, detail.status, detail.note);
+  };
+
   const closeActionModal = () => {
     setActionModalType(null);
     setActionTargetId(null);
     actionForm.resetFields();
-  };
-
-  const openHelper = (title: string, description: string) => {
-    setHelperTitle(title);
-    setHelperDesc(description);
-    setHelperVisible(true);
   };
 
   const handleActionSubmit = async () => {
@@ -157,18 +263,15 @@ const TradeManagement: React.FC = () => {
     }
 
     if (actionModalType === 'order') {
-      setOrders((prev) => prev.map((item) => item.id === actionTargetId ? { ...item, status: values.status, note: values.note } : item));
-      message.success('订单处置结果已更新');
+      await updateOrderMutation.mutateAsync({ id: actionTargetId, status: values.status, note: values.note });
     }
 
     if (actionModalType === 'refund') {
-      setRefunds((prev) => prev.map((item) => item.id === actionTargetId ? { ...item, status: values.status, auditNote: values.note } : item));
-      message.success('退款审核结果已更新');
+      await updateRefundMutation.mutateAsync({ id: actionTargetId, status: values.status, note: values.note });
     }
 
     if (actionModalType === 'afterSale') {
-      setAfterSales((prev) => prev.map((item) => item.id === actionTargetId ? { ...item, status: values.status, result: values.note, compensation: values.note || item.compensation } : item));
-      message.success('售后工单已更新');
+      await updateAfterSaleMutation.mutateAsync({ id: actionTargetId, status: values.status, note: values.note });
     }
 
     closeActionModal();
@@ -196,8 +299,14 @@ const TradeManagement: React.FC = () => {
           <Button
             size="small"
             onClick={() => {
-              setOrders((prev) => [{ ...record, id: `clone-${Date.now()}`, orderNo: `MANUAL-${Date.now()}`, note: '人工补单创建' }, ...prev]);
-              message.success('已创建人工补单');
+              createOrderForm.setFieldsValue({
+                orderType: record.orderType,
+                payMode: record.payMode,
+                orderStatus: record.status,
+                amount: record.amount,
+                payAmount: record.amount,
+              });
+              setCreateOrderVisible(true);
             }}
           >
             人工补单
@@ -296,10 +405,17 @@ const TradeManagement: React.FC = () => {
                 rowKey="id"
                 columns={orderColumns}
                 dataSource={filteredOrders}
+                loading={orderQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1820 }}
-                toolBarRender={() => [<Button key="export" onClick={() => openHelper('导出订单', '订单导出任务已创建，后续可继续补导出记录与下载中心。')}>导出订单</Button>, <Button key="exception" type="primary" onClick={() => openHelper('异常订单处理', '这里作为异常订单处理的聚合入口，后续可以扩展为批量处理页。')}>异常订单处理</Button>]}
+                toolBarRender={() => [
+                  <Button key="export" loading={exportTaskMutation.isPending} onClick={createExportTask}>导出订单</Button>,
+                  <Button key="exception" type="primary" onClick={() => {
+                    const target = filteredOrders.find((item) => item.status !== 'COMPLETED') || filteredOrders[0];
+                    if (target) setDetail(target);
+                  }} disabled={!filteredOrders.length}>异常订单处理</Button>,
+                ]}
                 onSubmit={(values) => setOrderFilters({ keyword: String(values.keyword || ''), orderType: values.orderType as string | undefined, payMode: values.payMode as string | undefined, status: values.status as string | undefined })}
                 onReset={() => setOrderFilters({ keyword: '', orderType: undefined, payMode: undefined, status: undefined })}
               />
@@ -314,10 +430,14 @@ const TradeManagement: React.FC = () => {
                 rowKey="id"
                 columns={refundColumns}
                 dataSource={filteredRefunds}
+                loading={refundQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1600 }}
-                toolBarRender={() => [<Button key="audit" type="primary" onClick={() => openHelper('批量审核', '批量退款审核入口已触发，后续可以补充勾选行与批量审批流。')}>批量审核</Button>]}
+                toolBarRender={() => [<Button key="audit" type="primary" onClick={() => {
+                  const target = filteredRefunds.find((item) => item.status !== 'APPROVED' && item.status !== 'REJECTED') || filteredRefunds[0];
+                  if (target) openActionModal('refund', target.id, target.status, target.auditNote);
+                }} disabled={!filteredRefunds.length}>批量审核</Button>]}
                 onSubmit={(values) => setRefundFilters({ keyword: String(values.keyword || ''), status: values.status as string | undefined })}
                 onReset={() => setRefundFilters({ keyword: '', status: undefined })}
               />
@@ -332,10 +452,17 @@ const TradeManagement: React.FC = () => {
                 rowKey="id"
                 columns={afterSaleColumns}
                 dataSource={filteredAfterSales}
+                loading={afterSaleQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1680 }}
-                toolBarRender={() => [<Button key="assign" onClick={() => openHelper('批量分派', '售后工单批量分派入口已触发，后续可以补选中工单后的负责人分派。')}>批量分派</Button>, <Button key="new" type="primary" onClick={() => openHelper('创建售后工单', '当前保留聚合入口，后续可以补独立新建售后工单表单。')}>创建售后工单</Button>]}
+                toolBarRender={() => [
+                  <Button key="assign" onClick={() => {
+                    const target = filteredAfterSales.find((item) => item.status !== 'CLOSED') || filteredAfterSales[0];
+                    if (target) openActionModal('afterSale', target.id, target.status, target.result || target.compensation);
+                  }} disabled={!filteredAfterSales.length}>批量分派</Button>,
+                  <Button key="new" type="primary" onClick={() => navigate('/service-desk')}>创建售后工单</Button>,
+                ]}
                 onSubmit={(values) => setAfterSaleFilters({ keyword: String(values.keyword || ''), status: values.status as string | undefined })}
                 onReset={() => setAfterSaleFilters({ keyword: '', status: undefined })}
               />
@@ -343,6 +470,49 @@ const TradeManagement: React.FC = () => {
           },
         ]}
       />
+
+      <Modal
+        title="人工补单"
+        open={createOrderVisible}
+        onCancel={() => {
+          setCreateOrderVisible(false);
+          createOrderForm.resetFields();
+        }}
+        onOk={async () => {
+          const values = await createOrderForm.validateFields();
+          await createOrderMutation.mutateAsync({
+            ...values,
+            storeName: storeOptionMap.get(values.storeId),
+            pointCode: servicePointOptionMap.get(values.servicePointId),
+            serviceName: serviceProductOptionMap.get(values.serviceProductId),
+          });
+          setCreateOrderVisible(false);
+          createOrderForm.resetFields();
+        }}
+        confirmLoading={createOrderMutation.isPending}
+        width={880}
+        destroyOnClose
+      >
+        <Form form={createOrderForm} layout="vertical" initialValues={{ orderType: 'SCAN', billingMode: 'TIME', payMode: 'WX', orderStatus: 'PAID' }}>
+          <div className="modal-grid">
+            <Form.Item name="orderNo" label="订单号" rules={[{ required: true, message: '请输入订单号' }]}><Input /></Form.Item>
+            <Form.Item name="merchantId" label="商户" rules={[{ required: true, message: '请选择商户' }]}><Select options={merchantOptions} /></Form.Item>
+            <Form.Item name="storeId" label="门店" rules={[{ required: true, message: '请选择门店' }]}><Select options={storeOptions} /></Form.Item>
+            <Form.Item name="servicePointId" label="服务点位"><Select options={servicePointOptions} allowClear /></Form.Item>
+            <Form.Item name="serviceProductId" label="服务商品" rules={[{ required: true, message: '请选择服务商品' }]}><Select options={serviceProductOptions} /></Form.Item>
+            <Form.Item name="orderType" label="订单类型" rules={[{ required: true, message: '请选择订单类型' }]}><Select options={orderTypeOptions} /></Form.Item>
+            <Form.Item name="billingMode" label="计费模式" rules={[{ required: true, message: '请选择计费模式' }]}><Select options={[{ value: 'TIME', label: '按时长' }, { value: 'COUNT', label: '按次' }, { value: 'PACKAGE', label: '套餐' }]} /></Form.Item>
+            <Form.Item name="payMode" label="支付方式" rules={[{ required: true, message: '请选择支付方式' }]}><Select options={payModeOptions} /></Form.Item>
+            <Form.Item name="orderStatus" label="订单状态" rules={[{ required: true, message: '请选择订单状态' }]}><Select options={orderStatusOptions} /></Form.Item>
+            <Form.Item name="amount" label="订单金额" rules={[{ required: true, message: '请输入订单金额' }]}><Input type="number" /></Form.Item>
+            <Form.Item name="payAmount" label="实付金额" rules={[{ required: true, message: '请输入实付金额' }]}><Input type="number" /></Form.Item>
+            <Form.Item name="userName" label="用户"><Input /></Form.Item>
+            <Form.Item name="startedAt" label="开始时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+            <Form.Item name="finishedAt" label="结束时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+            <Form.Item className="modal-span-2" name="note" label="补单说明"><Input.TextArea rows={3} /></Form.Item>
+          </div>
+        </Form>
+      </Modal>
 
       <Modal
         title={actionModalType === 'order' ? '订单处置' : actionModalType === 'refund' ? '退款审核' : actionModalType === 'afterSale' ? '售后处理' : '处理动作'}
@@ -374,7 +544,12 @@ const TradeManagement: React.FC = () => {
         footer={(
           <Space>
             <Button onClick={() => setDetail(null)}>关闭</Button>
-            <Button type="primary" onClick={() => openHelper('记录处理动作', '当前处理动作已记录为演示结果，后续可以补完整的处置日志流水。')}>记录处理动作</Button>
+            <Button
+              type="primary"
+              onClick={openDetailAction}
+            >
+              记录处理动作
+            </Button>
           </Space>
         )}
         destroyOnClose
@@ -382,23 +557,25 @@ const TradeManagement: React.FC = () => {
         {detail ? (
           <>
             <Card title="记录概览" style={{ marginBottom: 16 }}>
-              <Descriptions column={1} size="small" labelStyle={{ width: 110 }}>
-                {Object.entries(detail).map(([key, value]) => (
-                  <Descriptions.Item key={key} label={key}>
-                    {typeof value === 'number' && (key === 'amount' || key === 'actualAmount') ? formatAmount(value) : String(value)}
-                  </Descriptions.Item>
-                ))}
-              </Descriptions>
+              <SchemaDetail
+                record={detail as Record<string, any>}
+                fields={('refundNo' in detail ? tradeDetailFields.refund : 'ticketNo' in detail ? tradeDetailFields.afterSale : tradeDetailFields.order) as DetailField<Record<string, any>>[]}
+                column={1}
+                labelWidth={110}
+              />
             </Card>
 
             <Row gutter={[16, 16]}>
               <Col span={12}>
                 <Card title="推荐动作">
                   <Space direction="vertical" style={{ width: '100%' }}>
-                    <Button block onClick={() => openHelper('查看履约日志', '履约日志入口已触发，后续可以联动核销履约页做明细跳转。')}>查看履约日志</Button>
-                    <Button block onClick={() => openHelper('发起退款审核', '退款审核入口已触发，建议后续联动退款中心的审批流。')}>发起退款审核</Button>
-                    <Button block onClick={() => openHelper('创建售后工单', '售后工单创建入口已触发，建议后续补快速建单表单。')}>创建售后工单</Button>
-                    <Button block onClick={() => openHelper('补偿余额 / 券', '补偿发放入口已触发，建议后续联动用户资产中心。')}>补偿余额 / 券</Button>
+                    <Button block onClick={() => navigate('/fulfillment')}>查看履约日志</Button>
+                    <Button block onClick={() => {
+                      if ('refundNo' in detail) openActionModal('refund', detail.id, detail.status, detail.auditNote);
+                      else navigate('/trade');
+                    }}>发起退款审核</Button>
+                    <Button block onClick={() => navigate('/service-desk')}>创建售后工单</Button>
+                    <Button block onClick={() => navigate('/asset')}>补偿余额 / 券</Button>
                   </Space>
                 </Card>
               </Col>
@@ -406,7 +583,7 @@ const TradeManagement: React.FC = () => {
                 <Card title="关联提醒">
                   <List
                     dataSource={[
-                      '退款会影响后续结算单和活动成本分摊',
+                      '退款会同步影响结算单和活动成本分摊',
                       '售后补偿要同步到用户资产中心',
                       '异常设备建议回到设备中心做维护标记',
                     ]}
@@ -419,11 +596,6 @@ const TradeManagement: React.FC = () => {
         ) : null}
       </Modal>
 
-      <Modal title={helperTitle} open={helperVisible} footer={null} onCancel={() => setHelperVisible(false)} width={680}>
-        <Descriptions column={1} labelStyle={{ width: 120 }}>
-          <Descriptions.Item label="说明">{helperDesc}</Descriptions.Item>
-        </Descriptions>
-      </Modal>
     </div>
   );
 };

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
 import { AuditOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -11,6 +12,9 @@ import {
   writeOffStatusOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import api from '@/services/backendService';
+import type { SelectOptionRecord } from '@/services/backendService';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 
 interface WriteOffRecord {
@@ -50,28 +54,94 @@ const writeOffMethodMap = buildValueEnum(writeOffMethodOptions);
 const performStatusMap = buildValueEnum(performStatusOptions);
 const performSceneMap = buildValueEnum(performSceneOptions);
 
-const initialWriteOffRecords: WriteOffRecord[] = [
-  { id: 'w1', writeoffNo: 'WO202604180001', objectType: 'COUPON', objectName: '夜洗 8 元券', serviceOrderNo: 'SO202604180001', userName: '张晨', method: 'AUTO', storeName: '徐汇夜洗门店', operator: '系统', amount: 8, result: '核销成功', status: 'SUCCESS', createdAt: '2026-04-18 09:15:00' },
-  { id: 'w2', writeoffNo: 'WO202604180017', objectType: 'SERVICE_RIGHT', objectName: '泡沫精洗套餐权益', serviceOrderNo: 'SO202604180019', userName: '李波', method: 'DEVICE_AUTO', storeName: '虹桥旗舰洗车站', operator: '系统', amount: 29, result: '等待设备回执', status: 'PENDING', createdAt: '2026-04-18 09:30:00' },
-  { id: 'w3', writeoffNo: 'WO202604170089', objectType: 'PICKUP', objectName: '门店自提订单', serviceOrderNo: 'RO202604170006', userName: '陈越', method: 'STAFF_SCAN', storeName: '嘉定联营门店', operator: '店员-周可', amount: 12, result: '用户重复核销，已回滚', status: 'ROLLED_BACK', createdAt: '2026-04-17 17:08:00' },
-];
-
-const initialPerformRecords: PerformRecord[] = [
-  { id: 'p1', relationNo: 'SO202604180019', scene: 'SCAN_CAR_WASH', storeName: '虹桥旗舰洗车站', pointCode: 'BAY-03', deviceCode: 'DEV-HQ-003', commandNo: 'CMD202604180019', commandStatus: '已下发', startAt: '2026-04-18 09:27:00', finishAt: '-', status: 'STARTED', remark: '设备已启动，等待结束回执' },
-  { id: 'p2', relationNo: 'SO202604170101', scene: 'PACKAGE_CAR_WASH', storeName: '嘉定联营门店', pointCode: 'BAY-02', deviceCode: 'DEV-JD-002', commandNo: 'CMD202604170101', commandStatus: '回执成功', startAt: '2026-04-17 19:42:00', finishAt: '2026-04-17 19:58:00', status: 'FINISHED', remark: '履约完成' },
-  { id: 'p3', relationNo: 'SO202604170113', scene: 'TIME_CAR_WASH', storeName: '徐汇夜洗门店', pointCode: 'BAY-07', deviceCode: 'DEV-XH-007', commandNo: 'CMD202604170113', commandStatus: '回执异常', startAt: '2026-04-17 22:08:00', finishAt: '2026-04-17 22:15:00', status: 'ABNORMAL', remark: '风干设备启动失败，中途异常中断' },
-];
+const fulfillmentDetailFields: Record<'writeoff' | 'perform', DetailField<any>[]> = {
+  writeoff: [
+    { name: 'writeoffNo', label: '核销单号' },
+    { name: 'objectType', label: '核销对象' },
+    { name: 'objectName', label: '对象名称' },
+    { name: 'serviceOrderNo', label: '订单号' },
+    { name: 'userName', label: '用户' },
+    { name: 'method', label: '核销方式' },
+    { name: 'storeName', label: '门店' },
+    { name: 'operator', label: '操作人' },
+    { name: 'amount', label: '核销金额' },
+    { name: 'result', label: '结果摘要' },
+    { name: 'status', label: '状态' },
+    { name: 'createdAt', label: '创建时间', render: (value) => formatDateTime(value) },
+  ],
+  perform: [
+    { name: 'relationNo', label: '关联单号' },
+    { name: 'scene', label: '履约场景' },
+    { name: 'storeName', label: '门店' },
+    { name: 'pointCode', label: '点位' },
+    { name: 'deviceCode', label: '设备编号' },
+    { name: 'commandNo', label: '指令号' },
+    { name: 'commandStatus', label: '指令状态' },
+    { name: 'startAt', label: '开始时间', render: (value) => formatDateTime(value) },
+    { name: 'finishAt', label: '结束时间', render: (value) => formatDateTime(value) },
+    { name: 'status', label: '状态' },
+    { name: 'remark', label: '备注' },
+  ],
+};
 
 const FulfillmentManagement: React.FC = () => {
+  const queryClient = useQueryClient();
   const [writeOffKeyword, setWriteOffKeyword] = useState('');
   const [performKeyword, setPerformKeyword] = useState('');
-  const [writeoffs, setWriteoffs] = useState(initialWriteOffRecords);
-  const [performs, setPerforms] = useState(initialPerformRecords);
   const [detail, setDetail] = useState<WriteOffRecord | PerformRecord | null>(null);
   const [actionModalVisible, setActionModalVisible] = useState(false);
   const [actionType, setActionType] = useState<'writeoff' | 'perform'>('writeoff');
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [actionForm] = Form.useForm<{ status: string; remark: string }>();
+  const [createType, setCreateType] = useState<'writeoff' | 'perform' | null>(null);
+  const [createForm] = Form.useForm();
+  const writeOffQuery = useQuery({
+    queryKey: ['writeOffRecords', writeOffKeyword],
+    queryFn: async () => (await api.writeOffRecord.page({ pageNum: 1, pageSize: 200, keyword: writeOffKeyword || undefined })).data,
+  });
+  const performQuery = useQuery({
+    queryKey: ['performRecords', performKeyword],
+    queryFn: async () => (await api.performRecord.page({ pageNum: 1, pageSize: 200, keyword: performKeyword || undefined })).data,
+  });
+  const writeoffs = ((writeOffQuery.data as any)?.records || []) as WriteOffRecord[];
+  const performs = ((performQuery.data as any)?.records || []) as PerformRecord[];
+  const storeOptionsQuery = useQuery({ queryKey: ['storeOptionsForFulfillment'], queryFn: async () => (await api.store.options()).data });
+  const servicePointOptionsQuery = useQuery({ queryKey: ['servicePointOptionsForFulfillment'], queryFn: async () => (await api.servicePoint.options()).data });
+  const deviceOptionsQuery = useQuery({ queryKey: ['deviceOptionsForFulfillment'], queryFn: async () => (await api.device.options()).data });
+  const storeOptions = (storeOptionsQuery.data || []) as SelectOptionRecord[];
+  const servicePointOptions = (servicePointOptionsQuery.data || []) as SelectOptionRecord[];
+  const deviceOptions = (deviceOptionsQuery.data || []) as SelectOptionRecord[];
+  const storeOptionMap = useMemo(() => new Map(storeOptions.map((item) => [item.value, item.label])), [storeOptions]);
+  const servicePointOptionMap = useMemo(() => new Map(servicePointOptions.map((item) => [item.value, item.label])), [servicePointOptions]);
+  const deviceOptionMap = useMemo(() => new Map(deviceOptions.map((item) => [item.value, item.label])), [deviceOptions]);
+  const updateWriteOffMutation = useMutation({
+    mutationFn: async ({ id, status, remark }: { id: string; status: string; remark?: string }) => api.writeOffRecord.updateStatus(Number(id), { status, result: remark }),
+    onSuccess: () => {
+      message.success('核销记录已更新');
+      queryClient.invalidateQueries({ queryKey: ['writeOffRecords'] });
+    },
+  });
+  const updatePerformMutation = useMutation({
+    mutationFn: async ({ id, status, remark }: { id: string; status: string; remark?: string }) => api.performRecord.updateStatus(Number(id), { status, remark }),
+    onSuccess: () => {
+      message.success('履约记录已更新');
+      queryClient.invalidateQueries({ queryKey: ['performRecords'] });
+    },
+  });
+  const createWriteOffMutation = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => api.writeOffRecord.add(data),
+    onSuccess: () => {
+      message.success('后台补核销已创建');
+      queryClient.invalidateQueries({ queryKey: ['writeOffRecords'] });
+    },
+  });
+  const createPerformMutation = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => api.performRecord.add(data),
+    onSuccess: () => {
+      message.success('人工履约纠偏已创建');
+      queryClient.invalidateQueries({ queryKey: ['performRecords'] });
+    },
+  });
 
   const filteredWriteOffs = useMemo(() => writeoffs.filter((item) => containsKeyword(writeOffKeyword, [item.writeoffNo, item.objectType, item.objectName, item.serviceOrderNo, item.userName, item.storeName, item.result])), [writeOffKeyword, writeoffs]);
   const filteredPerforms = useMemo(() => performs.filter((item) => containsKeyword(performKeyword, [item.relationNo, item.scene, item.storeName, item.pointCode, item.deviceCode, item.commandNo, item.remark])), [performKeyword, performs]);
@@ -111,8 +181,7 @@ const FulfillmentManagement: React.FC = () => {
           <Button
             size="small"
             onClick={() => {
-              setWriteoffs((prev) => prev.map((item) => item.id === record.id ? { ...item, status: 'ROLLED_BACK', result: '已执行人工回滚' } : item));
-              message.success('核销记录已回滚');
+              updateWriteOffMutation.mutate({ id: record.id, status: 'ROLLED_BACK', remark: '已执行人工回滚' });
             }}
           >
             回滚
@@ -156,8 +225,7 @@ const FulfillmentManagement: React.FC = () => {
           <Button
             size="small"
             onClick={() => {
-              setPerforms((prev) => prev.map((item) => item.id === record.id ? { ...item, status: 'FINISHED', finishAt: new Date().toISOString(), remark: '已人工纠偏完成履约' } : item));
-              message.success('履约状态已纠偏');
+              updatePerformMutation.mutate({ id: record.id, status: 'FINISHED', remark: '已人工纠偏完成履约' });
             }}
           >
             纠偏完成
@@ -174,16 +242,43 @@ const FulfillmentManagement: React.FC = () => {
     }
 
     if (actionType === 'writeoff') {
-      setWriteoffs((prev) => prev.map((item) => item.id === currentId ? { ...item, status: values.status, result: values.remark } : item));
-      message.success('核销记录已更新');
+      await updateWriteOffMutation.mutateAsync({ id: currentId, status: values.status, remark: values.remark });
     } else {
-      setPerforms((prev) => prev.map((item) => item.id === currentId ? { ...item, status: values.status, remark: values.remark, finishAt: values.status === 'FINISHED' ? new Date().toISOString() : item.finishAt } : item));
-      message.success('履约记录已更新');
+      await updatePerformMutation.mutateAsync({ id: currentId, status: values.status, remark: values.remark });
     }
 
     setActionModalVisible(false);
     setCurrentId(null);
     actionForm.resetFields();
+  };
+
+  const openCreateModal = (type: 'writeoff' | 'perform') => {
+    setCreateType(type);
+    createForm.resetFields();
+    createForm.setFieldsValue(type === 'writeoff'
+      ? { objectType: 'SERVICE', method: 'BACKEND', result: '后台补核销', status: 'SUCCESS' }
+      : { scene: 'ORDER', commandStatus: 'MANUAL', status: 'FINISHED', remark: '人工履约纠偏' });
+  };
+
+  const handleCreateSubmit = async () => {
+    const values = await createForm.validateFields();
+    if (createType === 'writeoff') {
+      await createWriteOffMutation.mutateAsync({
+        ...values,
+        storeName: values.storeName || storeOptionMap.get(values.storeId),
+        operatorName: values.operatorName || '后台操作',
+      });
+    }
+    if (createType === 'perform') {
+      await createPerformMutation.mutateAsync({
+        ...values,
+        storeName: values.storeName || storeOptionMap.get(values.storeId),
+        pointCode: values.pointCode || servicePointOptionMap.get(values.servicePointId),
+        deviceCode: values.deviceCode || deviceOptionMap.get(values.deviceId),
+      });
+    }
+    setCreateType(null);
+    createForm.resetFields();
   };
 
   return (
@@ -208,10 +303,11 @@ const FulfillmentManagement: React.FC = () => {
                 rowKey="id"
                 columns={writeOffColumns}
                 dataSource={filteredWriteOffs}
+                loading={writeOffQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 2160 }}
-                toolBarRender={() => [<Button key="rollback">异常回滚</Button>, <Button key="supplement" type="primary">后台补核销</Button>]}
+                toolBarRender={() => [<Button key="rollback" onClick={() => updateWriteOffMutation.mutate({ id: filteredWriteOffs[0]?.id, status: 'ROLLED_BACK', remark: '批量异常回滚' })} disabled={!filteredWriteOffs.length}>异常回滚</Button>, <Button key="supplement" type="primary" onClick={() => openCreateModal('writeoff')}>后台补核销</Button>]}
                 onSubmit={(values) => setWriteOffKeyword(String(values.keyword || ''))}
                 onReset={() => setWriteOffKeyword('')}
               />
@@ -226,10 +322,11 @@ const FulfillmentManagement: React.FC = () => {
                 rowKey="id"
                 columns={performColumns}
                 dataSource={filteredPerforms}
+                loading={performQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 2080 }}
-                toolBarRender={() => [<Button key="refresh">刷新状态</Button>, <Button key="manual" type="primary">人工履约纠偏</Button>]}
+                toolBarRender={() => [<Button key="refresh" onClick={() => performQuery.refetch()}>刷新状态</Button>, <Button key="manual" type="primary" onClick={() => openCreateModal('perform')}>人工履约纠偏</Button>]}
                 onSubmit={(values) => setPerformKeyword(String(values.keyword || ''))}
                 onReset={() => setPerformKeyword('')}
               />
@@ -240,14 +337,61 @@ const FulfillmentManagement: React.FC = () => {
 
       <Modal title="记录详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={720}>
         {detail ? (
-          <Descriptions column={1} labelStyle={{ width: 120 }}>
-            {Object.entries(detail).map(([key, value]) => (
-              <Descriptions.Item key={key} label={key}>
-                {String(value)}
-              </Descriptions.Item>
-            ))}
-          </Descriptions>
+          <SchemaDetail
+            record={detail as Record<string, any>}
+            fields={('writeoffNo' in detail ? fulfillmentDetailFields.writeoff : fulfillmentDetailFields.perform) as DetailField<Record<string, any>>[]}
+            column={1}
+            labelWidth={120}
+          />
         ) : null}
+      </Modal>
+
+      <Modal
+        title={createType === 'writeoff' ? '后台补核销' : '人工履约纠偏'}
+        open={!!createType}
+        onOk={handleCreateSubmit}
+        confirmLoading={createWriteOffMutation.isPending || createPerformMutation.isPending}
+        onCancel={() => {
+          setCreateType(null);
+          createForm.resetFields();
+        }}
+        width={860}
+        destroyOnClose
+      >
+        <Form form={createForm} layout="vertical">
+          {createType === 'writeoff' ? (
+            <div className="modal-grid">
+              <Form.Item name="writeoffNo" label="核销单号" rules={[{ required: true, message: '请输入核销单号' }]}><Input /></Form.Item>
+              <Form.Item name="serviceOrderNo" label="订单号" rules={[{ required: true, message: '请输入订单号' }]}><Input /></Form.Item>
+              <Form.Item name="serviceOrderId" label="订单ID"><Input type="number" /></Form.Item>
+              <Form.Item name="objectType" label="核销对象" rules={[{ required: true, message: '请选择核销对象' }]}><Select options={writeOffObjectTypeOptions} /></Form.Item>
+              <Form.Item name="objectId" label="对象ID"><Input type="number" /></Form.Item>
+              <Form.Item name="objectName" label="对象名称" rules={[{ required: true, message: '请输入对象名称' }]}><Input /></Form.Item>
+              <Form.Item name="userId" label="用户ID"><Input type="number" /></Form.Item>
+              <Form.Item name="userName" label="用户名称"><Input /></Form.Item>
+              <Form.Item name="method" label="核销方式" rules={[{ required: true, message: '请选择核销方式' }]}><Select options={writeOffMethodOptions} /></Form.Item>
+              <Form.Item name="storeId" label="门店"><Select options={storeOptions} allowClear onChange={(value) => createForm.setFieldValue('storeName', storeOptionMap.get(value))} /></Form.Item>
+              <Form.Item name="operatorName" label="操作人"><Input /></Form.Item>
+              <Form.Item name="amount" label="核销金额"><Input type="number" /></Form.Item>
+              <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={writeOffStatusOptions} /></Form.Item>
+              <Form.Item className="modal-span-2" name="result" label="结果摘要" rules={[{ required: true, message: '请输入结果摘要' }]}><Input.TextArea rows={3} /></Form.Item>
+            </div>
+          ) : (
+            <div className="modal-grid">
+              <Form.Item name="relationNo" label="关联单号" rules={[{ required: true, message: '请输入关联单号' }]}><Input /></Form.Item>
+              <Form.Item name="scene" label="履约场景" rules={[{ required: true, message: '请选择履约场景' }]}><Select options={performSceneOptions} /></Form.Item>
+              <Form.Item name="storeId" label="门店"><Select options={storeOptions} allowClear onChange={(value) => createForm.setFieldValue('storeName', storeOptionMap.get(value))} /></Form.Item>
+              <Form.Item name="servicePointId" label="服务点位"><Select options={servicePointOptions} allowClear onChange={(value) => createForm.setFieldValue('pointCode', servicePointOptionMap.get(value))} /></Form.Item>
+              <Form.Item name="deviceId" label="设备"><Select options={deviceOptions} allowClear onChange={(value) => createForm.setFieldValue('deviceCode', deviceOptionMap.get(value))} /></Form.Item>
+              <Form.Item name="commandNo" label="指令号"><Input /></Form.Item>
+              <Form.Item name="commandStatus" label="指令状态"><Input /></Form.Item>
+              <Form.Item name="status" label="履约状态" rules={[{ required: true, message: '请选择履约状态' }]}><Select options={performStatusOptions} /></Form.Item>
+              <Form.Item name="startAt" label="开始时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+              <Form.Item name="finishAt" label="结束时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+              <Form.Item className="modal-span-2" name="remark" label="纠偏说明" rules={[{ required: true, message: '请输入纠偏说明' }]}><Input.TextArea rows={3} /></Form.Item>
+            </div>
+          )}
+        </Form>
       </Modal>
 
       <Modal

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
 import { ApartmentOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -8,83 +9,175 @@ import {
   statusOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import api from '@/services/backendService';
+import type { PlatformDepartmentRecord, PlatformOrganizationChangeLogRecord, PlatformOrganizationRecord, PlatformPositionRecord } from '@/services/backendService';
 
-interface OrganizationRecord {
-  id: string;
-  orgCode: string;
-  orgName: string;
-  orgType: string;
-  parentName: string;
-  scopeType: string;
-  status: number;
-}
-
-interface DepartmentRecord {
-  id: string;
-  deptCode: string;
-  deptName: string;
-  organizationName: string;
-  parentDept: string;
-  manager: string;
-  status: number;
-}
-
-interface PositionRecord {
-  id: string;
-  positionCode: string;
-  positionName: string;
-  departmentName: string;
-  dataScope: string;
-  roleName: string;
-  status: number;
-}
-
-interface OrgChangeRecord {
-  id: string;
-  changeNo: string;
-  objectName: string;
-  changeType: string;
-  beforeValue: string;
-  afterValue: string;
-  changedAt: string;
-}
+type OrganizationRecord = PlatformOrganizationRecord;
+type DepartmentRecord = PlatformDepartmentRecord;
+type PositionRecord = PlatformPositionRecord;
+type OrgChangeRecord = PlatformOrganizationChangeLogRecord;
 
 const statusMap = buildValueEnum(statusOptions);
 const scopeMap = buildValueEnum(scopeTypeOptions);
 
-const organizations: OrganizationRecord[] = [
-  { id: 'org1', orgCode: 'ORG-HQ', orgName: '平台总部', orgType: '平台组织', parentName: '-', scopeType: 'PLATFORM', status: 1 },
-  { id: 'org2', orgCode: 'ORG-EAST', orgName: '华东运营中心', orgType: '区域组织', parentName: '平台总部', scopeType: 'GROUP', status: 1 },
-];
+const organizationDetailFields: Record<string, DetailField<Record<string, any>>[]> = {
+  org: [
+    { name: 'orgCode', label: '组织编码' },
+    { name: 'orgName', label: '组织名称' },
+    { name: 'orgType', label: '组织类型' },
+    { name: 'parentName', label: '上级组织' },
+    { name: 'merchantName', label: '商户' },
+    { name: 'storeName', label: '门店' },
+    { name: 'status', label: '状态', render: (value) => renderStatusTag(value, statusMap) },
+    { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
+  ],
+  dept: [
+    { name: 'deptCode', label: '部门编码' },
+    { name: 'deptName', label: '部门名称' },
+    { name: 'organizationName', label: '所属组织' },
+    { name: 'parentDept', label: '上级部门' },
+    { name: 'manager', label: '负责人' },
+    { name: 'status', label: '状态', render: (value) => renderStatusTag(value, statusMap) },
+  ],
+  position: [
+    { name: 'positionCode', label: '岗位编码' },
+    { name: 'positionName', label: '岗位名称' },
+    { name: 'departmentName', label: '部门' },
+    { name: 'dataScope', label: '数据范围', render: (value) => renderStatusTag(value, scopeMap) },
+    { name: 'roleName', label: '绑定角色' },
+    { name: 'status', label: '状态', render: (value) => renderStatusTag(value, statusMap) },
+  ],
+  change: [
+    { name: 'changeNo', label: '变更单号' },
+    { name: 'objectName', label: '对象' },
+    { name: 'changeType', label: '变更类型' },
+    { name: 'beforeValue', label: '变更前' },
+    { name: 'afterValue', label: '变更后' },
+    { name: 'operator', label: '操作人' },
+    { name: 'changedAt', label: '变更时间', render: (value) => formatDateTime(value) },
+    { name: 'remark', label: '说明' },
+  ],
+};
 
-const departments: DepartmentRecord[] = [
-  { id: 'dept1', deptCode: 'DEPT-OPS', deptName: '运营部', organizationName: '平台总部', parentDept: '-', manager: '何铭', status: 1 },
-  { id: 'dept2', deptCode: 'DEPT-FIN', deptName: '财务部', organizationName: '平台总部', parentDept: '-', manager: '许鸣', status: 1 },
-];
-
-const positions: PositionRecord[] = [
-  { id: 'pos1', positionCode: 'POS-STORE-OPS', positionName: '区域运营', departmentName: '运营部', dataScope: 'GROUP', roleName: '区域运营角色', status: 1 },
-  { id: 'pos2', positionCode: 'POS-FIN-AUDIT', positionName: '财务审核', departmentName: '财务部', dataScope: 'PLATFORM', roleName: '财务审核角色', status: 1 },
-];
-
-const changes: OrgChangeRecord[] = [
-  { id: 'chg1', changeNo: 'ORGCHG202604180001', objectName: '华东运营中心', changeType: '范围调整', beforeValue: '上海', afterValue: '上海/杭州', changedAt: '2026-04-18 09:00:00' },
-  { id: 'chg2', changeNo: 'ORGCHG202604170006', objectName: '财务审核', changeType: '岗位角色', beforeValue: '普通财务', afterValue: '财务审核角色', changedAt: '2026-04-17 18:00:00' },
-];
+const getOrganizationDetailFields = (record: OrganizationRecord | DepartmentRecord | PositionRecord | OrgChangeRecord): DetailField<Record<string, any>>[] => {
+  if ('orgCode' in record) return organizationDetailFields.org;
+  if ('deptCode' in record) return organizationDetailFields.dept;
+  if ('positionCode' in record) return organizationDetailFields.position;
+  return organizationDetailFields.change;
+};
 
 const Organization: React.FC = () => {
+  const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
   const [detail, setDetail] = useState<OrganizationRecord | DepartmentRecord | PositionRecord | OrgChangeRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
-  const [form] = Form.useForm<{ code: string; name: string; status: number; remark: string }>();
+  const [form] = Form.useForm<Record<string, unknown>>();
+  const [editingOrg, setEditingOrg] = useState<OrganizationRecord | null>(null);
+  const [editingDept, setEditingDept] = useState<DepartmentRecord | null>(null);
+  const [editingPosition, setEditingPosition] = useState<PositionRecord | null>(null);
+  const orgQuery = useQuery({
+    queryKey: ['systemPlatformOrganizations', keyword],
+    queryFn: async () => (await api.platformBase.organizations.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+  });
+  const deptQuery = useQuery({
+    queryKey: ['systemPlatformDepartments', keyword],
+    queryFn: async () => (await api.platformBase.departments.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+  });
+  const positionQuery = useQuery({
+    queryKey: ['systemPlatformPositions', keyword],
+    queryFn: async () => (await api.platformBase.positions.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+  });
+  const changeQuery = useQuery({
+    queryKey: ['systemPlatformOrganizationChangeLogs', keyword],
+    queryFn: async () => (await api.platformBase.organizationChangeLogs.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+  });
+
+  const organizations = orgQuery.data?.records || [];
+  const departments = deptQuery.data?.records || [];
+  const positions = positionQuery.data?.records || [];
+  const changes = changeQuery.data?.records || [];
+  const saveOrgMutation = useMutation({
+    mutationFn: async (values: Record<string, unknown>) => editingOrg?.id
+      ? api.platformBase.organizations.edit({ ...values, id: editingOrg.id })
+      : api.platformBase.organizations.add(values),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['systemPlatformOrganizations'] });
+      setModalVisible(false);
+      setEditingOrg(null);
+      setEditingDept(null);
+      setEditingPosition(null);
+      form.resetFields();
+      message.success('组织已保存');
+    },
+  });
+
+  const saveDeptMutation = useMutation({
+    mutationFn: async (values: Record<string, unknown>) => editingDept?.id
+      ? api.platformBase.departments.edit({ ...values, id: editingDept.id })
+      : api.platformBase.departments.add(values),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['systemPlatformDepartments'] });
+      setModalVisible(false);
+      setEditingDept(null);
+      form.resetFields();
+      message.success('部门已保存');
+    },
+  });
+  const savePositionMutation = useMutation({
+    mutationFn: async (values: Record<string, unknown>) => editingPosition?.id
+      ? api.platformBase.positions.edit({ ...values, id: editingPosition.id })
+      : api.platformBase.positions.add(values),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['systemPlatformPositions'] });
+      setModalVisible(false);
+      setEditingPosition(null);
+      form.resetFields();
+      message.success('岗位已保存');
+    },
+  });
+  const saveChangeMutation = useMutation({
+    mutationFn: async (values: Record<string, unknown>) => api.platformBase.organizationChangeLogs.add(values),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['systemPlatformOrganizationChangeLogs'] });
+      setModalVisible(false);
+      form.resetFields();
+      message.success('组织变更已记录');
+    },
+  });
+  const removeOrgMutation = useMutation({
+    mutationFn: (id: number) => api.platformBase.organizations.remove(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['systemPlatformOrganizations'] }),
+  });
 
   const filter = <T extends object>(items: T[]) =>
     items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
 
-  const openModal = (title: string) => {
-    setModalTitle(title);
+  const openOrgModal = (record?: OrganizationRecord) => {
+    setModalTitle(record ? '编辑组织' : '新增组织');
+    setEditingOrg(record || null);
+    form.setFieldsValue(record ? { ...record } : { status: 'ENABLED' });
+    setModalVisible(true);
+  };
+
+  const openDeptModal = (record?: DepartmentRecord) => {
+    setModalTitle(record ? '编辑部门' : '新增部门');
+    setEditingDept(record || null);
+    form.setFieldsValue(record ? { ...record } : { status: 1 });
+    setModalVisible(true);
+  };
+
+  const openPositionModal = (record?: PositionRecord) => {
+    setModalTitle(record ? '编辑岗位' : '新增岗位');
+    setEditingPosition(record || null);
+    form.setFieldsValue(record ? { ...record } : { status: 1 });
+    setModalVisible(true);
+  };
+
+  const openChangeModal = () => {
+    setModalTitle('新增组织变更');
     form.resetFields();
     setModalVisible(true);
   };
@@ -94,9 +187,17 @@ const Organization: React.FC = () => {
     { title: '组织名称', dataIndex: 'orgName', width: 180 },
     { title: '组织类型', dataIndex: 'orgType', width: 130 },
     { title: '上级组织', dataIndex: 'parentName', width: 160 },
-    { title: '范围', dataIndex: 'scopeType', width: 120, render: (_, record) => renderStatusTag(record.scopeType, scopeMap) },
+    { title: '商户', dataIndex: 'merchantName', width: 160 },
+    { title: '门店', dataIndex: 'storeName', width: 180 },
     { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, statusMap) },
-    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
+    { title: '操作', width: 150, render: (_, record) => (
+      <>
+        <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+        <Button size="small" type="link" onClick={() => openOrgModal(record)}>编辑</Button>
+        <Button size="small" type="link" danger onClick={() => removeOrgMutation.mutate(record.id)}>删除</Button>
+      </>
+    ) },
   ], []);
 
   const deptColumns = useMemo<ProColumns<DepartmentRecord>[]>(() => [
@@ -106,6 +207,12 @@ const Organization: React.FC = () => {
     { title: '上级部门', dataIndex: 'parentDept', width: 140 },
     { title: '负责人', dataIndex: 'manager', width: 120 },
     { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '操作', width: 140, render: (_, record) => (
+      <>
+        <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+        <Button size="small" type="link" onClick={() => openDeptModal(record)}>编辑</Button>
+      </>
+    ) },
   ], []);
 
   const positionColumns = useMemo<ProColumns<PositionRecord>[]>(() => [
@@ -115,6 +222,12 @@ const Organization: React.FC = () => {
     { title: '数据范围', dataIndex: 'dataScope', width: 120, render: (_, record) => renderStatusTag(record.dataScope, scopeMap) },
     { title: '绑定角色', dataIndex: 'roleName', width: 180 },
     { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '操作', width: 140, render: (_, record) => (
+      <>
+        <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+        <Button size="small" type="link" onClick={() => openPositionModal(record)}>编辑</Button>
+      </>
+    ) },
   ], []);
 
   const changeColumns = useMemo<ProColumns<OrgChangeRecord>[]>(() => [
@@ -124,6 +237,7 @@ const Organization: React.FC = () => {
     { title: '变更前', dataIndex: 'beforeValue', width: 180 },
     { title: '变更后', dataIndex: 'afterValue', width: 180 },
     { title: '变更时间', dataIndex: 'changedAt', width: 180, render: (_, record) => formatDateTime(record.changedAt) },
+    { title: '操作', width: 90, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
   return (
@@ -131,10 +245,10 @@ const Organization: React.FC = () => {
       <PageBanner title="组织架构中心" subtitle="维护平台组织、部门、岗位和组织变更记录。" icon={<ApartmentOutlined />} />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="组织" value={organizations.length} suffix="个" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="部门" value={departments.length} suffix="个" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="岗位" value={positions.length} suffix="个" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="变更记录" value={changes.length} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="组织" value={orgQuery.data?.total ?? organizations.length} suffix="个" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="部门" value={deptQuery.data?.total ?? departments.length} suffix="个" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="岗位" value={positionQuery.data?.total ?? positions.length} suffix="个" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="变更记录" value={changeQuery.data?.total ?? changes.length} suffix="条" /></Card></Col>
       </Row>
 
       <ProTable
@@ -150,20 +264,21 @@ const Organization: React.FC = () => {
 
       <Tabs
         items={[
-          { key: 'org', label: '组织', children: <ProTable<OrganizationRecord> cardBordered rowKey="id" columns={orgColumns} dataSource={filter(organizations) as OrganizationRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1080 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新增组织')}>新增组织</Button>]} /> },
-          { key: 'dept', label: '部门', children: <ProTable<DepartmentRecord> cardBordered rowKey="id" columns={deptColumns} dataSource={filter(departments) as DepartmentRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 980 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新增部门')}>新增部门</Button>]} /> },
-          { key: 'position', label: '岗位', children: <ProTable<PositionRecord> cardBordered rowKey="id" columns={positionColumns} dataSource={filter(positions) as PositionRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1080 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新增岗位')}>新增岗位</Button>]} /> },
-          { key: 'change', label: '变更记录', children: <ProTable<OrgChangeRecord> cardBordered rowKey="id" columns={changeColumns} dataSource={filter(changes) as OrgChangeRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1080 }} /> },
+          { key: 'org', label: '组织', children: <ProTable<OrganizationRecord> cardBordered rowKey="id" columns={orgColumns} dataSource={organizations} loading={orgQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openOrgModal()}>新增组织</Button>]} /> },
+          { key: 'dept', label: '部门', children: <ProTable<DepartmentRecord> cardBordered rowKey="id" columns={deptColumns} dataSource={filter(departments) as DepartmentRecord[]} loading={deptQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1080 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openDeptModal()}>新增部门</Button>]} /> },
+          { key: 'position', label: '岗位', children: <ProTable<PositionRecord> cardBordered rowKey="id" columns={positionColumns} dataSource={filter(positions) as PositionRecord[]} loading={positionQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openPositionModal()}>新增岗位</Button>]} /> },
+          { key: 'change', label: '变更记录', children: <ProTable<OrgChangeRecord> cardBordered rowKey="id" columns={changeColumns} dataSource={filter(changes) as OrgChangeRecord[]} loading={changeQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="new" type="primary" onClick={openChangeModal}>新增变更</Button>]} /> },
         ]}
       />
 
       <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 110 }}>
-            {Object.entries(detail).map(([key, value]) => (
-              <Descriptions.Item key={key} label={key}>{String(value ?? '-')}</Descriptions.Item>
-            ))}
-          </Descriptions>
+          <SchemaDetail
+            record={detail as Record<string, any>}
+            fields={getOrganizationDetailFields(detail)}
+            column={2}
+            labelWidth={110}
+          />
         ) : null}
       </Modal>
 
@@ -172,16 +287,51 @@ const Organization: React.FC = () => {
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={async () => {
-          await form.validateFields();
-          setModalVisible(false);
-          message.success('组织架构操作已记录');
+          const values = await form.validateFields();
+          if (modalTitle.includes('组织') && !modalTitle.includes('变更')) {
+            await saveOrgMutation.mutateAsync(values);
+            return;
+          }
+          if (modalTitle.includes('部门')) {
+            await saveDeptMutation.mutateAsync(values);
+            return;
+          }
+          if (modalTitle.includes('岗位')) {
+            await savePositionMutation.mutateAsync(values);
+            return;
+          }
+          if (modalTitle.includes('变更')) {
+            await saveChangeMutation.mutateAsync(values);
+          }
         }}
+        confirmLoading={saveOrgMutation.isPending || saveDeptMutation.isPending || savePositionMutation.isPending || saveChangeMutation.isPending}
         width={760}
       >
         <Form form={form} layout="vertical">
           <div className="modal-grid">
-            <Form.Item name="code" label="编码" rules={[{ required: true, message: '请输入编码' }]}><Input /></Form.Item>
-            <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}><Input /></Form.Item>
+            <Form.Item name="orgCode" label="组织编码"><Input /></Form.Item>
+            <Form.Item name="orgName" label="组织名称"><Input /></Form.Item>
+            <Form.Item name="deptCode" label="部门编码"><Input /></Form.Item>
+            <Form.Item name="deptName" label="部门名称"><Input /></Form.Item>
+            <Form.Item name="positionCode" label="岗位编码"><Input /></Form.Item>
+            <Form.Item name="positionName" label="岗位名称"><Input /></Form.Item>
+            <Form.Item name="organizationName" label="所属组织"><Input /></Form.Item>
+            <Form.Item name="departmentName" label="所属部门"><Input /></Form.Item>
+            <Form.Item name="parentName" label="上级组织"><Input /></Form.Item>
+            <Form.Item name="parentDept" label="上级部门"><Input /></Form.Item>
+            <Form.Item name="manager" label="负责人"><Input /></Form.Item>
+            <Form.Item name="roleName" label="绑定角色"><Input /></Form.Item>
+            <Form.Item name="dataScope" label="数据范围"><Select options={scopeTypeOptions} /></Form.Item>
+            <Form.Item name="orgType" label="组织类型"><Input /></Form.Item>
+            <Form.Item name="merchantName" label="关联商户"><Input /></Form.Item>
+            <Form.Item name="storeName" label="关联门店"><Input /></Form.Item>
+            <Form.Item name="changeNo" label="变更单号"><Input /></Form.Item>
+            <Form.Item name="objectName" label="变更对象"><Input /></Form.Item>
+            <Form.Item name="changeType" label="变更类型"><Input /></Form.Item>
+            <Form.Item name="beforeValue" label="变更前"><Input /></Form.Item>
+            <Form.Item name="afterValue" label="变更后"><Input /></Form.Item>
+            <Form.Item name="operator" label="操作人"><Input /></Form.Item>
+            <Form.Item name="changedAt" label="变更时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
             <Form.Item name="status" label="状态"><Select options={statusOptions} /></Form.Item>
             <Form.Item className="modal-span-2" name="remark" label="说明"><Input.TextArea rows={4} /></Form.Item>
           </div>

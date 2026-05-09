@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Popconfirm, Row, Select, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Col, Form, Input, Modal, Popconfirm, Row, Select, Statistic, Tabs, message } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined, SolutionOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -11,6 +11,7 @@ import {
   settlementCycleOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
 import type {
   MerchantChangeLogRecord,
@@ -51,6 +52,55 @@ const changeTypeOptions = [
   { value: 'CONTRACT', label: '合同变更' },
   { value: 'ACCOUNT', label: '结算账户变更' },
 ];
+
+const profileDetailFields: Record<ProfileTab, DetailField<any>[]> = {
+  contact: [
+    { name: 'merchantName', label: '商户' },
+    { name: 'contactType', label: '联系人类型' },
+    { name: 'contactName', label: '联系人' },
+    { name: 'mobile', label: '手机号' },
+    { name: 'email', label: '邮箱' },
+    { name: 'primaryFlag', label: '主联系人' },
+    { name: 'status', label: '状态' },
+  ],
+  qualification: [
+    { name: 'merchantName', label: '商户' },
+    { name: 'qualificationType', label: '资质类型' },
+    { name: 'qualificationNo', label: '资质编号' },
+    { name: 'fileName', label: '文件名称' },
+    { name: 'fileUrl', label: '文件地址' },
+    { name: 'auditStatus', label: '审核状态' },
+    { name: 'expireAt', label: '到期日' },
+  ],
+  contract: [
+    { name: 'merchantName', label: '商户' },
+    { name: 'contractNo', label: '合同编号' },
+    { name: 'contractName', label: '合同名称' },
+    { name: 'settlementCycle', label: '结算周期' },
+    { name: 'contractStatus', label: '合同状态' },
+    { name: 'status', label: '审核状态' },
+    { name: 'startAt', label: '开始日期' },
+    { name: 'endAt', label: '结束日期' },
+  ],
+  account: [
+    { name: 'merchantName', label: '商户' },
+    { name: 'accountName', label: '户名' },
+    { name: 'accountNo', label: '账号' },
+    { name: 'bankName', label: '开户行' },
+    { name: 'auditStatus', label: '审核状态' },
+    { name: 'status', label: '账户状态' },
+    { name: 'effectiveAt', label: '生效日期' },
+  ],
+  change: [
+    { name: 'changeNo', label: '变更单号' },
+    { name: 'merchantName', label: '商户' },
+    { name: 'changeType', label: '变更类型' },
+    { name: 'beforeValue', label: '变更前' },
+    { name: 'afterValue', label: '变更后' },
+    { name: 'operator', label: '操作人' },
+    { name: 'changedAt', label: '变更时间' },
+  ],
+};
 
 const MerchantProfileManagement: React.FC = () => {
   const queryClient = useQueryClient();
@@ -300,13 +350,7 @@ const MerchantProfileManagement: React.FC = () => {
       />
 
       <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
-        {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 110 }}>
-            {Object.entries(detail).map(([key, value]) => (
-              <Descriptions.Item key={key} label={key}>{String(value ?? '-')}</Descriptions.Item>
-            ))}
-          </Descriptions>
-        ) : null}
+        {detail ? <SchemaDetail record={detail as any} fields={profileDetailFields[activeTab]} /> : null}
       </Modal>
 
       <Modal

@@ -1,90 +1,54 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Statistic, message } from 'antd';
+import { Button, Card, Col, Descriptions, Form, Input, Modal, Popconfirm, Row, Select, Space, Statistic, message } from 'antd';
 import { ApartmentOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
+import { useQuery } from '@tanstack/react-query';
 import { merchantGroupTypeOptions, scopeLevelOptions, templateStatusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
-import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
-
-interface MerchantGroupRecord {
-  id: string;
-  groupCode: string;
-  groupName: string;
-  merchantName: string;
-  groupType: string;
-  city: string;
-  storeCount: number;
-  scopeLevel: string;
-  scope: string;
-  writeoffRule: string;
-  owner: string;
-  status: string;
-  updatedAt: string;
-}
+import api from '@/services/backendService';
+import type { MerchantGroupRecord, MerchantGroupStoreRecord, SelectOptionRecord } from '@/services/backendService';
+import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 
 const groupTypeMap = buildValueEnum(merchantGroupTypeOptions);
 const statusMap = buildValueEnum(templateStatusOptions);
 const scopeLevelMap = buildValueEnum(scopeLevelOptions);
 
-const initialRecords: MerchantGroupRecord[] = [
-  {
-    id: 'g1',
-    groupCode: 'MG-SH-001',
-    groupName: '上海直营夜洗门店组',
-    merchantName: '鲸洗直营运营中心',
-    groupType: 'ACTIVITY',
-    city: '上海',
-    storeCount: 4,
-    scopeLevel: 'STORE_GROUP',
-    scope: '夜间活动、充值返利、邀请首充奖励',
-    writeoffRule: '仅限夜洗活动券跨店核销',
-    owner: '平台运营-何铭',
-    status: 'ENABLED',
-    updatedAt: '2026-04-18 10:12:00',
-  },
-  {
-    id: 'g2',
-    groupCode: 'MG-JD-018',
-    groupName: '嘉定联营核销组',
-    merchantName: '嘉定联营服务商',
-    groupType: 'WRITEOFF',
-    city: '上海',
-    storeCount: 3,
-    scopeLevel: 'MERCHANT',
-    scope: '跨店核销、门店自提、次卡通用',
-    writeoffRule: '指定门店人工核销 + 后台补核销',
-    owner: '区域运营-周可',
-    status: 'DRAFT',
-    updatedAt: '2026-04-17 19:28:00',
-  },
-  {
-    id: 'g3',
-    groupCode: 'MG-REPORT-003',
-    groupName: '长宁经营统计组',
-    merchantName: '鲸洗直营运营中心',
-    groupType: 'REPORT',
-    city: '上海',
-    storeCount: 5,
-    scopeLevel: 'CITY',
-    scope: '区域经营看板、设备巡检汇总、店长排名',
-    writeoffRule: '只读统计，不参与核销',
-    owner: '数据运营-陶然',
-    status: 'ENABLED',
-    updatedAt: '2026-04-16 15:42:00',
-  },
-];
-
 const MerchantGroupManagement: React.FC = () => {
   const [form] = Form.useForm<MerchantGroupRecord>();
-  const [records, setRecords] = useState(initialRecords);
+  const [records, setRecords] = useState<MerchantGroupRecord[]>([]);
+  const [loading, setLoading] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [typeFilter, setTypeFilter] = useState<string | undefined>();
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [modalVisible, setModalVisible] = useState(false);
   const [detail, setDetail] = useState<MerchantGroupRecord | null>(null);
   const [editingRecord, setEditingRecord] = useState<MerchantGroupRecord | null>(null);
-  const [helperVisible, setHelperVisible] = useState(false);
+  const [memberForm] = Form.useForm<MerchantGroupStoreRecord>();
+  const [memberVisible, setMemberVisible] = useState(false);
+  const [memberGroup, setMemberGroup] = useState<MerchantGroupRecord | null>(null);
+  const [members, setMembers] = useState<MerchantGroupStoreRecord[]>([]);
+  const [editingMember, setEditingMember] = useState<MerchantGroupStoreRecord | null>(null);
+  const [memberLoading, setMemberLoading] = useState(false);
+  const { data: storeOptions } = useQuery({ queryKey: ['storeOptionsForMerchantGroups'], queryFn: async () => (await api.store.options()).data });
+  const storeOptionMap = useMemo(() => new Map((storeOptions as SelectOptionRecord[] | undefined || []).map((item) => [item.value, item.label])), [storeOptions]);
+  const fetchRecords = async (params: Record<string, unknown> = {}) => {
+    setLoading(true);
+    try {
+      const result = await api.merchantGroup.page({
+        current: 1,
+        size: 100,
+        keyword,
+        groupType: typeFilter,
+        status: statusFilter,
+        ...params,
+      });
+      const page = 'data' in result ? result.data : result;
+      setRecords(page.records || []);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const closeModal = () => {
     setModalVisible(false);
@@ -92,15 +56,55 @@ const MerchantGroupManagement: React.FC = () => {
     form.resetFields();
   };
 
-  const dataSource = useMemo(
-    () =>
-      records.filter(
-        (item) =>
-          containsKeyword(keyword, [item.groupCode, item.groupName, item.merchantName, item.city, item.scope, item.owner]) &&
-          (!typeFilter || item.groupType === typeFilter) &&
-          (!statusFilter || item.status === statusFilter)
-      ),
-    [keyword, records, statusFilter, typeFilter]
+  const fetchMembers = async (group: MerchantGroupRecord) => {
+    setMemberLoading(true);
+    try {
+      const result = await api.merchantGroupStore.page({ current: 1, size: 100, groupId: group.id });
+      const page = 'data' in result ? result.data : result;
+      setMembers(page.records || []);
+    } finally {
+      setMemberLoading(false);
+    }
+  };
+
+  const openMemberModal = async (record: MerchantGroupRecord) => {
+    setMemberGroup(record);
+    setEditingMember(null);
+    memberForm.resetFields();
+    setMemberVisible(true);
+    await fetchMembers(record);
+  };
+
+  const handleMemberSubmit = async () => {
+    if (!memberGroup) return;
+    const values = await memberForm.validateFields();
+    if (editingMember) {
+      await api.merchantGroupStore.edit({ ...editingMember, ...values });
+      message.success('门店成员已更新');
+    } else {
+      await api.merchantGroupStore.add({
+        ...values,
+        groupId: memberGroup.id,
+        merchantId: memberGroup.merchantId,
+        status: values.status || 'ENABLED',
+      });
+      message.success('门店成员已添加');
+    }
+    setEditingMember(null);
+    memberForm.resetFields();
+    await fetchMembers(memberGroup);
+      await api.merchantGroup.edit({ ...memberGroup, storeCount: members.length + (editingMember ? 0 : 1) } as Record<string, unknown>);
+    fetchRecords();
+  };
+
+  const summary = useMemo(
+    () => ({
+      total: records.length,
+      activity: records.filter((item) => item.groupType === 'ACTIVITY').length,
+      writeoff: records.filter((item) => item.groupType === 'WRITEOFF').length,
+      stores: records.reduce((sum, item) => sum + Number(item.storeCount || 0), 0),
+    }),
+    [records]
   );
 
   const columns: ProColumns<MerchantGroupRecord>[] = [
@@ -164,21 +168,17 @@ const MerchantGroupManagement: React.FC = () => {
           >
             编辑
           </Button>
-          <Button
-            size="small"
-            onClick={() => {
-              setRecords((prev) =>
-                prev.map((item) =>
-                  item.id === record.id
-                    ? { ...item, status: item.status === 'ENABLED' ? 'DISABLED' : 'ENABLED', updatedAt: new Date().toISOString() }
-                    : item
-                )
-              );
+          <Button size="small" onClick={() => openMemberModal(record)}>成员</Button>
+          <Popconfirm
+            title={`确认${record.status === 'ENABLED' ? '停用' : '启用'}该门店组？`}
+            onConfirm={async () => {
+              await api.merchantGroup.changeStatus(record.id, record.status === 'ENABLED' ? 'DISABLED' : 'ENABLED');
               message.success('门店组状态已更新');
+              fetchRecords();
             }}
           >
-            {record.status === 'ENABLED' ? '停用' : '启用'}
-          </Button>
+            <Button size="small">{record.status === 'ENABLED' ? '停用' : '启用'}</Button>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -187,26 +187,14 @@ const MerchantGroupManagement: React.FC = () => {
   const handleSubmit = async () => {
     const values = await form.validateFields();
     if (editingRecord) {
-      setRecords((prev) =>
-        prev.map((item) =>
-          item.id === editingRecord.id
-            ? { ...item, ...values, updatedAt: new Date().toISOString() }
-            : item
-        )
-      );
+      await api.merchantGroup.edit({ ...editingRecord, ...values } as Record<string, unknown>);
       message.success('门店组已更新');
     } else {
-      setRecords((prev) => [
-        {
-          ...values,
-          id: `group-${Date.now()}`,
-          updatedAt: new Date().toISOString(),
-        },
-        ...prev,
-      ]);
+      await api.merchantGroup.add(values as unknown as Record<string, unknown>);
       message.success('门店组已创建');
     }
     closeModal();
+    fetchRecords();
   };
 
   return (
@@ -214,22 +202,37 @@ const MerchantGroupManagement: React.FC = () => {
       <PageBanner title="门店组管理" subtitle="按文档补齐区域、活动、核销、统计门店组的配置与查看能力。" icon={<ApartmentOutlined />} />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="门店组总量" value={records.length} suffix="组" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="活动门店组" value={records.filter((item) => item.groupType === 'ACTIVITY').length} suffix="组" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="跨店核销组" value={records.filter((item) => item.groupType === 'WRITEOFF').length} suffix="组" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="覆盖门店" value={records.reduce((sum, item) => sum + item.storeCount, 0)} suffix="家" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="门店组总量" value={summary.total} suffix="组" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="活动门店组" value={summary.activity} suffix="组" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="跨店核销组" value={summary.writeoff} suffix="组" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="覆盖门店" value={summary.stores} suffix="家" /></Card></Col>
       </Row>
 
       <ProTable<MerchantGroupRecord>
         cardBordered
         rowKey="id"
         columns={columns}
-        dataSource={dataSource}
+        dataSource={records}
+        loading={loading}
+        request={async (params) => {
+          const result = await api.merchantGroup.page({
+            current: params.current,
+            size: params.pageSize,
+            keyword: params.keyword,
+            groupType: params.groupType,
+            status: params.status,
+          });
+          const page = 'data' in result ? result.data : result;
+          setRecords(page.records || []);
+          setKeyword(String(params.keyword || ''));
+          setTypeFilter(params.groupType as string | undefined);
+          setStatusFilter(params.status as string | undefined);
+          return { data: page.records || [], total: page.total, success: true };
+        }}
         search={{ labelWidth: 'auto', defaultCollapsed: false }}
         pagination={{ pageSize: 8 }}
         scroll={{ x: 1880 }}
         toolBarRender={() => [
-          <Button key="assign" onClick={() => setHelperVisible(true)}>批量配置门店</Button>,
           <Button
             key="new"
             type="primary"
@@ -244,16 +247,6 @@ const MerchantGroupManagement: React.FC = () => {
             新建门店组
           </Button>,
         ]}
-        onSubmit={(values) => {
-          setKeyword(String(values.keyword || ''));
-          setTypeFilter(values.groupType as string | undefined);
-          setStatusFilter(values.status as string | undefined);
-        }}
-        onReset={() => {
-          setKeyword('');
-          setTypeFilter(undefined);
-          setStatusFilter(undefined);
-        }}
       />
 
       <Modal
@@ -322,11 +315,87 @@ const MerchantGroupManagement: React.FC = () => {
         ) : null}
       </Modal>
 
-      <Modal title="批量配置门店" open={helperVisible} footer={null} onCancel={() => setHelperVisible(false)} width={680}>
-        <Descriptions column={1} labelStyle={{ width: 120 }}>
-          <Descriptions.Item label="用途">用于把多个门店快速加入活动组、核销组或统计组。</Descriptions.Item>
-          <Descriptions.Item label="建议流程">先筛商户，再选门店，再确认生效范围。</Descriptions.Item>
-        </Descriptions>
+      <Modal
+        title={memberGroup ? `门店组成员 · ${memberGroup.groupName}` : '门店组成员'}
+        open={memberVisible}
+        onCancel={() => {
+          setMemberVisible(false);
+          setMemberGroup(null);
+          setEditingMember(null);
+          memberForm.resetFields();
+        }}
+        footer={null}
+        width={920}
+      >
+        <Form form={memberForm} layout="vertical" style={{ marginBottom: 16 }}>
+          <div className="modal-grid">
+            <Form.Item name="storeId" label="门店" rules={[{ required: true, message: '请选择门店' }]}>
+              <Select options={storeOptions as SelectOptionRecord[]} onChange={(value) => memberForm.setFieldValue('storeName', storeOptionMap.get(value))} />
+            </Form.Item>
+            <Form.Item name="storeCode" label="门店编码">
+              <Input />
+            </Form.Item>
+            <Form.Item name="storeName" label="门店名称" rules={[{ required: true, message: '请输入门店名称' }]}>
+              <Input disabled />
+            </Form.Item>
+            <Form.Item name="status" label="状态" initialValue="ENABLED">
+              <Select options={templateStatusOptions} />
+            </Form.Item>
+            <Form.Item className="modal-span-2" name="remark" label="备注">
+              <Input />
+            </Form.Item>
+          </div>
+          <Space>
+            <Button type="primary" onClick={handleMemberSubmit}>{editingMember ? '更新成员' : '添加成员'}</Button>
+            <Button onClick={() => { setEditingMember(null); memberForm.resetFields(); }}>清空</Button>
+          </Space>
+        </Form>
+        <ProTable<MerchantGroupStoreRecord>
+          rowKey="id"
+          search={false}
+          options={false}
+          loading={memberLoading}
+          dataSource={members}
+          pagination={{ pageSize: 6 }}
+          columns={[
+            { title: '门店ID', dataIndex: 'storeId', width: 100 },
+            { title: '门店编码', dataIndex: 'storeCode', width: 140 },
+            { title: '门店名称', dataIndex: 'storeName', width: 180 },
+            { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, statusMap) },
+            { title: '备注', dataIndex: 'remark', width: 180 },
+            {
+              title: '操作',
+              width: 150,
+              render: (_, record) => (
+                <Space>
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      setEditingMember(record);
+                      memberForm.setFieldsValue(record);
+                    }}
+                  >
+                    编辑
+                  </Button>
+                  <Popconfirm
+                    title="确认移除该门店成员？"
+                    onConfirm={async () => {
+                      await api.merchantGroupStore.remove(record.id);
+                      message.success('门店成员已移除');
+                      if (memberGroup) {
+                        await fetchMembers(memberGroup);
+                        await api.merchantGroup.edit({ ...memberGroup, storeCount: Math.max(0, members.length - 1) } as Record<string, unknown>);
+                        fetchRecords();
+                      }
+                    }}
+                  >
+                    <Button size="small" danger>移除</Button>
+                  </Popconfirm>
+                </Space>
+              ),
+            },
+          ]}
+        />
       </Modal>
     </div>
   );

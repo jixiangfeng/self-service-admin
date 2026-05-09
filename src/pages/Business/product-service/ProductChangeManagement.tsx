@@ -1,95 +1,118 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
 import { HistoryOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import {
-  auditStatusOptions,
-  billingModeOptions,
-  publishStatusOptions,
-} from '@/constants/businessCatalog';
+import { auditStatusOptions, billingModeOptions, publishStatusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import api from '@/services/backendService';
+import type { PricingChangeLogRecord, PricingRuleVersionRecord, ProductChangeLogRecord, ProductStatusLogRecord } from '@/services/backendService';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
-
-interface ProductStatusLogRecord {
-  id: string;
-  productCode: string;
-  productName: string;
-  beforeStatus: string;
-  afterStatus: string;
-  operator: string;
-  changedAt: string;
-}
-
-interface ProductChangeLogRecord {
-  id: string;
-  changeNo: string;
-  productCode: string;
-  changeField: string;
-  beforeValue: string;
-  afterValue: string;
-  auditStatus: string;
-  changedAt: string;
-}
-
-interface PricingRuleVersionRecord {
-  id: string;
-  ruleCode: string;
-  versionNo: string;
-  billingMode: string;
-  basePrice: number;
-  effectiveAt: string;
-  status: string;
-}
-
-interface PricingChangeLogRecord {
-  id: string;
-  changeNo: string;
-  ruleCode: string;
-  versionNo: string;
-  changeField: string;
-  beforeValue: string;
-  afterValue: string;
-  changedAt: string;
-}
 
 const publishStatusMap = buildValueEnum(publishStatusOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
 const billingModeMap = buildValueEnum(billingModeOptions);
 
-const statusLogs: ProductStatusLogRecord[] = [
-  { id: 'ps1', productCode: 'SP-FOAM-001', productName: '泡沫精洗套餐', beforeStatus: 'DRAFT', afterStatus: 'PUBLISHED', operator: '商品运营-陶然', changedAt: '2026-04-18 09:00:00' },
-  { id: 'ps2', productCode: 'SP-NIGHT-001', productName: '夜洗时长包', beforeStatus: 'PUBLISHED', afterStatus: 'OFFLINE', operator: '区域运营-何铭', changedAt: '2026-04-17 23:00:00' },
-];
-
-const productChanges: ProductChangeLogRecord[] = [
-  { id: 'pc1', changeNo: 'PCHG202604180001', productCode: 'SP-FOAM-001', changeField: '权益内容', beforeValue: '泡沫 3 分钟', afterValue: '泡沫 5 分钟', auditStatus: 'APPROVED', changedAt: '2026-04-18 09:10:00' },
-  { id: 'pc2', changeNo: 'PCHG202604170006', productCode: 'SP-NIGHT-001', changeField: '适用门店组', beforeValue: '全平台', afterValue: '夜洗门店组', auditStatus: 'PENDING', changedAt: '2026-04-17 18:00:00' },
-];
-
-const pricingVersions: PricingRuleVersionRecord[] = [
-  { id: 'pv1', ruleCode: 'PRICE-HQ-DAY', versionNo: 'V20260418', billingMode: 'TIME', basePrice: 1.5, effectiveAt: '2026-04-18 08:00:00', status: 'PUBLISHED' },
-  { id: 'pv2', ruleCode: 'PRICE-XH-NIGHT', versionNo: 'V20260417', billingMode: 'TIME', basePrice: 0.9, effectiveAt: '2026-04-17 20:00:00', status: 'PUBLISHED' },
-];
-
-const pricingChanges: PricingChangeLogRecord[] = [
-  { id: 'prc1', changeNo: 'PRC202604180001', ruleCode: 'PRICE-HQ-DAY', versionNo: 'V20260418', changeField: '基础单价', beforeValue: '1.8', afterValue: '1.5', changedAt: '2026-04-18 08:30:00' },
-  { id: 'prc2', changeNo: 'PRC202604170006', ruleCode: 'PRICE-XH-NIGHT', versionNo: 'V20260417', changeField: '生效时段', beforeValue: '21:00-02:00', afterValue: '20:00-02:00', changedAt: '2026-04-17 18:30:00' },
-];
+const changeDetailFields: Record<'status' | 'productChange' | 'pricingVersion' | 'pricingChange', DetailField<any>[]> = {
+  status: [
+    { name: 'productCode', label: '商品编码' },
+    { name: 'productName', label: '商品名称' },
+    { name: 'beforeStatus', label: '原状态' },
+    { name: 'afterStatus', label: '新状态' },
+    { name: 'operator', label: '操作人' },
+    { name: 'changedAt', label: '变更时间' },
+  ],
+  productChange: [
+    { name: 'changeNo', label: '变更单号' },
+    { name: 'productCode', label: '商品编码' },
+    { name: 'productName', label: '商品名称' },
+    { name: 'changeField', label: '字段' },
+    { name: 'beforeValue', label: '变更前' },
+    { name: 'afterValue', label: '变更后' },
+    { name: 'auditStatus', label: '审核状态' },
+    { name: 'changedAt', label: '变更时间' },
+  ],
+  pricingVersion: [
+    { name: 'ruleCode', label: '规则编码' },
+    { name: 'versionNo', label: '版本号' },
+    { name: 'billingMode', label: '计费模式' },
+    { name: 'basePrice', label: '基础价格' },
+    { name: 'effectiveAt', label: '生效时间' },
+    { name: 'status', label: '状态' },
+  ],
+  pricingChange: [
+    { name: 'changeNo', label: '变更单号' },
+    { name: 'ruleCode', label: '规则编码' },
+    { name: 'versionNo', label: '版本号' },
+    { name: 'changeField', label: '字段' },
+    { name: 'beforeValue', label: '变更前' },
+    { name: 'afterValue', label: '变更后' },
+    { name: 'auditStatus', label: '审核状态' },
+    { name: 'changedAt', label: '变更时间' },
+  ],
+};
 
 const ProductChangeManagement: React.FC = () => {
+  const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
   const [detail, setDetail] = useState<ProductStatusLogRecord | ProductChangeLogRecord | PricingRuleVersionRecord | PricingChangeLogRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
-  const [form] = Form.useForm<{ code: string; status: string; remark: string }>();
+  const [editingRecord, setEditingRecord] = useState<ProductChangeLogRecord | PricingRuleVersionRecord | null>(null);
+  const [form] = Form.useForm<Record<string, unknown>>();
+
+  const statusQuery = useQuery({ queryKey: ['productStatusLogs'], queryFn: async () => (await api.productStatusLog.page({ current: 1, size: 500 })).data });
+  const productChangeQuery = useQuery({ queryKey: ['productChangeLogs'], queryFn: async () => (await api.productChangeLog.page({ current: 1, size: 500 })).data });
+  const pricingVersionQuery = useQuery({ queryKey: ['pricingRuleVersions'], queryFn: async () => (await api.pricingRuleVersion.page({ current: 1, size: 500 })).data });
+  const pricingChangeQuery = useQuery({ queryKey: ['pricingChangeLogs'], queryFn: async () => (await api.pricingChangeLog.page({ current: 1, size: 500 })).data });
+
+  const statusLogs = statusQuery.data?.records || [];
+  const productChanges = productChangeQuery.data?.records || [];
+  const pricingVersions = pricingVersionQuery.data?.records || [];
+  const pricingChanges = pricingChangeQuery.data?.records || [];
+
+  const saveProductChangeMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => editingRecord && 'productCode' in editingRecord
+      ? api.productChangeLog.edit({ ...payload, id: editingRecord.id, auditStatus: payload.auditStatus || 'APPROVED', changedAt: payload.changedAt || new Date().toISOString() })
+      : api.productChangeLog.add({ ...payload, auditStatus: payload.auditStatus || 'APPROVED', changedAt: payload.changedAt || new Date().toISOString() }),
+    onSuccess: () => {
+      message.success(editingRecord ? '商品变更已更新' : '商品变更已写入');
+      queryClient.invalidateQueries({ queryKey: ['productChangeLogs'] });
+      setModalVisible(false);
+      setEditingRecord(null);
+      form.resetFields();
+    },
+  });
+
+  const savePricingVersionMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => editingRecord && 'ruleCode' in editingRecord
+      ? api.pricingRuleVersion.edit({ ...payload, id: editingRecord.id })
+      : api.pricingRuleVersion.add(payload),
+    onSuccess: () => {
+      message.success(editingRecord ? '计费规则版本已更新' : '计费规则版本已写入');
+      queryClient.invalidateQueries({ queryKey: ['pricingRuleVersions'] });
+      setModalVisible(false);
+      setEditingRecord(null);
+      form.resetFields();
+    },
+  });
 
   const filter = <T extends object>(items: T[]) =>
     items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
 
-  const openModal = (title: string) => {
+  const openModal = (title: string, record?: ProductChangeLogRecord | PricingRuleVersionRecord) => {
     setModalTitle(title);
     form.resetFields();
+    setEditingRecord(record || null);
+    if (record) {
+      form.setFieldsValue(record as unknown as Record<string, string | number | undefined>);
+    } else if (title.includes('版本')) {
+      form.setFieldsValue({ status: 'PUBLISHED' });
+    } else {
+      form.setFieldsValue({ auditStatus: 'APPROVED' });
+    }
     setModalVisible(true);
   };
 
@@ -106,20 +129,33 @@ const ProductChangeManagement: React.FC = () => {
   const productChangeColumns = useMemo<ProColumns<ProductChangeLogRecord>[]>(() => [
     { title: '变更单号', dataIndex: 'changeNo', width: 180 },
     { title: '商品编码', dataIndex: 'productCode', width: 150 },
+    { title: '商品名称', dataIndex: 'productName', width: 180 },
     { title: '字段', dataIndex: 'changeField', width: 130 },
     { title: '变更前', dataIndex: 'beforeValue', width: 180 },
     { title: '变更后', dataIndex: 'afterValue', width: 180 },
     { title: '审核状态', dataIndex: 'auditStatus', width: 120, render: (_, record) => renderStatusTag(record.auditStatus, auditStatusMap) },
     { title: '变更时间', dataIndex: 'changedAt', width: 180, render: (_, record) => formatDateTime(record.changedAt) },
+    { title: '操作', width: 150, render: (_, record) => (
+      <>
+        <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+        <Button size="small" type="link" onClick={() => openModal('编辑商品变更', record)}>编辑</Button>
+      </>
+    ) },
   ], []);
 
   const pricingVersionColumns = useMemo<ProColumns<PricingRuleVersionRecord>[]>(() => [
     { title: '规则编码', dataIndex: 'ruleCode', width: 160 },
     { title: '版本号', dataIndex: 'versionNo', width: 130 },
     { title: '计费模式', dataIndex: 'billingMode', width: 120, render: (_, record) => renderStatusTag(record.billingMode, billingModeMap) },
-    { title: '基础价格', dataIndex: 'basePrice', width: 120, render: (_, record) => formatAmount(record.basePrice) },
+    { title: '基础价格', dataIndex: 'basePrice', width: 120, render: (_, record) => formatAmount(record.basePrice || 0) },
     { title: '生效时间', dataIndex: 'effectiveAt', width: 180, render: (_, record) => formatDateTime(record.effectiveAt) },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
+    { title: '操作', width: 150, render: (_, record) => (
+      <>
+        <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+        <Button size="small" type="link" onClick={() => openModal('编辑计费规则版本', record)}>编辑</Button>
+      </>
+    ) },
   ], []);
 
   const pricingChangeColumns = useMemo<ProColumns<PricingChangeLogRecord>[]>(() => [
@@ -129,7 +165,9 @@ const ProductChangeManagement: React.FC = () => {
     { title: '字段', dataIndex: 'changeField', width: 130 },
     { title: '变更前', dataIndex: 'beforeValue', width: 180 },
     { title: '变更后', dataIndex: 'afterValue', width: 180 },
+    { title: '审核状态', dataIndex: 'auditStatus', width: 120, render: (_, record) => renderStatusTag(record.auditStatus || 'APPROVED', auditStatusMap) },
     { title: '变更时间', dataIndex: 'changedAt', width: 180, render: (_, record) => formatDateTime(record.changedAt) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
   return (
@@ -156,39 +194,56 @@ const ProductChangeManagement: React.FC = () => {
 
       <Tabs
         items={[
-          { key: 'status', label: '商品状态日志', children: <ProTable<ProductStatusLogRecord> cardBordered rowKey="id" columns={statusColumns} dataSource={filter(statusLogs) as ProductStatusLogRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1080 }} /> },
-          { key: 'productChange', label: '商品变更日志', children: <ProTable<ProductChangeLogRecord> cardBordered rowKey="id" columns={productChangeColumns} dataSource={filter(productChanges) as ProductChangeLogRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="audit" type="primary" onClick={() => openModal('审核商品变更')}>审核变更</Button>]} /> },
-          { key: 'pricingVersion', label: '计费规则版本', children: <ProTable<PricingRuleVersionRecord> cardBordered rowKey="id" columns={pricingVersionColumns} dataSource={filter(pricingVersions) as PricingRuleVersionRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1080 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建计费规则版本')}>新建版本</Button>]} /> },
-          { key: 'pricingChange', label: '规则变更日志', children: <ProTable<PricingChangeLogRecord> cardBordered rowKey="id" columns={pricingChangeColumns} dataSource={filter(pricingChanges) as PricingChangeLogRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} /> },
+          { key: 'status', label: '商品状态日志', children: <ProTable<ProductStatusLogRecord> cardBordered rowKey="id" columns={statusColumns} dataSource={filter(statusLogs) as ProductStatusLogRecord[]} loading={statusQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1080 }} /> },
+          { key: 'productChange', label: '商品变更日志', children: <ProTable<ProductChangeLogRecord> cardBordered rowKey="id" columns={productChangeColumns} dataSource={filter(productChanges) as ProductChangeLogRecord[]} loading={productChangeQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1480 }} toolBarRender={() => [<Button key="add" type="primary" onClick={() => openModal('新增商品变更')}>新增变更</Button>]} /> },
+          { key: 'pricingVersion', label: '计费规则版本', children: <ProTable<PricingRuleVersionRecord> cardBordered rowKey="id" columns={pricingVersionColumns} dataSource={filter(pricingVersions) as PricingRuleVersionRecord[]} loading={pricingVersionQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建计费规则版本')}>新建版本</Button>]} /> },
+          { key: 'pricingChange', label: '规则变更日志', children: <ProTable<PricingChangeLogRecord> cardBordered rowKey="id" columns={pricingChangeColumns} dataSource={filter(pricingChanges) as PricingChangeLogRecord[]} loading={pricingChangeQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1380 }} /> },
         ]}
       />
 
       <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
-        {detail ? (
-          <Descriptions column={2} labelStyle={{ width: 110 }}>
-            {Object.entries(detail).map(([key, value]) => (
-              <Descriptions.Item key={key} label={key}>{String(value ?? '-')}</Descriptions.Item>
-            ))}
-          </Descriptions>
-        ) : null}
+        {detail ? <SchemaDetail record={detail as Record<string, any>} fields={('beforeStatus' in detail ? changeDetailFields.status : 'changeNo' in detail ? ('productCode' in detail ? changeDetailFields.productChange : changeDetailFields.pricingChange) : changeDetailFields.pricingVersion) as DetailField<Record<string, any>>[]} /> : null}
       </Modal>
 
       <Modal
         title={modalTitle}
         open={modalVisible}
-        onCancel={() => setModalVisible(false)}
+        onCancel={() => { setModalVisible(false); setEditingRecord(null); form.resetFields(); }}
         onOk={async () => {
-          await form.validateFields();
-          setModalVisible(false);
-          message.success('商品变更操作已记录');
+          const values = await form.validateFields();
+          if (modalTitle.includes('版本')) {
+            savePricingVersionMutation.mutate(values);
+          } else {
+            saveProductChangeMutation.mutate(values);
+          }
         }}
         width={760}
+        confirmLoading={saveProductChangeMutation.isPending || savePricingVersionMutation.isPending}
       >
         <Form form={form} layout="vertical">
           <div className="modal-grid">
-            <Form.Item name="code" label="商品 / 规则 / 变更单号" rules={[{ required: true, message: '请输入编码或变更单号' }]}><Input /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={auditStatusOptions} /></Form.Item>
-            <Form.Item className="modal-span-2" name="remark" label="处理说明"><Input.TextArea rows={4} /></Form.Item>
+            {modalTitle.includes('版本') ? (
+              <>
+                <Form.Item name="pricingRuleId" label="计费规则ID"><Input /></Form.Item>
+                <Form.Item name="ruleCode" label="规则编码" rules={[{ required: true, message: '请输入规则编码' }]}><Input /></Form.Item>
+                <Form.Item name="versionNo" label="版本号" rules={[{ required: true, message: '请输入版本号' }]}><Input /></Form.Item>
+                <Form.Item name="billingMode" label="计费模式"><Select options={billingModeOptions} /></Form.Item>
+                <Form.Item name="basePrice" label="基础价格"><Input /></Form.Item>
+                <Form.Item name="effectiveAt" label="生效时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                <Form.Item name="status" label="状态"><Select options={publishStatusOptions} /></Form.Item>
+              </>
+            ) : (
+              <>
+                <Form.Item name="productId" label="商品ID"><Input /></Form.Item>
+                <Form.Item name="productCode" label="商品编码" rules={[{ required: true, message: '请输入商品编码' }]}><Input /></Form.Item>
+                <Form.Item name="productName" label="商品名称"><Input /></Form.Item>
+                <Form.Item name="changeField" label="变更字段" rules={[{ required: true, message: '请输入变更字段' }]}><Input /></Form.Item>
+                <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} /></Form.Item>
+                <Form.Item className="modal-span-2" name="beforeValue" label="变更前"><Input.TextArea rows={3} /></Form.Item>
+                <Form.Item className="modal-span-2" name="afterValue" label="变更后"><Input.TextArea rows={3} /></Form.Item>
+                <Form.Item className="modal-span-2" name="remark" label="处理说明"><Input.TextArea rows={3} /></Form.Item>
+              </>
+            )}
           </div>
         </Form>
       </Modal>
