@@ -1,33 +1,85 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Statistic, message } from 'antd';
-import { GiftOutlined, PlusOutlined } from '@ant-design/icons';
+import { Button, Card, Checkbox, Col, Form, Input, InputNumber, Row, Select, Space, Statistic, message } from 'antd';
+import { GiftOutlined, PlusOutlined, SafetyOutlined, TeamOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useNavigate } from 'react-router-dom';
 import { activityRewardStatusOptions, activityStatusOptions, inviteRecordStatusOptions, rewardTypeOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
-import api, { type InviteActivityRecord } from '@/services/backendService';
+import api, { type InviteActivityRecord, type SelectOptionRecord } from '@/services/backendService';
 
 const statusMap = buildValueEnum(activityStatusOptions);
 const rewardStatusMap = buildValueEnum(activityRewardStatusOptions);
 const inviteRecordStatusMap = buildValueEnum(inviteRecordStatusOptions);
+const rewardTypeMap = buildValueEnum(rewardTypeOptions);
+const closedRewardTypeOptions = rewardTypeOptions.filter((item) => item.value !== 'POINTS');
+const qualifyConditionOptions = [
+  { label: '被邀请人完成注册', value: '被邀请人完成注册' },
+  { label: '被邀请人首单支付', value: '被邀请人首单支付' },
+  { label: '被邀请人累计消费达标', value: '被邀请人累计消费达标' },
+];
+const fraudCheckOptions = [
+  { label: '同手机号限制', value: '同手机号限制' },
+  { label: '同设备限制', value: '同设备限制' },
+  { label: '同支付账号限制', value: '同支付账号限制' },
+  { label: '异常频次拦截', value: '异常频次拦截' },
+];
+const recoveryModeOptions = [
+  { label: '不回收', value: 'NONE' },
+  { label: '订单退款后回收', value: 'REFUND' },
+  { label: '达标后冷静期内可回收', value: 'COOLING' },
+];
+
+const splitMultiValue = (value?: string) => String(value || '').split(/[;；,，]/).map((item) => item.trim()).filter(Boolean);
+const joinMultiValue = (value: unknown) => Array.isArray(value) ? value.join('；') : String(value || '');
+const optionLabel = (options: { label: string; value: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
+const qualifyText = (record: InviteActivityRecord) => [
+  record.qualifyCondition,
+  record.qualifyAmount ? `消费满 ${record.qualifyAmount} 元` : undefined,
+  record.qualifyDays ? `${record.qualifyDays} 天内完成` : undefined,
+].filter(Boolean).join(' / ') || '-';
+const recoveryText = (record: InviteActivityRecord) => [
+  optionLabel(recoveryModeOptions, record.recoveryMode),
+  record.recoveryDays ? `${record.recoveryDays} 天` : undefined,
+].filter(Boolean).join(' / ') || '-';
+
+const buildInvitePayload = (values: Record<string, any>) => ({ ...values, fraudChecks: joinMultiValue(values.fraudChecks) });
+const rewardSummary = (type?: string, amount?: number | string, couponId?: number, cardId?: number) => {
+  if (type === 'COUPON') return couponId ? `优惠券模板 #${couponId}` : '优惠券';
+  if (type === 'CARD') return cardId ? `服务卡产品 #${cardId}` : '服务卡';
+  if (type === 'POINTS') return amount ? `${amount}积分` : '积分';
+  return amount ? `${amount}元余额` : '余额';
+};
 
 const inviteDetailFields: DetailField<InviteActivityRecord>[] = [
   { name: 'activityCode', label: '活动编码' },
   { name: 'activityName', label: '活动名称' },
-  { name: 'qualifyRule', label: '达标规则' },
+  { name: 'qualifyCondition', label: '达标条件' },
+  { name: 'qualifyAmount', label: '消费门槛' },
+  { name: 'qualifyDays', label: '达标期限' },
   { name: 'inviterReward', label: '邀请人奖励' },
   { name: 'inviteeReward', label: '被邀请人奖励' },
-  { name: 'dailyLimit', label: '每日上限' },
+  { name: 'dailyLimitCount', label: '每日上限' },
   { name: 'inviteCount', label: '邀请数' },
   { name: 'qualifiedCount', label: '达标数' },
+  { name: 'inviterRewardType', label: '邀请人奖励类型', render: (value) => value ? rewardTypeMap[value as keyof typeof rewardTypeMap]?.text || value : '-' },
+  { name: 'inviterCouponTemplateId', label: '邀请人券模板' },
+  { name: 'inviterServiceCardId', label: '邀请人服务卡' },
+  { name: 'inviterRewardAmount', label: '邀请人金额/积分' },
+  { name: 'inviteeRewardType', label: '被邀请人奖励类型', render: (value) => value ? rewardTypeMap[value as keyof typeof rewardTypeMap]?.text || value : '-' },
+  { name: 'inviteeCouponTemplateId', label: '被邀请人券模板' },
+  { name: 'inviteeServiceCardId', label: '被邀请人服务卡' },
+  { name: 'inviteeRewardAmount', label: '被邀请人金额/积分' },
   { name: 'recordStatus', label: '记录状态', render: (value) => value ? inviteRecordStatusMap[value as keyof typeof inviteRecordStatusMap]?.text || value : '-' },
   { name: 'rewardStatus', label: '奖励状态', render: (value) => value ? rewardStatusMap[value as keyof typeof rewardStatusMap]?.text || value : '-' },
-  { name: 'antiFraud', label: '防刷规则' },
-  { name: 'recoveryRule', label: '奖励回收' },
+  { name: 'fraudChecks', label: '风控开关' },
+  { name: 'recoveryMode', label: '奖励回收' },
+  { name: 'recoveryDays', label: '回收期限' },
   { name: 'status', label: '状态', render: (value) => value ? statusMap[value as keyof typeof statusMap]?.text || value : '-' },
   { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
 ];
@@ -46,6 +98,8 @@ const InviteActivityManagement: React.FC = () => {
     queryKey: ['inviteActivities', keyword, statusFilter],
     queryFn: async () => (await api.marketing.inviteActivities.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: statusFilter })).data,
   });
+  const couponTemplateOptionsQuery = useQuery({ queryKey: ['inviteActivityCouponTemplateOptions'], queryFn: async () => (await api.marketing.couponTemplates.options({ status: 'ENABLED' })).data });
+  const serviceCardOptionsQuery = useQuery({ queryKey: ['inviteActivityServiceCardOptions'], queryFn: async () => (await api.asset.serviceCards.options({ status: 'ENABLED' })).data });
   const saveMutation = useMutation({
     mutationFn: async (values: Record<string, unknown>) => {
       if (values.id) {
@@ -68,6 +122,10 @@ const InviteActivityManagement: React.FC = () => {
   });
 
   const records = activityQuery.data?.records || [];
+  const couponTemplateOptions = (couponTemplateOptionsQuery.data || []) as SelectOptionRecord[];
+  const serviceCardOptions = (serviceCardOptionsQuery.data || []) as SelectOptionRecord[];
+  const inviterRewardType = Form.useWatch('inviterRewardType', form);
+  const inviteeRewardType = Form.useWatch('inviteeRewardType', form);
 
   const closeModal = () => {
     setModalVisible(false);
@@ -79,7 +137,7 @@ const InviteActivityManagement: React.FC = () => {
     () =>
       records.filter(
         (item) =>
-          containsKeyword(keyword, [item.activityCode, item.activityName, item.qualifyRule, item.inviterReward, item.inviteeReward]) &&
+          containsKeyword(keyword, [item.activityCode, item.activityName, item.qualifyCondition, item.inviterReward, item.inviteeReward, item.fraudChecks]) &&
           (!statusFilter || item.status === statusFilter)
       ),
     [keyword, records, statusFilter]
@@ -99,16 +157,18 @@ const InviteActivityManagement: React.FC = () => {
       ),
     },
     { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '活动 / 编码 / 达标规则 / 奖励' } },
-    { title: '达标规则', dataIndex: 'qualifyRule', width: 180, search: false },
+    { title: '达标规则', dataIndex: 'qualifyCondition', width: 220, search: false, render: (_, record) => qualifyText(record) },
     { title: '邀请人奖励', dataIndex: 'inviterReward', width: 160, search: false },
     { title: '被邀请人奖励', dataIndex: 'inviteeReward', width: 160, search: false },
+    { title: '邀请人奖励配置', dataIndex: 'inviterRewardType', width: 180, search: false, render: (_, record) => rewardSummary(record.inviterRewardType, record.inviterRewardAmount, record.inviterCouponTemplateId, record.inviterServiceCardId) },
+    { title: '被邀请人奖励配置', dataIndex: 'inviteeRewardType', width: 180, search: false, render: (_, record) => rewardSummary(record.inviteeRewardType, record.inviteeRewardAmount, record.inviteeCouponTemplateId, record.inviteeServiceCardId) },
     { title: '邀请数', dataIndex: 'inviteCount', width: 100, search: false },
     { title: '达标数', dataIndex: 'qualifiedCount', width: 100, search: false },
     { title: '记录状态', dataIndex: 'recordStatus', width: 120, valueType: 'select', valueEnum: inviteRecordStatusMap, render: (_, record) => renderStatusTag(record.recordStatus, inviteRecordStatusMap) },
     { title: '奖励状态', dataIndex: 'rewardStatus', width: 120, valueType: 'select', valueEnum: rewardStatusMap, render: (_, record) => renderStatusTag(record.rewardStatus, rewardStatusMap) },
-    { title: '防刷规则', dataIndex: 'antiFraud', width: 220, search: false },
-    { title: '奖励回收', dataIndex: 'recoveryRule', width: 180, search: false },
-    { title: '每日上限', dataIndex: 'dailyLimit', width: 120, search: false },
+    { title: '防刷规则', dataIndex: 'fraudChecks', width: 220, search: false },
+    { title: '奖励回收', dataIndex: 'recoveryMode', width: 180, search: false, render: (_, record) => recoveryText(record) },
+    { title: '每日上限', dataIndex: 'dailyLimitCount', width: 120, search: false },
     { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
     {
@@ -118,7 +178,7 @@ const InviteActivityManagement: React.FC = () => {
       render: (_, record) => (
         <Space>
           <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-          <Button size="small" onClick={() => { setEditingRecord(record); form.setFieldsValue(record); setModalVisible(true); }}>编辑</Button>
+          <Button size="small" onClick={() => { setEditingRecord(record); form.setFieldsValue({ ...record, fraudChecks: splitMultiValue(record.fraudChecks) } as any); setModalVisible(true); }}>编辑</Button>
           <Button
             size="small"
             onClick={() => {
@@ -134,10 +194,11 @@ const InviteActivityManagement: React.FC = () => {
 
   const handleSubmit = async () => {
     const values = await form.validateFields();
+    const payload = buildInvitePayload(values as Record<string, any>);
     if (editingRecord) {
-      await saveMutation.mutateAsync({ ...values, id: editingRecord.id } as Record<string, unknown>);
+      await saveMutation.mutateAsync({ ...payload, id: editingRecord.id } as Record<string, unknown>);
     } else {
-      await saveMutation.mutateAsync(values as unknown as Record<string, unknown>);
+      await saveMutation.mutateAsync(payload as Record<string, unknown>);
     }
     closeModal();
   };
@@ -149,8 +210,8 @@ const InviteActivityManagement: React.FC = () => {
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="邀请活动" value={records.length} suffix="个" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="进行中" value={records.filter((item) => item.status === 'RUNNING').length} suffix="个" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="防刷维度" value={4} suffix="项" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="奖励回收规则" value={records.length} suffix="类" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="防刷维度" value={new Set(records.flatMap((item) => String(item.fraudChecks || '').split(/[;；]/).filter(Boolean))).size} suffix="项" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="奖励回收规则" value={new Set(records.map((item) => item.recoveryMode).filter(Boolean)).size} suffix="类" /></Card></Col>
       </Row>
 
       <ProTable<InviteActivityRecord>
@@ -164,7 +225,7 @@ const InviteActivityManagement: React.FC = () => {
         scroll={{ x: 1980 }}
         toolBarRender={() => [
           <Button key="fraud" onClick={() => navigate('/risk-schedule-alarms')}>防刷策略</Button>,
-          <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => { setEditingRecord(null); form.resetFields(); form.setFieldsValue({ status: 'DRAFT' }); setModalVisible(true); }}>
+          <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => { setEditingRecord(null); form.resetFields(); form.setFieldsValue({ status: 'DRAFT', qualifyCondition: '被邀请人首单支付', rewardStatus: 'PENDING', recordStatus: 'INVITED', inviterRewardType: 'BALANCE', inviteeRewardType: 'COUPON', recoveryMode: 'REFUND', fraudChecks: ['同手机号限制', '同设备限制'] } as any); setModalVisible(true); }}>
             新建邀请活动
           </Button>,
         ]}
@@ -178,33 +239,65 @@ const InviteActivityManagement: React.FC = () => {
         }}
       />
 
-      <Modal title={editingRecord ? `编辑邀请活动 · ${editingRecord.activityName}` : '新建邀请活动'} open={modalVisible} onOk={handleSubmit} confirmLoading={saveMutation.isPending} onCancel={closeModal} width={860}>
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="activityCode" label="活动编码" rules={[{ required: true, message: '请输入活动编码' }]}><Input /></Form.Item>
-            <Form.Item name="activityName" label="活动名称" rules={[{ required: true, message: '请输入活动名称' }]}><Input /></Form.Item>
-            <Form.Item name="qualifyRule" label="达标规则"><Input /></Form.Item>
-            <Form.Item name="dailyLimit" label="每日上限"><Input /></Form.Item>
-            <Form.Item name="inviterReward" label="邀请人奖励"><Input /></Form.Item>
-            <Form.Item name="inviteeReward" label="被邀请人奖励"><Input /></Form.Item>
-            <Form.Item name="inviterRewardType" label="邀请人奖励类型"><Select options={rewardTypeOptions} /></Form.Item>
-            <Form.Item name="inviteeRewardType" label="被邀请人奖励类型"><Select options={rewardTypeOptions} /></Form.Item>
-            <Form.Item name="inviteCount" label="邀请数"><Input /></Form.Item>
-            <Form.Item name="qualifiedCount" label="达标数"><Input /></Form.Item>
-            <Form.Item name="recordStatus" label="记录状态"><Select options={inviteRecordStatusOptions} /></Form.Item>
-            <Form.Item name="rewardStatus" label="奖励状态"><Select options={activityRewardStatusOptions} /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={activityStatusOptions} /></Form.Item>
-            <Form.Item className="modal-span-2" name="antiFraud" label="防刷规则"><Input.TextArea rows={3} /></Form.Item>
-            <Form.Item className="modal-span-2" name="recoveryRule" label="奖励回收规则"><Input.TextArea rows={3} /></Form.Item>
+      <BusinessEditorModal
+        eyebrow="邀请活动配置"
+        title={editingRecord ? `编辑邀请活动 · ${editingRecord.activityName}` : '新建邀请活动'}
+        subtitle="把达标条件、双方奖励、记录状态、回收和防刷拆成可配置字段，提交时生成后台规则描述。"
+        meta={[editingRecord ? '编辑' : '新增', '邀请裂变']}
+        open={modalVisible}
+        onOk={handleSubmit}
+        confirmLoading={saveMutation.isPending}
+        onCancel={closeModal}
+        width={1120}
+        okText="保存邀请活动"
+      >
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<TeamOutlined />} title="活动基础" desc="定义邀请活动的编码、名称和运行状态。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="activityCode" label="活动编码" rules={[{ required: true, message: '请输入活动编码' }]}><Input placeholder="例如：INVITE-202605" /></Form.Item>
+                <Form.Item name="activityName" label="活动名称" rules={[{ required: true, message: '请输入活动名称' }]}><Input placeholder="例如：老带新首洗奖励" /></Form.Item>
+                <Form.Item name="status" label="活动状态"><Select options={activityStatusOptions} placeholder="请选择活动状态" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<GiftOutlined />} title="达标与奖励" desc="配置被邀请人的达标门槛、双方奖励内容和奖励统计状态。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="qualifyCondition" label="达标条件"><Select options={qualifyConditionOptions} placeholder="请选择达标条件" /></Form.Item>
+                <Form.Item name="qualifyAmount" label="消费门槛"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
+                <Form.Item name="qualifyDays" label="达标期限"><InputNumber min={1} precision={0} addonAfter="天" style={{ width: '100%' }} placeholder="7" /></Form.Item>
+                <Form.Item name="dailyLimitCount" label="每日奖励上限"><InputNumber min={0} precision={0} addonAfter="次" style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                <Form.Item name="inviterRewardType" label="邀请人奖励类型"><Select options={closedRewardTypeOptions} placeholder="请选择奖励类型" /></Form.Item>
+                <Form.Item name="inviteeRewardType" label="被邀请人奖励类型"><Select options={closedRewardTypeOptions} placeholder="请选择奖励类型" /></Form.Item>
+                {inviterRewardType === 'BALANCE' ? <Form.Item name="inviterRewardAmount" label="邀请人奖励金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="例如：10" /></Form.Item> : null}
+                {inviterRewardType === 'COUPON' ? <Form.Item name="inviterCouponTemplateId" label="邀请人券模板"><Select showSearch optionFilterProp="label" options={couponTemplateOptions} placeholder="请选择券模板" /></Form.Item> : null}
+                {(inviterRewardType === 'CARD' || inviterRewardType === 'SERVICE_CARD') ? <Form.Item name="inviterServiceCardId" label="邀请人服务卡"><Select showSearch optionFilterProp="label" options={serviceCardOptions} placeholder="请选择服务卡产品" /></Form.Item> : null}
+                {inviteeRewardType === 'BALANCE' ? <Form.Item name="inviteeRewardAmount" label="被邀请人奖励金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="例如：10" /></Form.Item> : null}
+                {inviteeRewardType === 'COUPON' ? <Form.Item name="inviteeCouponTemplateId" label="被邀请人券模板"><Select showSearch optionFilterProp="label" options={couponTemplateOptions} placeholder="请选择券模板" /></Form.Item> : null}
+                {(inviteeRewardType === 'CARD' || inviteeRewardType === 'SERVICE_CARD') ? <Form.Item name="inviteeServiceCardId" label="被邀请人服务卡"><Select showSearch optionFilterProp="label" options={serviceCardOptions} placeholder="请选择服务卡产品" /></Form.Item> : null}
+                <Form.Item name="inviterReward" label="邀请人奖励说明"><Input placeholder="例如：邀请成功奖励，系统按上方配置发放" /></Form.Item>
+                <Form.Item name="inviteeReward" label="被邀请人奖励说明"><Input placeholder="例如：新客首单奖励，系统按上方配置发放" /></Form.Item>
+                <Form.Item name="inviteCount" label="邀请数"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                <Form.Item name="qualifiedCount" label="达标数"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                <Form.Item name="recordStatus" label="记录状态"><Select options={inviteRecordStatusOptions} placeholder="请选择记录状态" /></Form.Item>
+                <Form.Item name="rewardStatus" label="奖励状态"><Select options={activityRewardStatusOptions} placeholder="请选择奖励状态" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<SafetyOutlined />} title="回收与风控" desc="明确奖励回收方式、回收期限和防刷开关。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="recoveryMode" label="奖励回收"><Select options={recoveryModeOptions} placeholder="请选择回收方式" /></Form.Item>
+                <Form.Item name="recoveryDays" label="回收期限"><InputNumber min={1} precision={0} addonAfter="天" style={{ width: '100%' }} placeholder="7" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="fraudChecks" label="风控开关"><Checkbox.Group options={fraudCheckOptions} /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal title="邀请活动详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={820}>
+      <BusinessDetailModal title="邀请活动详情" open={!!detail} onCancel={() => setDetail(null)} width={820}>
         {detail ? (
           <SchemaDetail record={detail} fields={inviteDetailFields} column={2} labelWidth={110} />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
     </div>
   );

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
-import { SettingOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
+import { ApiOutlined, PictureOutlined, SettingOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -12,7 +12,9 @@ import {
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { buildValueEnum, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag, safeJsonParse } from '@/pages/Business/shared';
 import api, {
   type BannerConfigRecord,
   type InvoiceApplyRecord,
@@ -24,13 +26,27 @@ import api, {
 const publishStatusMap = buildValueEnum(publishStatusOptions);
 const statusMap = buildValueEnum(statusOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
+const pageCodeOptions = [
+  { value: 'HOME', label: '首页' },
+  { value: 'STORE_DETAIL', label: '门店详情' },
+  { value: 'ORDER_LIST', label: '订单列表' },
+  { value: 'MINE', label: '我的页面' },
+];
+const moduleDisplayOptions = [
+  { value: 'SHOW', label: '展示' },
+  { value: 'HIDE', label: '隐藏' },
+];
+const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
+const parseMiniConfig = (configJson?: string) =>
+  safeJsonParse<{ displayMode?: string; jumpValue?: string }>(configJson, {});
 
 const opsConfigDetailFields: Record<'mini' | 'banner' | 'evaluation' | 'invoice' | 'openapi', DetailField<any>[]> = {
   mini: [
     { name: 'moduleCode', label: '模块编码' },
     { name: 'moduleName', label: '模块名称' },
     { name: 'pageCode', label: '页面编码' },
-    { name: 'configJson', label: '配置' },
+    { name: 'displayMode', label: '展示状态', render: (value) => optionLabel(moduleDisplayOptions, value) || '-' },
+    { name: 'jumpValue', label: '跳转目标' },
     { name: 'status', label: '状态' },
     { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
   ],
@@ -79,7 +95,7 @@ const OperationsConfigManagement: React.FC = () => {
   const [detail, setDetail] = useState<MiniProgramPageConfigRecord | BannerConfigRecord | ServiceEvaluationRecord | InvoiceApplyRecord | OpenApiClientRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
-  const [form] = Form.useForm<{ name: string; status: string; remark: string }>();
+  const [form] = Form.useForm<{ name: string; status: string | number; moduleCode?: string; pageCode?: string; displayMode?: string; sortNo?: number; jumpValue?: string; imageFileAssetId?: string; callbackUrl?: string; clientCode?: string; appKey?: string }>();
 
   const queryParams = useMemo(() => ({ keyword, current: 1, size: 50 }), [keyword]);
   const miniQuery = useQuery({ queryKey: ['ops-config-mini', queryParams], queryFn: () => api.miniProgramOps.pageConfigs.page(queryParams) });
@@ -88,7 +104,14 @@ const OperationsConfigManagement: React.FC = () => {
   const invoiceQuery = useQuery({ queryKey: ['ops-config-invoice', queryParams], queryFn: () => api.invoiceApply.page(queryParams) });
   const openApiQuery = useQuery({ queryKey: ['ops-config-open-api', queryParams], queryFn: () => api.openApi.clients.page(queryParams) });
 
-  const miniConfigs = miniQuery.data?.data.records ?? [];
+  const miniConfigs = (miniQuery.data?.data.records ?? []).map((record) => {
+    const parsed = parseMiniConfig(record.configJson);
+    return {
+      ...record,
+      displayMode: parsed.displayMode,
+      jumpValue: parsed.jumpValue,
+    };
+  });
   const banners = bannerQuery.data?.data.records ?? [];
   const evaluations = evaluationQuery.data?.data.records ?? [];
   const invoices = invoiceQuery.data?.data.records ?? [];
@@ -97,6 +120,7 @@ const OperationsConfigManagement: React.FC = () => {
   const openModal = (title: string) => {
     setModalTitle(title);
     form.resetFields();
+    form.setFieldsValue({ status: 1, pageCode: 'HOME', displayMode: 'SHOW', sortNo: 1 });
     setModalVisible(true);
   };
 
@@ -104,7 +128,8 @@ const OperationsConfigManagement: React.FC = () => {
     { title: '模块编码', dataIndex: 'moduleCode', width: 180 },
     { title: '模块名称', dataIndex: 'moduleName', width: 160 },
     { title: '页面编码', dataIndex: 'pageCode', width: 140 },
-    { title: '配置', dataIndex: 'configJson', width: 260, ellipsis: true },
+    { title: '展示状态', dataIndex: 'displayMode', width: 120, render: (_, record) => optionLabel(moduleDisplayOptions, record.displayMode) || '-' },
+    { title: '跳转目标', dataIndex: 'jumpValue', width: 240, ellipsis: true },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, statusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
@@ -164,15 +189,10 @@ const OperationsConfigManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="开放接口" value={openApis.length} suffix="个" /></Card></Col>
       </Row>
 
-      <ProTable
-        style={{ marginBottom: 16 }}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '输入模块、订单、发票、接口等关键词' } }]}
-        dataSource={[]}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        options={false}
-        pagination={false}
-        onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-        onReset={() => setKeyword('')}
+      <KeywordSearchBar
+        value={keyword}
+        placeholder="输入模块、订单、发票、接口等关键词"
+        onSearch={setKeyword}
       />
 
       <Tabs
@@ -185,7 +205,7 @@ const OperationsConfigManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title="运营配置详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -194,37 +214,83 @@ const OperationsConfigManagement: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow="运营配置"
         title={modalTitle}
+        subtitle="把小程序模块、Banner 和开放接口拆成明确运营字段，避免直接维护技术配置串或大段说明文本。"
+        meta={[modalTitle || '运营配置', '平台运营']}
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={async () => {
           const values = await form.validateFields();
           if (modalTitle === '新建小程序配置') {
-            await api.miniProgramOps.pageConfigs.add({ moduleName: values.name, moduleCode: values.name, pageCode: 'HOME', configJson: values.remark, status: 1 });
+            await api.miniProgramOps.pageConfigs.add({
+              moduleName: values.name,
+              moduleCode: values.moduleCode || values.name,
+              pageCode: values.pageCode || 'HOME',
+              configJson: JSON.stringify({
+                displayMode: values.displayMode || 'SHOW',
+                jumpValue: values.jumpValue || '',
+              }),
+              sortNo: values.sortNo,
+              status: values.status ?? 1,
+            });
             await queryClient.invalidateQueries({ queryKey: ['ops-config-mini'] });
           } else if (modalTitle === '新建 Banner') {
-            await api.miniProgramOps.banners.add({ bannerName: values.name, pageCode: 'HOME', jumpValue: values.remark, status: 1 });
+            await api.miniProgramOps.banners.add({ bannerName: values.name, pageCode: values.pageCode || 'HOME', imageFileAssetId: values.imageFileAssetId, jumpValue: values.jumpValue, sortNo: values.sortNo, status: values.status ?? 1 });
             await queryClient.invalidateQueries({ queryKey: ['ops-config-banner'] });
           } else if (modalTitle === '新建开放接口') {
-            await api.openApi.clients.add({ clientName: values.name, clientCode: values.name, appKey: values.name, callbackUrl: values.remark, status: 1 });
+            await api.openApi.clients.add({ clientName: values.name, clientCode: values.clientCode || values.name, appKey: values.appKey || values.name, callbackUrl: values.callbackUrl, status: values.status ?? 1 });
             await queryClient.invalidateQueries({ queryKey: ['ops-config-open-api'] });
           }
           setModalVisible(false);
           message.success('已保存到后端');
         }}
-        width={760}
+        width={980}
+        okText="保存配置"
       >
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="name" label="名称 / 单号" rules={[{ required: true, message: '请输入名称或单号' }]}><Input /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={publishStatusOptions} /></Form.Item>
-            <Form.Item className="modal-span-2" name="remark" label="说明"><Input.TextArea rows={4} /></Form.Item>
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<SettingOutlined />} title="基础信息" desc="维护名称、页面和状态。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}><Input placeholder="例如：首页洗车活动 Banner" /></Form.Item>
+                <Form.Item name="pageCode" label="页面"><Select options={pageCodeOptions} placeholder="请选择页面" /></Form.Item>
+                <Form.Item name="status" label="状态"><Select options={statusOptions} placeholder="请选择状态" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            {modalTitle === '新建小程序配置' ? (
+              <BusinessEditorSection icon={<SettingOutlined />} title="模块配置" desc="用模块编码、展示状态和排序生成配置内容。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="moduleCode" label="模块编码"><Input placeholder="例如：HOME_CAR_WASH" /></Form.Item>
+                  <Form.Item name="displayMode" label="展示状态"><Select options={moduleDisplayOptions} placeholder="请选择展示状态" /></Form.Item>
+                  <Form.Item name="sortNo" label="排序"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="1" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="jumpValue" label="跳转目标"><Input placeholder="例如：/pages/store/list" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+            ) : null}
+            {modalTitle === '新建 Banner' ? (
+              <BusinessEditorSection icon={<PictureOutlined />} title="Banner 配置" desc="配置图片文件、跳转地址和排序。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="imageFileAssetId" label="图片文件ID"><Input placeholder="例如：FILE-20260510-001" /></Form.Item>
+                  <Form.Item name="jumpValue" label="跳转目标"><Input placeholder="例如：/pages/activity/detail?id=1" /></Form.Item>
+                  <Form.Item name="sortNo" label="排序"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="1" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+            ) : null}
+            {modalTitle === '新建开放接口' ? (
+              <BusinessEditorSection icon={<ApiOutlined />} title="接口客户端" desc="配置客户端编码、AppKey 和回调地址。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="clientCode" label="客户端编码"><Input placeholder="例如：PARTNER_API" /></Form.Item>
+                  <Form.Item name="appKey" label="AppKey"><Input placeholder="请输入 AppKey" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="callbackUrl" label="回调地址"><Input placeholder="https://example.com/callback" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+            ) : null}
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

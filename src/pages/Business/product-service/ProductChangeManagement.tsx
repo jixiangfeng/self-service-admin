@@ -1,15 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
-import { HistoryOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, Row, Select, Statistic, Tabs, message } from 'antd';
+import { AuditOutlined, ClockCircleOutlined, HistoryOutlined, TagsOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { auditStatusOptions, billingModeOptions, publishStatusOptions } from '@/constants/businessCatalog';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
 import type { PricingChangeLogRecord, PricingRuleVersionRecord, ProductChangeLogRecord, ProductStatusLogRecord } from '@/services/backendService';
-import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 
 const publishStatusMap = buildValueEnum(publishStatusOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
@@ -67,11 +69,20 @@ const ProductChangeManagement: React.FC = () => {
   const productChangeQuery = useQuery({ queryKey: ['productChangeLogs'], queryFn: async () => (await api.productChangeLog.page({ current: 1, size: 500 })).data });
   const pricingVersionQuery = useQuery({ queryKey: ['pricingRuleVersions'], queryFn: async () => (await api.pricingRuleVersion.page({ current: 1, size: 500 })).data });
   const pricingChangeQuery = useQuery({ queryKey: ['pricingChangeLogs'], queryFn: async () => (await api.pricingChangeLog.page({ current: 1, size: 500 })).data });
+  const serviceProductsQuery = useQuery({ queryKey: ['serviceProductsForChangeCenter'], queryFn: async () => (await api.serviceProduct.page({ current: 1, size: 500 })).data });
+  const pricingRulesQuery = useQuery({ queryKey: ['pricingRulesForChangeCenter'], queryFn: async () => (await api.pricingRule.page({ current: 1, size: 500 })).data });
+  const pricingRuleOptionsQuery = useQuery({ queryKey: ['pricingRuleOptionsForChangeCenter'], queryFn: async () => (await api.pricingRule.options()).data });
 
   const statusLogs = statusQuery.data?.records || [];
   const productChanges = productChangeQuery.data?.records || [];
   const pricingVersions = pricingVersionQuery.data?.records || [];
   const pricingChanges = pricingChangeQuery.data?.records || [];
+  const serviceProducts = serviceProductsQuery.data?.records || [];
+  const pricingRules = pricingRulesQuery.data?.records || [];
+  const serviceProductOptions = serviceProducts.map((item) => ({ value: item.id, label: `${item.productName}（${item.productCode}）` }));
+  const pricingRuleOptions = pricingRuleOptionsQuery.data || pricingRules.map((item) => ({ value: item.id, label: item.ruleName }));
+  const serviceProductMap = useMemo(() => new Map(serviceProducts.map((item) => [item.id, item])), [serviceProducts]);
+  const pricingRuleMap = useMemo(() => new Map(pricingRules.map((item) => [item.id, item])), [pricingRules]);
 
   const saveProductChangeMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) => editingRecord && 'productCode' in editingRecord
@@ -114,6 +125,26 @@ const ProductChangeManagement: React.FC = () => {
       form.setFieldsValue({ auditStatus: 'APPROVED' });
     }
     setModalVisible(true);
+  };
+
+  const handleProductChange = (value?: number) => {
+    const product = value ? serviceProductMap.get(value) : undefined;
+    form.setFieldsValue({
+      productCode: product?.productCode,
+      productName: product?.productName,
+    });
+  };
+
+  const handlePricingRuleChange = (value?: number) => {
+    const rule = value ? pricingRuleMap.get(value) : undefined;
+    form.setFieldsValue({
+      ruleCode: rule?.ruleCode,
+      versionNo: rule?.versionNo,
+      billingMode: rule?.minutePrice != null ? 'TIME' : rule?.countPrice != null ? 'COUNT' : 'PACKAGE',
+      basePrice: rule?.startPrice ?? rule?.minutePrice ?? rule?.countPrice,
+      effectiveAt: rule?.effectiveAt,
+      status: rule?.status === 0 ? 'OFFLINE' : 'PUBLISHED',
+    });
   };
 
   const statusColumns = useMemo<ProColumns<ProductStatusLogRecord>[]>(() => [
@@ -181,15 +212,10 @@ const ProductChangeManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="规则变更" value={pricingChanges.length} suffix="条" /></Card></Col>
       </Row>
 
-      <ProTable
-        style={{ marginBottom: 16 }}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '输入商品、规则、版本、变更单关键词' } }]}
-        dataSource={[]}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        options={false}
-        pagination={false}
-        onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-        onReset={() => setKeyword('')}
+      <KeywordSearchBar
+        value={keyword}
+        placeholder="输入商品、规则、版本、变更单关键词"
+        onSearch={setKeyword}
       />
 
       <Tabs
@@ -201,12 +227,15 @@ const ProductChangeManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title="商品变更详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? <SchemaDetail record={detail as Record<string, any>} fields={('beforeStatus' in detail ? changeDetailFields.status : 'changeNo' in detail ? ('productCode' in detail ? changeDetailFields.productChange : changeDetailFields.pricingChange) : changeDetailFields.pricingVersion) as DetailField<Record<string, any>>[]} /> : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow={editingRecord ? '商品变更维护' : '商品变更新增'}
         title={modalTitle}
+        subtitle={modalTitle.includes('版本') ? '记录计费规则版本、计费模式、基础价格、生效时间和发布状态，保证价格发布可追溯。' : '记录商品字段变更、变更前后值、审核状态和处理说明，保证商品资料修改可审计。'}
+        meta={[modalTitle.includes('版本') ? '计费版本' : '商品变更', editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
         onCancel={() => { setModalVisible(false); setEditingRecord(null); form.resetFields(); }}
         onOk={async () => {
@@ -217,36 +246,60 @@ const ProductChangeManagement: React.FC = () => {
             saveProductChangeMutation.mutate(values);
           }
         }}
-        width={760}
+        width={980}
         confirmLoading={saveProductChangeMutation.isPending || savePricingVersionMutation.isPending}
+        okText={editingRecord ? '保存变更' : '写入记录'}
       >
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
             {modalTitle.includes('版本') ? (
               <>
-                <Form.Item name="pricingRuleId" label="计费规则ID"><Input /></Form.Item>
-                <Form.Item name="ruleCode" label="规则编码" rules={[{ required: true, message: '请输入规则编码' }]}><Input /></Form.Item>
-                <Form.Item name="versionNo" label="版本号" rules={[{ required: true, message: '请输入版本号' }]}><Input /></Form.Item>
-                <Form.Item name="billingMode" label="计费模式"><Select options={billingModeOptions} /></Form.Item>
-                <Form.Item name="basePrice" label="基础价格"><Input /></Form.Item>
-                <Form.Item name="effectiveAt" label="生效时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-                <Form.Item name="status" label="状态"><Select options={publishStatusOptions} /></Form.Item>
+                <BusinessEditorSection icon={<TagsOutlined />} title="规则版本归属" desc="把版本记录挂到具体计费规则，并明确规则编码和版本号，方便发布和回滚定位。">
+                  <div className="merchant-editor-fields">
+                    <Form.Item name="pricingRuleId" label="计费规则"><Select showSearch optionFilterProp="label" options={pricingRuleOptions} placeholder="请选择计费规则" onChange={handlePricingRuleChange} /></Form.Item>
+                    <Form.Item name="ruleCode" label="规则编码" rules={[{ required: true, message: '请输入规则编码' }]}><Input placeholder="例如：PR-CAR-WASH-001" /></Form.Item>
+                    <Form.Item name="versionNo" label="版本号" rules={[{ required: true, message: '请输入版本号' }]}><Input placeholder="例如：PR-V202605" /></Form.Item>
+                    <Form.Item name="billingMode" label="计费模式"><Select options={billingModeOptions} placeholder="请选择计费模式" /></Form.Item>
+                  </div>
+                </BusinessEditorSection>
+
+                <BusinessEditorSection icon={<ClockCircleOutlined />} title="价格发布" desc="记录基础价格、生效时间和发布状态，形成计费版本从创建到发布的闭环。">
+                  <div className="merchant-editor-fields">
+                    <Form.Item name="basePrice" label="基础价格"><Input placeholder="例如：29.00" /></Form.Item>
+                    <Form.Item name="effectiveAt" label="生效时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                    <Form.Item name="status" label="状态"><Select options={publishStatusOptions} placeholder="请选择发布状态" /></Form.Item>
+                  </div>
+                </BusinessEditorSection>
               </>
             ) : (
               <>
-                <Form.Item name="productId" label="商品ID"><Input /></Form.Item>
-                <Form.Item name="productCode" label="商品编码" rules={[{ required: true, message: '请输入商品编码' }]}><Input /></Form.Item>
-                <Form.Item name="productName" label="商品名称"><Input /></Form.Item>
-                <Form.Item name="changeField" label="变更字段" rules={[{ required: true, message: '请输入变更字段' }]}><Input /></Form.Item>
-                <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} /></Form.Item>
-                <Form.Item className="modal-span-2" name="beforeValue" label="变更前"><Input.TextArea rows={3} /></Form.Item>
-                <Form.Item className="modal-span-2" name="afterValue" label="变更后"><Input.TextArea rows={3} /></Form.Item>
-                <Form.Item className="modal-span-2" name="remark" label="处理说明"><Input.TextArea rows={3} /></Form.Item>
+                <BusinessEditorSection icon={<TagsOutlined />} title="商品归属" desc="记录商品 ID、编码和名称，确保每条变更都能回到具体商品主档。">
+                  <div className="merchant-editor-fields">
+                    <Form.Item name="productId" label="服务商品"><Select showSearch optionFilterProp="label" options={serviceProductOptions} placeholder="请选择服务商品" onChange={handleProductChange} /></Form.Item>
+                    <Form.Item name="productCode" label="商品编码" rules={[{ required: true, message: '请输入商品编码' }]}><Input placeholder="例如：SP-CAR-WASH-001" /></Form.Item>
+                    <Form.Item name="productName" label="商品名称"><Input placeholder="例如：标准洗车套餐" /></Form.Item>
+                    <Form.Item name="changeField" label="变更字段" rules={[{ required: true, message: '请输入变更字段' }]}><Input placeholder="例如：priceDesc / rightsContent / status" /></Form.Item>
+                  </div>
+                </BusinessEditorSection>
+
+                <BusinessEditorSection icon={<HistoryOutlined />} title="变更内容" desc="完整记录字段变更前后值，便于审核、回溯和售后排查。">
+                  <div className="merchant-editor-fields merchant-editor-fields--two">
+                    <Form.Item name="beforeValue" label="变更前"><Input.TextArea rows={3} placeholder="记录调整前的字段值或配置片段" /></Form.Item>
+                    <Form.Item name="afterValue" label="变更后"><Input.TextArea rows={3} placeholder="记录调整后的字段值或配置片段" /></Form.Item>
+                  </div>
+                </BusinessEditorSection>
+
+                <BusinessEditorSection icon={<AuditOutlined />} title="审核处理" desc="补齐审核状态和处理说明，保证商品变更不是孤立记录。">
+                  <div className="merchant-editor-fields merchant-editor-fields--two">
+                    <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
+                    <Form.Item className="merchant-editor-field-span-2" name="remark" label="处理说明"><Input.TextArea rows={3} placeholder="填写变更原因、审批结论、回滚要求或上线注意事项" /></Form.Item>
+                  </div>
+                </BusinessEditorSection>
               </>
             )}
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

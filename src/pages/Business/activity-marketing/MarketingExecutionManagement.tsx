@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
-import { FundProjectionScreenOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
+import { CheckCircleOutlined, FundProjectionScreenOutlined, NotificationOutlined, WalletOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
@@ -12,13 +12,65 @@ import {
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
-import api, { type CouponIssueRecord, type CouponUsageRecord, type MarketingBudgetRecord, type MarketingParticipationRecord, type MarketingRewardRecord } from '@/services/backendService';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import api, { type CouponIssueRecord, type CouponUsageRecord, type MarketingBudgetRecord, type MarketingParticipationRecord, type MarketingRewardRecord, type SelectOptionRecord } from '@/services/backendService';
 
 const activityStatusMap = buildValueEnum(activityStatusOptions);
 const rewardStatusMap = buildValueEnum(activityRewardStatusOptions);
 const rewardTypeMap = buildValueEnum(rewardTypeOptions);
 const writeOffStatusMap = buildValueEnum(writeOffStatusOptions);
+
+interface ExecutionActionFormValues {
+  bizNo: string;
+  status?: string;
+  amount?: number;
+  userId?: number;
+  userName?: string;
+  rewardType?: string;
+  couponTemplateId?: number;
+  serviceCardId?: number;
+  totalTimes?: number;
+  validDays?: number;
+  discountAmount?: number;
+  processScene?: string;
+  processAction?: string;
+  notifyUser?: string;
+  approvalRequired?: string;
+  owner?: string;
+  supplement?: string;
+}
+
+const processSceneOptions = [
+  { value: 'USER_APPEAL', label: '用户申诉' },
+  { value: 'DATA_REPAIR', label: '数据补录' },
+  { value: 'ACTIVITY_REVIEW', label: '活动复核' },
+  { value: 'FINANCE_RECONCILE', label: '财务对账' },
+];
+
+const rewardActionOptions = [
+  { value: 'ISSUE_NOW', label: '立即补发' },
+  { value: 'MARK_PENDING', label: '转待确认' },
+  { value: 'REJECT_ISSUE', label: '不予发放' },
+];
+const closedRewardTypeOptions = rewardTypeOptions.filter((item) => item.value !== 'POINTS');
+
+const budgetActionOptions = [
+  { value: 'ADD_BUDGET', label: '追加预算' },
+  { value: 'FREEZE_BUDGET', label: '冻结预算' },
+  { value: 'RELEASE_BUDGET', label: '释放冻结' },
+  { value: 'DEDUCT_BUDGET', label: '扣减预算' },
+];
+
+const yesNoOptions = [
+  { value: 'YES', label: '是' },
+  { value: 'NO', label: '否' },
+];
+
+const compactJoin = (items: Array<string | undefined | null | false>) => items.filter(Boolean).join('；');
+
+const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
 
 const executionDetailFields: Record<'participation' | 'reward' | 'budget' | 'issue' | 'usage', DetailField<any>[]> = {
   participation: [
@@ -75,12 +127,15 @@ const MarketingExecutionManagement: React.FC = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [currentId, setCurrentId] = useState<number | null>(null);
-  const [form] = Form.useForm<{ bizNo: string; status: string; remark: string; amount?: string }>();
+  const [form] = Form.useForm<ExecutionActionFormValues>();
   const participationQuery = useQuery({ queryKey: ['marketingParticipations', keyword], queryFn: async () => (await api.marketing.participations.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
   const rewardQuery = useQuery({ queryKey: ['marketingRewards', keyword], queryFn: async () => (await api.marketing.rewards.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
   const budgetQuery = useQuery({ queryKey: ['marketingBudgets', keyword], queryFn: async () => (await api.marketing.budgets.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
   const issueQuery = useQuery({ queryKey: ['marketingCouponIssues', keyword], queryFn: async () => (await api.asset.couponIssues.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
   const usageQuery = useQuery({ queryKey: ['marketingCouponUsages', keyword], queryFn: async () => (await api.asset.couponUsages.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
+  const userOptionsQuery = useQuery({ queryKey: ['marketingExecutionUserOptions'], queryFn: async () => (await api.asset.userOptions({ pageSize: 500 })).data });
+  const couponTemplateOptionsQuery = useQuery({ queryKey: ['marketingExecutionCouponTemplateOptions'], queryFn: async () => (await api.marketing.couponTemplates.options({ status: 'ENABLED' })).data });
+  const serviceCardOptionsQuery = useQuery({ queryKey: ['marketingExecutionServiceCardOptions'], queryFn: async () => (await api.asset.serviceCards.options({ status: 'ENABLED' })).data });
   const issueRewardMutation = useMutation({
     mutationFn: async (values: Record<string, unknown>) => api.marketing.rewards.issue(Number(currentId), values),
     onSuccess: () => {
@@ -100,15 +155,49 @@ const MarketingExecutionManagement: React.FC = () => {
   const budgets = budgetQuery.data?.records || [];
   const couponIssues = issueQuery.data?.records || [];
   const couponUsages = usageQuery.data?.records || [];
+  const userOptions = (userOptionsQuery.data || []) as SelectOptionRecord[];
+  const couponTemplateOptions = (couponTemplateOptionsQuery.data || []) as SelectOptionRecord[];
+  const serviceCardOptions = (serviceCardOptionsQuery.data || []) as SelectOptionRecord[];
+  const selectedRewardType = Form.useWatch('rewardType', form);
 
   const filter = <T extends object>(items: T[]) =>
     items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
 
-  const openModal = (title: string, id?: number) => {
+  const openModal = (title: string, id?: number, record?: MarketingRewardRecord | MarketingBudgetRecord) => {
     setModalTitle(title);
     setCurrentId(id ?? null);
     form.resetFields();
+    const isBudget = title.includes('预算');
+    form.setFieldsValue({
+      bizNo: isBudget ? (record as MarketingBudgetRecord | undefined)?.activityCode : (record as MarketingRewardRecord | undefined)?.rewardNo,
+      status: isBudget ? (record as MarketingBudgetRecord | undefined)?.status : 'ISSUED',
+      amount: Number(isBudget ? 0 : ((record as MarketingRewardRecord | undefined)?.costAmount || 0)) || undefined,
+      userName: isBudget ? undefined : (record as MarketingRewardRecord | undefined)?.userName,
+      rewardType: isBudget ? undefined : ((record as MarketingRewardRecord | undefined)?.rewardType || 'BALANCE'),
+      processScene: isBudget ? 'FINANCE_RECONCILE' : 'USER_APPEAL',
+      processAction: isBudget ? 'ADD_BUDGET' : 'ISSUE_NOW',
+      notifyUser: 'YES',
+      approvalRequired: 'NO',
+    });
     setModalVisible(true);
+  };
+
+  const buildActionPayload = (values: ExecutionActionFormValues) => {
+    const isBudget = modalTitle.includes('预算');
+    const actionOptions = isBudget ? budgetActionOptions : rewardActionOptions;
+    const rewardTypeLabel = optionLabel(rewardTypeOptions, values.rewardType);
+    return {
+      ...values,
+      remark: compactJoin([
+        `处理场景：${optionLabel(processSceneOptions, values.processScene)}`,
+        `处理动作：${optionLabel(actionOptions, values.processAction)}`,
+        !isBudget && values.rewardType ? `奖励类型：${rewardTypeLabel}` : undefined,
+        `通知用户：${optionLabel(yesNoOptions, values.notifyUser)}`,
+        `需要审批：${optionLabel(yesNoOptions, values.approvalRequired)}`,
+        values.owner ? `处理人：${values.owner}` : undefined,
+        values.supplement ? `补充说明：${values.supplement}` : undefined,
+      ]),
+    };
   };
 
   const participationColumns = useMemo<ProColumns<MarketingParticipationRecord>[]>(() => [
@@ -131,7 +220,7 @@ const MarketingExecutionManagement: React.FC = () => {
     { title: '成本金额', dataIndex: 'costAmount', width: 120, render: (_, record) => formatAmount(record.costAmount) },
     { title: '发放状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, rewardStatusMap) },
     { title: '发放时间', dataIndex: 'issuedAt', width: 180, render: (_, record) => formatDateTime(record.issuedAt) },
-    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => openModal('补发活动奖励', record.id)}>发放</Button> },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => openModal('补发活动奖励', record.id, record)}>发放</Button> },
   ], []);
 
   const budgetColumns = useMemo<ProColumns<MarketingBudgetRecord>[]>(() => [
@@ -142,7 +231,7 @@ const MarketingExecutionManagement: React.FC = () => {
     { title: '冻结金额', dataIndex: 'frozenAmount', width: 120, render: (_, record) => formatAmount(record.frozenAmount) },
     { title: '承担方', dataIndex: 'bearer', width: 120 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, activityStatusMap) },
-    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => openModal('调整活动预算', record.id)}>调整</Button> },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => openModal('调整活动预算', record.id, record)}>调整</Button> },
   ], []);
 
   const issueColumns = useMemo<ProColumns<CouponIssueRecord>[]>(() => [
@@ -177,15 +266,10 @@ const MarketingExecutionManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="券核销流水" value={usageQuery.data?.total ?? couponUsages.length} suffix="条" /></Card></Col>
       </Row>
 
-      <ProTable
-        style={{ marginBottom: 16 }}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '输入活动、用户、订单、奖励、券码关键词' } }]}
-        dataSource={[]}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        options={false}
-        pagination={false}
-        onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-        onReset={() => setKeyword('')}
+      <KeywordSearchBar
+        value={keyword}
+        placeholder="输入活动、用户、订单、奖励、券码关键词"
+        onSearch={setKeyword}
       />
 
       <Tabs
@@ -198,7 +282,7 @@ const MarketingExecutionManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title="营销执行详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -207,32 +291,140 @@ const MarketingExecutionManagement: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow={modalTitle.includes('预算') ? '预算处理' : '奖励发放'}
         title={modalTitle}
+        subtitle={modalTitle.includes('预算') ? '按追加、冻结、释放、扣减处理活动预算，系统会同步预算金额和状态。' : '选择用户、奖励类型和奖励载体后发放，系统会同步写入余额、优惠券或服务卡资产。'}
+        meta={[modalTitle.includes('预算') ? '预算闭环' : '奖励闭环', currentId ? `ID ${currentId}` : '待选择']}
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={async () => {
           const values = await form.validateFields();
+          const payload = buildActionPayload(values);
           if (modalTitle.includes('预算')) {
-            await adjustBudgetMutation.mutateAsync(values);
+            await adjustBudgetMutation.mutateAsync(payload);
           } else {
-            await issueRewardMutation.mutateAsync(values);
+            await issueRewardMutation.mutateAsync(payload);
           }
           setModalVisible(false);
         }}
-        width={760}
+        width={980}
+        okText={modalTitle.includes('预算') ? '提交预算处理' : '提交奖励处理'}
+        confirmLoading={adjustBudgetMutation.isPending || issueRewardMutation.isPending}
       >
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="bizNo" label="活动编码 / 奖励单号 / 券码" rules={[{ required: true, message: '请输入业务编码' }]}><Input /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={activityRewardStatusOptions} /></Form.Item>
-            <Form.Item name="amount" label="调整金额"><Input /></Form.Item>
-            <Form.Item className="modal-span-2" name="remark" label="处理说明"><Input.TextArea rows={4} /></Form.Item>
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection
+              icon={<FundProjectionScreenOutlined />}
+              title="处理对象"
+              desc="选择处理对象和处理后的业务状态。"
+            >
+              <div className="merchant-editor-fields">
+                <Form.Item name="bizNo" label="活动编码 / 奖励单号 / 券码" rules={[{ required: true, message: '请输入业务编码' }]}>
+                  <Input placeholder="例如：ACT-20260510 或 RW-20260510-001" />
+                </Form.Item>
+                <Form.Item name="status" label="处理后状态">
+                  <Select options={modalTitle.includes('预算') ? activityStatusOptions : activityRewardStatusOptions} placeholder="请选择处理后状态" />
+                </Form.Item>
+                <Form.Item name="amount" label="调整金额">
+                  <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="仅预算调整时填写" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+
+            {!modalTitle.includes('预算') ? (
+              <BusinessEditorSection
+                icon={<CheckCircleOutlined />}
+                title="奖励资产"
+                desc="按奖励类型选择具体资产载体，发放后会写入用户账户、券库存或服务卡库存。"
+              >
+                <div className="merchant-editor-fields">
+                  <Form.Item name="userId" label="发放用户">
+                    <Select
+                      showSearch
+                      allowClear
+                      optionFilterProp="label"
+                      options={userOptions}
+                      placeholder="请选择用户"
+                      onChange={(_, option) => {
+                        const label = Array.isArray(option) ? undefined : option?.label;
+                        form.setFieldValue('userName', typeof label === 'string' ? label.replace(/（.*）$/, '') : undefined);
+                      }}
+                    />
+                  </Form.Item>
+                  <Form.Item name="userName" label="用户名称">
+                    <Input placeholder="没有用户档案时填写用户名称" />
+                  </Form.Item>
+                  <Form.Item name="rewardType" label="奖励类型" rules={[{ required: true, message: '请选择奖励类型' }]}>
+                    <Select options={closedRewardTypeOptions} placeholder="请选择奖励类型" />
+                  </Form.Item>
+                  {selectedRewardType === 'COUPON' ? (
+                    <>
+                      <Form.Item name="couponTemplateId" label="优惠券模板" rules={[{ required: true, message: '请选择优惠券模板' }]}>
+                        <Select showSearch optionFilterProp="label" options={couponTemplateOptions} placeholder="请选择优惠券模板" />
+                      </Form.Item>
+                      <Form.Item name="discountAmount" label="抵扣金额">
+                        <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="默认按奖励成本" />
+                      </Form.Item>
+                    </>
+                  ) : null}
+                  {selectedRewardType === 'CARD' || selectedRewardType === 'SERVICE_CARD' ? (
+                    <>
+                      <Form.Item name="serviceCardId" label="服务卡产品" rules={[{ required: true, message: '请选择服务卡产品' }]}>
+                        <Select showSearch optionFilterProp="label" options={serviceCardOptions} placeholder="请选择服务卡产品" />
+                      </Form.Item>
+                      <Form.Item name="totalTimes" label="权益次数">
+                        <InputNumber min={1} precision={0} addonAfter="次" style={{ width: '100%' }} placeholder="默认取服务卡配置" />
+                      </Form.Item>
+                      <Form.Item name="validDays" label="有效天数">
+                        <InputNumber min={1} precision={0} addonAfter="天" style={{ width: '100%' }} placeholder="默认取服务卡配置" />
+                      </Form.Item>
+                    </>
+                  ) : null}
+                </div>
+              </BusinessEditorSection>
+            ) : null}
+
+            <BusinessEditorSection
+              icon={modalTitle.includes('预算') ? <WalletOutlined /> : <CheckCircleOutlined />}
+              title="运营动作"
+              desc="用明确选项描述处理原因和动作，避免运营人员维护大段规则或技术备注。"
+            >
+              <div className="merchant-editor-fields">
+                <Form.Item name="processScene" label="处理场景" rules={[{ required: true, message: '请选择处理场景' }]}>
+                  <Select options={processSceneOptions} placeholder="请选择处理场景" />
+                </Form.Item>
+                <Form.Item name="processAction" label="处理动作" rules={[{ required: true, message: '请选择处理动作' }]}>
+                  <Select options={modalTitle.includes('预算') ? budgetActionOptions : rewardActionOptions} placeholder="请选择处理动作" />
+                </Form.Item>
+                <Form.Item name="owner" label="处理人">
+                  <Input placeholder="例如：活动运营-王敏" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+
+            <BusinessEditorSection
+              icon={<NotificationOutlined />}
+              title="通知与审批"
+              desc="明确是否通知用户、是否需要审批，并补充运营说明。"
+            >
+              <div className="merchant-editor-fields">
+                <Form.Item name="notifyUser" label="通知用户">
+                  <Select options={yesNoOptions} placeholder="请选择是否通知用户" />
+                </Form.Item>
+                <Form.Item name="approvalRequired" label="需要审批">
+                  <Select options={yesNoOptions} placeholder="请选择是否需要审批" />
+                </Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="supplement" label="补充说明">
+                  <Input placeholder="例如：用户申诉已核验，按活动规则补发" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

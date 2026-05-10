@@ -10,7 +10,7 @@ import {
   PlusOutlined,
   WalletOutlined,
 } from '@ant-design/icons';
-import { Button, Form, Input, Modal, Select, Space, message } from 'antd';
+import { Button, Form, Input, Select, Space, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
   merchantContractStatusOptions,
@@ -20,6 +20,8 @@ import {
 } from '@/constants/businessCatalog';
 import api from '@/services/backendService';
 import type { MerchantRecord } from '@/services/backendService';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
+import BusinessEditorModal from '@/components/BusinessEditorModal';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
@@ -190,7 +192,7 @@ const MerchantManagement: React.FC = () => {
               danger
               icon={<DeleteOutlined />}
               onClick={() => {
-                Modal.confirm({
+                showBusinessConfirm({
                   title: '确认删除商户',
                   content: `确定删除商户「${record.merchantName}」吗？`,
                   onOk: () => deleteMutation.mutate(record.id),
@@ -262,21 +264,11 @@ const MerchantManagement: React.FC = () => {
         }}
       />
 
-      <Modal
-        wrapClassName="merchant-editor-modal"
-        title={(
-          <div className="merchant-editor-modal-header">
-            <div>
-              <div className="merchant-editor-modal-header__eyebrow">{editingRecord ? '商户档案维护' : '商户入驻建档'}</div>
-              <div className="merchant-editor-modal-header__title">{modalTitle}</div>
-              <div className="merchant-editor-modal-header__subtitle">先建主体，再继续配置门店、门店组、商品活动和商户后台视角。</div>
-            </div>
-            <div className="merchant-editor-modal-header__meta">
-              <span className="merchant-editor-modal-header__pill">主体建档</span>
-              <span className="merchant-editor-modal-header__pill merchant-editor-modal-header__pill--ghost">{editingRecord ? '编辑模式' : '新建模式'}</span>
-            </div>
-          </div>
-        )}
+      <BusinessEditorModal
+        eyebrow={editingRecord ? '商户档案维护' : '商户入驻建档'}
+        title={modalTitle}
+        subtitle="先建主体，再继续配置门店、门店组、商品活动和商户后台视角。"
+        meta={['主体建档', editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
         width={1220}
         onCancel={closeDrawer}
@@ -386,7 +378,7 @@ const MerchantManagement: React.FC = () => {
             </div>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

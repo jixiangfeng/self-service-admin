@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
-import { LinkOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, Row, Select, Statistic, Tabs, message } from 'antd';
+import { AuditOutlined, FileProtectOutlined, LinkOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -11,13 +11,28 @@ import {
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type { BizFileRefRecord, FileAuditRecord, FileRetentionRecord, FileUsageRecord } from '@/services/backendService';
 
 const publishStatusMap = buildValueEnum(publishStatusOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
 const scopeMap = buildValueEnum(scopeTypeOptions);
+const refTypeOptions = [
+  { value: 'CONTRACT', label: '合同附件' },
+  { value: 'INVOICE', label: '发票附件' },
+  { value: 'QUALIFICATION', label: '资质文件' },
+  { value: 'IMPORT_EXPORT', label: '导入导出文件' },
+];
+const retentionRuleOptions = [
+  { value: 'ONE_YEAR', label: '留存 1 年' },
+  { value: 'THREE_YEARS', label: '留存 3 年' },
+  { value: 'LONG_TERM', label: '长期留存' },
+];
+const compactJoin = (items: Array<string | undefined | false>) => items.filter(Boolean).join('；');
+const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
 
 const fileRelationDetailFields: Record<'ref' | 'usage' | 'audit' | 'retention', DetailField<any>[]> = {
   ref: [
@@ -61,7 +76,7 @@ const FileRelationManagement: React.FC = () => {
   const [detail, setDetail] = useState<BizFileRefRecord | FileUsageRecord | FileAuditRecord | FileRetentionRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
-  const [form] = Form.useForm<Record<string, unknown>>();
+  const [form] = Form.useForm<Record<string, any>>();
   const refQuery = useQuery({ queryKey: ['bizFileRefs', keyword], queryFn: async () => (await api.file.refs.page({ pageNum: 1, pageSize: 200, keyword })).data });
   const usageQuery = useQuery({ queryKey: ['fileUsageStats', keyword], queryFn: async () => (await api.file.usages.page({ pageNum: 1, pageSize: 200, keyword })).data });
   const auditQuery = useQuery({ queryKey: ['fileAuditRecords', keyword], queryFn: async () => (await api.file.audits.page({ pageNum: 1, pageSize: 200, keyword })).data });
@@ -74,6 +89,7 @@ const FileRelationManagement: React.FC = () => {
   const openModal = (title: string) => {
     setModalTitle(title);
     form.resetFields();
+    form.setFieldsValue({ refType: 'CONTRACT', auditStatus: 'PENDING', status: 'PUBLISHED', retentionRule: 'THREE_YEARS' });
     setModalVisible(true);
   };
 
@@ -126,15 +142,10 @@ const FileRelationManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="留存规则" value={retentions.length} suffix="条" /></Card></Col>
       </Row>
 
-      <ProTable
-        style={{ marginBottom: 16 }}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '输入文件名、文件ID、业务单号、关联类型' } }]}
-        dataSource={[]}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        options={false}
-        pagination={false}
-        onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-        onReset={() => setKeyword('')}
+      <KeywordSearchBar
+        value={keyword}
+        placeholder="输入文件名、文件ID、业务单号、关联类型"
+        onSearch={setKeyword}
       />
 
       <Tabs
@@ -146,7 +157,7 @@ const FileRelationManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title="文件关联详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -155,49 +166,70 @@ const FileRelationManagement: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow="文件关联配置"
         title={modalTitle}
+        subtitle="把业务关联、文件审核和留存规则拆成结构化字段，避免直接手写处理说明。"
+        meta={[modalTitle || '文件关联', '平台运营']}
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={async () => {
           const values = await form.validateFields();
+          const remark = compactJoin([
+            values.refType ? `关联类型：${optionLabel(refTypeOptions, values.refType)}` : undefined,
+            values.retentionRule ? `留存规则：${optionLabel(retentionRuleOptions, values.retentionRule)}` : undefined,
+            values.supplement ? `补充说明：${values.supplement}` : undefined,
+          ]);
           if (modalTitle.includes('关联')) {
-            await api.file.refs.add(values);
+            await api.file.refs.add({ ...values, remark });
             queryClient.invalidateQueries({ queryKey: ['bizFileRefs'] });
             message.success('文件关联已保存');
           } else if (modalTitle.includes('审核')) {
-            await api.file.audits.add(values);
+            await api.file.audits.add({ ...values, remark });
             queryClient.invalidateQueries({ queryKey: ['fileAuditRecords'] });
             message.success('文件审核记录已保存');
           } else {
-            await api.file.retentions.add(values);
+            await api.file.retentions.add({ ...values, retentionRule: optionLabel(retentionRuleOptions, values.retentionRule) });
             queryClient.invalidateQueries({ queryKey: ['fileRetentionRules'] });
             message.success('留存规则已保存');
           }
           setModalVisible(false);
         }}
-        width={760}
+        width={1080}
+        okText="保存文件配置"
       >
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="bizType" label="业务类型"><Input /></Form.Item>
-            <Form.Item name="bizNo" label="业务单号"><Input /></Form.Item>
-            <Form.Item name="bizName" label="业务名称"><Input /></Form.Item>
-            <Form.Item name="fileAssetId" label="文件ID"><Input /></Form.Item>
-            <Form.Item name="fileName" label="文件名" rules={[{ required: true, message: '请输入文件名' }]}><Input /></Form.Item>
-            <Form.Item name="refType" label="关联类型"><Input /></Form.Item>
-            <Form.Item name="auditNo" label="审核单号"><Input /></Form.Item>
-            <Form.Item name="auditUser" label="审核人"><Input /></Form.Item>
-            <Form.Item name="retentionRule" label="留存规则"><Input /></Form.Item>
-            <Form.Item name="expireAt" label="到期日期"><Input placeholder="YYYY-MM-DD" /></Form.Item>
-            <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={publishStatusOptions} /></Form.Item>
-            <Form.Item className="modal-span-2" name="remark" label="处理说明"><Input.TextArea rows={4} /></Form.Item>
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<LinkOutlined />} title="业务关联" desc="维护业务类型、业务单号、文件 ID 和关联类型。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="bizType" label="业务类型"><Input placeholder="例如：MERCHANT_CONTRACT" /></Form.Item>
+                <Form.Item name="bizNo" label="业务单号"><Input placeholder="例如：MC-20260510-001" /></Form.Item>
+                <Form.Item name="bizName" label="业务名称"><Input placeholder="例如：商户合同" /></Form.Item>
+                <Form.Item name="fileAssetId" label="文件ID"><Input placeholder="例如：FILE-20260510-001" /></Form.Item>
+                <Form.Item name="fileName" label="文件名" rules={[{ required: true, message: '请输入文件名' }]}><Input placeholder="例如：商户合同.pdf" /></Form.Item>
+                <Form.Item name="refType" label="关联类型"><Select options={refTypeOptions} placeholder="请选择关联类型" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<AuditOutlined />} title="审核信息" desc="配置审核单号、审核人和审核状态。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="auditNo" label="审核单号"><Input placeholder="例如：AUDIT-20260510-001" /></Form.Item>
+                <Form.Item name="auditUser" label="审核人"><Input placeholder="例如：运营-王敏" /></Form.Item>
+                <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
+                <Form.Item name="status" label="状态"><Select options={publishStatusOptions} placeholder="请选择状态" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<FileProtectOutlined />} title="留存规则" desc="配置留存规则、到期日期和补充说明。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="retentionRule" label="留存规则"><Select options={retentionRuleOptions} placeholder="请选择留存规则" /></Form.Item>
+                <Form.Item name="expireAt" label="到期日期"><Input placeholder="YYYY-MM-DD" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="supplement" label="补充说明"><Input placeholder="例如：合同类文件长期留存" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

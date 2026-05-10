@@ -1,13 +1,15 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
-import { MobileOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
+import { FileTextOutlined, MobileOutlined, PictureOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { statusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag, safeJsonParse } from '@/pages/Business/shared';
 import api, {
   type AgreementContentRecord,
   type BannerConfigRecord,
@@ -51,13 +53,28 @@ const pageMap = buildValueEnum(pageCodeOptions);
 const moduleMap = buildValueEnum(moduleCodeOptions);
 const jumpTypeMap = buildValueEnum(jumpTypeOptions);
 const agreementTypeMap = buildValueEnum(agreementTypeOptions);
+const displayModeOptions = [
+  { value: 'SHOW', label: '展示' },
+  { value: 'HIDE', label: '隐藏' },
+];
+const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
+const parsePageConfig = (configJson?: string) =>
+  safeJsonParse<{ displayMode?: string; jumpValue?: string }>(configJson, {});
+const parseAgreementContent = (value?: string) => {
+  const parsed = safeJsonParse<Record<string, string>>(value, {});
+  if (parsed.contentSummary || parsed.contentPoint) {
+    return [parsed.contentSummary, parsed.contentPoint].filter(Boolean).join('；');
+  }
+  return value || '-';
+};
 
 const miniOpsDetailFields: Record<'page' | 'banner' | 'agreement', DetailField<any>[]> = {
   page: [
     { name: 'pageCode', label: '页面' },
     { name: 'moduleCode', label: '模块' },
     { name: 'moduleName', label: '模块名称' },
-    { name: 'configJson', label: '配置 JSON' },
+    { name: 'displayMode', label: '展示状态', render: (value) => optionLabel(displayModeOptions, value) || '-' },
+    { name: 'jumpValue', label: '跳转目标' },
     { name: 'sortNo', label: '排序' },
     { name: 'status', label: '状态' },
     { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
@@ -77,7 +94,7 @@ const miniOpsDetailFields: Record<'page' | 'banner' | 'agreement', DetailField<a
     { name: 'agreementType', label: '协议类型' },
     { name: 'title', label: '标题' },
     { name: 'versionNo', label: '版本号' },
-    { name: 'content', label: '内容摘要' },
+    { name: 'content', label: '内容摘要', render: (value) => parseAgreementContent(value) },
     { name: 'effectiveAt', label: '生效时间', render: (value) => formatDateTime(value) },
     { name: 'status', label: '状态' },
   ],
@@ -96,13 +113,21 @@ const MiniProgramOpsManagement: React.FC = () => {
   const bannersQuery = useQuery({ queryKey: ['banner-configs', queryParams], queryFn: () => api.miniProgramOps.banners.page(queryParams) });
   const agreementsQuery = useQuery({ queryKey: ['agreement-contents', queryParams], queryFn: () => api.miniProgramOps.agreements.page(queryParams) });
 
-  const pageConfigs = pageConfigsQuery.data?.data.records ?? [];
+  const pageConfigs = (pageConfigsQuery.data?.data.records ?? []).map((record) => {
+    const parsed = parsePageConfig(record.configJson);
+    return {
+      ...record,
+      displayMode: parsed.displayMode,
+      jumpValue: parsed.jumpValue,
+    };
+  });
   const banners = bannersQuery.data?.data.records ?? [];
   const agreements = agreementsQuery.data?.data.records ?? [];
 
   const openModal = (title: string) => {
     setModalTitle(title);
     form.resetFields();
+    form.setFieldsValue({ pageCode: 'HOME', moduleCode: 'BANNER', jumpType: 'PAGE', agreementType: 'SERVICE', displayMode: 'SHOW', sortNo: 1, status: 1 });
     setModalVisible(true);
   };
 
@@ -111,9 +136,12 @@ const MiniProgramOpsManagement: React.FC = () => {
     if (modalTitle === '新建页面模块') {
       await api.miniProgramOps.pageConfigs.add({
         pageCode: values.pageCode || 'HOME',
-        moduleCode: 'CUSTOM',
+        moduleCode: values.moduleCode || 'CUSTOM',
         moduleName: values.name,
-        configJson: values.configJson,
+        configJson: JSON.stringify({
+          displayMode: values.displayMode || 'SHOW',
+          jumpValue: values.jumpValue || '',
+        }),
         sortNo: Number(values.sortNo ?? 0),
         status: values.status,
       });
@@ -122,9 +150,9 @@ const MiniProgramOpsManagement: React.FC = () => {
       await api.miniProgramOps.banners.add({
         bannerName: values.name,
         pageCode: values.pageCode || 'HOME',
-        imageFileAssetId: values.configJson,
-        jumpType: 'PAGE',
-        jumpValue: values.configJson,
+        imageFileAssetId: values.imageFileAssetId,
+        jumpType: values.jumpType || 'PAGE',
+        jumpValue: values.jumpValue,
         sortNo: Number(values.sortNo ?? 0),
         status: values.status,
       });
@@ -133,7 +161,10 @@ const MiniProgramOpsManagement: React.FC = () => {
       await api.miniProgramOps.agreements.add({
         agreementType: values.agreementType || 'SERVICE',
         title: values.name,
-        content: values.configJson,
+        content: JSON.stringify({
+          contentSummary: values.contentSummary || '',
+          contentPoint: values.contentPoint || '',
+        }),
         versionNo: `V${Date.now()}`,
         status: values.status,
       });
@@ -147,7 +178,8 @@ const MiniProgramOpsManagement: React.FC = () => {
     { title: '页面', dataIndex: 'pageCode', width: 120, render: (_, record) => renderStatusTag(record.pageCode, pageMap) },
     { title: '模块', dataIndex: 'moduleCode', width: 140, render: (_, record) => renderStatusTag(record.moduleCode, moduleMap) },
     { title: '模块名称', dataIndex: 'moduleName', width: 180 },
-    { title: '配置 JSON', dataIndex: 'configJson', width: 340, ellipsis: true },
+    { title: '展示状态', dataIndex: 'displayMode', width: 120, render: (_, record) => optionLabel(displayModeOptions, record.displayMode) || '-' },
+    { title: '跳转目标', dataIndex: 'jumpValue', width: 260, ellipsis: true },
     { title: '排序', dataIndex: 'sortNo', width: 90 },
     { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, statusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
@@ -171,7 +203,7 @@ const MiniProgramOpsManagement: React.FC = () => {
     { title: '协议类型', dataIndex: 'agreementType', width: 160, render: (_, record) => renderStatusTag(record.agreementType, agreementTypeMap) },
     { title: '标题', dataIndex: 'title', width: 180 },
     { title: '版本号', dataIndex: 'versionNo', width: 130 },
-    { title: '内容摘要', dataIndex: 'content', width: 340, ellipsis: true },
+    { title: '内容摘要', dataIndex: 'content', width: 340, ellipsis: true, render: (_, record) => parseAgreementContent(record.content) },
     { title: '生效时间', dataIndex: 'effectiveAt', width: 180, render: (_, record) => formatDateTime(record.effectiveAt) },
     { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, statusMap) },
     { title: '操作', valueType: 'option', width: 90, fixed: 'right', render: (_, record) => [<a key="detail" onClick={() => setDetail(record)}>详情</a>] },
@@ -188,25 +220,10 @@ const MiniProgramOpsManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="启用配置" value={pageConfigs.filter((item) => item.status === 1).length + banners.filter((item) => item.status === 1).length} suffix="项" /></Card></Col>
       </Row>
 
-      <ProTable
-        rowKey="keyword"
-        search={false}
-        pagination={false}
-        options={false}
-        dataSource={[]}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true }]}
-        toolBarRender={() => [
-          <Input.Search
-            key="keyword"
-            allowClear
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            onSearch={(value) => setKeyword(value)}
-            placeholder="页面 / 模块 / Banner / 协议"
-            style={{ width: 320 }}
-          />,
-        ]}
-        style={{ marginBottom: 16 }}
+      <KeywordSearchBar
+        value={keyword}
+        placeholder="页面 / 模块 / Banner / 协议"
+        onSearch={setKeyword}
       />
 
       <Tabs
@@ -217,7 +234,7 @@ const MiniProgramOpsManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={820}>
+      <BusinessDetailModal title="小程序运营配置详情" open={!!detail} onCancel={() => setDetail(null)} width={820}>
         {detail && (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -226,20 +243,59 @@ const MiniProgramOpsManagement: React.FC = () => {
             labelWidth={110}
           />
         )}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal title={modalTitle} open={modalVisible} onOk={handleSubmit} onCancel={() => setModalVisible(false)} width={780}>
-        <Form form={form} layout="vertical">
-          <Row gutter={16}>
-            <Col span={12}><Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="pageCode" label="页面"><Select options={pageCodeOptions} /></Form.Item></Col>
-            <Col span={12}><Form.Item name="agreementType" label="协议类型"><Select options={agreementTypeOptions} /></Form.Item></Col>
-            <Col span={12}><Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={statusOptions} /></Form.Item></Col>
-            <Col span={12}><Form.Item name="sortNo" label="排序"><Input /></Form.Item></Col>
-            <Col span={24}><Form.Item name="configJson" label="配置 JSON / 内容" rules={[{ required: true, message: '请输入配置内容' }]}><Input.TextArea rows={4} /></Form.Item></Col>
-          </Row>
+      <BusinessEditorModal
+        eyebrow="小程序运营配置"
+        title={modalTitle}
+        subtitle="把页面模块、Banner 和协议版本配置拆成运营字段，提交时合并为后端展示配置。"
+        meta={[modalTitle || '小程序配置', '平台运营']}
+        open={modalVisible}
+        onOk={handleSubmit}
+        onCancel={() => setModalVisible(false)}
+        width={1080}
+        okText="保存配置"
+      >
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<MobileOutlined />} title="基础信息" desc="维护名称、页面、排序和状态。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}><Input placeholder="例如：首页洗车活动模块" /></Form.Item>
+                <Form.Item name="pageCode" label="页面"><Select options={pageCodeOptions} placeholder="请选择页面" /></Form.Item>
+                <Form.Item name="sortNo" label="排序"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="1" /></Form.Item>
+                <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={statusOptions} placeholder="请选择状态" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            {modalTitle === '新建页面模块' ? (
+              <BusinessEditorSection icon={<MobileOutlined />} title="页面模块" desc="配置模块类型、展示状态和跳转目标。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="moduleCode" label="模块"><Select options={moduleCodeOptions} placeholder="请选择模块" /></Form.Item>
+                  <Form.Item name="displayMode" label="展示状态"><Select options={displayModeOptions} placeholder="请选择展示状态" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="jumpValue" label="跳转目标"><Input placeholder="例如：/pages/store/list" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+            ) : null}
+            {modalTitle === '新建 Banner' ? (
+              <BusinessEditorSection icon={<PictureOutlined />} title="Banner 投放" desc="配置图片文件、跳转类型和跳转值。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="imageFileAssetId" label="图片文件ID"><Input placeholder="例如：FILE-20260510-001" /></Form.Item>
+                  <Form.Item name="jumpType" label="跳转类型"><Select options={jumpTypeOptions} placeholder="请选择跳转类型" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="jumpValue" label="跳转值"><Input placeholder="例如：/pages/activity/detail?id=1" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+            ) : null}
+            {modalTitle === '新建协议版本' ? (
+              <BusinessEditorSection icon={<FileTextOutlined />} title="协议内容" desc="配置协议类型、内容摘要和正文要点。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="agreementType" label="协议类型"><Select options={agreementTypeOptions} placeholder="请选择协议类型" /></Form.Item>
+                  <Form.Item name="contentSummary" label="内容摘要"><Input placeholder="例如：充值余额使用和退款规则" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="contentPoint" label="正文要点"><Input placeholder="例如：充值余额不可提现，未消费部分按规则退款" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+            ) : null}
+          </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

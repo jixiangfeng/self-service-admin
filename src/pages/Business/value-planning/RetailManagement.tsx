@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Table, Tabs, message } from 'antd';
-import { ShoppingCartOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Table, Tabs, message } from 'antd';
+import { AppstoreOutlined, ShoppingCartOutlined, ShopOutlined } from '@ant-design/icons';
 import {
   retailCategoryOptions,
   retailDeliveryTypeOptions,
@@ -10,6 +10,8 @@ import {
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, formatAmount, renderStatusTag } from '@/pages/Business/shared';
 import api, { type RetailProductRecord, type RetailStockRecord } from '@/services/backendService';
 
@@ -162,39 +164,85 @@ const RetailManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title={editingProduct ? `编辑零售商品 · ${editingProduct.name || editingProduct.productCode}` : '新建零售商品'} open={productVisible} onOk={handleProductSubmit} onCancel={() => { setProductVisible(false); setEditingProduct(null); productForm.resetFields(); }} width={860} confirmLoading={saveProductMutation.isPending}>
-        <Form form={productForm} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="productCode" label="商品编码" rules={[{ required: true, message: '请输入商品编码' }]}><Input /></Form.Item>
-            <Form.Item name="name" label="商品名称" rules={[{ required: true, message: '请输入商品名称' }]}><Input /></Form.Item>
-            <Form.Item name="category" label="商品分类" rules={[{ required: true, message: '请选择商品分类' }]}><Select options={retailCategoryOptions} /></Form.Item>
-            <Form.Item name="delivery" label="履约方式"><Select options={retailDeliveryTypeOptions} /></Form.Item>
-            <Form.Item name="salePrice" label="售价"><Input /></Form.Item>
-            <Form.Item name="costPrice" label="成本价"><Input /></Form.Item>
-            <Form.Item name="supplier" label="供应商"><Input /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={retailProductStatusOptions} /></Form.Item>
-            <Form.Item className="modal-span-2" name="stockSummary" label="库存摘要"><Input /></Form.Item>
+      <BusinessEditorModal
+        eyebrow="零售商品配置"
+        title={editingProduct ? `编辑零售商品 · ${editingProduct.name || editingProduct.productCode}` : '新建零售商品'}
+        subtitle="配置商品编码、分类、价格、履约方式、库存摘要和供应商，形成零售商品维护闭环。"
+        meta={[editingProduct ? '编辑' : '新增', '商城零售']}
+        open={productVisible}
+        onOk={handleProductSubmit}
+        onCancel={() => { setProductVisible(false); setEditingProduct(null); productForm.resetFields(); }}
+        width={1080}
+        okText="保存商品"
+        confirmLoading={saveProductMutation.isPending}
+      >
+        <Form form={productForm} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<ShoppingCartOutlined />} title="商品基础" desc="定义商品编码、名称、分类和销售状态。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="productCode" label="商品编码" rules={[{ required: true, message: '请输入商品编码' }]}><Input placeholder="例如：SKU-WATER-500" /></Form.Item>
+                <Form.Item name="name" label="商品名称" rules={[{ required: true, message: '请输入商品名称' }]}><Input placeholder="例如：矿泉水 500ml" /></Form.Item>
+                <Form.Item name="category" label="商品分类" rules={[{ required: true, message: '请选择商品分类' }]}><Select options={retailCategoryOptions} placeholder="请选择商品分类" /></Form.Item>
+                <Form.Item name="status" label="状态"><Select options={retailProductStatusOptions} placeholder="请选择状态" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<ShopOutlined />} title="履约与供应" desc="配置履约方式、供应商和库存摘要。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="delivery" label="履约方式"><Select options={retailDeliveryTypeOptions} placeholder="请选择履约方式" /></Form.Item>
+                <Form.Item name="supplier" label="供应商"><Input placeholder="例如：华东供应链" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="stockSummary" label="库存摘要"><Input placeholder="例如：平台总仓 120，门店可售 80，设备库存 40" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<AppstoreOutlined />} title="价格配置" desc="配置商品售价和成本价，后续用于毛利核算。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="salePrice" label="售价"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
+                <Form.Item name="costPrice" label="成本价"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal title={editingStock ? `编辑库存台账 · ${editingStock.sku}` : '新建库存台账'} open={stockVisible} onOk={handleStockSubmit} onCancel={() => { setStockVisible(false); setEditingStock(null); stockForm.resetFields(); }} width={860} confirmLoading={saveStockMutation.isPending}>
-        <Form form={stockForm} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="scope" label="库存层级" rules={[{ required: true, message: '请选择库存层级' }]}><Select options={retailStockScopeOptions} /></Form.Item>
-            <Form.Item name="storeName" label="门店"><Input /></Form.Item>
-            <Form.Item name="deviceCode" label="设备编号"><Input /></Form.Item>
-            <Form.Item name="sku" label="SKU" rules={[{ required: true, message: '请输入 SKU' }]}><Input /></Form.Item>
-            <Form.Item name="available" label="可用库存"><Input /></Form.Item>
-            <Form.Item name="locked" label="锁定库存"><Input /></Form.Item>
-            <Form.Item name="owner" label="负责人"><Input /></Form.Item>
-            <Form.Item name="warningThreshold" label="预警阈值"><Input /></Form.Item>
-            <Form.Item name="updatedAt" label="更新时间"><Input /></Form.Item>
+      <BusinessEditorModal
+        eyebrow="库存台账配置"
+        title={editingStock ? `编辑库存台账 · ${editingStock.sku}` : '新建库存台账'}
+        subtitle="配置库存层级、门店或设备、可用库存、锁定库存、预警阈值和负责人。"
+        meta={[editingStock ? '编辑' : '新增', '库存台账']}
+        open={stockVisible}
+        onOk={handleStockSubmit}
+        onCancel={() => { setStockVisible(false); setEditingStock(null); stockForm.resetFields(); }}
+        width={1080}
+        okText="保存库存"
+        confirmLoading={saveStockMutation.isPending}
+      >
+        <Form form={stockForm} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<ShopOutlined />} title="库存位置" desc="定义库存所在层级、门店、设备和 SKU。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="scope" label="库存层级" rules={[{ required: true, message: '请选择库存层级' }]}><Select options={retailStockScopeOptions} placeholder="请选择库存层级" /></Form.Item>
+                <Form.Item name="storeName" label="门店"><Input placeholder="例如：浦东旗舰店" /></Form.Item>
+                <Form.Item name="deviceCode" label="设备编号"><Input placeholder="例如：DEV-001" /></Form.Item>
+                <Form.Item name="sku" label="SKU" rules={[{ required: true, message: '请输入 SKU' }]}><Input placeholder="例如：SKU-WATER-500" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<AppstoreOutlined />} title="库存数量" desc="维护可用、锁定和预警数量。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="available" label="可用库存"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                <Form.Item name="locked" label="锁定库存"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                <Form.Item name="warningThreshold" label="预警阈值"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<ShoppingCartOutlined />} title="维护责任" desc="记录负责人和更新时间，便于库存异常追踪。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="owner" label="负责人"><Input placeholder="例如：门店运营-王敏" /></Form.Item>
+                <Form.Item name="updatedAt" label="更新时间"><Input placeholder="例如：2026-05-10 10:00:00" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title="商城零售详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -203,7 +251,7 @@ const RetailManagement: React.FC = () => {
             labelWidth={100}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
     </div>
   );

@@ -1,12 +1,15 @@
-import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Form, Input, Modal, Popconfirm, Row, Select, Space, Statistic, Tabs, message } from 'antd';
-import { UserSwitchOutlined } from '@ant-design/icons';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Button, Card, Col, Form, Input, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import { SafetyCertificateOutlined, ShopOutlined, TeamOutlined, UserSwitchOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import { auditStatusOptions, scopeTypeOptions, statusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
 import type { LoginLogRecord, MerchantAccountRecord, PermissionChangeLogRecord, RoleOption, SelectOptionRecord, UserRoleRelationRecord } from '@/services/backendService';
 import { useRoleOptions } from '@/hooks/useApi';
@@ -45,18 +48,21 @@ const MerchantAccountManagement: React.FC = () => {
   const [grants, setGrants] = useState<UserRoleRelationRecord[]>([]);
   const [loginRecords, setLoginRecords] = useState<LoginLogRecord[]>([]);
   const [changes, setChanges] = useState<PermissionChangeLogRecord[]>([]);
+  const [overviewLoading, setOverviewLoading] = useState(false);
   const [detail, setDetail] = useState<MerchantAccountRecord | UserRoleRelationRecord | LoginLogRecord | PermissionChangeLogRecord | null>(null);
   const [accountVisible, setAccountVisible] = useState(false);
   const [grantVisible, setGrantVisible] = useState(false);
   const [editingAccount, setEditingAccount] = useState<MerchantAccountRecord | null>(null);
   const [form] = Form.useForm<MerchantAccountRecord>();
   const [grantForm] = Form.useForm<UserRoleRelationRecord & { auditStatus?: string; remark?: string }>();
+  const [searchForm] = Form.useForm<{ keyword?: string }>();
   const { data: merchantOptions } = useQuery({ queryKey: ['merchantOptionsForAccounts'], queryFn: async () => (await api.merchant.options()).data });
   const { data: storeOptions } = useQuery({ queryKey: ['storeOptionsForAccounts'], queryFn: async () => (await api.store.options()).data });
   const { data: roleOptions = [] } = useRoleOptions();
   const merchantOptionMap = useMemo(() => new Map((merchantOptions as SelectOptionRecord[] | undefined || []).map((item) => [item.value, item.label])), [merchantOptions]);
   const storeOptionMap = useMemo(() => new Map((storeOptions as SelectOptionRecord[] | undefined || []).map((item) => [item.value, item.label])), [storeOptions]);
   const roleSelectOptions = useMemo(() => (roleOptions as RoleOption[]).map((item) => ({ value: item.id, label: `${item.roleName} / ${item.roleCode}`, role: item })), [roleOptions]);
+  const currentKeyword = () => String(searchForm.getFieldValue('keyword') || '').trim() || undefined;
 
   const summary = useMemo(() => ({
     total: accounts.length,
@@ -66,23 +72,43 @@ const MerchantAccountManagement: React.FC = () => {
   }), [accounts, changes.length, grants, loginRecords]);
 
   const fetchOverview = async (keyword?: string) => {
-    const [accountRes, grantRes, loginRes, changeRes] = await Promise.all([
-      api.merchantAccount.page({ current: 1, size: 100, keyword }),
-      api.authAudit.userRoles.page({ current: 1, size: 100, userName: keyword }),
-      api.authAudit.loginLogs.page({ current: 1, size: 100, userName: keyword }),
-      api.authAudit.permissionChanges.page({ current: 1, size: 100, targetUser: keyword }),
-    ]);
-    setAccounts(pageData<MerchantAccountRecord>(accountRes).records || []);
-    setGrants(pageData<UserRoleRelationRecord>(grantRes).records || []);
-    setLoginRecords(pageData<LoginLogRecord>(loginRes).records || []);
-    setChanges(pageData<PermissionChangeLogRecord>(changeRes).records || []);
+    setOverviewLoading(true);
+    try {
+      const [accountRes, grantRes, loginRes, changeRes] = await Promise.all([
+        api.merchantAccount.page({ current: 1, size: 100, keyword }),
+        api.authAudit.userRoles.page({ current: 1, size: 100, keyword }),
+        api.authAudit.loginLogs.page({ current: 1, size: 100, keyword }),
+        api.authAudit.permissionChanges.page({ current: 1, size: 100, keyword }),
+      ]);
+      setAccounts(pageData<MerchantAccountRecord>(accountRes).records || []);
+      setGrants(pageData<UserRoleRelationRecord>(grantRes).records || []);
+      setLoginRecords(pageData<LoginLogRecord>(loginRes).records || []);
+      setChanges(pageData<PermissionChangeLogRecord>(changeRes).records || []);
+    } finally {
+      setOverviewLoading(false);
+    }
   };
+
+  useEffect(() => {
+    void fetchOverview();
+  }, []);
 
   const openAccount = (record?: MerchantAccountRecord) => {
     setEditingAccount(record || null);
     form.resetFields();
     form.setFieldsValue(record || { accountType: '商户账号', dataScopeType: 'MERCHANT', status: 1 });
     setAccountVisible(true);
+  };
+
+  const closeAccount = () => {
+    setAccountVisible(false);
+    setEditingAccount(null);
+    form.resetFields();
+  };
+
+  const closeGrant = () => {
+    setGrantVisible(false);
+    grantForm.resetFields();
   };
 
   const saveAccount = async () => {
@@ -94,13 +120,22 @@ const MerchantAccountManagement: React.FC = () => {
       await api.merchantAccount.add(values as unknown as Record<string, unknown>);
       message.success('商户账号绑定已创建');
     }
-    setAccountVisible(false);
-    fetchOverview();
+    closeAccount();
+    await fetchOverview(currentKeyword());
   };
 
   const saveGrant = async () => {
     const values = await grantForm.validateFields();
-    await api.authAudit.userRoles.add({ ...values, status: values.status ?? 1, grantedAt: new Date().toISOString() });
+    await api.authAudit.userRoles.add({
+      userId: values.userId,
+      userName: values.userName,
+      roleId: values.roleId,
+      roleName: values.roleName,
+      roleCode: values.roleCode,
+      grantUser: values.grantUser,
+      status: values.status ?? 1,
+      grantedAt: new Date().toISOString(),
+    });
     await api.authAudit.permissionChanges.add({
       changeNo: `MAC${Date.now()}`,
       targetUser: values.userName,
@@ -112,9 +147,24 @@ const MerchantAccountManagement: React.FC = () => {
       changedAt: new Date().toISOString(),
     });
     message.success('角色授权已写入');
-    setGrantVisible(false);
-    grantForm.resetFields();
-    fetchOverview();
+    closeGrant();
+    await fetchOverview(currentKeyword());
+  };
+
+  const confirmAccountStatus = (record: MerchantAccountRecord) => {
+    const actionName = record.status === 1 ? '停用' : '启用';
+    showBusinessConfirm({
+      eyebrow: '账号状态确认',
+      title: `确认${actionName}该账号`,
+      content: `账号「${record.userName}」${actionName}后，将影响商户后台登录、门店数据范围和后续运营操作权限。`,
+      okText: `确认${actionName}`,
+      danger: false,
+      onOk: async () => {
+        await api.merchantAccount.changeStatus(record.id, record.status === 1 ? 0 : 1);
+        message.success('账号状态已更新');
+        await fetchOverview(currentKeyword());
+      },
+    });
   };
 
   const accountColumns: ProColumns<MerchantAccountRecord>[] = [
@@ -132,9 +182,7 @@ const MerchantAccountManagement: React.FC = () => {
         <Space>
           <Button size="small" onClick={() => setDetail(record)}>详情</Button>
           <Button size="small" onClick={() => openAccount(record)}>编辑</Button>
-          <Popconfirm title={`确认${record.status === 1 ? '停用' : '启用'}该账号？`} onConfirm={async () => { await api.merchantAccount.changeStatus(record.id, record.status === 1 ? 0 : 1); message.success('账号状态已更新'); fetchOverview(); }}>
-            <Button size="small">{record.status === 1 ? '停用' : '启用'}</Button>
-          </Popconfirm>
+          <Button size="small" onClick={() => confirmAccountStatus(record)}>{record.status === 1 ? '停用' : '启用'}</Button>
         </Space>
       ),
     },
@@ -179,71 +227,147 @@ const MerchantAccountManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="账号变更" value={summary.changes} suffix="条" /></Card></Col>
       </Row>
 
-      <ProTable
+      <Form
+        form={searchForm}
+        layout="inline"
         style={{ marginBottom: 16 }}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '输入账号、商户、门店、角色' } }]}
-        dataSource={[]}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        options={false}
-        pagination={false}
-        onSubmit={(values) => fetchOverview(String(values.keyword || ''))}
-        onReset={() => fetchOverview()}
-      />
+        onFinish={(values) => fetchOverview(String(values.keyword || '').trim() || undefined)}
+      >
+        <Form.Item name="keyword" label="关键词">
+          <Input allowClear placeholder="输入账号、商户、门店、角色" style={{ width: 320 }} />
+        </Form.Item>
+        <Form.Item>
+          <Button type="primary" htmlType="submit">查询</Button>
+        </Form.Item>
+        <Form.Item>
+          <Button onClick={() => { searchForm.resetFields(); fetchOverview(); }}>重置</Button>
+        </Form.Item>
+      </Form>
 
       <Tabs
         items={[
-          { key: 'account', label: '账号绑定', children: <ProTable<MerchantAccountRecord> cardBordered rowKey="id" columns={accountColumns} request={async (params) => { const res = await api.merchantAccount.page({ current: params.current, size: params.pageSize, keyword: params.keyword }); const page = pageData<MerchantAccountRecord>(res); setAccounts(page.records || []); return { data: page.records || [], total: page.total, success: true }; }} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openAccount()}>新增账号</Button>]} /> },
-          { key: 'grant', label: '角色授权', children: <ProTable<UserRoleRelationRecord> cardBordered rowKey="id" columns={grantColumns} dataSource={grants} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="grant" type="primary" onClick={() => { grantForm.resetFields(); grantForm.setFieldsValue({ status: 1, auditStatus: 'APPROVED' }); setGrantVisible(true); }}>新增授权</Button>]} /> },
-          { key: 'login', label: '登录记录', children: <ProTable<LoginLogRecord> cardBordered rowKey="id" columns={loginColumns} dataSource={loginRecords} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1080 }} /> },
-          { key: 'change', label: '账号变更', children: <ProTable<PermissionChangeLogRecord> cardBordered rowKey="id" columns={changeColumns} dataSource={changes} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} /> },
+          { key: 'account', label: '账号绑定', children: <ProTable<MerchantAccountRecord> cardBordered rowKey="id" columns={accountColumns} dataSource={accounts} loading={overviewLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openAccount()}>新增账号</Button>]} /> },
+          { key: 'grant', label: '角色授权', children: <ProTable<UserRoleRelationRecord> cardBordered rowKey="id" columns={grantColumns} dataSource={grants} loading={overviewLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="grant" type="primary" onClick={() => { grantForm.resetFields(); grantForm.setFieldsValue({ status: 1, auditStatus: 'APPROVED' }); setGrantVisible(true); }}>新增授权</Button>]} /> },
+          { key: 'login', label: '登录记录', children: <ProTable<LoginLogRecord> cardBordered rowKey="id" columns={loginColumns} dataSource={loginRecords} loading={overviewLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1080 }} /> },
+          { key: 'change', label: '账号变更', children: <ProTable<PermissionChangeLogRecord> cardBordered rowKey="id" columns={changeColumns} dataSource={changes} loading={overviewLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} /> },
         ]}
       />
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title="商户账号详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? <SchemaDetail record={detail as any} fields={'merchantName' in detail ? accountDetailFields : genericAccountDetailFields} /> : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal title={editingAccount ? `编辑账号 · ${editingAccount.userName}` : '新增商户账号'} open={accountVisible} onCancel={() => setAccountVisible(false)} onOk={saveAccount} width={820} destroyOnClose>
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="userId" label="平台用户ID"><Input /></Form.Item>
-            <Form.Item name="userName" label="账号名称" rules={[{ required: true, message: '请输入账号名称' }]}><Input /></Form.Item>
-            <Form.Item name="mobile" label="手机号"><Input /></Form.Item>
-            <Form.Item name="accountType" label="账号类型" rules={[{ required: true, message: '请输入账号类型' }]}><Input /></Form.Item>
-            <Form.Item name="merchantId" label="商户"><Select options={merchantOptions as SelectOptionRecord[]} allowClear onChange={(value) => form.setFieldValue('merchantName', merchantOptionMap.get(value))} /></Form.Item>
-            <Form.Item name="merchantName" label="商户名称"><Input disabled /></Form.Item>
-            <Form.Item name="storeId" label="门店"><Select options={storeOptions as SelectOptionRecord[]} allowClear onChange={(value) => form.setFieldValue('storeName', storeOptionMap.get(value))} /></Form.Item>
-            <Form.Item name="storeName" label="门店名称"><Input disabled /></Form.Item>
-            <Form.Item name="dataScopeType" label="数据范围" rules={[{ required: true, message: '请选择数据范围' }]}><Select options={scopeTypeOptions} /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={statusOptions} /></Form.Item>
-            <Form.Item className="modal-span-2" name="remark" label="备注"><Input.TextArea rows={3} /></Form.Item>
+      <BusinessEditorModal
+        eyebrow={editingAccount ? '商户账号维护' : '商户账号绑定'}
+        title={editingAccount ? `编辑账号 · ${editingAccount.userName}` : '新增商户账号'}
+        subtitle="将平台用户与商户、门店和数据范围绑定，形成商户后台访问身份。"
+        meta={['账号绑定', editingAccount ? '编辑模式' : '新建模式']}
+        open={accountVisible}
+        onCancel={closeAccount}
+        onOk={saveAccount}
+        okText={editingAccount ? '保存变更' : '创建账号'}
+        width={1040}
+        destroyOnClose
+      >
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection
+              icon={<TeamOutlined />}
+              title="账号基础信息"
+              desc="录入平台用户、账号类型、手机号和启停状态，用于商户后台登录身份识别。"
+            >
+              <div className="merchant-editor-fields merchant-editor-fields--two">
+                <Form.Item name="userId" label="平台用户ID"><Input placeholder="可选，已有平台用户时填写" /></Form.Item>
+                <Form.Item name="userName" label="账号名称" rules={[{ required: true, message: '请输入账号名称' }]}><Input placeholder="例如：merchant_direct_admin" /></Form.Item>
+                <Form.Item name="mobile" label="手机号"><Input placeholder="用于登录校验和通知" /></Form.Item>
+                <Form.Item name="accountType" label="账号类型" rules={[{ required: true, message: '请输入账号类型' }]}><Input placeholder="例如：商户管理员 / 门店店长" /></Form.Item>
+                <Form.Item name="status" label="状态"><Select options={statusOptions} placeholder="请选择状态" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+
+            <BusinessEditorSection
+              icon={<ShopOutlined />}
+              title="商户与权限范围"
+              desc="绑定商户和门店，并配置账号可访问的数据范围。"
+            >
+              <div className="merchant-editor-fields merchant-editor-fields--two">
+                <Form.Item name="merchantId" label="商户" rules={[{ required: true, message: '请选择商户' }]}>
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    options={merchantOptions as SelectOptionRecord[]}
+                    allowClear
+                    placeholder="请选择商户"
+                    onChange={(value) => form.setFieldValue('merchantName', merchantOptionMap.get(value))}
+                  />
+                </Form.Item>
+                <Form.Item name="merchantName" label="商户名称" rules={[{ required: true, message: '请选择商户' }]}>
+                  <Input disabled placeholder="选择商户后自动带出" />
+                </Form.Item>
+                <Form.Item name="storeId" label="门店">
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    options={storeOptions as SelectOptionRecord[]}
+                    allowClear
+                    placeholder="请选择门店"
+                    onChange={(value) => form.setFieldValue('storeName', storeOptionMap.get(value))}
+                  />
+                </Form.Item>
+                <Form.Item name="storeName" label="门店名称"><Input disabled placeholder="选择门店后自动带出" /></Form.Item>
+                <Form.Item name="dataScopeType" label="数据范围" rules={[{ required: true, message: '请选择数据范围' }]}><Select options={scopeTypeOptions} placeholder="请选择数据范围" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-2" name="remark" label="备注"><Input.TextArea rows={3} placeholder="记录账号用途、授权边界或交接说明" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal title="新增角色授权" open={grantVisible} onCancel={() => setGrantVisible(false)} onOk={saveGrant} width={760} destroyOnClose>
-        <Form form={grantForm} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="userId" label="用户ID"><Input /></Form.Item>
-            <Form.Item name="userName" label="账号" rules={[{ required: true, message: '请输入账号' }]}><Input /></Form.Item>
-            <Form.Item name="roleId" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
-              <Select
-                options={roleSelectOptions}
-                onChange={(_, option) => {
-                  const role = !option || Array.isArray(option) ? undefined : option.role;
-                  grantForm.setFieldsValue({ roleName: role?.roleName, roleCode: role?.roleCode });
-                }}
-              />
-            </Form.Item>
-            <Form.Item name="roleName" label="角色名称" rules={[{ required: true, message: '请选择角色' }]}><Input disabled /></Form.Item>
-            <Form.Item name="roleCode" label="角色编码" rules={[{ required: true, message: '请选择角色' }]}><Input disabled /></Form.Item>
-            <Form.Item name="grantUser" label="授权人"><Input /></Form.Item>
-            <Form.Item name="status" label="授权状态"><Select options={statusOptions} /></Form.Item>
-            <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} /></Form.Item>
-            <Form.Item className="modal-span-2" name="remark" label="处理说明"><Input.TextArea rows={3} /></Form.Item>
+      <BusinessEditorModal
+        eyebrow="商户角色授权"
+        title="新增角色授权"
+        subtitle="为商户账号授予系统角色，并同步写入权限变更日志，便于审计追踪。"
+        meta={['角色授权', '审计闭环']}
+        open={grantVisible}
+        onCancel={closeGrant}
+        onOk={saveGrant}
+        okText="写入授权"
+        width={1040}
+        destroyOnClose
+      >
+        <Form form={grantForm} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection
+              icon={<SafetyCertificateOutlined />}
+              title="授权对象与角色"
+              desc="选择账号和角色后自动带出角色名称、编码，并记录授权人和审核状态。"
+            >
+              <div className="merchant-editor-fields merchant-editor-fields--two">
+                <Form.Item name="userId" label="用户ID"><Input placeholder="可选，已有平台用户时填写" /></Form.Item>
+                <Form.Item name="userName" label="账号" rules={[{ required: true, message: '请输入账号' }]}><Input placeholder="例如：merchant_direct_admin" /></Form.Item>
+                <Form.Item name="roleId" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    options={roleSelectOptions}
+                    placeholder="请选择角色"
+                    onChange={(_, option) => {
+                      const role = !option || Array.isArray(option) ? undefined : option.role;
+                      grantForm.setFieldsValue({ roleName: role?.roleName, roleCode: role?.roleCode });
+                    }}
+                  />
+                </Form.Item>
+                <Form.Item name="roleName" label="角色名称" rules={[{ required: true, message: '请选择角色' }]}><Input disabled placeholder="选择角色后自动带出" /></Form.Item>
+                <Form.Item name="roleCode" label="角色编码" rules={[{ required: true, message: '请选择角色' }]}><Input disabled placeholder="选择角色后自动带出" /></Form.Item>
+                <Form.Item name="grantUser" label="授权人"><Input placeholder="例如：admin" /></Form.Item>
+                <Form.Item name="status" label="授权状态"><Select options={statusOptions} placeholder="请选择授权状态" /></Form.Item>
+                <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-2" name="remark" label="处理说明"><Input.TextArea rows={3} placeholder="记录授权原因、审批说明或有效边界" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

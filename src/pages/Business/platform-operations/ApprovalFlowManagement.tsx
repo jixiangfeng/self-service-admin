@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
-import { ForkOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, Row, Select, Statistic, Tabs, message } from 'antd';
+import { CheckCircleOutlined, ClockCircleOutlined, ForkOutlined, NodeIndexOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -11,13 +11,28 @@ import {
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type { ApprovalProcessRecord, ApprovalRecord, ApprovalSlaRecord, ApprovalTaskRecord } from '@/services/backendService';
 
 const publishStatusMap = buildValueEnum(publishStatusOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
 const priorityMap = buildValueEnum(ticketPriorityOptions);
+const approvalNodeOptions = [
+  { value: 'STORE_MANAGER', label: '门店负责人' },
+  { value: 'MERCHANT_ADMIN', label: '商户管理员' },
+  { value: 'FINANCE', label: '财务审核' },
+  { value: 'PLATFORM_OPS', label: '平台运营' },
+];
+const approvalActionOptions = [
+  { value: 'APPROVED', label: '通过' },
+  { value: 'REJECTED', label: '驳回' },
+  { value: 'TRANSFER', label: '转交' },
+];
+const compactJoin = (items: Array<string | undefined | false>) => items.filter(Boolean).join('；');
+const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
 
 const approvalDetailFields: Record<'process' | 'task' | 'record' | 'sla', DetailField<any>[]> = {
   process: [
@@ -75,10 +90,17 @@ const ApprovalFlowManagement: React.FC = () => {
   const openModal = (title: string) => {
     setModalTitle(title);
     form.resetFields();
+    form.setFieldsValue({
+      nodeOne: 'STORE_MANAGER',
+      nodeTwo: 'PLATFORM_OPS',
+      action: 'APPROVED',
+      priority: 'MEDIUM',
+      status: title.includes('流程') ? 'PUBLISHED' : 'PENDING',
+    });
     if (title === '处理审批任务') {
       const target = tasks.find((item) => item.status === 'PENDING') || tasks[0];
       if (target) {
-        form.setFieldsValue({ taskId: target.id, id: target.id, taskNo: target.taskNo, status: 'APPROVED' });
+        form.setFieldsValue({ taskId: target.id, id: target.id, taskNo: target.taskNo, status: 'APPROVED', action: 'APPROVED' });
       }
     }
     setModalVisible(true);
@@ -142,15 +164,10 @@ const ApprovalFlowManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="超时关注" value={slas.filter((item) => item.status === 'PENDING').length} suffix="条" /></Card></Col>
       </Row>
 
-      <ProTable
-        style={{ marginBottom: 16 }}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '输入流程、任务、业务单号、审批人关键词' } }]}
-        dataSource={[]}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        options={false}
-        pagination={false}
-        onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-        onReset={() => setKeyword('')}
+      <KeywordSearchBar
+        value={keyword}
+        placeholder="输入流程、任务、业务单号、审批人关键词"
+        onSearch={setKeyword}
       />
 
       <Tabs
@@ -162,7 +179,7 @@ const ApprovalFlowManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title="审批流详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -171,16 +188,29 @@ const ApprovalFlowManagement: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow="审批流配置"
         title={modalTitle}
+        subtitle="把审批节点、处理动作、负责人和时限拆成可维护字段，提交时生成节点配置和审批意见。"
+        meta={[modalTitle || '审批流', '平台运营']}
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={async () => {
           const values = await form.validateFields();
+          const nodeConfig = compactJoin([
+            values.nodeOne ? `一级节点：${optionLabel(approvalNodeOptions, String(values.nodeOne))}` : undefined,
+            values.nodeTwo ? `二级节点：${optionLabel(approvalNodeOptions, String(values.nodeTwo))}` : undefined,
+            values.owner ? `负责人：${values.owner}` : undefined,
+          ]);
+          const comment = compactJoin([
+            values.action ? `处理动作：${optionLabel(approvalActionOptions, String(values.action))}` : undefined,
+            values.currentNode ? `当前节点：${values.currentNode}` : undefined,
+            values.supplement ? `补充说明：${values.supplement}` : undefined,
+          ]);
           if (modalTitle.includes('流程')) {
-            await api.approval.processes.add(values);
+            await api.approval.processes.add({ ...values, nodeConfig, remark: comment });
             queryClient.invalidateQueries({ queryKey: ['approvalProcesses'] });
             message.success('审批流程已保存');
           } else if (modalTitle.includes('处理')) {
@@ -189,37 +219,56 @@ const ApprovalFlowManagement: React.FC = () => {
               setModalVisible(false);
               return;
             }
-            await api.approval.tasks.handle(id, values);
+            await api.approval.tasks.handle(id, { ...values, comment, status: values.action || values.status });
             queryClient.invalidateQueries({ queryKey: ['approvalTasks'] });
             queryClient.invalidateQueries({ queryKey: ['approvalRecords'] });
             message.success('审批任务已处理');
           } else {
-            await api.approval.slas.add(values);
+            await api.approval.slas.add({ ...values, currentNode: values.currentNode || optionLabel(approvalNodeOptions, String(values.nodeOne)), remark: comment });
             queryClient.invalidateQueries({ queryKey: ['approvalSlas'] });
             message.success('审批SLA已保存');
           }
           setModalVisible(false);
         }}
-        width={760}
+        width={1080}
+        okText="保存审批配置"
       >
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="id" label="任务ID"><Input /></Form.Item>
-            <Form.Item name="processNo" label="流程编号"><Input /></Form.Item>
-            <Form.Item name="processName" label="流程名称"><Input /></Form.Item>
-            <Form.Item name="taskNo" label="任务编号"><Input /></Form.Item>
-            <Form.Item name="bizType" label="业务类型"><Input /></Form.Item>
-            <Form.Item name="bizNo" label="业务单号"><Input /></Form.Item>
-            <Form.Item name="currentNode" label="当前节点"><Input /></Form.Item>
-            <Form.Item name="priority" label="优先级"><Select options={ticketPriorityOptions} /></Form.Item>
-            <Form.Item name="owner" label="负责人"><Input /></Form.Item>
-            <Form.Item name="deadline" label="截止时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={auditStatusOptions} /></Form.Item>
-            <Form.Item className="modal-span-2" name="nodeConfig" label="节点配置"><Input.TextArea rows={3} /></Form.Item>
-            <Form.Item className="modal-span-2" name="comment" label="处理说明"><Input.TextArea rows={4} /></Form.Item>
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<ForkOutlined />} title="流程对象" desc="维护流程、任务和业务单号。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="id" label="任务ID"><Input placeholder="处理审批任务时自动带入" /></Form.Item>
+                <Form.Item name="processNo" label="流程编号"><Input placeholder="例如：AP-SETTLE" /></Form.Item>
+                <Form.Item name="processName" label="流程名称"><Input placeholder="例如：结算单审批" /></Form.Item>
+                <Form.Item name="taskNo" label="任务编号"><Input placeholder="例如：TASK-20260510-001" /></Form.Item>
+                <Form.Item name="bizType" label="业务类型"><Input placeholder="例如：SETTLEMENT" /></Form.Item>
+                <Form.Item name="bizNo" label="业务单号"><Input placeholder="请输入业务单号" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<NodeIndexOutlined />} title="审批节点" desc="选择一级、二级审批节点和当前节点。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="nodeOne" label="一级节点"><Select options={approvalNodeOptions} placeholder="请选择一级节点" /></Form.Item>
+                <Form.Item name="nodeTwo" label="二级节点"><Select options={approvalNodeOptions} placeholder="请选择二级节点" /></Form.Item>
+                <Form.Item name="currentNode" label="当前节点"><Input placeholder="例如：财务审核" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<ClockCircleOutlined />} title="优先级与时限" desc="配置优先级、负责人、截止时间和状态。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="priority" label="优先级"><Select options={ticketPriorityOptions} placeholder="请选择优先级" /></Form.Item>
+                <Form.Item name="owner" label="负责人"><Input placeholder="例如：财务-王敏" /></Form.Item>
+                <Form.Item name="deadline" label="截止时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                <Form.Item name="status" label="状态"><Select options={auditStatusOptions} placeholder="请选择状态" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<CheckCircleOutlined />} title="处理动作" desc="选择审批动作并补充简要说明，系统合并为审批意见。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="action" label="处理动作"><Select options={approvalActionOptions} placeholder="请选择处理动作" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="supplement" label="补充说明"><Input placeholder="例如：资料齐全，同意进入下一步" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

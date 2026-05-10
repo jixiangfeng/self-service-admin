@@ -2,8 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { CarOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
-import { Button, Divider, Form, Input, Modal, Select, Space, message } from 'antd';
+import { CarOutlined, DeleteOutlined, EditOutlined, PlusOutlined, QrcodeOutlined, ToolOutlined } from '@ant-design/icons';
+import { Button, Form, Input, Select, Space, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
   pointAbilityOptions,
@@ -14,6 +14,8 @@ import {
 } from '@/constants/businessCatalog';
 import api from '@/services/backendService';
 import type { SelectOptionRecord, ServicePointRecord } from '@/services/backendService';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, formatDateTime, renderBooleanTag, renderOptionTags, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
@@ -141,7 +143,7 @@ const ServicePointManagement: React.FC = () => {
               danger
               icon={<DeleteOutlined />}
               onClick={() => {
-                Modal.confirm({
+                showBusinessConfirm({
                   title: '确认删除点位',
                   content: `确定删除点位「${record.pointCode}」吗？`,
                   onOk: () => deleteMutation.mutate(record.id),
@@ -244,19 +246,23 @@ const ServicePointManagement: React.FC = () => {
         }}
       />
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow={editingRecord ? '点位档案维护' : '点位投放配置'}
         title={editingRecord ? `编辑点位 · ${editingRecord.pointCode}` : '新建点位'}
+        subtitle="点位承接扫码入口、设备绑定、排队提示和维护状态，配置完整后才能支撑用户选点位下单。"
+        meta={['点位闭环', editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
-        width={900}
+        width={1120}
         onCancel={closeDrawer}
         onOk={() => form.submit()}
         confirmLoading={createMutation.isPending || updateMutation.isPending}
-        okText="保存点位"
+        okText={editingRecord ? '保存变更' : '创建点位'}
         destroyOnClose
       >
         <Form
           form={form}
           layout="vertical"
+          className="merchant-editor-form"
           preserve={false}
           onFinish={(values) => {
             const payload = {
@@ -270,63 +276,87 @@ const ServicePointManagement: React.FC = () => {
             createMutation.mutate(payload);
           }}
         >
-          <div className="modal-grid">
-            <Divider className="modal-span-2" orientation="left">点位基础信息</Divider>
-            <Form.Item name="storeId" label="所属门店" rules={[{ required: true, message: '请选择所属门店' }]}>
-              <Select options={storeOptions as SelectOptionRecord[]} />
-            </Form.Item>
-            <Form.Item name="pointCode" label="点位编号" rules={[{ required: true, message: '请输入点位编号' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="pointName" label="点位名称">
-              <Input />
-            </Form.Item>
-            <Form.Item name="pointType" label="点位类型" rules={[{ required: true, message: '请选择点位类型' }]}>
-              <Select options={pointTypeOptions} />
-            </Form.Item>
-            <Divider className="modal-span-2" orientation="left">能力与投放</Divider>
-            <Form.Item className="modal-span-2" name="abilityTags" label="能力标签">
-              <Select mode="multiple" options={pointAbilityOptions} placeholder="选择点位能力" />
-            </Form.Item>
-            <Form.Item name="qrCode" label="二维码标识">
-              <Input />
-            </Form.Item>
-            <Form.Item name="qrStatus" label="二维码状态">
-              <Select options={statusOptions} />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="bindDeviceCodes" label="绑定设备编号">
-              <Input placeholder="多个设备编号可用逗号分隔" />
-            </Form.Item>
-            <Form.Item name="capacity" label="可同时服务车辆数">
-              <Input type="number" />
-            </Form.Item>
-            <Form.Item name="maintainStatus" label="维护状态">
-              <Select options={maintainStatusOptions} />
-            </Form.Item>
-            <Form.Item name="lastMaintainAt" label="最近维护时间">
-              <Input placeholder="例如 2026-04-18 09:00:00" />
-            </Form.Item>
-            <Form.Item name="locationDesc" label="点位位置描述">
-              <Input placeholder="例如 B 区 03 号工位" />
-            </Form.Item>
-            <Form.Item name="queueEnabled" label="是否开启排队提示">
-              <Select options={statusOptions.map((item) => ({ value: item.value, label: item.value === 1 ? '开启' : '关闭' }))} />
-            </Form.Item>
-            <Form.Item name="queueRule" label="排队规则">
-              <Input placeholder="例如 最多排队 3 人，超时 10 分钟释放" />
-            </Form.Item>
-            <Form.Item name="temporaryClosedUntil" label="临时关闭截止时间">
-              <Input placeholder="例如 2026-04-18 20:00" />
-            </Form.Item>
-            <Form.Item name="sortNo" label="排序">
-              <Input type="number" />
-            </Form.Item>
-            <Form.Item name="status" label="点位状态">
-              <Select options={pointStatusOptions} />
-            </Form.Item>
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection
+              icon={<CarOutlined />}
+              title="点位基础"
+              desc="把点位绑定到具体门店，并明确工位编码、名称、类型和现场位置，方便扫码、导航和设备绑定。"
+            >
+              <div className="merchant-editor-fields">
+                <Form.Item name="storeId" label="所属门店" rules={[{ required: true, message: '请选择所属门店' }]}>
+                  <Select showSearch optionFilterProp="label" options={storeOptions as SelectOptionRecord[]} placeholder="请选择门店" />
+                </Form.Item>
+                <Form.Item name="pointCode" label="点位编号" rules={[{ required: true, message: '请输入点位编号' }]}>
+                  <Input placeholder="例如：BAY-A-01" />
+                </Form.Item>
+                <Form.Item name="pointName" label="点位名称">
+                  <Input placeholder="例如：A 区 1 号洗车位" />
+                </Form.Item>
+                <Form.Item name="pointType" label="点位类型" rules={[{ required: true, message: '请选择点位类型' }]}>
+                  <Select options={pointTypeOptions} placeholder="请选择点位类型" />
+                </Form.Item>
+                <Form.Item name="locationDesc" label="点位位置描述">
+                  <Input placeholder="例如：B 区 03 号工位，靠近出口" />
+                </Form.Item>
+                <Form.Item name="capacity" label="可同时服务车辆数">
+                  <Input type="number" placeholder="例如：1" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+
+            <BusinessEditorSection
+              icon={<QrcodeOutlined />}
+              title="扫码与投放"
+              desc="配置二维码标识、二维码状态、能力标签和排序，决定小程序扫码或选点位时是否可见可用。"
+            >
+              <div className="merchant-editor-fields">
+                <Form.Item name="qrCode" label="二维码标识">
+                  <Input placeholder="例如：QR-BAY-A-01" />
+                </Form.Item>
+                <Form.Item name="qrStatus" label="二维码状态">
+                  <Select options={statusOptions} placeholder="请选择二维码状态" />
+                </Form.Item>
+                <Form.Item name="sortNo" label="排序">
+                  <Input type="number" placeholder="数字越小越靠前" />
+                </Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="abilityTags" label="能力标签">
+                  <Select mode="multiple" options={pointAbilityOptions} placeholder="选择点位能力" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+
+            <BusinessEditorSection
+              icon={<ToolOutlined />}
+              title="设备与运营状态"
+              desc="维护绑定设备、排队策略、维护状态和临时关闭信息，形成点位从投放到运维的完整闭环。"
+            >
+              <div className="merchant-editor-fields">
+                <Form.Item className="merchant-editor-field-span-all" name="bindDeviceCodes" label="绑定设备编号">
+                  <Input placeholder="多个设备编号可用逗号分隔，例如 DEV-HP-001, DEV-FOAM-002" />
+                </Form.Item>
+                <Form.Item name="maintainStatus" label="维护状态">
+                  <Select options={maintainStatusOptions} placeholder="请选择维护状态" />
+                </Form.Item>
+                <Form.Item name="lastMaintainAt" label="最近维护时间">
+                  <Input placeholder="例如：2026-04-18 09:00:00" />
+                </Form.Item>
+                <Form.Item name="status" label="点位状态">
+                  <Select options={pointStatusOptions} placeholder="请选择点位状态" />
+                </Form.Item>
+                <Form.Item name="queueEnabled" label="是否开启排队提示">
+                  <Select options={statusOptions.map((item) => ({ value: item.value, label: item.value === 1 ? '开启' : '关闭' }))} placeholder="请选择排队提示状态" />
+                </Form.Item>
+                <Form.Item name="queueRule" label="排队规则">
+                  <Input placeholder="例如：最多排队 3 人，超时 10 分钟释放" />
+                </Form.Item>
+                <Form.Item name="temporaryClosedUntil" label="临时关闭截止时间">
+                  <Input placeholder="例如：2026-04-18 20:00" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

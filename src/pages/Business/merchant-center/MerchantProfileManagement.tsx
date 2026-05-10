@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Popconfirm, Row, Select, Statistic, Tabs, message } from 'antd';
-import { DeleteOutlined, EditOutlined, PlusOutlined, SolutionOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, Row, Select, Statistic, Tabs, message } from 'antd';
+import { AuditOutlined, BankOutlined, ContactsOutlined, DeleteOutlined, EditOutlined, FileProtectOutlined, PlusOutlined, SolutionOutlined, SyncOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
@@ -12,6 +12,9 @@ import {
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
 import type {
   MerchantChangeLogRecord,
@@ -52,6 +55,59 @@ const changeTypeOptions = [
   { value: 'CONTRACT', label: '合同变更' },
   { value: 'ACCOUNT', label: '结算账户变更' },
 ];
+
+const profileTabMeta: Record<ProfileTab, { eyebrow: string; createTitle: string; editTitle: string; subtitle: string; sectionTitle: string; sectionDesc: string; icon: React.ReactNode; meta: string }> = {
+  contact: {
+    eyebrow: '联系人档案维护',
+    createTitle: '新增联系人',
+    editTitle: '编辑联系人',
+    subtitle: '维护商户运营、财务、法务等联系人，保证异常处理和日常通知有明确责任人。',
+    sectionTitle: '联系人信息',
+    sectionDesc: '选择所属商户并录入联系人类型、联系方式和主联系人标记。',
+    icon: <ContactsOutlined />,
+    meta: '联系人',
+  },
+  qualification: {
+    eyebrow: '资质档案维护',
+    createTitle: '新增资质',
+    editTitle: '编辑资质',
+    subtitle: '沉淀商户营业执照、法人证件和经营许可等资质材料，支持审核和到期跟进。',
+    sectionTitle: '资质材料',
+    sectionDesc: '录入资质编号、文件地址、审核状态和有效期，保证资料可追溯。',
+    icon: <FileProtectOutlined />,
+    meta: '资质',
+  },
+  contract: {
+    eyebrow: '合同档案维护',
+    createTitle: '新增合同',
+    editTitle: '编辑合同',
+    subtitle: '维护商户合同编号、履约周期、结算周期和审核状态，支撑财务对账和合作管理。',
+    sectionTitle: '合同信息',
+    sectionDesc: '配置合同主体、合同周期、结算周期和当前履约状态。',
+    icon: <AuditOutlined />,
+    meta: '合同',
+  },
+  account: {
+    eyebrow: '结算账户维护',
+    createTitle: '新增结算账户',
+    editTitle: '编辑结算账户',
+    subtitle: '维护商户收款账户和审核状态，保证结算打款信息完整。',
+    sectionTitle: '账户信息',
+    sectionDesc: '录入户名、账号、开户行、生效日期和账户状态。',
+    icon: <BankOutlined />,
+    meta: '结算账户',
+  },
+  change: {
+    eyebrow: '商户变更维护',
+    createTitle: '新增变更记录',
+    editTitle: '编辑变更记录',
+    subtitle: '记录商户关键资料的变更前后内容、操作人和变更时间，形成审计闭环。',
+    sectionTitle: '变更内容',
+    sectionDesc: '填写变更单号、变更类型、变更前后内容和操作信息。',
+    icon: <SyncOutlined />,
+    meta: '变更日志',
+  },
+};
 
 const profileDetailFields: Record<ProfileTab, DetailField<any>[]> = {
   contact: [
@@ -110,6 +166,7 @@ const MerchantProfileManagement: React.FC = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<EditableRecord | null>(null);
   const [form] = Form.useForm<Record<string, unknown>>();
+  const [searchForm] = Form.useForm<{ keyword?: string }>();
 
   const { data: merchantOptions } = useQuery({
     queryKey: ['merchantOptionsForProfiles'],
@@ -117,14 +174,14 @@ const MerchantProfileManagement: React.FC = () => {
   });
 
   const merchantMap = useMemo(() => new Map((merchantOptions || []).map((item) => [item.value, item.label])), [merchantOptions]);
-  const enrichMerchantName = <T extends { merchantId?: number; merchantName?: string }>(records: T[] | undefined) =>
+  const enrichMerchantName = <T extends { merchantId?: number; merchantName?: string }>(records: T[] | undefined): T[] =>
     (records || []).map((record) => ({ ...record, merchantName: record.merchantName || (record.merchantId ? merchantMap.get(record.merchantId) : '-') || '-' }));
 
-  const contactQuery = useQuery({ queryKey: ['merchantContacts'], queryFn: async () => (await api.merchantContact.page({ pageNum: 1, pageSize: 200 })).data });
-  const qualificationQuery = useQuery({ queryKey: ['merchantQualifications'], queryFn: async () => (await api.merchantQualification.page({ pageNum: 1, pageSize: 200 })).data });
-  const contractQuery = useQuery({ queryKey: ['merchantContracts'], queryFn: async () => (await api.merchantContract.page({ pageNum: 1, pageSize: 200 })).data });
-  const accountQuery = useQuery({ queryKey: ['merchantSettlementAccounts'], queryFn: async () => (await api.merchantSettlementAccount.page({ pageNum: 1, pageSize: 200 })).data });
-  const changeQuery = useQuery({ queryKey: ['merchantChangeLogs'], queryFn: async () => (await api.merchantChangeLog.page({ pageNum: 1, pageSize: 200 })).data });
+  const contactQuery = useQuery({ queryKey: ['merchantContacts'], queryFn: async () => (await api.merchantContact.page({ pageNum: 1, pageSize: 200 })).data as { records: MerchantContactRecord[] } });
+  const qualificationQuery = useQuery({ queryKey: ['merchantQualifications'], queryFn: async () => (await api.merchantQualification.page({ pageNum: 1, pageSize: 200 })).data as { records: MerchantQualificationRecord[] } });
+  const contractQuery = useQuery({ queryKey: ['merchantContracts'], queryFn: async () => (await api.merchantContract.page({ pageNum: 1, pageSize: 200 })).data as { records: MerchantContractRecord[] } });
+  const accountQuery = useQuery({ queryKey: ['merchantSettlementAccounts'], queryFn: async () => (await api.merchantSettlementAccount.page({ pageNum: 1, pageSize: 200 })).data as { records: MerchantSettlementAccountRecord[] } });
+  const changeQuery = useQuery({ queryKey: ['merchantChangeLogs'], queryFn: async () => (await api.merchantChangeLog.page({ pageNum: 1, pageSize: 200 })).data as { records: MerchantChangeLogRecord[] } });
 
   const contacts = enrichMerchantName(contactQuery.data?.records);
   const qualifications = enrichMerchantName(qualificationQuery.data?.records);
@@ -174,6 +231,18 @@ const MerchantProfileManagement: React.FC = () => {
   const filter = <T extends object>(items: T[]) =>
     items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
 
+  const syncMerchantName = (value: unknown) => {
+    form.setFieldValue('merchantName', merchantMap.get(value as number));
+  };
+
+  const confirmRemove = (tab: ProfileTab, id: number) => {
+    showBusinessConfirm({
+      title: `确认删除${profileTabMeta[tab].meta}`,
+      content: `删除后将移除该商户「${profileTabMeta[tab].meta}」记录，相关运营、审核和追溯信息将不可恢复。`,
+      onOk: () => removeMutation.mutate({ tab, id }),
+    });
+  };
+
   const openModal = (tab: ProfileTab, record?: EditableRecord) => {
     setActiveTab(tab);
     setEditingRecord(record || null);
@@ -181,7 +250,7 @@ const MerchantProfileManagement: React.FC = () => {
     if (record) {
       form.setFieldsValue({ ...(record as unknown as Record<string, string | number | undefined>) });
     } else if (tab === 'contact') {
-      form.setFieldsValue({ primaryFlag: 0, status: 'APPROVED' });
+      form.setFieldsValue({ contactType: 'PRIMARY', primaryFlag: 0, status: 'APPROVED' });
     } else if (tab === 'contract') {
       form.setFieldsValue({ settlementCycle: 'WEEK', contractStatus: 'PENDING', status: 'PENDING' });
     } else if (tab === 'qualification') {
@@ -210,9 +279,7 @@ const MerchantProfileManagement: React.FC = () => {
         <>
           <Button size="small" type="link" onClick={() => setDetail(record)}>详情</Button>
           <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openModal('contact', record)}>编辑</Button>
-          <Popconfirm title="确认删除联系人？" onConfirm={() => removeMutation.mutate({ tab: 'contact', id: record.id })}>
-            <Button size="small" type="link" danger icon={<DeleteOutlined />}>删除</Button>
-          </Popconfirm>
+          <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => confirmRemove('contact', record.id)}>删除</Button>
         </>
       ),
     },
@@ -233,9 +300,7 @@ const MerchantProfileManagement: React.FC = () => {
         <>
           <Button size="small" type="link" onClick={() => setDetail(record)}>详情</Button>
           <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openModal('qualification', record)}>编辑</Button>
-          <Popconfirm title="确认删除资质？" onConfirm={() => removeMutation.mutate({ tab: 'qualification', id: record.id })}>
-            <Button size="small" type="link" danger icon={<DeleteOutlined />}>删除</Button>
-          </Popconfirm>
+          <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => confirmRemove('qualification', record.id)}>删除</Button>
         </>
       ),
     },
@@ -258,9 +323,7 @@ const MerchantProfileManagement: React.FC = () => {
         <>
           <Button size="small" type="link" onClick={() => setDetail(record)}>详情</Button>
           <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openModal('contract', record)}>编辑</Button>
-          <Popconfirm title="确认删除合同？" onConfirm={() => removeMutation.mutate({ tab: 'contract', id: record.id })}>
-            <Button size="small" type="link" danger icon={<DeleteOutlined />}>删除</Button>
-          </Popconfirm>
+          <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => confirmRemove('contract', record.id)}>删除</Button>
         </>
       ),
     },
@@ -282,9 +345,7 @@ const MerchantProfileManagement: React.FC = () => {
         <>
           <Button size="small" type="link" onClick={() => setDetail(record)}>详情</Button>
           <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openModal('account', record)}>编辑</Button>
-          <Popconfirm title="确认删除结算账户？" onConfirm={() => removeMutation.mutate({ tab: 'account', id: record.id })}>
-            <Button size="small" type="link" danger icon={<DeleteOutlined />}>删除</Button>
-          </Popconfirm>
+          <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => confirmRemove('account', record.id)}>删除</Button>
         </>
       ),
     },
@@ -306,9 +367,7 @@ const MerchantProfileManagement: React.FC = () => {
         <>
           <Button size="small" type="link" onClick={() => setDetail(record)}>详情</Button>
           <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openModal('change', record)}>编辑</Button>
-          <Popconfirm title="确认删除变更日志？" onConfirm={() => removeMutation.mutate({ tab: 'change', id: record.id })}>
-            <Button size="small" type="link" danger icon={<DeleteOutlined />}>删除</Button>
-          </Popconfirm>
+          <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => confirmRemove('change', record.id)}>删除</Button>
         </>
       ),
     },
@@ -326,16 +385,22 @@ const MerchantProfileManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="变更记录" value={changes.length} suffix="条" /></Card></Col>
       </Row>
 
-      <ProTable
+      <Form
+        form={searchForm}
+        layout="inline"
         style={{ marginBottom: 16 }}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '输入商户、联系人、资质、合同、账户、变更关键词' } }]}
-        dataSource={[]}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        options={false}
-        pagination={false}
-        onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-        onReset={() => setKeyword('')}
-      />
+        onFinish={(values) => setKeyword(String(values.keyword || ''))}
+      >
+        <Form.Item name="keyword" label="关键词">
+          <Input allowClear placeholder="输入商户、联系人、资质、合同、账户、变更关键词" style={{ width: 360 }} />
+        </Form.Item>
+        <Form.Item>
+          <Button type="primary" htmlType="submit">查询</Button>
+        </Form.Item>
+        <Form.Item>
+          <Button onClick={() => { searchForm.resetFields(); setKeyword(''); }}>重置</Button>
+        </Form.Item>
+      </Form>
 
       <Tabs
         activeKey={activeTab}
@@ -349,12 +414,15 @@ const MerchantProfileManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title="商户档案详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? <SchemaDetail record={detail as any} fields={profileDetailFields[activeTab]} /> : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
-        title={editingRecord ? '编辑商户档案' : '新增商户档案'}
+      <BusinessEditorModal
+        eyebrow={profileTabMeta[activeTab].eyebrow}
+        title={editingRecord ? profileTabMeta[activeTab].editTitle : profileTabMeta[activeTab].createTitle}
+        subtitle={profileTabMeta[activeTab].subtitle}
+        meta={[profileTabMeta[activeTab].meta, editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
         onCancel={() => {
           setModalVisible(false);
@@ -363,70 +431,83 @@ const MerchantProfileManagement: React.FC = () => {
         }}
         onOk={async () => saveMutation.mutate(await form.validateFields())}
         confirmLoading={saveMutation.isPending}
-        width={760}
+        okText={editingRecord ? '保存变更' : '保存档案'}
+        width={1040}
+        destroyOnClose
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" className="merchant-editor-form">
           <Form.Item name="id" hidden><Input /></Form.Item>
-          <div className="modal-grid">
-            <Form.Item name="merchantId" label="所属商户" rules={[{ required: true, message: '请选择商户' }]}>
-              <Select showSearch optionFilterProp="label" options={merchantOptions || []} />
-            </Form.Item>
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection
+              icon={profileTabMeta[activeTab].icon}
+              title={profileTabMeta[activeTab].sectionTitle}
+              desc={profileTabMeta[activeTab].sectionDesc}
+            >
+              <div className="merchant-editor-fields merchant-editor-fields--two">
+                <Form.Item name="merchantId" label="所属商户" rules={[{ required: true, message: '请选择商户' }]}>
+                  <Select showSearch optionFilterProp="label" options={merchantOptions || []} placeholder="请选择商户" onChange={syncMerchantName} />
+                </Form.Item>
+                <Form.Item name="merchantName" label="商户名称">
+                  <Input disabled placeholder="选择商户后自动带出" />
+                </Form.Item>
             {activeTab === 'contact' ? (
               <>
-                <Form.Item name="contactType" label="联系人类型" rules={[{ required: true, message: '请选择联系人类型' }]}><Select options={contactTypeOptions} /></Form.Item>
-                <Form.Item name="contactName" label="联系人" rules={[{ required: true, message: '请输入联系人' }]}><Input /></Form.Item>
-                <Form.Item name="mobile" label="手机号" rules={[{ required: true, message: '请输入手机号' }]}><Input /></Form.Item>
-                <Form.Item name="email" label="邮箱"><Input /></Form.Item>
-                <Form.Item name="primaryFlag" label="主联系人"><Select options={[{ value: 1, label: '是' }, { value: 0, label: '否' }]} /></Form.Item>
-                <Form.Item name="status" label="状态"><Select options={auditStatusOptions} /></Form.Item>
+                <Form.Item name="contactType" label="联系人类型" rules={[{ required: true, message: '请选择联系人类型' }]}><Select options={contactTypeOptions} placeholder="请选择联系人类型" /></Form.Item>
+                <Form.Item name="contactName" label="联系人" rules={[{ required: true, message: '请输入联系人' }]}><Input placeholder="例如：王敏" /></Form.Item>
+                <Form.Item name="mobile" label="手机号" rules={[{ required: true, message: '请输入手机号' }]}><Input placeholder="用于运营通知和异常处理" /></Form.Item>
+                <Form.Item name="email" label="邮箱"><Input placeholder="例如：ops@example.com" /></Form.Item>
+                <Form.Item name="primaryFlag" label="主联系人"><Select options={[{ value: 1, label: '是' }, { value: 0, label: '否' }]} placeholder="请选择" /></Form.Item>
+                <Form.Item name="status" label="状态"><Select options={auditStatusOptions} placeholder="请选择状态" /></Form.Item>
               </>
             ) : null}
             {activeTab === 'qualification' ? (
               <>
-                <Form.Item name="qualificationType" label="资质类型" rules={[{ required: true, message: '请选择资质类型' }]}><Select options={qualificationTypeOptions} /></Form.Item>
-                <Form.Item name="qualificationNo" label="资质编号" rules={[{ required: true, message: '请输入资质编号' }]}><Input /></Form.Item>
-                <Form.Item name="fileName" label="文件名称"><Input /></Form.Item>
-                <Form.Item name="fileUrl" label="文件地址"><Input /></Form.Item>
-                <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} /></Form.Item>
-                <Form.Item name="status" label="状态"><Select options={accountStatusOptions} /></Form.Item>
+                <Form.Item name="qualificationType" label="资质类型" rules={[{ required: true, message: '请选择资质类型' }]}><Select options={qualificationTypeOptions} placeholder="请选择资质类型" /></Form.Item>
+                <Form.Item name="qualificationNo" label="资质编号" rules={[{ required: true, message: '请输入资质编号' }]}><Input placeholder="统一信用代码或许可证编号" /></Form.Item>
+                <Form.Item name="fileName" label="文件名称"><Input placeholder="例如：营业执照.pdf" /></Form.Item>
+                <Form.Item name="fileUrl" label="文件地址"><Input placeholder="资质文件链接或对象存储地址" /></Form.Item>
+                <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
+                <Form.Item name="status" label="状态"><Select options={accountStatusOptions} placeholder="请选择状态" /></Form.Item>
                 <Form.Item name="expireAt" label="到期日"><Input placeholder="YYYY-MM-DD" /></Form.Item>
               </>
             ) : null}
             {activeTab === 'contract' ? (
               <>
-                <Form.Item name="contractNo" label="合同编号" rules={[{ required: true, message: '请输入合同编号' }]}><Input /></Form.Item>
-                <Form.Item name="contractName" label="合同名称" rules={[{ required: true, message: '请输入合同名称' }]}><Input /></Form.Item>
-                <Form.Item name="settlementCycle" label="结算周期"><Select options={settlementCycleOptions} /></Form.Item>
-                <Form.Item name="contractStatus" label="合同状态"><Select options={merchantContractStatusOptions} /></Form.Item>
-                <Form.Item name="status" label="审核状态"><Select options={auditStatusOptions} /></Form.Item>
+                <Form.Item name="contractNo" label="合同编号" rules={[{ required: true, message: '请输入合同编号' }]}><Input placeholder="例如：CTR-2026-001" /></Form.Item>
+                <Form.Item name="contractName" label="合同名称" rules={[{ required: true, message: '请输入合同名称' }]}><Input placeholder="例如：商户入驻合作协议" /></Form.Item>
+                <Form.Item name="settlementCycle" label="结算周期"><Select options={settlementCycleOptions} placeholder="请选择结算周期" /></Form.Item>
+                <Form.Item name="contractStatus" label="合同状态"><Select options={merchantContractStatusOptions} placeholder="请选择合同状态" /></Form.Item>
+                <Form.Item name="status" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
                 <Form.Item name="startAt" label="开始日期"><Input placeholder="YYYY-MM-DD" /></Form.Item>
                 <Form.Item name="endAt" label="结束日期"><Input placeholder="YYYY-MM-DD" /></Form.Item>
               </>
             ) : null}
             {activeTab === 'account' ? (
               <>
-                <Form.Item name="accountName" label="户名" rules={[{ required: true, message: '请输入户名' }]}><Input /></Form.Item>
-                <Form.Item name="accountNo" label="账号" rules={[{ required: true, message: '请输入账号' }]}><Input /></Form.Item>
-                <Form.Item name="bankName" label="开户行"><Input /></Form.Item>
-                <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} /></Form.Item>
-                <Form.Item name="status" label="账户状态"><Select options={accountStatusOptions} /></Form.Item>
+                <Form.Item name="accountName" label="户名" rules={[{ required: true, message: '请输入户名' }]}><Input placeholder="例如：上海鲸洗运营有限公司" /></Form.Item>
+                <Form.Item name="accountNo" label="账号" rules={[{ required: true, message: '请输入账号' }]}><Input placeholder="银行账户或收款账号" /></Form.Item>
+                <Form.Item name="bankName" label="开户行"><Input placeholder="例如：招商银行上海分行" /></Form.Item>
+                <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
+                <Form.Item name="status" label="账户状态"><Select options={accountStatusOptions} placeholder="请选择账户状态" /></Form.Item>
                 <Form.Item name="effectiveAt" label="生效日期"><Input placeholder="YYYY-MM-DD" /></Form.Item>
               </>
             ) : null}
             {activeTab === 'change' ? (
               <>
-                <Form.Item name="changeNo" label="变更单号" rules={[{ required: true, message: '请输入变更单号' }]}><Input /></Form.Item>
-                <Form.Item name="changeType" label="变更类型"><Select options={changeTypeOptions} /></Form.Item>
-                <Form.Item name="operator" label="操作人"><Input /></Form.Item>
+                <Form.Item name="changeNo" label="变更单号" rules={[{ required: true, message: '请输入变更单号' }]}><Input placeholder="例如：MCG202605100001" /></Form.Item>
+                <Form.Item name="changeType" label="变更类型"><Select options={changeTypeOptions} placeholder="请选择变更类型" /></Form.Item>
+                <Form.Item name="operator" label="操作人"><Input placeholder="例如：平台运营" /></Form.Item>
                 <Form.Item name="changedAt" label="变更时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-                <Form.Item className="modal-span-2" name="beforeValue" label="变更前"><Input.TextArea rows={3} /></Form.Item>
-                <Form.Item className="modal-span-2" name="afterValue" label="变更后"><Input.TextArea rows={3} /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-2" name="beforeValue" label="变更前"><Input.TextArea rows={3} placeholder="记录变更前的关键字段和值" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-2" name="afterValue" label="变更后"><Input.TextArea rows={3} placeholder="记录变更后的关键字段和值" /></Form.Item>
               </>
             ) : null}
-            <Form.Item className="modal-span-2" name="remark" label="备注"><Input.TextArea rows={3} /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-2" name="remark" label="备注"><Input.TextArea rows={3} placeholder="补充审核说明、资料来源或内部交接说明" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Table, message } from 'antd';
-import { NotificationOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Table, message } from 'antd';
+import { AppstoreOutlined, CalendarOutlined, DollarOutlined, NotificationOutlined } from '@ant-design/icons';
 import {
   adContentTypeOptions,
   adDeliveryStatusOptions,
@@ -11,6 +11,8 @@ import {
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, formatAmount, renderStatusTag } from '@/pages/Business/shared';
 import api, { type AdCampaignRecord, type AdEventRecord, type AdSlotRecord } from '@/services/backendService';
 
@@ -193,39 +195,82 @@ const AdManagement: React.FC = () => {
         />
       </Card>
 
-      <Modal title={editingSlot ? `编辑广告位 · ${editingSlot.slotName || editingSlot.slotCode}` : '新建广告位'} open={slotVisible} onOk={handleSlotSubmit} onCancel={() => { setSlotVisible(false); setEditingSlot(null); slotForm.resetFields(); }} width={860} confirmLoading={saveSlotMutation.isPending}>
-        <Form form={slotForm} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="slotCode" label="广告位编码" rules={[{ required: true, message: '请输入广告位编码' }]}><Input /></Form.Item>
-            <Form.Item name="slotName" label="广告位名称" rules={[{ required: true, message: '请输入广告位名称' }]}><Input /></Form.Item>
-            <Form.Item name="placement" label="页面位置" rules={[{ required: true, message: '请选择页面位置' }]}><Select options={adSlotPlacementOptions} /></Form.Item>
-            <Form.Item name="scope" label="投放范围"><Select options={scopeTypeOptions} /></Form.Item>
-            <Form.Item name="contentType" label="内容类型"><Select options={adContentTypeOptions} /></Form.Item>
-            <Form.Item name="sizeSpec" label="尺寸规格"><Input /></Form.Item>
-            <Form.Item name="sortWeight" label="排序权重"><Input /></Form.Item>
-            <Form.Item name="status" label="状态">
-              <Select options={adStatusOptions} />
-            </Form.Item>
+      <BusinessEditorModal
+        eyebrow="广告位配置"
+        title={editingSlot ? `编辑广告位 · ${editingSlot.slotName || editingSlot.slotCode}` : '新建广告位'}
+        subtitle="配置广告位编码、页面位置、投放范围、素材类型和展示排序，便于运营直接维护投放入口。"
+        meta={[editingSlot ? '编辑' : '新增', '广告中心']}
+        open={slotVisible}
+        onOk={handleSlotSubmit}
+        onCancel={() => { setSlotVisible(false); setEditingSlot(null); slotForm.resetFields(); }}
+        width={980}
+        okText="保存广告位"
+        confirmLoading={saveSlotMutation.isPending}
+      >
+        <Form form={slotForm} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<AppstoreOutlined />} title="广告位基础" desc="定义广告位编码、名称、页面位置和投放范围。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="slotCode" label="广告位编码" rules={[{ required: true, message: '请输入广告位编码' }]}><Input placeholder="例如：HOME-BANNER-01" /></Form.Item>
+                <Form.Item name="slotName" label="广告位名称" rules={[{ required: true, message: '请输入广告位名称' }]}><Input placeholder="例如：首页轮播 Banner" /></Form.Item>
+                <Form.Item name="placement" label="页面位置" rules={[{ required: true, message: '请选择页面位置' }]}><Select options={adSlotPlacementOptions} placeholder="请选择页面位置" /></Form.Item>
+                <Form.Item name="scope" label="投放范围"><Select options={scopeTypeOptions} placeholder="请选择投放范围" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<NotificationOutlined />} title="展示策略" desc="配置素材类型、尺寸规格、排序权重和上下线状态。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="contentType" label="内容类型"><Select options={adContentTypeOptions} placeholder="请选择内容类型" /></Form.Item>
+                <Form.Item name="sizeSpec" label="尺寸规格"><Input placeholder="例如：750x300" /></Form.Item>
+                <Form.Item name="sortWeight" label="排序权重"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="数字越大越靠前" /></Form.Item>
+                <Form.Item name="status" label="状态"><Select options={adStatusOptions} placeholder="请选择状态" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal title={editingDelivery ? `编辑投放计划 · ${editingDelivery.campaign || editingDelivery.campaignCode}` : '新建投放计划'} open={deliveryVisible} onOk={handleDeliverySubmit} onCancel={() => { setDeliveryVisible(false); setEditingDelivery(null); deliveryForm.resetFields(); }} width={860} confirmLoading={saveDeliveryMutation.isPending}>
-        <Form form={deliveryForm} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="campaignCode" label="计划编码" rules={[{ required: true, message: '请输入计划编码' }]}><Input /></Form.Item>
-            <Form.Item name="campaign" label="计划名称" rules={[{ required: true, message: '请输入计划名称' }]}><Input /></Form.Item>
-            <Form.Item name="slotName" label="广告位"><Input /></Form.Item>
-            <Form.Item name="target" label="投放对象" rules={[{ required: true, message: '请输入投放对象' }]}><Input /></Form.Item>
-            <Form.Item name="timing" label="投放时段"><Input /></Form.Item>
-            <Form.Item name="budget" label="预算"><Input /></Form.Item>
-            <Form.Item name="owner" label="负责人"><Input /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={adDeliveryStatusOptions} /></Form.Item>
+      <BusinessEditorModal
+        eyebrow="投放计划配置"
+        title={editingDelivery ? `编辑投放计划 · ${editingDelivery.campaign || editingDelivery.campaignCode}` : '新建投放计划'}
+        subtitle="配置广告位、投放对象、投放时段、预算负责人和效果数据，形成广告投放闭环。"
+        meta={[editingDelivery ? '编辑' : '新增', '投放计划']}
+        open={deliveryVisible}
+        onOk={handleDeliverySubmit}
+        onCancel={() => { setDeliveryVisible(false); setEditingDelivery(null); deliveryForm.resetFields(); }}
+        width={1080}
+        okText="保存投放计划"
+        confirmLoading={saveDeliveryMutation.isPending}
+      >
+        <Form form={deliveryForm} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<NotificationOutlined />} title="计划基础" desc="定义计划编码、名称、广告位和目标人群。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="campaignCode" label="计划编码" rules={[{ required: true, message: '请输入计划编码' }]}><Input placeholder="例如：AD-202605-HOME" /></Form.Item>
+                <Form.Item name="campaign" label="计划名称" rules={[{ required: true, message: '请输入计划名称' }]}><Input placeholder="例如：五月洗车卡促销投放" /></Form.Item>
+                <Form.Item name="slotName" label="广告位"><Input placeholder="例如：首页轮播 Banner" /></Form.Item>
+                <Form.Item name="target" label="投放对象" rules={[{ required: true, message: '请输入投放对象' }]}><Input placeholder="例如：近30天未下单用户" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<CalendarOutlined />} title="预算与节奏" desc="配置投放时段、预算、负责人和计划状态。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="timing" label="投放时段"><Input placeholder="例如：2026-05-01 至 2026-05-31" /></Form.Item>
+                <Form.Item name="budget" label="预算"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
+                <Form.Item name="owner" label="负责人"><Input placeholder="例如：增长运营-王敏" /></Form.Item>
+                <Form.Item name="status" label="状态"><Select options={adDeliveryStatusOptions} placeholder="请选择状态" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<DollarOutlined />} title="效果数据" desc="维护曝光、点击和转化数据，便于投放效果回看。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="exposure" label="曝光"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                <Form.Item name="click" label="点击"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                <Form.Item name="conversion" label="转化"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title="广告业务详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -234,7 +279,7 @@ const AdManagement: React.FC = () => {
             labelWidth={100}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
     </div>
   );
 };

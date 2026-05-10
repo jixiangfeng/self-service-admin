@@ -1,4 +1,3 @@
-import { localDataStore } from './localDataStore';
 import { request } from '@/utils/request';
 
 export interface ApiEnvelope<T> {
@@ -245,6 +244,11 @@ export interface MerchantGroupRecord {
   scopeLevel: string;
   scope?: string;
   writeoffRule?: string;
+  scopeUsages?: string[];
+  scopeRemark?: string;
+  writeoffScope?: string;
+  writeoffLimit?: string;
+  writeoffRemark?: string;
   owner?: string;
   status: string;
   remark?: string;
@@ -360,7 +364,19 @@ export interface StoreRecord {
 export interface StoreImageRecord { id: number; storeId: number; storeName?: string; imageType: string; imageUrl: string; sortNo?: number; status: string; createdAt?: string; updatedAt?: string; }
 export interface StoreBusinessHoursRecord { id: number; storeId: number; storeName?: string; weekday: string; openTime: string; closeTime: string; status: string; createdAt?: string; updatedAt?: string; }
 export interface StoreTempCloseRecord { id: number; storeId: number; storeName?: string; closeReason: string; startAt?: string; endAt?: string; operator?: string; status: string; createdAt?: string; updatedAt?: string; }
-export interface StoreServiceCapabilityRecord { id: number; storeId: number; storeName?: string; capabilityCode: string; configJson?: string; status: string; createdAt?: string; updatedAt?: string; }
+export interface StoreServiceCapabilityRecord {
+  id: number;
+  storeId: number;
+  storeName?: string;
+  capabilityCode: string;
+  configJson?: string;
+  limitMode?: string;
+  pointScope?: string;
+  extraLimit?: string;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 export interface StoreChangeLogRecord { id: number; changeNo: string; storeId: number; storeName?: string; changeType: string; beforeValue?: string; afterValue?: string; operator?: string; changedAt?: string; createdAt?: string; updatedAt?: string; }
 export interface StoreOperationTaskRecord { id: number; taskNo?: string; taskType: string; task: string; storeId?: number; store?: string; deviceId?: number; relatedDevice?: string; owner?: string; deadline?: string; priority: string; status: string; result?: string; createdAt?: string; updatedAt?: string; }
 export interface StoreNoticeRecord { id: number; noticeNo?: string; noticeType: string; title: string; content: string; storeId?: number; store?: string; publisher?: string; publishAt?: string; status: string; createdAt?: string; updatedAt?: string; }
@@ -433,12 +449,16 @@ export interface ServiceProductRecord {
   scopeId?: number;
   scopeName?: string;
   priceDesc?: string;
-  discountRule?: string;
+  combineMode?: string;
+  memberPriceStack?: string;
+  couponStack?: string;
   serviceDuration?: string;
   usageNotice?: string;
   sellingPoints?: string;
   rightsContent?: string;
-  refundRule?: string;
+  refundPolicy?: string;
+  abnormalRefund?: string;
+  refundWindowHours?: number;
   priceVersion?: string;
   effectiveAt?: string;
   expireAt?: string;
@@ -464,8 +484,14 @@ export interface PricingRuleRecord {
   freeMinutes?: number;
   nightPriceDesc?: string;
   holidayPriceDesc?: string;
-  timeSegment?: string;
-  holidayRule?: string;
+  timeStart?: string;
+  timeEnd?: string;
+  nightPriceMode?: string;
+  nightPriceValue?: string;
+  holidayPriceMode?: string;
+  holidayDates?: string;
+  holidayPriceValue?: string;
+  holidayStackPolicy?: string;
   effectiveAt?: string;
   expireAt?: string;
   versionNo?: string;
@@ -561,7 +587,22 @@ export interface DeviceSparePartRecord {
 
 export interface DeviceVendorRecord { id: number; vendorCode: string; vendorName: string; contactName?: string; contactPhone?: string; apiBaseUrl?: string; status: string; createdAt?: string; updatedAt?: string; }
 export interface DeviceModelRecord { id: number; vendorName?: string; modelCode: string; modelName: string; deviceType: string; protocolCode?: string; status: string; createdAt?: string; updatedAt?: string; }
-export interface DeviceProtocolRecord { id: number; protocolCode: string; protocolName: string; protocolType: string; version?: string; authConfig?: string; status: string; createdAt?: string; updatedAt?: string; }
+export interface DeviceProtocolRecord {
+  id: number;
+  protocolCode: string;
+  protocolName: string;
+  protocolType: string;
+  version?: string;
+  authConfig?: string;
+  authMethod?: string;
+  signatureMethod?: string;
+  callbackRequired?: string;
+  securityOwner?: string;
+  authRemark?: string;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 export interface DeviceBindLogRecord { id: number; deviceId?: number; bindNo: string; deviceCode?: string; beforeStore?: string; afterStore?: string; beforePoint?: string; afterPoint?: string; boundAt?: string; createdAt?: string; updatedAt?: string; }
 
 export interface CouponTemplateRecord {
@@ -570,10 +611,15 @@ export interface CouponTemplateRecord {
   templateName: string;
   couponType: string;
   scope?: string;
-  threshold?: string;
-  validity?: string;
-  issueRule?: string;
-  stackRule?: string;
+  thresholdType?: string;
+  thresholdAmount?: number | string;
+  validityType?: string;
+  validityDays?: number;
+  issueChannel?: string;
+  issueAudience?: string;
+  perUserLimit?: number;
+  totalBudget?: number | string;
+  stackLimits?: string;
   stock?: number;
   status: string;
   updatedAt?: string;
@@ -583,18 +629,27 @@ export interface InviteActivityRecord {
   id: number;
   activityCode: string;
   activityName: string;
-  qualifyRule?: string;
+  qualifyCondition?: string;
+  qualifyAmount?: number | string;
+  qualifyDays?: number;
   inviterReward?: string;
   inviterRewardType?: string;
+  inviterCouponTemplateId?: number;
+  inviterServiceCardId?: number;
+  inviterRewardAmount?: number | string;
   inviteeReward?: string;
   inviteeRewardType?: string;
+  inviteeCouponTemplateId?: number;
+  inviteeServiceCardId?: number;
+  inviteeRewardAmount?: number | string;
   inviteCount?: number;
   qualifiedCount?: number;
   rewardStatus?: string;
   recordStatus?: string;
-  antiFraud?: string;
-  recoveryRule?: string;
-  dailyLimit?: string;
+  fraudChecks?: string;
+  recoveryMode?: string;
+  recoveryDays?: number;
+  dailyLimitCount?: number;
   status: string;
   updatedAt?: string;
 }
@@ -603,14 +658,17 @@ export interface RechargeActivityRecord {
   id: number;
   activityCode: string;
   activityName: string;
-  rechargeRule?: string;
-  rewardRule?: string;
+  rechargeMode?: string;
   scope?: string;
   costOwner?: string;
-  tierRule?: string;
+  tierAmounts?: string;
   minAmount?: number;
+  rewardMethod?: string;
+  rewardCap?: number | string;
   rewardType?: string;
   rewardValue?: string;
+  couponTemplateId?: number;
+  serviceCardId?: number;
   rewardStatus?: string;
   issuedCount?: number;
   status: string;
@@ -673,6 +731,7 @@ export interface ServiceOrderRecord {
   id: number;
   orderNo: string;
   merchantId: number;
+  merchantName?: string;
   storeId: number;
   servicePointId?: number;
   serviceProductId?: number;
@@ -1249,6 +1308,8 @@ export interface MiniProgramPageConfigRecord {
   moduleCode: string;
   moduleName: string;
   configJson?: string;
+  displayMode?: string;
+  jumpValue?: string;
   sortNo?: number;
   status?: number;
   createdAt?: string;
@@ -1454,12 +1515,23 @@ export interface ServiceCardRecord {
   cardCode: string;
   cardName: string;
   cardType: string;
-  scope?: string;
-  rights?: string;
+  scopeMode?: string;
+  scopeNote?: string;
   salePrice?: number | string;
-  validity?: string;
+  validityMode?: string;
+  validityDays?: number;
+  validityText?: string;
   stock?: number;
-  issueRule?: string;
+  rightsServiceTimes?: number;
+  rightsServices?: string;
+  rightsDiscount?: number | string;
+  rightsTransferable?: boolean;
+  issueChannels?: string;
+  issueNeedApproval?: boolean;
+  issueLimitPerUser?: number;
+  issueAutoNotify?: boolean;
+  rightsNote?: string;
+  issueNote?: string;
   status?: string;
   remark?: string;
   createdAt?: string;
@@ -1618,6 +1690,31 @@ export interface OperationTaskRecord {
   updatedAt?: string;
 }
 
+export interface UserAssetOverviewRecord {
+  userCount: number;
+  balanceUserCount: number;
+  rechargeOrderCount: number;
+  balanceFlowCount: number;
+  riskWatchCount: number;
+}
+
+export interface OperationsExtensionEntryRecord {
+  title: string;
+  path: string;
+  icon: string;
+  tables: string;
+  status: string;
+  recordCount: number;
+}
+
+export interface OperationsExtensionOverviewRecord {
+  entries: OperationsExtensionEntryRecord[];
+  extensionCount: number;
+  activeCount: number;
+  duplicatedTableCount: number;
+  entryType: string;
+}
+
 export interface MessageRecord {
   id: number;
   messageNo: string;
@@ -1667,7 +1764,16 @@ export interface AnalysisSnapshotRecord {
   metricCode: string;
   metricValue: number | string;
   compareValue?: number | string;
-  dimensionJson?: string;
+  owner?: string;
+  metricScene?: string;
+  compareBasis?: string;
+  supplement?: string;
+  utilizationRate?: number | string;
+  hotServiceName?: string;
+  refundRate?: number | string;
+  exposureCount?: number;
+  clickCount?: number;
+  conversionCount?: number;
   orderCount?: number;
   incomeAmount?: number | string;
   refundAmount?: number | string;
@@ -1926,8 +2032,6 @@ export interface ApprovalSlaRecord {
   updatedAt?: string;
 }
 
-export const useRealBackendApi = import.meta.env.VITE_USE_REAL_API === 'true';
-
 const pageParams = (params: Record<string, unknown>) => ({
   ...params,
   current: params.current ?? params.pageNum ?? 1,
@@ -2034,7 +2138,7 @@ const toDictDataPayload = async (data: Record<string, unknown>) => {
     sort: data.sort ?? data.dictSort,
   };
 
-  if (!payload.dictId && data.dictCode && useRealBackendApi) {
+  if (!payload.dictId && data.dictCode) {
     const dict = await httpGet<Record<string, any>>(`/dictionaries/code/${data.dictCode}`);
     payload.dictId = dict.data?.id;
   }
@@ -2125,98 +2229,58 @@ const ok = <T,>(data: T, message = 'success'): ApiEnvelope<T> => ({
   timestamp: Date.now(),
 });
 
-const wait = (ms = 80) => new Promise((resolve) => {
-  setTimeout(resolve, ms);
-});
-
-const run = async <T,>(runner: () => T | Promise<T>) => {
-  await wait();
-  return ok(await runner());
-};
-
-const stripUserSecret = (user: BackendUser) => ({
-  id: user.id,
-  username: user.username,
-  nickname: user.nickname,
-  email: user.email,
-  phone: user.phone,
-  avatar: user.avatar,
-  role: user.role,
-  status: user.status,
-  createdAt: user.createdAt,
-  updatedAt: user.updatedAt,
-});
-
 export const authApi = {
   login: async (payload: LoginRequest) =>
-    useRealBackendApi ? request.post<ApiEnvelope<LoginResponse>>('/auth/login', payload) : run(() => {
-      const response = localDataStore.authenticate(payload);
-      return {
-        ...response,
-        user: stripUserSecret(response.user),
-      };
-    }),
-  logout: async () => useRealBackendApi ? request.post<ApiEnvelope<void>>('/auth/logout') : run(() => undefined),
-  getCurrentUser: async () => useRealBackendApi ? httpGet<BackendUser>('/auth/me') : run(() => localDataStore.getCurrentUser()),
+    request.post<ApiEnvelope<LoginResponse>>('/auth/login', payload),
+  logout: async () => request.post<ApiEnvelope<void>>('/auth/logout'),
+  getCurrentUser: async () => httpGet<BackendUser>('/auth/me'),
 };
 
 export const userApi = {
   page: async (params: Record<string, unknown>) =>
-    useRealBackendApi ? httpPage<UserRecord>('/users', params) : run(() => localDataStore.listUsers(params)),
-  add: async (data: Record<string, unknown>) => useRealBackendApi ? (async () => {
+    httpPage<UserRecord>('/users', params),
+  add: async (data: Record<string, unknown>) => (async () => {
     const res = await httpPost<UserRecord>('/auth/register', data);
     if (res.data?.id) {
       await httpPut<void>(`/users/${res.data.id}`, { ...data, id: res.data.id });
     }
     return res;
-  })() : run(() => {
-    localDataStore.createUser(data);
-  }),
-  edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/users/${data.id}`, data) : run(() => {
-    localDataStore.updateUser(data);
-  }),
-  remove: async (id: number) => useRealBackendApi ? httpDelete<void>(`/users/${id}`) : run(() => {
-    throw new Error('当前版本暂不支持删除用户');
-  }),
-  changeStatus: async (id: number, status: number) => useRealBackendApi ? httpPut<void>(`/users/${id}/status`, { status }) : run(() => {
-    localDataStore.changeUserStatus(id, status);
-  }),
-  resetPassword: async (id: number, newPassword: string) => useRealBackendApi ? request.post<ApiEnvelope<void>>(`/users/${id}/reset-password`, { newPassword }) : run(() => undefined),
-  roleList: async () => useRealBackendApi ? (async () => {
+  })(),
+  edit: async (data: Record<string, unknown>) => httpPut<void>(`/users/${data.id}`, data),
+  remove: async (id: number) => httpDelete<void>(`/users/${id}`),
+  changeStatus: async (id: number, status: number) => httpPut<void>(`/users/${id}/status`, { status }),
+  resetPassword: async (id: number, newPassword: string) => request.post<ApiEnvelope<void>>(`/users/${id}/reset-password`, { newPassword }),
+  roleList: async () => (async () => {
     const res = await httpPage<Record<string, any>>('/roles', { pageNum: 1, pageSize: 500, status: 1 });
     return ok(res.data.records.map(toRoleOption));
-  })() : run(() => localDataStore.listRoleOptions()),
+  })(),
 };
 
 export const roleApi = {
-  page: async (params: Record<string, unknown>) => useRealBackendApi ? (async () => {
+  page: async (params: Record<string, unknown>) => (async () => {
     const res = await httpPage<Record<string, any>>('/roles', params);
     return ok(mapPageRecords(res.data, toRoleRecord));
-  })() : run(() => localDataStore.listRoles(params)),
-  add: async (data: Record<string, unknown>) => useRealBackendApi ? (async () => {
+  })(),
+  add: async (data: Record<string, unknown>) => (async () => {
     const roleRes = await httpPost<Record<string, any>>('/roles', toRolePayload(data));
     if (roleRes.data?.id && Array.isArray(data.permissionIds)) {
       await httpPut<void>(`/roles/${roleRes.data.id}/permission-ids`, { permissionIds: data.permissionIds });
     }
     return ok(toRoleRecord(roleRes.data));
-  })() : run(() => localDataStore.createRole(data)),
-  edit: async (data: Record<string, unknown>) => useRealBackendApi ? (async () => {
+  })(),
+  edit: async (data: Record<string, unknown>) => (async () => {
     await httpPut<void>(`/roles/${data.id}`, toRolePayload(data));
     if (Array.isArray(data.permissionIds)) {
       await httpPut<void>(`/roles/${data.id}/permission-ids`, { permissionIds: data.permissionIds });
     }
     return ok(undefined);
-  })() : run(() => {
-    localDataStore.updateRole(data);
-  }),
-  remove: async (id: number) => useRealBackendApi ? httpDelete<void>(`/roles/${id}`) : run(() => {
-    localDataStore.removeRole(id);
-  }),
-  permissionTree: async () => useRealBackendApi ? (async () => {
+  })(),
+  remove: async (id: number) => httpDelete<void>(`/roles/${id}`),
+  permissionTree: async () => (async () => {
     const res = await httpGet<Record<string, any>[]>('/permissions');
     return ok(res.data.map(toPermissionNode));
-  })() : run(() => localDataStore.listPermissionTree()),
-  permissionIds: async (id: number) => useRealBackendApi ? httpGet<number[]>(`/roles/${id}/permission-ids`) : run(() => localDataStore.getRolePermissionIds(id)),
+  })(),
+  permissionIds: async (id: number) => httpGet<number[]>(`/roles/${id}/permission-ids`),
 };
 
 export const permissionApi = {
@@ -2227,43 +2291,31 @@ export const permissionApi = {
 };
 
 export const menuApi = {
-  tree: async () => useRealBackendApi ? (async () => {
+  tree: async () => (async () => {
     const res = await httpGet<Record<string, any>[]>('/menus');
     return ok(res.data.map(toMenuNode));
-  })() : run(() => localDataStore.listMenus()),
-  add: async (data: Record<string, unknown>) => useRealBackendApi ? (async () => {
+  })(),
+  add: async (data: Record<string, unknown>) => (async () => {
     const res = await httpPost<Record<string, any>>('/menus', toMenuPayload(data));
     return ok(toMenuNode(res.data));
-  })() : run(() => {
-    localDataStore.createMenu(data);
-  }),
-  edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/menus/${data.id}`, toMenuPayload(data)) : run(() => {
-    localDataStore.updateMenu(data);
-  }),
-  remove: async (id: number) => useRealBackendApi ? httpDelete<void>(`/menus/${id}`) : run(() => {
-    localDataStore.removeMenu(id);
-  }),
+  })(),
+  edit: async (data: Record<string, unknown>) => httpPut<void>(`/menus/${data.id}`, toMenuPayload(data)),
+  remove: async (id: number) => httpDelete<void>(`/menus/${id}`),
 };
 
 export const dictApi = {
-  typeList: async (params: Record<string, unknown>) => useRealBackendApi ? (async () => {
+  typeList: async (params: Record<string, unknown>) => (async () => {
     const res = await httpPage<Record<string, any>>('/dictionaries', params);
     return ok(mapPageRecords(res.data, toDictTypeRecord));
-  })() : run(() => localDataStore.listDictionaryTypes(params)),
-  typeAdd: async (data: Record<string, unknown>) => useRealBackendApi ? (async () => {
+  })(),
+  typeAdd: async (data: Record<string, unknown>) => (async () => {
     const res = await httpPost<Record<string, any>>('/dictionaries', toDictTypePayload(data));
     return ok(toDictTypeRecord(res.data));
-  })() : run(() => {
-    localDataStore.createDictionaryType(data);
-  }),
-  typeEdit: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/dictionaries/${id}`, toDictTypePayload(data)) : run(() => {
-    localDataStore.updateDictionaryType(id, data);
-  }),
-  typeRemove: async (id: number) => useRealBackendApi ? httpDelete<void>(`/dictionaries/${id}`) : run(() => {
-    localDataStore.removeDictionaryType(id);
-  }),
+  })(),
+  typeEdit: async (id: number, data: Record<string, unknown>) => httpPut<void>(`/dictionaries/${id}`, toDictTypePayload(data)),
+  typeRemove: async (id: number) => httpDelete<void>(`/dictionaries/${id}`),
   dataList: async (params: Record<string, unknown>) =>
-    useRealBackendApi ? (async () => {
+    (async () => {
       const dictCode = String(params.dictCode || '');
       const res = await httpGet<Record<string, any>[]>(`/dictionary-items/code/${dictCode}`);
       const records = res.data.map((item) => toDictDataRecord(item, dictCode));
@@ -2274,112 +2326,156 @@ export const dictApi = {
         current: 1,
         pages: 1,
       } satisfies PageResult<DictDataRecord>);
-    })() : run(() => {
-      const records = localDataStore.listDictionaryItems(String(params.dictCode || ''));
-      return {
-        records,
-        total: records.length,
-        size: records.length,
-        current: 1,
-        pages: 1,
-      } satisfies PageResult<DictDataRecord>;
-    }),
-  dataAdd: async (data: Record<string, unknown>) => useRealBackendApi ? (async () => {
+    })(),
+  dataAdd: async (data: Record<string, unknown>) => (async () => {
     const payload = await toDictDataPayload(data);
     const res = await httpPost<Record<string, any>>('/dictionary-items', payload);
     return ok(toDictDataRecord(res.data, String(data.dictCode || '')));
-  })() : run(() => {
-    localDataStore.createDictionaryItem(data);
-  }),
-  dataEdit: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? (async () => {
+  })(),
+  dataEdit: async (id: number, data: Record<string, unknown>) => (async () => {
     const payload = await toDictDataPayload(data);
     return httpPut<void>(`/dictionary-items/${id}`, payload);
-  })() : run(() => {
-    localDataStore.updateDictionaryItem(id, data);
-  }),
-  dataRemove: async (id: number) => useRealBackendApi ? httpDelete<void>(`/dictionary-items/${id}`) : run(() => {
-    localDataStore.removeDictionaryItem(id);
-  }),
+  })(),
+  dataRemove: async (id: number) => httpDelete<void>(`/dictionary-items/${id}`),
 };
 
 export const merchantApi = {
   page: async (params: Record<string, unknown>) =>
-    useRealBackendApi ? httpPage<MerchantRecord>('/merchants', params) : run(() => localDataStore.listMerchants(params)),
+    httpPage<MerchantRecord>('/merchants', params),
   options: async () =>
-    useRealBackendApi ? httpGet<SelectOptionRecord[]>('/merchants/options') : run(() => localDataStore.listMerchantOptions()),
+    httpGet<SelectOptionRecord[]>('/merchants/options'),
   add: async (data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPost<MerchantRecord>('/merchants', data) : run(() => localDataStore.createMerchant(data)),
-  edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/merchants/${data.id}`, data) : run(() => {
-    localDataStore.updateMerchant(data);
-  }),
-  changeStatus: async (id: number, status: number) => useRealBackendApi ? httpPut<void>(`/merchants/${id}/status`, { status }) : run(() => {
-    localDataStore.changeMerchantStatus(id, status);
-  }),
-  remove: async (id: number) => useRealBackendApi ? httpDelete<void>(`/merchants/${id}`) : run(() => {
-    localDataStore.removeMerchant(id);
-  }),
+    httpPost<MerchantRecord>('/merchants', data),
+  edit: async (data: Record<string, unknown>) => httpPut<void>(`/merchants/${data.id}`, data),
+  changeStatus: async (id: number, status: number) => httpPut<void>(`/merchants/${id}/status`, { status }),
+  remove: async (id: number) => httpDelete<void>(`/merchants/${id}`),
 };
-
-const localEmptyPage = <T,>(params: Record<string, unknown>) => ({
-  records: [] as T[],
-  total: 0,
-  size: Number(params.size ?? params.pageSize ?? 10),
-  current: Number(params.current ?? params.pageNum ?? 1),
-  pages: 0,
-});
 
 const crudApi = <T,>(url: string) => ({
   page: async (params: Record<string, unknown>) =>
-    useRealBackendApi ? httpPage<T>(url, params) : run(() => localEmptyPage<T>(params)),
+    httpPage<T>(url, params),
   add: async (data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPost<T>(url, data) : run(() => data as unknown as T),
+    httpPost<T>(url, data),
   edit: async (data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPut<void>(`${url}/${data.id}`, data) : run(() => undefined),
+    httpPut<void>(`${url}/${data.id}`, data),
   remove: async (id: number) =>
-    useRealBackendApi ? httpDelete<void>(`${url}/${id}`) : run(() => undefined),
+    httpDelete<void>(`${url}/${id}`),
 });
 
-export const merchantContactApi = crudApi<MerchantContactRecord>('/merchant-contacts');
-export const merchantContractApi = crudApi<MerchantContractRecord>('/merchant-contracts');
-export const merchantSettlementAccountApi = crudApi<MerchantSettlementAccountRecord>('/merchant-settlement-accounts');
-export const merchantQualificationApi = crudApi<MerchantQualificationRecord>('/merchant-qualifications');
-export const merchantChangeLogApi = crudApi<MerchantChangeLogRecord>('/merchant-change-logs');
-export const merchantGroupApi = {
-  ...crudApi<MerchantGroupRecord>('/merchant-groups'),
-  changeStatus: async (id: number, status: string) =>
-    useRealBackendApi ? httpPut<void>(`/merchant-groups/${id}/status`, { status }) : run(() => undefined),
+export const merchantContactApi = {
+  page: async (params: Record<string, unknown>) =>
+    httpPage<MerchantContactRecord>('/merchant-contacts', params),
+  add: async (data: Record<string, unknown>) =>
+    httpPost<MerchantContactRecord>('/merchant-contacts', data),
+  edit: async (data: Record<string, unknown>) =>
+    httpPut<void>(`/merchant-contacts/${data.id}`, data),
+  remove: async (id: number) =>
+    httpDelete<void>(`/merchant-contacts/${id}`),
 };
-export const merchantGroupStoreApi = crudApi<MerchantGroupStoreRecord>('/merchant-group-stores');
+export const merchantContractApi = {
+  page: async (params: Record<string, unknown>) =>
+    httpPage<MerchantContractRecord>('/merchant-contracts', params),
+  add: async (data: Record<string, unknown>) =>
+    httpPost<MerchantContractRecord>('/merchant-contracts', data),
+  edit: async (data: Record<string, unknown>) =>
+    httpPut<void>(`/merchant-contracts/${data.id}`, data),
+  remove: async (id: number) =>
+    httpDelete<void>(`/merchant-contracts/${id}`),
+};
+export const merchantSettlementAccountApi = {
+  page: async (params: Record<string, unknown>) =>
+    httpPage<MerchantSettlementAccountRecord>('/merchant-settlement-accounts', params),
+  add: async (data: Record<string, unknown>) =>
+    httpPost<MerchantSettlementAccountRecord>('/merchant-settlement-accounts', data),
+  edit: async (data: Record<string, unknown>) =>
+    httpPut<void>(`/merchant-settlement-accounts/${data.id}`, data),
+  remove: async (id: number) =>
+    httpDelete<void>(`/merchant-settlement-accounts/${id}`),
+};
+export const merchantQualificationApi = {
+  page: async (params: Record<string, unknown>) =>
+    httpPage<MerchantQualificationRecord>('/merchant-qualifications', params),
+  add: async (data: Record<string, unknown>) =>
+    httpPost<MerchantQualificationRecord>('/merchant-qualifications', data),
+  edit: async (data: Record<string, unknown>) =>
+    httpPut<void>(`/merchant-qualifications/${data.id}`, data),
+  remove: async (id: number) =>
+    httpDelete<void>(`/merchant-qualifications/${id}`),
+};
+export const merchantChangeLogApi = {
+  page: async (params: Record<string, unknown>) =>
+    httpPage<MerchantChangeLogRecord>('/merchant-change-logs', params),
+  add: async (data: Record<string, unknown>) =>
+    httpPost<MerchantChangeLogRecord>('/merchant-change-logs', data),
+  edit: async (data: Record<string, unknown>) =>
+    httpPut<void>(`/merchant-change-logs/${data.id}`, data),
+  remove: async (id: number) =>
+    httpDelete<void>(`/merchant-change-logs/${id}`),
+};
+export const merchantGroupApi = {
+  page: async (params: Record<string, unknown>) =>
+    httpPage<MerchantGroupRecord>('/merchant-groups', params),
+  options: async () =>
+    httpGet<SelectOptionRecord[]>('/merchant-groups/options'),
+  add: async (data: Record<string, unknown>) =>
+    httpPost<MerchantGroupRecord>('/merchant-groups', data),
+  edit: async (data: Record<string, unknown>) =>
+    httpPut<void>(`/merchant-groups/${data.id}`, data),
+  remove: async (id: number) =>
+    httpDelete<void>(`/merchant-groups/${id}`),
+  changeStatus: async (id: number, status: string) =>
+    httpPut<void>(`/merchant-groups/${id}/status`, { status }),
+};
+export const merchantGroupStoreApi = {
+  page: async (params: Record<string, unknown>) =>
+    httpPage<MerchantGroupStoreRecord>('/merchant-group-stores', params),
+  add: async (data: Record<string, unknown>) =>
+    httpPost<MerchantGroupStoreRecord>('/merchant-group-stores', data),
+  edit: async (data: Record<string, unknown>) =>
+    httpPut<void>(`/merchant-group-stores/${data.id}`, data),
+  remove: async (id: number) =>
+    httpDelete<void>(`/merchant-group-stores/${id}`),
+};
 export const merchantAccountApi = {
-  ...crudApi<MerchantAccountRecord>('/merchant-accounts'),
+  page: async (params: Record<string, unknown>) =>
+    httpPage<MerchantAccountRecord>('/merchant-accounts', params),
+  add: async (data: Record<string, unknown>) =>
+    httpPost<MerchantAccountRecord>('/merchant-accounts', data),
+  edit: async (data: Record<string, unknown>) =>
+    httpPut<void>(`/merchant-accounts/${data.id}`, data),
+  remove: async (id: number) =>
+    httpDelete<void>(`/merchant-accounts/${id}`),
   changeStatus: async (id: number, status: number) =>
-    useRealBackendApi ? httpPut<void>(`/merchant-accounts/${id}/status`, { status }) : run(() => undefined),
+    httpPut<void>(`/merchant-accounts/${id}/status`, { status }),
 };
 export const merchantTodoApi = {
-  ...crudApi<MerchantTodoRecord>('/merchant-todos'),
+  page: async (params: Record<string, unknown>) =>
+    httpPage<MerchantTodoRecord>('/merchant-todos', params),
+  add: async (data: Record<string, unknown>) =>
+    httpPost<MerchantTodoRecord>('/merchant-todos', data),
+  edit: async (data: Record<string, unknown>) =>
+    httpPut<void>(`/merchant-todos/${data.id}`, data),
+  remove: async (id: number) =>
+    httpDelete<void>(`/merchant-todos/${id}`),
   changeStatus: async (id: number, status: string) =>
-    useRealBackendApi ? httpPut<void>(`/merchant-todos/${id}/status`, { status }) : run(() => undefined),
+    httpPut<void>(`/merchant-todos/${id}/status`, { status }),
 };
 export const merchantWorkbenchApi = {
   overview: async (params?: Record<string, unknown>) =>
-    useRealBackendApi ? httpGet<MerchantWorkbenchOverviewRecord>('/merchant-workbench/overview', params) : run(() => ({ stores: [], storeCount: 0, revenue: 0, runningCampaigns: 0, pendingSettlement: 0 })),
+    httpGet<MerchantWorkbenchOverviewRecord>('/merchant-workbench/overview', params),
 };
 
 export const storeApi = {
   page: async (params: Record<string, unknown>) =>
-    useRealBackendApi ? httpPage<StoreRecord>('/stores', params) : run(() => localDataStore.listStores(params)),
+    httpPage<StoreRecord>('/stores', params),
   options: async (merchantId?: number) =>
-    useRealBackendApi ? httpGet<SelectOptionRecord[]>('/stores/options', merchantId ? { merchantId } : undefined) : run(() => localDataStore.listStoreOptions(merchantId)),
+    httpGet<SelectOptionRecord[]>('/stores/options', merchantId ? { merchantId } : undefined),
   add: async (data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPost<StoreRecord>('/stores', data) : run(() => localDataStore.createStore(data)),
-  edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/stores/${data.id}`, data) : run(() => {
-    localDataStore.updateStore(data);
-  }),
+    httpPost<StoreRecord>('/stores', data),
+  edit: async (data: Record<string, unknown>) => httpPut<void>(`/stores/${data.id}`, data),
   changeStatus: async (id: number, status: string) =>
-    useRealBackendApi ? httpPut<void>(`/stores/${id}/status`, { status }) : run(() => localDataStore.updateStore({ id, status })),
-  remove: async (id: number) => useRealBackendApi ? httpDelete<void>(`/stores/${id}`) : run(() => {
-    localDataStore.removeStore(id);
-  }),
+    httpPut<void>(`/stores/${id}/status`, { status }),
+  remove: async (id: number) => httpDelete<void>(`/stores/${id}`),
 };
 
 export const storeImageApi = crudApi<StoreImageRecord>('/store-images');
@@ -2390,31 +2486,27 @@ export const storeChangeLogApi = crudApi<StoreChangeLogRecord>('/store-change-lo
 export const storeOperationTaskApi = {
   ...crudApi<StoreOperationTaskRecord>('/store-operation-tasks'),
   summary: async (params?: Record<string, unknown>) =>
-    useRealBackendApi ? httpGet<StoreOperationTaskSummaryRecord>('/store-operation-tasks/summary', params) : run(() => ({ inspectCount: 0, pendingException: 0, overdueCount: 0, doneCount: 0 })),
+    httpGet<StoreOperationTaskSummaryRecord>('/store-operation-tasks/summary', params),
   updateStatus: async (id: number, data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPut<void>(`/store-operation-tasks/${id}/status`, data) : run(() => undefined),
+    httpPut<void>(`/store-operation-tasks/${id}/status`, data),
 };
 export const storeNoticeApi = {
   ...crudApi<StoreNoticeRecord>('/store-notices'),
   updateStatus: async (id: number, status: string) =>
-    useRealBackendApi ? httpPut<void>(`/store-notices/${id}/status`, { status }) : run(() => undefined),
+    httpPut<void>(`/store-notices/${id}/status`, { status }),
 };
 
 export const servicePointApi = {
   page: async (params: Record<string, unknown>) =>
-    useRealBackendApi ? httpPage<ServicePointRecord>('/service-points', params) : run(() => localDataStore.listServicePoints(params)),
+    httpPage<ServicePointRecord>('/service-points', params),
   options: async (storeId?: number) =>
-    useRealBackendApi ? httpGet<SelectOptionRecord[]>('/service-points/options', storeId ? { storeId } : undefined) : run(() => localDataStore.listServicePointOptions(storeId)),
+    httpGet<SelectOptionRecord[]>('/service-points/options', storeId ? { storeId } : undefined),
   add: async (data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPost<ServicePointRecord>('/service-points', data) : run(() => localDataStore.createServicePoint(data)),
-  edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/service-points/${data.id}`, data) : run(() => {
-    localDataStore.updateServicePoint(data);
-  }),
+    httpPost<ServicePointRecord>('/service-points', data),
+  edit: async (data: Record<string, unknown>) => httpPut<void>(`/service-points/${data.id}`, data),
   changeStatus: async (id: number, status: string) =>
-    useRealBackendApi ? httpPut<void>(`/service-points/${id}/status`, { status }) : run(() => localDataStore.updateServicePoint({ id, status })),
-  remove: async (id: number) => useRealBackendApi ? httpDelete<void>(`/service-points/${id}`) : run(() => {
-    localDataStore.removeServicePoint(id);
-  }),
+    httpPut<void>(`/service-points/${id}/status`, { status }),
+  remove: async (id: number) => httpDelete<void>(`/service-points/${id}`),
 };
 
 export const servicePointQrRecordApi = crudApi<ServicePointQrRecord>('/service-point-qr-records');
@@ -2424,19 +2516,15 @@ export const servicePointStatusLogApi = crudApi<ServicePointStatusLogRecord>('/s
 
 export const deviceApi = {
   page: async (params: Record<string, unknown>) =>
-    useRealBackendApi ? httpPage<DeviceRecord>('/devices', params) : run(() => localDataStore.listDevices(params)),
+    httpPage<DeviceRecord>('/devices', params),
   options: async (params?: { storeId?: number; servicePointId?: number }) =>
-    useRealBackendApi ? httpGet<SelectOptionRecord[]>('/devices/options', params) : run(() => localDataStore.listDevices(params || {}).records.map((item) => ({ value: item.id, label: `${item.deviceName}（${item.deviceCode}）` }))),
+    httpGet<SelectOptionRecord[]>('/devices/options', params),
   add: async (data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPost<DeviceRecord>('/devices', data) : run(() => localDataStore.createDevice(data)),
-  edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/devices/${data.id}`, data) : run(() => {
-    localDataStore.updateDevice(data);
-  }),
+    httpPost<DeviceRecord>('/devices', data),
+  edit: async (data: Record<string, unknown>) => httpPut<void>(`/devices/${data.id}`, data),
   changeStatus: async (id: number, status: string) =>
-    useRealBackendApi ? httpPut<void>(`/devices/${id}/status`, { status }) : run(() => localDataStore.updateDevice({ id, status })),
-  remove: async (id: number) => useRealBackendApi ? httpDelete<void>(`/devices/${id}`) : run(() => {
-    localDataStore.removeDevice(id);
-  }),
+    httpPut<void>(`/devices/${id}/status`, { status }),
+  remove: async (id: number) => httpDelete<void>(`/devices/${id}`),
 };
 
 export const deviceVendorApi = crudApi<DeviceVendorRecord>('/device-vendors');
@@ -2455,34 +2543,28 @@ export const deviceOpsApi = {
 
 export const serviceProductApi = {
   page: async (params: Record<string, unknown>) =>
-    useRealBackendApi ? httpPage<ServiceProductRecord>('/service-products', params) : run(() => localDataStore.listServiceProducts(params)),
+    httpPage<ServiceProductRecord>('/service-products', params),
   options: async () =>
-    useRealBackendApi ? httpGet<SelectOptionRecord[]>('/service-products/options') : run(() => localDataStore.listServiceProductOptions()),
+    httpGet<SelectOptionRecord[]>('/service-products/options'),
   add: async (data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPost<ServiceProductRecord>('/service-products', data) : run(() => localDataStore.createServiceProduct(data)),
-  edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/service-products/${data.id}`, data) : run(() => {
-    localDataStore.updateServiceProduct(data);
-  }),
+    httpPost<ServiceProductRecord>('/service-products', data),
+  edit: async (data: Record<string, unknown>) => httpPut<void>(`/service-products/${data.id}`, data),
   changeStatus: async (id: number, status: number) =>
-    useRealBackendApi ? httpPut<void>(`/service-products/${id}/status`, { status }) : run(() => localDataStore.updateServiceProduct({ id, status })),
-  remove: async (id: number) => useRealBackendApi ? httpDelete<void>(`/service-products/${id}`) : run(() => {
-    localDataStore.removeServiceProduct(id);
-  }),
+    httpPut<void>(`/service-products/${id}/status`, { status }),
+  remove: async (id: number) => httpDelete<void>(`/service-products/${id}`),
 };
 
 export const pricingRuleApi = {
   page: async (params: Record<string, unknown>) =>
-    useRealBackendApi ? httpPage<PricingRuleRecord>('/pricing-rules', params) : run(() => localDataStore.listPricingRules(params)),
+    httpPage<PricingRuleRecord>('/pricing-rules', params),
+  options: async () =>
+    httpGet<SelectOptionRecord[]>('/pricing-rules/options'),
   add: async (data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPost<PricingRuleRecord>('/pricing-rules', data) : run(() => localDataStore.createPricingRule(data)),
-  edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/pricing-rules/${data.id}`, data) : run(() => {
-    localDataStore.updatePricingRule(data);
-  }),
+    httpPost<PricingRuleRecord>('/pricing-rules', data),
+  edit: async (data: Record<string, unknown>) => httpPut<void>(`/pricing-rules/${data.id}`, data),
   changeStatus: async (id: number, status: number) =>
-    useRealBackendApi ? httpPut<void>(`/pricing-rules/${id}/status`, { status }) : run(() => localDataStore.updatePricingRule({ id, status })),
-  remove: async (id: number) => useRealBackendApi ? httpDelete<void>(`/pricing-rules/${id}`) : run(() => {
-    localDataStore.removePricingRule(id);
-  }),
+    httpPut<void>(`/pricing-rules/${id}/status`, { status }),
+  remove: async (id: number) => httpDelete<void>(`/pricing-rules/${id}`),
 };
 
 export const productStatusLogApi = crudApi<ProductStatusLogRecord>('/product-status-logs');
@@ -2491,306 +2573,313 @@ export const pricingRuleVersionApi = crudApi<PricingRuleVersionRecord>('/pricing
 export const pricingChangeLogApi = crudApi<PricingChangeLogRecord>('/pricing-change-logs');
 
 export const serviceOrderApi = {
-  page: async (params: Record<string, unknown>) => useRealBackendApi ? (async () => {
+  page: async (params: Record<string, unknown>) => (async () => {
     const res = await httpPage<Record<string, any>>('/service-orders', { ...params, orderStatus: params.orderStatus ?? params.status });
     return ok(mapPageRecords(res.data, toServiceOrderRecord));
-  })() : run(() => ({ records: [], total: 0, size: Number(params.size ?? params.pageSize ?? 10), current: Number(params.current ?? params.pageNum ?? 1), pages: 1 })),
+  })(),
   add: async (data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPost<ServiceOrderRecord>('/service-orders', data) : run(() => data as unknown as ServiceOrderRecord),
+    httpPost<ServiceOrderRecord>('/service-orders', data),
   updateStatus: async (id: number, data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPut<void>(`/service-orders/${id}/status`, { ...data, orderStatus: data.orderStatus ?? data.status }) : run(() => undefined),
+    httpPut<void>(`/service-orders/${id}/status`, { ...data, orderStatus: data.orderStatus ?? data.status }),
 };
 
 export const refundOrderApi = {
-  page: async (params: Record<string, unknown>) => useRealBackendApi ? (async () => {
+  page: async (params: Record<string, unknown>) => (async () => {
     const res = await httpPage<Record<string, any>>('/refund-orders', { ...params, refundStatus: params.refundStatus ?? params.status });
     return ok(mapPageRecords(res.data, toRefundOrderRecord));
-  })() : run(() => ({ records: [], total: 0, size: Number(params.size ?? params.pageSize ?? 10), current: Number(params.current ?? params.pageNum ?? 1), pages: 1 })),
+  })(),
   updateStatus: async (id: number, data: Record<string, unknown>) =>
-    useRealBackendApi ? request.post<ApiEnvelope<void>>(`/refund-orders/${id}/audit`, { ...data, refundStatus: data.refundStatus ?? data.status, reason: data.reason ?? data.note }) : run(() => undefined),
+    request.post<ApiEnvelope<void>>(`/refund-orders/${id}/audit`, { ...data, refundStatus: data.refundStatus ?? data.status, reason: data.reason ?? data.note, auditNote: data.auditNote ?? data.note }),
 };
 
 export const afterSaleTicketApi = {
-  page: async (params: Record<string, unknown>) => useRealBackendApi ? (async () => {
+  page: async (params: Record<string, unknown>) => (async () => {
     const res = await httpPage<Record<string, any>>('/after-sale-tickets', { ...params, ticketStatus: params.ticketStatus ?? params.status });
     return ok(mapPageRecords(res.data, toAfterSaleTicketRecord));
-  })() : run(() => ({ records: [], total: 0, size: Number(params.size ?? params.pageSize ?? 10), current: Number(params.current ?? params.pageNum ?? 1), pages: 1 })),
+  })(),
   add: async (data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPost<AfterSaleTicketRecord>('/after-sale-tickets', { ...data, ticketStatus: data.ticketStatus ?? data.status }) : run(() => data as unknown as AfterSaleTicketRecord),
+    httpPost<AfterSaleTicketRecord>('/after-sale-tickets', { ...data, ticketStatus: data.ticketStatus ?? data.status }),
   updateStatus: async (id: number, data: Record<string, unknown>) =>
-    useRealBackendApi ? request.post<ApiEnvelope<void>>(`/after-sale-tickets/${id}/handle`, { ...data, ticketStatus: data.ticketStatus ?? data.status, compensationValue: data.compensationValue ?? data.result ?? data.note }) : run(() => undefined),
+    request.post<ApiEnvelope<void>>(`/after-sale-tickets/${id}/handle`, { ...data, ticketStatus: data.ticketStatus ?? data.status, compensationValue: data.compensationValue ?? data.result ?? data.note, result: data.result ?? data.note }),
 };
 
 export const serviceEvaluationApi = {
   page: async (params: Record<string, unknown>) =>
-    useRealBackendApi ? httpPage<ServiceEvaluationRecord>('/service-evaluations', params) : run(() => ({ records: [], total: 0, size: Number(params.size ?? params.pageSize ?? 10), current: Number(params.current ?? params.pageNum ?? 1), pages: 1 })),
+    httpPage<ServiceEvaluationRecord>('/service-evaluations', params),
   update: async (id: number, data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPut<void>(`/service-evaluations/${id}`, data) : run(() => undefined),
+    httpPut<void>(`/service-evaluations/${id}`, data),
 };
 
 export const userFeedbackApi = {
   page: async (params: Record<string, unknown>) =>
-    useRealBackendApi ? httpPage<UserFeedbackRecord>('/user-feedbacks', { ...params, handleStatus: params.handleStatus ?? params.status }) : run(() => ({ records: [], total: 0, size: Number(params.size ?? params.pageSize ?? 10), current: Number(params.current ?? params.pageNum ?? 1), pages: 1 })),
+    httpPage<UserFeedbackRecord>('/user-feedbacks', { ...params, handleStatus: params.handleStatus ?? params.status }),
   update: async (id: number, data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPut<void>(`/user-feedbacks/${id}`, data) : run(() => undefined),
+    httpPut<void>(`/user-feedbacks/${id}`, data),
 };
 
 export const serviceOrderItemApi = {
   page: async (params: Record<string, unknown>) =>
-    useRealBackendApi ? httpPage<ServiceOrderItemRecord>('/service-order-items', params) : run(() => ({ records: [], total: 0, size: Number(params.size ?? params.pageSize ?? 10), current: Number(params.current ?? params.pageNum ?? 1), pages: 1 })),
+    httpPage<ServiceOrderItemRecord>('/service-order-items', params),
   add: async (data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPost<ServiceOrderItemRecord>('/service-order-items', data) : run(() => data as unknown as ServiceOrderItemRecord),
+    httpPost<ServiceOrderItemRecord>('/service-order-items', data),
 };
 
 export const orderBillingDetailApi = {
   page: async (params: Record<string, unknown>) =>
-    useRealBackendApi ? httpPage<OrderBillingDetailRecord>('/order-billing-details', params) : run(() => ({ records: [], total: 0, size: Number(params.size ?? params.pageSize ?? 10), current: Number(params.current ?? params.pageNum ?? 1), pages: 1 })),
+    httpPage<OrderBillingDetailRecord>('/order-billing-details', params),
   add: async (data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPost<OrderBillingDetailRecord>('/order-billing-details', data) : run(() => data as unknown as OrderBillingDetailRecord),
+    httpPost<OrderBillingDetailRecord>('/order-billing-details', data),
 };
 
 export const orderStatusLogApi = {
   page: async (params: Record<string, unknown>) =>
-    useRealBackendApi ? httpPage<OrderStatusLogRecord>('/order-status-logs', params) : run(() => ({ records: [], total: 0, size: Number(params.size ?? params.pageSize ?? 10), current: Number(params.current ?? params.pageNum ?? 1), pages: 1 })),
+    httpPage<OrderStatusLogRecord>('/order-status-logs', params),
 };
 
 export const writeOffRecordApi = {
-  page: async (params: Record<string, unknown>) => useRealBackendApi ? (async () => {
+  page: async (params: Record<string, unknown>) => (async () => {
     const res = await httpPage<Record<string, any>>('/write-off-records', params);
     return ok(mapPageRecords(res.data, toWriteOffRecord));
-  })() : run(() => ({ records: [], total: 0, size: Number(params.size ?? params.pageSize ?? 10), current: Number(params.current ?? params.pageNum ?? 1), pages: 1 })),
+  })(),
   add: async (data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPost<WriteOffRecord>('/write-off-records', data) : run(() => data as unknown as WriteOffRecord),
+    httpPost<WriteOffRecord>('/write-off-records', data),
   updateStatus: async (id: number, data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPut<void>(`/write-off-records/${id}/status`, data) : run(() => undefined),
+    httpPut<void>(`/write-off-records/${id}/status`, data),
 };
 
 export const performRecordApi = {
-  page: async (params: Record<string, unknown>) => useRealBackendApi ? (async () => {
+  page: async (params: Record<string, unknown>) => (async () => {
     const res = await httpPage<Record<string, any>>('/perform-records', params);
     return ok(mapPageRecords(res.data, toPerformRecord));
-  })() : run(() => ({ records: [], total: 0, size: Number(params.size ?? params.pageSize ?? 10), current: Number(params.current ?? params.pageNum ?? 1), pages: 1 })),
+  })(),
   add: async (data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPost<PerformRecord>('/perform-records', data) : run(() => data as unknown as PerformRecord),
+    httpPost<PerformRecord>('/perform-records', data),
   updateStatus: async (id: number, data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPut<void>(`/perform-records/${id}/status`, data) : run(() => undefined),
+    httpPut<void>(`/perform-records/${id}/status`, data),
 };
 
 export const settlementBillApi = {
-  page: async (params: Record<string, unknown>) => useRealBackendApi ? (async () => {
+  page: async (params: Record<string, unknown>) => (async () => {
     const res = await httpPage<Record<string, any>>('/settlement-bills', { ...params, billStatus: params.billStatus ?? params.status });
     return ok(mapPageRecords(res.data, toSettlementBillRecord));
-  })() : run(() => ({ records: [], total: 0, size: Number(params.size ?? params.pageSize ?? 10), current: Number(params.current ?? params.pageNum ?? 1), pages: 1 })),
-  add: async (data: Record<string, unknown>) => useRealBackendApi ? (async () => {
+  })(),
+  add: async (data: Record<string, unknown>) => (async () => {
     const res = await httpPost<Record<string, any>>('/settlement-bills', { ...data, billStatus: data.billStatus ?? data.status });
     return ok(toSettlementBillRecord(res.data));
-  })() : run(() => data as unknown as SettlementBillRecord),
+  })(),
   edit: async (data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPut<void>(`/settlement-bills/${data.id}`, { ...data, billStatus: data.billStatus ?? data.status }) : run(() => undefined),
+    httpPut<void>(`/settlement-bills/${data.id}`, { ...data, billStatus: data.billStatus ?? data.status }),
   remove: async (id: number) =>
-    useRealBackendApi ? httpDelete<void>(`/settlement-bills/${id}`) : run(() => undefined),
+    httpDelete<void>(`/settlement-bills/${id}`),
 };
 
 export const settlementBillDetailApi = {
-  page: async (params: Record<string, unknown>) => useRealBackendApi ? (async () => {
+  page: async (params: Record<string, unknown>) => (async () => {
     const res = await httpPage<Record<string, any>>('/settlement-bill-details', params);
     return ok(mapPageRecords(res.data, toSettlementBillDetailRecord));
-  })() : run(() => ({ records: [], total: 0, size: Number(params.size ?? params.pageSize ?? 10), current: Number(params.current ?? params.pageNum ?? 1), pages: 1 })),
+  })(),
 };
 
 export const settlementCostDetailApi = {
-  page: async (params: Record<string, unknown>) => useRealBackendApi ? (async () => {
+  page: async (params: Record<string, unknown>) => (async () => {
     const res = await httpPage<Record<string, any>>('/settlement-cost-details', params);
     return ok(mapPageRecords(res.data, toSettlementCostDetailRecord));
-  })() : run(() => ({ records: [], total: 0, size: Number(params.size ?? params.pageSize ?? 10), current: Number(params.current ?? params.pageNum ?? 1), pages: 1 })),
+  })(),
   add: async (data: Record<string, unknown>) =>
-    useRealBackendApi ? httpPost<SettlementCostDetailRecord>('/settlement-cost-details', data) : run(() => data as unknown as SettlementCostDetailRecord),
+    httpPost<SettlementCostDetailRecord>('/settlement-cost-details', data),
 };
 
 export const settlementPayoutApi = {
-  page: async (params: Record<string, unknown>) => useRealBackendApi ? (async () => {
+  page: async (params: Record<string, unknown>) => (async () => {
     const res = await httpPage<Record<string, any>>('/settlement-payouts', params);
     return ok(mapPageRecords(res.data, toSettlementPayoutRecord));
-  })() : run(() => localEmptyPage<SettlementPayoutRecord>(params)),
-  add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<SettlementPayoutRecord>('/settlement-payouts', data) : run(() => data as unknown as SettlementPayoutRecord),
-  edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/settlement-payouts/${data.id}`, data) : run(() => undefined),
-  updateStatus: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/settlement-payouts/${id}/status`, data) : run(() => undefined),
+  })(),
+  add: async (data: Record<string, unknown>) => httpPost<SettlementPayoutRecord>('/settlement-payouts', data),
+  edit: async (data: Record<string, unknown>) => httpPut<void>(`/settlement-payouts/${data.id}`, data),
+  updateStatus: async (id: number, data: Record<string, unknown>) => httpPut<void>(`/settlement-payouts/${id}/status`, data),
 };
 
 export const settlementConfirmApi = crudApi<SettlementConfirmRecord>('/settlement-confirms');
 export const profitPartnerRelationApi = {
-  page: async (params: Record<string, unknown>) => useRealBackendApi ? (async () => {
+  page: async (params: Record<string, unknown>) => (async () => {
     const res = await httpPage<Record<string, any>>('/profit-partner-relations', params);
     return ok(mapPageRecords(res.data, toProfitPartnerRelationRecord));
-  })() : run(() => localEmptyPage<ProfitPartnerRelationRecord>(params)),
-  add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<ProfitPartnerRelationRecord>('/profit-partner-relations', data) : run(() => data as unknown as ProfitPartnerRelationRecord),
-  edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/profit-partner-relations/${data.id}`, data) : run(() => undefined),
-  remove: async (id: number) => useRealBackendApi ? httpDelete<void>(`/profit-partner-relations/${id}`) : run(() => undefined),
+  })(),
+  add: async (data: Record<string, unknown>) => httpPost<ProfitPartnerRelationRecord>('/profit-partner-relations', data),
+  edit: async (data: Record<string, unknown>) => httpPut<void>(`/profit-partner-relations/${data.id}`, data),
+  remove: async (id: number) => httpDelete<void>(`/profit-partner-relations/${id}`),
 };
 export const profitRatioVersionApi = crudApi<ProfitRatioVersionRecord>('/profit-ratio-versions');
 export const profitShareDetailApi = {
-  page: async (params: Record<string, unknown>) => useRealBackendApi ? (async () => {
+  page: async (params: Record<string, unknown>) => (async () => {
     const res = await httpPage<Record<string, any>>('/profit-share-details', params);
     return ok(mapPageRecords(res.data, toProfitShareDetailRecord));
-  })() : run(() => localEmptyPage<ProfitShareDetailRecord>(params)),
-  add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<ProfitShareDetailRecord>('/profit-share-details', data) : run(() => data as unknown as ProfitShareDetailRecord),
-  edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/profit-share-details/${data.id}`, data) : run(() => undefined),
-  remove: async (id: number) => useRealBackendApi ? httpDelete<void>(`/profit-share-details/${id}`) : run(() => undefined),
+  })(),
+  add: async (data: Record<string, unknown>) => httpPost<ProfitShareDetailRecord>('/profit-share-details', data),
+  edit: async (data: Record<string, unknown>) => httpPut<void>(`/profit-share-details/${data.id}`, data),
+  remove: async (id: number) => httpDelete<void>(`/profit-share-details/${id}`),
 };
 export const profitChargebackApi = crudApi<ProfitChargebackRecord>('/profit-chargebacks');
 export const profitConfirmApi = crudApi<ProfitConfirmRecord>('/profit-confirms');
 export const invoiceTitleApi = crudApi<InvoiceTitleRecord>('/invoice-titles');
 export const invoiceApplyApi = {
   ...crudApi<InvoiceApplyRecord>('/invoice-applies'),
-  updateStatus: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/invoice-applies/${id}`, data) : run(() => undefined),
+  updateStatus: async (id: number, data: Record<string, unknown>) => httpPut<void>(`/invoice-applies/${id}`, data),
 };
 
 export const marketingApi = {
   couponTemplates: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<CouponTemplateRecord>('/coupon-templates', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<CouponTemplateRecord>('/coupon-templates', data) : run(() => data as unknown as CouponTemplateRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/coupon-templates/${data.id}`, data) : run(() => undefined),
-    remove: async (id: number) => useRealBackendApi ? httpDelete<void>(`/coupon-templates/${id}`) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<CouponTemplateRecord>('/coupon-templates', params),
+    options: async (params?: Record<string, unknown>) => httpGet<SelectOptionRecord[]>('/coupon-templates/options', params),
+    add: async (data: Record<string, unknown>) => httpPost<CouponTemplateRecord>('/coupon-templates', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/coupon-templates/${data.id}`, data),
+    remove: async (id: number) => httpDelete<void>(`/coupon-templates/${id}`),
   },
   inviteActivities: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<InviteActivityRecord>('/invite-activities', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<InviteActivityRecord>('/invite-activities', data) : run(() => data as unknown as InviteActivityRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/invite-activities/${data.id}`, data) : run(() => undefined),
-    remove: async (id: number) => useRealBackendApi ? httpDelete<void>(`/invite-activities/${id}`) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<InviteActivityRecord>('/invite-activities', params),
+    add: async (data: Record<string, unknown>) => httpPost<InviteActivityRecord>('/invite-activities', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/invite-activities/${data.id}`, data),
+    remove: async (id: number) => httpDelete<void>(`/invite-activities/${id}`),
   },
   rechargeActivities: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<RechargeActivityRecord>('/recharge-activities', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<RechargeActivityRecord>('/recharge-activities', data) : run(() => data as unknown as RechargeActivityRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/recharge-activities/${data.id}`, data) : run(() => undefined),
-    remove: async (id: number) => useRealBackendApi ? httpDelete<void>(`/recharge-activities/${id}`) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<RechargeActivityRecord>('/recharge-activities', params),
+    add: async (data: Record<string, unknown>) => httpPost<RechargeActivityRecord>('/recharge-activities', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/recharge-activities/${data.id}`, data),
+    remove: async (id: number) => httpDelete<void>(`/recharge-activities/${id}`),
   },
   crossStoreActivities: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<CrossStoreActivityRecord>('/cross-store-activities', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<CrossStoreActivityRecord>('/cross-store-activities', data) : run(() => data as unknown as CrossStoreActivityRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/cross-store-activities/${data.id}`, data) : run(() => undefined),
-    changeStatus: async (id: number, status: string) => useRealBackendApi ? httpPut<void>(`/cross-store-activities/${id}/status`, { status }) : run(() => undefined),
-    remove: async (id: number) => useRealBackendApi ? httpDelete<void>(`/cross-store-activities/${id}`) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<CrossStoreActivityRecord>('/cross-store-activities', params),
+    add: async (data: Record<string, unknown>) => httpPost<CrossStoreActivityRecord>('/cross-store-activities', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/cross-store-activities/${data.id}`, data),
+    changeStatus: async (id: number, status: string) => httpPut<void>(`/cross-store-activities/${id}/status`, { status }),
+    remove: async (id: number) => httpDelete<void>(`/cross-store-activities/${id}`),
   },
   participations: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<MarketingParticipationRecord>('/marketing-participations', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<MarketingParticipationRecord>('/marketing-participations', data) : run(() => data as unknown as MarketingParticipationRecord),
+    page: async (params: Record<string, unknown>) => httpPage<MarketingParticipationRecord>('/marketing-participations', params),
+    add: async (data: Record<string, unknown>) => httpPost<MarketingParticipationRecord>('/marketing-participations', data),
   },
   rewards: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<MarketingRewardRecord>('/marketing-rewards', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<MarketingRewardRecord>('/marketing-rewards', data) : run(() => data as unknown as MarketingRewardRecord),
-    issue: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? request.post<ApiEnvelope<MarketingRewardRecord>>(`/marketing-rewards/${id}/issue`, data) : run(() => ({ id, ...data } as unknown as MarketingRewardRecord)),
+    page: async (params: Record<string, unknown>) => httpPage<MarketingRewardRecord>('/marketing-rewards', params),
+    add: async (data: Record<string, unknown>) => httpPost<MarketingRewardRecord>('/marketing-rewards', data),
+    issue: async (id: number, data: Record<string, unknown>) => request.post<ApiEnvelope<MarketingRewardRecord>>(`/marketing-rewards/${id}/issue`, data),
   },
   budgets: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<MarketingBudgetRecord>('/marketing-budgets', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<MarketingBudgetRecord>('/marketing-budgets', data) : run(() => data as unknown as MarketingBudgetRecord),
-    adjust: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? request.post<ApiEnvelope<MarketingBudgetRecord>>(`/marketing-budgets/${id}/adjust`, data) : run(() => ({ id, ...data } as unknown as MarketingBudgetRecord)),
+    page: async (params: Record<string, unknown>) => httpPage<MarketingBudgetRecord>('/marketing-budgets', params),
+    add: async (data: Record<string, unknown>) => httpPost<MarketingBudgetRecord>('/marketing-budgets', data),
+    adjust: async (id: number, data: Record<string, unknown>) => request.post<ApiEnvelope<MarketingBudgetRecord>>(`/marketing-budgets/${id}/adjust`, data),
   },
 };
 
 export const assetApi = {
   userAccounts: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<UserAssetAccountRecord>('/user-asset-accounts', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    adjust: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? request.post<ApiEnvelope<UserAssetAccountRecord>>(`/user-asset-accounts/${id}/adjust`, data) : run(() => ({ id, ...data } as unknown as UserAssetAccountRecord)),
-    freeze: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? request.post<ApiEnvelope<UserAssetAccountRecord>>(`/user-asset-accounts/${id}/freeze`, data) : run(() => ({ id, ...data } as unknown as UserAssetAccountRecord)),
-    unfreeze: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? request.post<ApiEnvelope<UserAssetAccountRecord>>(`/user-asset-accounts/${id}/unfreeze`, data) : run(() => ({ id, ...data } as unknown as UserAssetAccountRecord)),
+    page: async (params: Record<string, unknown>) => httpPage<UserAssetAccountRecord>('/user-asset-accounts', params),
+    adjust: async (id: number, data: Record<string, unknown>) => request.post<ApiEnvelope<UserAssetAccountRecord>>(`/user-asset-accounts/${id}/adjust`, data),
+    freeze: async (id: number, data: Record<string, unknown>) => request.post<ApiEnvelope<UserAssetAccountRecord>>(`/user-asset-accounts/${id}/freeze`, data),
+    unfreeze: async (id: number, data: Record<string, unknown>) => request.post<ApiEnvelope<UserAssetAccountRecord>>(`/user-asset-accounts/${id}/unfreeze`, data),
   },
   balanceFlows: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<BalanceFlowRecord>('/balance-flows', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
+    page: async (params: Record<string, unknown>) => httpPage<BalanceFlowRecord>('/balance-flows', params),
   },
   rechargeOrders: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<RechargeOrderRecord>('/recharge-orders', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<RechargeOrderRecord>('/recharge-orders', data) : run(() => data as unknown as RechargeOrderRecord),
-    reward: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? request.post<ApiEnvelope<RechargeRewardRecord>>(`/recharge-orders/${id}/reward`, data) : run(() => ({ id, ...data } as unknown as RechargeRewardRecord)),
-    refund: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? request.post<ApiEnvelope<RechargeOrderRecord>>(`/recharge-orders/${id}/refund`, data) : run(() => ({ id, ...data } as unknown as RechargeOrderRecord)),
+    page: async (params: Record<string, unknown>) => httpPage<RechargeOrderRecord>('/recharge-orders', params),
+    add: async (data: Record<string, unknown>) => httpPost<RechargeOrderRecord>('/recharge-orders', data),
+    reward: async (id: number, data: Record<string, unknown>) => request.post<ApiEnvelope<RechargeRewardRecord>>(`/recharge-orders/${id}/reward`, data),
+    refund: async (id: number, data: Record<string, unknown>) => request.post<ApiEnvelope<RechargeOrderRecord>>(`/recharge-orders/${id}/refund`, data),
   },
   rechargeRewards: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<RechargeRewardRecord>('/recharge-reward-records', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
+    page: async (params: Record<string, unknown>) => httpPage<RechargeRewardRecord>('/recharge-reward-records', params),
   },
   profiles: crudApi<AppUserProfileRecord>('/app-user-profiles'),
   vehicles: crudApi<UserVehicleRecord>('/user-vehicles'),
   favoriteStores: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<UserFavoriteStoreRecord>('/user-favorite-stores', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
+    page: async (params: Record<string, unknown>) => httpPage<UserFavoriteStoreRecord>('/user-favorite-stores', params),
+    add: async (data: Record<string, unknown>) => httpPost<UserFavoriteStoreRecord>('/user-favorite-stores', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/user-favorite-stores/${data.id}`, data),
+    remove: async (id: number) => httpDelete<void>(`/user-favorite-stores/${id}`),
   },
   riskRecords: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<UserRiskRecord>('/user-risk-records', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<UserRiskRecord>('/user-risk-records', data) : run(() => data as unknown as UserRiskRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/user-risk-records/${data.id}`, data) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<UserRiskRecord>('/user-risk-records', params),
+    add: async (data: Record<string, unknown>) => httpPost<UserRiskRecord>('/user-risk-records', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/user-risk-records/${data.id}`, data),
   },
   serviceCards: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<ServiceCardRecord>('/service-cards', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<ServiceCardRecord>('/service-cards', data) : run(() => data as unknown as ServiceCardRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/service-cards/${data.id}`, data) : run(() => undefined),
-    changeStatus: async (id: number, status: string) => useRealBackendApi ? httpPut<void>(`/service-cards/${id}/status`, { status }) : run(() => undefined),
-    issue: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? request.post<ApiEnvelope<UserServiceCardRecord>>(`/service-cards/${id}/issue`, data) : run(() => ({ id, ...data } as unknown as UserServiceCardRecord)),
-    remove: async (id: number) => useRealBackendApi ? httpDelete<void>(`/service-cards/${id}`) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<ServiceCardRecord>('/service-cards', params),
+    options: async (params?: Record<string, unknown>) => httpGet<SelectOptionRecord[]>('/service-cards/options', params),
+    add: async (data: Record<string, unknown>) => httpPost<ServiceCardRecord>('/service-cards', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/service-cards/${data.id}`, data),
+    changeStatus: async (id: number, status: string) => httpPut<void>(`/service-cards/${id}/status`, { status }),
+    issue: async (id: number, data: Record<string, unknown>) => request.post<ApiEnvelope<UserServiceCardRecord>>(`/service-cards/${id}/issue`, data),
+    remove: async (id: number) => httpDelete<void>(`/service-cards/${id}`),
   },
   userServiceCards: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<UserServiceCardRecord>('/user-service-cards', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<UserServiceCardRecord>('/user-service-cards', data) : run(() => data as unknown as UserServiceCardRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/user-service-cards/${data.id}`, data) : run(() => undefined),
-    deduct: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? request.post<ApiEnvelope<ServiceCardUsageRecord>>(`/user-service-cards/${id}/deduct`, data) : run(() => ({ id, ...data } as unknown as ServiceCardUsageRecord)),
+    page: async (params: Record<string, unknown>) => httpPage<UserServiceCardRecord>('/user-service-cards', params),
+    add: async (data: Record<string, unknown>) => httpPost<UserServiceCardRecord>('/user-service-cards', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/user-service-cards/${data.id}`, data),
+    deduct: async (id: number, data: Record<string, unknown>) => request.post<ApiEnvelope<ServiceCardUsageRecord>>(`/user-service-cards/${id}/deduct`, data),
   },
   serviceCardUsages: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<ServiceCardUsageRecord>('/service-card-usages', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<ServiceCardUsageRecord>('/service-card-usages', data) : run(() => data as unknown as ServiceCardUsageRecord),
-    rollback: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? request.post<ApiEnvelope<ServiceCardUsageRecord>>(`/service-card-usages/${id}/rollback`, data) : run(() => ({ id, ...data } as unknown as ServiceCardUsageRecord)),
+    page: async (params: Record<string, unknown>) => httpPage<ServiceCardUsageRecord>('/service-card-usages', params),
+    add: async (data: Record<string, unknown>) => httpPost<ServiceCardUsageRecord>('/service-card-usages', data),
+    rollback: async (id: number, data: Record<string, unknown>) => request.post<ApiEnvelope<ServiceCardUsageRecord>>(`/service-card-usages/${id}/rollback`, data),
   },
   userCoupons: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<UserCouponRecord>('/user-coupons', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<UserCouponRecord>('/user-coupons', data) : run(() => data as unknown as UserCouponRecord),
-    use: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? request.post<ApiEnvelope<UserCouponRecord>>(`/user-coupons/${id}/use`, data) : run(() => ({ id, ...data } as unknown as UserCouponRecord)),
-    rollback: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? request.post<ApiEnvelope<UserCouponRecord>>(`/user-coupons/${id}/rollback`, data) : run(() => ({ id, ...data } as unknown as UserCouponRecord)),
-    recycle: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? request.post<ApiEnvelope<UserCouponRecord>>(`/user-coupons/${id}/recycle`, data) : run(() => ({ id, ...data } as unknown as UserCouponRecord)),
+    page: async (params: Record<string, unknown>) => httpPage<UserCouponRecord>('/user-coupons', params),
+    add: async (data: Record<string, unknown>) => httpPost<UserCouponRecord>('/user-coupons', data),
+    use: async (id: number, data: Record<string, unknown>) => request.post<ApiEnvelope<UserCouponRecord>>(`/user-coupons/${id}/use`, data),
+    rollback: async (id: number, data: Record<string, unknown>) => request.post<ApiEnvelope<UserCouponRecord>>(`/user-coupons/${id}/rollback`, data),
+    recycle: async (id: number, data: Record<string, unknown>) => request.post<ApiEnvelope<UserCouponRecord>>(`/user-coupons/${id}/recycle`, data),
   },
   couponIssues: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<CouponIssueRecord>('/coupon-issue-records', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
+    page: async (params: Record<string, unknown>) => httpPage<CouponIssueRecord>('/coupon-issue-records', params),
   },
   couponUsages: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<CouponUsageRecord>('/coupon-usage-records', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
+    page: async (params: Record<string, unknown>) => httpPage<CouponUsageRecord>('/coupon-usage-records', params),
   },
   operations: {
-    batchTags: async (data: Record<string, unknown>) => useRealBackendApi ? request.post<ApiEnvelope<number>>('/user-asset-operations/batch-tags', data) : run(() => 0),
-    riskBlacklist: async (data: Record<string, unknown>) => useRealBackendApi ? request.post<ApiEnvelope<number>>('/user-asset-operations/risk-blacklist', data) : run(() => 0),
-    exportBalanceFlows: async (data: Record<string, unknown>) => useRealBackendApi ? request.post<ApiEnvelope<OperationTaskRecord>>('/user-asset-operations/balance-flow-export', data) : run(() => ({ id: 0, taskNo: 'LOCAL', status: 'SUCCESS' } as OperationTaskRecord)),
+    overview: async () => httpGet<UserAssetOverviewRecord>('/user-asset-operations/overview'),
+    batchTags: async (data: Record<string, unknown>) => request.post<ApiEnvelope<number>>('/user-asset-operations/batch-tags', data),
+    riskBlacklist: async (data: Record<string, unknown>) => request.post<ApiEnvelope<number>>('/user-asset-operations/risk-blacklist', data),
+    exportBalanceFlows: async (data: Record<string, unknown>) => request.post<ApiEnvelope<ImportExportTaskRecord>>('/user-asset-operations/balance-flow-export', data),
   },
+  userOptions: async (params?: Record<string, unknown>) => httpGet<SelectOptionRecord[]>('/app-user-profiles/options', params),
 };
 
 export const messageApi = {
   templates: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<MessageTemplateRecord>('/message-templates', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<MessageTemplateRecord>('/message-templates', data) : run(() => data as unknown as MessageTemplateRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/message-templates/${data.id}`, data) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<MessageTemplateRecord>('/message-templates', params),
+    add: async (data: Record<string, unknown>) => httpPost<MessageTemplateRecord>('/message-templates', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/message-templates/${data.id}`, data),
   },
   serviceEvaluations: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<ServiceEvaluationRecord>('/service-evaluations', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    update: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/service-evaluations/${id}`, data) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<ServiceEvaluationRecord>('/service-evaluations', params),
+    update: async (id: number, data: Record<string, unknown>) => httpPut<void>(`/service-evaluations/${id}`, data),
   },
   userFeedbacks: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<UserFeedbackRecord>('/user-feedbacks', { ...params, handleStatus: params.handleStatus ?? params.status }) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    update: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/user-feedbacks/${id}`, data) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<UserFeedbackRecord>('/user-feedbacks', { ...params, handleStatus: params.handleStatus ?? params.status }),
+    update: async (id: number, data: Record<string, unknown>) => httpPut<void>(`/user-feedbacks/${id}`, data),
   },
-  recordsPage: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<MessageRecord>('/message-records', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
+  recordsPage: async (params: Record<string, unknown>) => httpPage<MessageRecord>('/message-records', params),
   records: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<MessageRecord>('/message-records', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
+    page: async (params: Record<string, unknown>) => httpPage<MessageRecord>('/message-records', params),
   },
   messageRecords: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<MessageRecord>('/message-records', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<MessageRecord>('/message-records', data) : run(() => data as unknown as MessageRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/message-records/${data.id}`, data) : run(() => undefined),
-    resend: async (id: number) => useRealBackendApi ? request.post<ApiEnvelope<void>>(`/message-records/${id}/resend`) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<MessageRecord>('/message-records', params),
+    add: async (data: Record<string, unknown>) => httpPost<MessageRecord>('/message-records', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/message-records/${data.id}`, data),
+    resend: async (id: number) => request.post<ApiEnvelope<void>>(`/message-records/${id}/resend`),
   },
   subscribes: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<SubscribeRecord>('/subscribe-records', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<SubscribeRecord>('/subscribe-records', data) : run(() => data as unknown as SubscribeRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/subscribe-records/${data.id}`, data) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<SubscribeRecord>('/subscribe-records', params),
+    add: async (data: Record<string, unknown>) => httpPost<SubscribeRecord>('/subscribe-records', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/subscribe-records/${data.id}`, data),
   },
 };
 
 export const analysisApi = {
   snapshots: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<AnalysisSnapshotRecord>('/analysis-snapshots', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<AnalysisSnapshotRecord>('/analysis-snapshots', data) : run(() => data as unknown as AnalysisSnapshotRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/analysis-snapshots/${data.id}`, data) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<AnalysisSnapshotRecord>('/analysis-snapshots', params),
+    add: async (data: Record<string, unknown>) => httpPost<AnalysisSnapshotRecord>('/analysis-snapshots', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/analysis-snapshots/${data.id}`, data),
   },
 };
 
@@ -2798,81 +2887,81 @@ export const valuePlanningApi = {
   adSlots: crudApi<AdSlotRecord>('/ad-slots'),
   adCampaigns: crudApi<AdCampaignRecord>('/ad-campaigns'),
   adEvents: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<AdEventRecord>('/ad-events', params) : run(() => localEmptyPage<AdEventRecord>(params)),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<AdEventRecord>('/ad-events', data) : run(() => data as unknown as AdEventRecord),
+    page: async (params: Record<string, unknown>) => httpPage<AdEventRecord>('/ad-events', params),
+    add: async (data: Record<string, unknown>) => httpPost<AdEventRecord>('/ad-events', data),
   },
   adConversions: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<AdConversionRecord>('/ad-conversions', params) : run(() => localEmptyPage<AdConversionRecord>(params)),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<AdConversionRecord>('/ad-conversions', data) : run(() => data as unknown as AdConversionRecord),
+    page: async (params: Record<string, unknown>) => httpPage<AdConversionRecord>('/ad-conversions', params),
+    add: async (data: Record<string, unknown>) => httpPost<AdConversionRecord>('/ad-conversions', data),
   },
   retailProducts: crudApi<RetailProductRecord>('/retail-products'),
   retailStocks: crudApi<RetailStockRecord>('/retail-stocks'),
   retailOrders: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<RetailOrderRecord>('/retail-orders', params) : run(() => localEmptyPage<RetailOrderRecord>(params)),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<RetailOrderRecord>('/retail-orders', data) : run(() => data as unknown as RetailOrderRecord),
+    page: async (params: Record<string, unknown>) => httpPage<RetailOrderRecord>('/retail-orders', params),
+    add: async (data: Record<string, unknown>) => httpPost<RetailOrderRecord>('/retail-orders', data),
   },
   retailStockFlows: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<RetailStockFlowRecord>('/retail-stock-flows', params) : run(() => localEmptyPage<RetailStockFlowRecord>(params)),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<RetailStockFlowRecord>('/retail-stock-flows', data) : run(() => data as unknown as RetailStockFlowRecord),
+    page: async (params: Record<string, unknown>) => httpPage<RetailStockFlowRecord>('/retail-stock-flows', params),
+    add: async (data: Record<string, unknown>) => httpPost<RetailStockFlowRecord>('/retail-stock-flows', data),
   },
   retailShipments: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<RetailShipmentRecord>('/retail-shipments', params) : run(() => localEmptyPage<RetailShipmentRecord>(params)),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<RetailShipmentRecord>('/retail-shipments', data) : run(() => data as unknown as RetailShipmentRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/retail-shipments/${data.id}`, data) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<RetailShipmentRecord>('/retail-shipments', params),
+    add: async (data: Record<string, unknown>) => httpPost<RetailShipmentRecord>('/retail-shipments', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/retail-shipments/${data.id}`, data),
   },
 };
 
 export const fileApi = {
   assets: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<FileAssetRecord>('/file-assets', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<FileAssetRecord>('/file-assets', data) : run(() => data as unknown as FileAssetRecord),
+    page: async (params: Record<string, unknown>) => httpPage<FileAssetRecord>('/file-assets', params),
+    add: async (data: Record<string, unknown>) => httpPost<FileAssetRecord>('/file-assets', data),
   },
   refs: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<BizFileRefRecord>('/biz-file-refs', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<BizFileRefRecord>('/biz-file-refs', data) : run(() => data as unknown as BizFileRefRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/biz-file-refs/${data.id}`, data) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<BizFileRefRecord>('/biz-file-refs', params),
+    add: async (data: Record<string, unknown>) => httpPost<BizFileRefRecord>('/biz-file-refs', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/biz-file-refs/${data.id}`, data),
   },
   usages: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<FileUsageRecord>('/file-usage-stats', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
+    page: async (params: Record<string, unknown>) => httpPage<FileUsageRecord>('/file-usage-stats', params),
   },
   audits: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<FileAuditRecord>('/file-audit-records', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<FileAuditRecord>('/file-audit-records', data) : run(() => data as unknown as FileAuditRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/file-audit-records/${data.id}`, data) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<FileAuditRecord>('/file-audit-records', params),
+    add: async (data: Record<string, unknown>) => httpPost<FileAuditRecord>('/file-audit-records', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/file-audit-records/${data.id}`, data),
   },
   retentions: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<FileRetentionRecord>('/file-retention-rules', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<FileRetentionRecord>('/file-retention-rules', data) : run(() => data as unknown as FileRetentionRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/file-retention-rules/${data.id}`, data) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<FileRetentionRecord>('/file-retention-rules', params),
+    add: async (data: Record<string, unknown>) => httpPost<FileRetentionRecord>('/file-retention-rules', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/file-retention-rules/${data.id}`, data),
   },
   importExportTasks: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<ImportExportTaskRecord>('/import-export-tasks', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<ImportExportTaskRecord>('/import-export-tasks', data) : run(() => data as unknown as ImportExportTaskRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/import-export-tasks/${data.id}`, data) : run(() => undefined),
-    run: async (id: number) => useRealBackendApi ? request.post<ApiEnvelope<ImportExportTaskRecord>>(`/import-export-tasks/${id}/run`) : run(() => ({ id, status: 'SUCCESS' } as ImportExportTaskRecord)),
-    updateStatus: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/import-export-tasks/${id}/status`, data) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<ImportExportTaskRecord>('/import-export-tasks', params),
+    add: async (data: Record<string, unknown>) => httpPost<ImportExportTaskRecord>('/import-export-tasks', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/import-export-tasks/${data.id}`, data),
+    run: async (id: number) => request.post<ApiEnvelope<ImportExportTaskRecord>>(`/import-export-tasks/${id}/run`),
+    updateStatus: async (id: number, data: Record<string, unknown>) => httpPut<void>(`/import-export-tasks/${id}/status`, data),
   },
 };
 
 export const approvalApi = {
   processes: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<ApprovalProcessRecord>('/approval-processes', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<ApprovalProcessRecord>('/approval-processes', data) : run(() => data as unknown as ApprovalProcessRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/approval-processes/${data.id}`, data) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<ApprovalProcessRecord>('/approval-processes', params),
+    add: async (data: Record<string, unknown>) => httpPost<ApprovalProcessRecord>('/approval-processes', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/approval-processes/${data.id}`, data),
   },
   tasks: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<ApprovalTaskRecord>('/approval-tasks', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<ApprovalTaskRecord>('/approval-tasks', data) : run(() => data as unknown as ApprovalTaskRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/approval-tasks/${data.id}`, data) : run(() => undefined),
-    handle: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? request.post<ApiEnvelope<void>>(`/approval-tasks/${id}/handle`, data) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<ApprovalTaskRecord>('/approval-tasks', params),
+    add: async (data: Record<string, unknown>) => httpPost<ApprovalTaskRecord>('/approval-tasks', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/approval-tasks/${data.id}`, data),
+    handle: async (id: number, data: Record<string, unknown>) => request.post<ApiEnvelope<void>>(`/approval-tasks/${id}/handle`, data),
   },
   records: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<ApprovalRecord>('/approval-records', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
+    page: async (params: Record<string, unknown>) => httpPage<ApprovalRecord>('/approval-records', params),
   },
   slas: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<ApprovalSlaRecord>('/approval-slas', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<ApprovalSlaRecord>('/approval-slas', data) : run(() => data as unknown as ApprovalSlaRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/approval-slas/${data.id}`, data) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<ApprovalSlaRecord>('/approval-slas', params),
+    add: async (data: Record<string, unknown>) => httpPost<ApprovalSlaRecord>('/approval-slas', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/approval-slas/${data.id}`, data),
   },
 };
 
@@ -2882,11 +2971,11 @@ export const riskScheduleAlarmApi = {
   blacklists: crudApi<BlacklistRecord>('/risk-blacklists'),
   jobs: {
     ...crudApi<ScheduledJobRecord>('/scheduled-jobs'),
-    run: async (id: number) => useRealBackendApi ? request.post<ApiEnvelope<ScheduledJobLogRecord>>(`/scheduled-jobs/${id}/run`) : run(() => ({ id, jobCode: String(id), executeStatus: 'SUCCESS' } as ScheduledJobLogRecord)),
+    run: async (id: number) => request.post<ApiEnvelope<ScheduledJobLogRecord>>(`/scheduled-jobs/${id}/run`),
   },
   jobLogs: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<ScheduledJobLogRecord>('/scheduled-job-logs', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<ScheduledJobLogRecord>('/scheduled-job-logs', data) : run(() => data as unknown as ScheduledJobLogRecord),
+    page: async (params: Record<string, unknown>) => httpPage<ScheduledJobLogRecord>('/scheduled-job-logs', params),
+    add: async (data: Record<string, unknown>) => httpPost<ScheduledJobLogRecord>('/scheduled-job-logs', data),
   },
   alarmRules: crudApi<AlarmRuleRecord>('/alarm-rules'),
   alarms: crudApi<AlarmRecord>('/alarm-records'),
@@ -2895,9 +2984,13 @@ export const riskScheduleAlarmApi = {
 export const openApi = {
   clients: crudApi<OpenApiClientRecord>('/open-api-clients'),
   callLogs: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<OpenApiCallLogRecord>('/open-api-call-logs', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<OpenApiCallLogRecord>('/open-api-call-logs', data) : run(() => data as unknown as OpenApiCallLogRecord),
+    page: async (params: Record<string, unknown>) => httpPage<OpenApiCallLogRecord>('/open-api-call-logs', params),
+    add: async (data: Record<string, unknown>) => httpPost<OpenApiCallLogRecord>('/open-api-call-logs', data),
   },
+};
+
+export const operationsExtensionApi = {
+  overview: async () => httpGet<OperationsExtensionOverviewRecord>('/operations-extension/overview'),
 };
 
 export const miniProgramOpsApi = {
@@ -2911,77 +3004,84 @@ export const platformBaseApi = {
   departments: crudApi<PlatformDepartmentRecord>('/platform-departments'),
   positions: crudApi<PlatformPositionRecord>('/platform-positions'),
   organizationChangeLogs: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<PlatformOrganizationChangeLogRecord>('/platform-organization-change-logs', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<PlatformOrganizationChangeLogRecord>('/platform-organization-change-logs', data) : run(() => data as unknown as PlatformOrganizationChangeLogRecord),
+    page: async (params: Record<string, unknown>) => httpPage<PlatformOrganizationChangeLogRecord>('/platform-organization-change-logs', params),
+    add: async (data: Record<string, unknown>) => httpPost<PlatformOrganizationChangeLogRecord>('/platform-organization-change-logs', data),
   },
   configs: crudApi<SystemConfigRecord>('/system-configs'),
   sequenceRules: crudApi<SequenceRuleRecord>('/sequence-rules'),
   events: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<BizEventRecord>('/biz-events', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<BizEventRecord>('/biz-events', data) : run(() => data as unknown as BizEventRecord),
-    retry: async (id: number) => useRealBackendApi ? request.post<ApiEnvelope<BizEventRecord>>(`/biz-events/${id}/retry`) : run(() => ({ id } as BizEventRecord)),
+    page: async (params: Record<string, unknown>) => httpPage<BizEventRecord>('/biz-events', params),
+    add: async (data: Record<string, unknown>) => httpPost<BizEventRecord>('/biz-events', data),
+    retry: async (id: number) => request.post<ApiEnvelope<BizEventRecord>>(`/biz-events/${id}/retry`),
   },
   contents: crudApi<ContentArticleRecord>('/content-articles'),
 };
 
 export const authAuditApi = {
-  userRoles: crudApi<UserRoleRelationRecord>('/user-role-relations'),
+  userRoles: {
+    page: async (params: Record<string, unknown>) =>
+      httpPage<UserRoleRelationRecord>('/user-role-relations', params),
+    add: async (data: Record<string, unknown>) =>
+      httpPost<UserRoleRelationRecord>('/user-role-relations', data),
+    edit: async (data: Record<string, unknown>) =>
+      httpPut<void>(`/user-role-relations/${data.id}`, data),
+    remove: async (id: number) =>
+      httpDelete<void>(`/user-role-relations/${id}`),
+  },
   dataScopes: crudApi<DataScopeRelationRecord>('/data-scope-relations'),
   loginLogs: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<LoginLogRecord>('/login-logs', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<LoginLogRecord>('/login-logs', data) : run(() => data as unknown as LoginLogRecord),
+    page: async (params: Record<string, unknown>) => httpPage<LoginLogRecord>('/login-logs', params),
+    add: async (data: Record<string, unknown>) => httpPost<LoginLogRecord>('/login-logs', data),
   },
   operationLogs: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<OperationLogRecord>('/operation-logs', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<OperationLogRecord>('/operation-logs', data) : run(() => data as unknown as OperationLogRecord),
+    page: async (params: Record<string, unknown>) => httpPage<OperationLogRecord>('/operation-logs', params),
+    add: async (data: Record<string, unknown>) => httpPost<OperationLogRecord>('/operation-logs', data),
   },
   permissionChanges: {
-    page: async (params: Record<string, unknown>) => useRealBackendApi ? httpPage<PermissionChangeLogRecord>('/permission-change-logs', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<PermissionChangeLogRecord>('/permission-change-logs', data) : run(() => data as unknown as PermissionChangeLogRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/permission-change-logs/${data.id}`, data) : run(() => undefined),
+    page: async (params: Record<string, unknown>) => httpPage<PermissionChangeLogRecord>('/permission-change-logs', params),
+    add: async (data: Record<string, unknown>) => httpPost<PermissionChangeLogRecord>('/permission-change-logs', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/permission-change-logs/${data.id}`, data),
   },
 };
 
 export const paymentApi = {
   orders: {
     page: async (params: Record<string, unknown>) =>
-      useRealBackendApi ? httpPage<PaymentOrderRecord>('/payment-orders', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
+      httpPage<PaymentOrderRecord>('/payment-orders', params),
     updateStatus: async (id: number, payStatus: string) =>
-      useRealBackendApi ? httpPut<void>(`/payment-orders/${id}/status`, { payStatus }) : run(() => undefined),
+      httpPut<void>(`/payment-orders/${id}/status`, { payStatus }),
     sync: async (id: number) =>
-      useRealBackendApi ? request.post<ApiEnvelope<PaymentOrderRecord>>(`/payment-orders/${id}/sync`) : run(() => ({ id, payStatus: 'SUCCESS' } as PaymentOrderRecord)),
+      request.post<ApiEnvelope<PaymentOrderRecord>>(`/payment-orders/${id}/sync`),
   },
   callbackLogs: {
     page: async (params: Record<string, unknown>) =>
-      useRealBackendApi ? httpPage<PaymentCallbackLogRecord>('/payment-callback-logs', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<PaymentCallbackLogRecord>('/payment-callback-logs', data) : run(() => data as unknown as PaymentCallbackLogRecord),
-    replay: async (id: number) => useRealBackendApi ? request.post<ApiEnvelope<PaymentCallbackLogRecord>>(`/payment-callback-logs/${id}/replay`) : run(() => ({ id, callbackStatus: 'SUCCESS' } as PaymentCallbackLogRecord)),
+      httpPage<PaymentCallbackLogRecord>('/payment-callback-logs', params),
+    add: async (data: Record<string, unknown>) => httpPost<PaymentCallbackLogRecord>('/payment-callback-logs', data),
+    replay: async (id: number) => request.post<ApiEnvelope<PaymentCallbackLogRecord>>(`/payment-callback-logs/${id}/replay`),
   },
   channels: {
     page: async (params: Record<string, unknown>) =>
-      useRealBackendApi ? httpPage<PaymentChannelRecord>('/payment-channels', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<PaymentChannelRecord>('/payment-channels', data) : run(() => data as unknown as PaymentChannelRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/payment-channels/${data.id}`, data) : run(() => undefined),
-    remove: async (id: number) => useRealBackendApi ? httpDelete<void>(`/payment-channels/${id}`) : run(() => undefined),
+      httpPage<PaymentChannelRecord>('/payment-channels', params),
+    add: async (data: Record<string, unknown>) => httpPost<PaymentChannelRecord>('/payment-channels', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/payment-channels/${data.id}`, data),
+    remove: async (id: number) => httpDelete<void>(`/payment-channels/${id}`),
   },
   refundCallbacks: {
     page: async (params: Record<string, unknown>) =>
-      useRealBackendApi ? httpPage<RefundCallbackLogRecord>('/refund-callback-logs', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<RefundCallbackLogRecord>('/refund-callback-logs', data) : run(() => data as unknown as RefundCallbackLogRecord),
+      httpPage<RefundCallbackLogRecord>('/refund-callback-logs', params),
+    add: async (data: Record<string, unknown>) => httpPost<RefundCallbackLogRecord>('/refund-callback-logs', data),
   },
   reconciliations: {
     page: async (params: Record<string, unknown>) =>
-      useRealBackendApi ? httpPage<PaymentReconciliationRecord>('/payment-reconciliations', params) : run(() => ({ records: [], total: 0, size: 10, current: 1, pages: 1 })),
-    add: async (data: Record<string, unknown>) => useRealBackendApi ? httpPost<PaymentReconciliationRecord>('/payment-reconciliations', data) : run(() => data as unknown as PaymentReconciliationRecord),
-    edit: async (data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/payment-reconciliations/${data.id}`, data) : run(() => undefined),
-    updateStatus: async (id: number, data: Record<string, unknown>) => useRealBackendApi ? httpPut<void>(`/payment-reconciliations/${id}/status`, data) : run(() => undefined),
+      httpPage<PaymentReconciliationRecord>('/payment-reconciliations', params),
+    add: async (data: Record<string, unknown>) => httpPost<PaymentReconciliationRecord>('/payment-reconciliations', data),
+    edit: async (data: Record<string, unknown>) => httpPut<void>(`/payment-reconciliations/${data.id}`, data),
+    updateStatus: async (id: number, data: Record<string, unknown>) => httpPut<void>(`/payment-reconciliations/${id}/status`, data),
   },
 };
 
 export const platformDashboardApi = {
-  overview: async () => useRealBackendApi
-    ? httpGet<PlatformDashboardOverviewRecord>('/platform-dashboard/overview')
-    : run(() => ({ cards: [], todos: [], alerts: [], changes: [], quickEntries: [] } as PlatformDashboardOverviewRecord)),
+  overview: async () => httpGet<PlatformDashboardOverviewRecord>('/platform-dashboard/overview'),
 };
 
 export default {
@@ -3056,6 +3156,7 @@ export default {
   approval: approvalApi,
   riskScheduleAlarm: riskScheduleAlarmApi,
   openApi,
+  operationsExtension: operationsExtensionApi,
   miniProgramOps: miniProgramOpsApi,
   platformBase: platformBaseApi,
   authAudit: authAuditApi,

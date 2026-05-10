@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Table, Tabs, message } from 'antd';
-import { BarChartOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Table, Tabs, message } from 'antd';
+import { BarChartOutlined, DashboardOutlined, LineChartOutlined, TeamOutlined } from '@ant-design/icons';
 import { analysisSnapshotTypeOptions, reportDimensionOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, formatAmount, renderStatusTag } from '@/pages/Business/shared';
 import api, { type AnalysisSnapshotRecord } from '@/services/backendService';
 
@@ -32,6 +34,17 @@ interface DerivedMarketingRecord {
 
 const snapshotTypeMap = buildValueEnum(analysisSnapshotTypeOptions);
 const dimensionMap = buildValueEnum(reportDimensionOptions);
+const metricSceneOptions = [
+  { value: 'DAILY_REVIEW', label: '每日经营复盘' },
+  { value: 'STORE_RANKING', label: '门店排行分析' },
+  { value: 'MARKETING_REVIEW', label: '营销效果复盘' },
+  { value: 'DEVICE_ALERT', label: '设备异常跟踪' },
+];
+const compareBasisOptions = [
+  { value: 'YESTERDAY', label: '对比昨日' },
+  { value: 'LAST_WEEK', label: '对比上周同日' },
+  { value: 'MANUAL', label: '人工录入对比值' },
+];
 
 const analysisDetailFields: Record<'snapshot' | 'store' | 'marketing', DetailField<any>[]> = {
   snapshot: [
@@ -44,9 +57,19 @@ const analysisDetailFields: Record<'snapshot' | 'store' | 'marketing', DetailFie
     { name: 'metricCode', label: '指标编码' },
     { name: 'metricValue', label: '指标值' },
     { name: 'compareValue', label: '对比值' },
+    { name: 'owner', label: '负责人' },
+    { name: 'metricScene', label: '使用场景' },
+    { name: 'compareBasis', label: '对比口径' },
+    { name: 'supplement', label: '补充说明' },
     { name: 'orderCount', label: '订单数' },
     { name: 'incomeAmount', label: '收入', render: (value) => formatAmount(value) },
     { name: 'refundAmount', label: '退款', render: (value) => formatAmount(value) },
+    { name: 'utilizationRate', label: '点位利用率', render: (value) => value === undefined || value === null ? '-' : `${value}%` },
+    { name: 'hotServiceName', label: '热门服务' },
+    { name: 'refundRate', label: '退款率', render: (value) => value === undefined || value === null ? '-' : `${value}%` },
+    { name: 'exposureCount', label: '曝光' },
+    { name: 'clickCount', label: '点击' },
+    { name: 'conversionCount', label: '转化' },
     { name: 'activeDeviceCount', label: '活跃设备' },
     { name: 'faultDeviceCount', label: '故障设备' },
     { name: 'createdAt', label: '生成时间' },
@@ -71,19 +94,11 @@ const analysisDetailFields: Record<'snapshot' | 'store' | 'marketing', DetailFie
   ],
 };
 
-const parseDimensionJson = (value?: string) => {
-  try {
-    return value ? JSON.parse(value) as Record<string, any> : {};
-  } catch {
-    return {};
-  }
-};
-
 const AnalysisManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const [detail, setDetail] = useState<AnalysisSnapshotRecord | DerivedStoreRecord | DerivedMarketingRecord | null>(null);
   const [metricVisible, setMetricVisible] = useState(false);
-  const [metricForm] = Form.useForm<AnalysisSnapshotRecord & { owner?: string; note?: string }>();
+  const [metricForm] = Form.useForm<AnalysisSnapshotRecord & { owner?: string; metricScene?: string; compareBasis?: string; supplement?: string }>();
 
   const snapshotQuery = useQuery({
     queryKey: ['analysisSnapshots'],
@@ -99,7 +114,16 @@ const AnalysisManagement: React.FC = () => {
       metricCode: values.metricCode,
       metricValue: Number(values.metricValue || 0),
       compareValue: Number(values.compareValue || 0),
-      dimensionJson: JSON.stringify({ owner: values.owner, note: values.note }),
+      owner: values.owner,
+      metricScene: values.metricScene,
+      compareBasis: values.compareBasis,
+      supplement: values.supplement,
+      utilizationRate: Number(values.utilizationRate || 0),
+      hotServiceName: values.hotServiceName,
+      refundRate: Number(values.refundRate || 0),
+      exposureCount: Number(values.exposureCount || 0),
+      clickCount: Number(values.clickCount || 0),
+      conversionCount: Number(values.conversionCount || 0),
       orderCount: Number(values.orderCount || 0),
       incomeAmount: Number(values.incomeAmount || 0),
       refundAmount: Number(values.refundAmount || 0),
@@ -115,29 +139,27 @@ const AnalysisManagement: React.FC = () => {
   const snapshots = (snapshotQuery.data?.records || []).map((item) => ({ ...item, key: String(item.id) }));
   const platform = snapshots.find((item) => item.dimension === 'PLATFORM') || snapshots[0];
   const storeRanking = useMemo<DerivedStoreRecord[]>(() => snapshots.filter((item) => item.dimension === 'STORE').map((item) => {
-    const ext = parseDimensionJson(item.dimensionJson);
     return {
       key: String(item.id),
       storeName: item.dimensionName,
       orders: Number(item.orderCount || item.metricValue || 0),
       revenue: Number(item.incomeAmount || 0),
-      utilization: Number(ext.utilization || 0),
-      hotService: ext.hotService || '-',
-      owner: ext.owner || '-',
-      refundRate: ext.refundRate || '-',
+      utilization: Number(item.utilizationRate || 0),
+      hotService: item.hotServiceName || '-',
+      owner: item.owner || '-',
+      refundRate: item.refundRate === undefined || item.refundRate === null ? '-' : `${item.refundRate}%`,
       faultCount: Number(item.faultDeviceCount || 0),
     };
   }), [snapshots]);
   const marketingMetrics = useMemo<DerivedMarketingRecord[]>(() => snapshots.filter((item) => item.dimension === 'ACTIVITY').map((item) => {
-    const ext = parseDimensionJson(item.dimensionJson);
     return {
       key: String(item.id),
       name: item.dimensionName,
-      exposure: Number(ext.exposure || 0),
-      click: Number(ext.click || 0),
-      conversion: Number(ext.conversion || item.orderCount || 0),
+      exposure: Number(item.exposureCount || 0),
+      click: Number(item.clickCount || 0),
+      conversion: Number(item.conversionCount || item.orderCount || 0),
       roi: String(item.metricValue || 0),
-      owner: ext.owner || '-',
+      owner: item.owner || '-',
     };
   }), [snapshots]);
   const faultSnapshots = snapshots.filter((item) => Number(item.faultDeviceCount || 0) > 0);
@@ -279,29 +301,60 @@ const AnalysisManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="指标口径配置" open={metricVisible} onOk={handleMetricSubmit} confirmLoading={saveMetricMutation.isPending} onCancel={() => { setMetricVisible(false); metricForm.resetFields(); }} width={820}>
-        <Form form={metricForm} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="snapshotDate" label="快照日期" rules={[{ required: true, message: '请输入快照日期' }]}><Input placeholder="2026-05-09" /></Form.Item>
-            <Form.Item name="snapshotType" label="快照类型"><Select options={analysisSnapshotTypeOptions} /></Form.Item>
-            <Form.Item name="dimension" label="指标维度"><Select options={reportDimensionOptions} /></Form.Item>
-            <Form.Item name="scopeId" label="范围ID"><Input /></Form.Item>
-            <Form.Item name="dimensionName" label="维度名称" rules={[{ required: true, message: '请输入维度名称' }]}><Input /></Form.Item>
-            <Form.Item name="metricCode" label="指标编码" rules={[{ required: true, message: '请输入指标编码' }]}><Input /></Form.Item>
-            <Form.Item name="metricValue" label="指标值" rules={[{ required: true, message: '请输入指标值' }]}><Input /></Form.Item>
-            <Form.Item name="compareValue" label="对比值"><Input /></Form.Item>
-            <Form.Item name="orderCount" label="订单数"><Input /></Form.Item>
-            <Form.Item name="incomeAmount" label="收入金额"><Input /></Form.Item>
-            <Form.Item name="refundAmount" label="退款金额"><Input /></Form.Item>
-            <Form.Item name="activeDeviceCount" label="活跃设备"><Input /></Form.Item>
-            <Form.Item name="faultDeviceCount" label="故障设备"><Input /></Form.Item>
-            <Form.Item name="owner" label="负责人"><Input /></Form.Item>
-            <Form.Item className="modal-span-2" name="note" label="口径说明"><Input.TextArea rows={4} /></Form.Item>
+      <BusinessEditorModal
+        eyebrow="指标口径配置"
+        title="新增经营分析快照"
+        subtitle="把指标口径拆成日期、维度、数值、金额、设备、场景和转化字段，运营无需维护 JSON。"
+        meta={['经营分析', '指标口径']}
+        open={metricVisible}
+        onOk={handleMetricSubmit}
+        confirmLoading={saveMetricMutation.isPending}
+        onCancel={() => { setMetricVisible(false); metricForm.resetFields(); }}
+        width={1120}
+        okText="保存指标口径"
+      >
+        <Form form={metricForm} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<DashboardOutlined />} title="快照基础" desc="定义快照日期、类型、维度和指标编码。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="snapshotDate" label="快照日期" rules={[{ required: true, message: '请输入快照日期' }]}><Input placeholder="2026-05-09" /></Form.Item>
+                <Form.Item name="snapshotType" label="快照类型"><Select options={analysisSnapshotTypeOptions} placeholder="请选择快照类型" /></Form.Item>
+                <Form.Item name="dimension" label="指标维度"><Select options={reportDimensionOptions} placeholder="请选择指标维度" /></Form.Item>
+                <Form.Item name="scopeId" label="范围ID"><Input placeholder="例如：0 或门店ID" /></Form.Item>
+                <Form.Item name="dimensionName" label="维度名称" rules={[{ required: true, message: '请输入维度名称' }]}><Input placeholder="例如：平台整体或浦东旗舰店" /></Form.Item>
+                <Form.Item name="metricCode" label="指标编码" rules={[{ required: true, message: '请输入指标编码' }]}><Input placeholder="例如：ORDER_COUNT" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<LineChartOutlined />} title="指标数值" desc="维护指标值、对比值、订单和金额数据。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="metricValue" label="指标值" rules={[{ required: true, message: '请输入指标值' }]}><InputNumber precision={2} style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                <Form.Item name="compareValue" label="对比值"><InputNumber precision={2} style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                <Form.Item name="orderCount" label="订单数"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                <Form.Item name="incomeAmount" label="收入金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
+                <Form.Item name="refundAmount" label="退款金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<TeamOutlined />} title="设备与口径" desc="配置设备数据、负责人、使用场景和对比口径。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="activeDeviceCount" label="活跃设备"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                <Form.Item name="faultDeviceCount" label="故障设备"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                <Form.Item name="owner" label="负责人"><Input placeholder="例如：数据运营-王敏" /></Form.Item>
+                <Form.Item name="metricScene" label="使用场景"><Select options={metricSceneOptions} placeholder="请选择使用场景" /></Form.Item>
+                <Form.Item name="compareBasis" label="对比口径"><Select options={compareBasisOptions} placeholder="请选择对比口径" /></Form.Item>
+                <Form.Item name="utilizationRate" label="点位利用率"><InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                <Form.Item name="refundRate" label="退款率"><InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                <Form.Item name="hotServiceName" label="热门服务"><Input placeholder="例如：泡沫精洗套餐" /></Form.Item>
+                <Form.Item name="exposureCount" label="曝光数"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                <Form.Item name="clickCount" label="点击数"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                <Form.Item name="conversionCount" label="转化数"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="supplement" label="补充说明"><Input placeholder="例如：剔除测试门店和异常退款单" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={780}>
+      <BusinessDetailModal title="经营分析详情" open={!!detail} onCancel={() => setDetail(null)} width={780}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -310,7 +363,7 @@ const AnalysisManagement: React.FC = () => {
             labelWidth={100}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
     </div>
   );
 };

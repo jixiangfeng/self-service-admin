@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
-import { ThunderboltOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
+import { SettingOutlined, ToolOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -13,7 +13,9 @@ import {
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api, {
   type DeviceCommandLogRecord,
   type DeviceCommandRecord,
@@ -28,6 +30,14 @@ const deviceStatusMap = buildValueEnum(deviceStatusOptions);
 const faultLevelMap = buildValueEnum(deviceFaultLevelOptions);
 const maintainStatusMap = buildValueEnum(maintainStatusOptions);
 const publishStatusMap = buildValueEnum(publishStatusOptions);
+const deviceActionOptions = [
+  { value: 'RETRY_COMMAND', label: '重发指令' },
+  { value: 'ASSIGN_FAULT', label: '分派故障' },
+  { value: 'CREATE_MAINTAIN', label: '新建保养' },
+  { value: 'ADD_PART', label: '新增备件' },
+];
+const compactJoin = (items: Array<string | undefined | false>) => items.filter(Boolean).join('；');
+const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
 
 const deviceOpsDetailFields: Record<'command' | 'log' | 'fault' | 'heartbeat' | 'maintenance' | 'part', DetailField<any>[]> = {
   command: [
@@ -88,7 +98,7 @@ const DeviceOpsManagement: React.FC = () => {
   const [detail, setDetail] = useState<DeviceCommandRecord | DeviceCommandLogRecord | DeviceFaultRecord | DeviceHeartbeatRecord | DeviceMaintenanceRecord | DeviceSparePartRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
-  const [form] = Form.useForm<{ bizNo: string; status: string; remark: string }>();
+  const [form] = Form.useForm<{ bizNo: string; status: string; deviceCode?: string; owner?: string; action?: string; faultLevel?: string; plannedAt?: string; partName?: string; stockQty?: number; warningQty?: number; supplement?: string }>();
 
   const queryParams = useMemo(() => ({ keyword, current: 1, size: 50 }), [keyword]);
   const commandsQuery = useQuery({ queryKey: ['device-commands', queryParams], queryFn: () => api.deviceOps.commands.page(queryParams) });
@@ -108,6 +118,11 @@ const DeviceOpsManagement: React.FC = () => {
   const openModal = (title: string) => {
     setModalTitle(title);
     form.resetFields();
+    form.setFieldsValue({
+      action: title === '重发设备指令' ? 'RETRY_COMMAND' : title === '分派故障处理' ? 'ASSIGN_FAULT' : title === '新建保养任务' ? 'CREATE_MAINTAIN' : 'ADD_PART',
+      status: 'PENDING',
+      faultLevel: 'MEDIUM',
+    });
     setModalVisible(true);
   };
 
@@ -186,15 +201,10 @@ const DeviceOpsManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="低库存备件" value={spareParts.filter((item) => Number(item.stockQty ?? 0) <= Number(item.warningQty ?? 0)).length} suffix="种" /></Card></Col>
       </Row>
 
-      <ProTable
-        style={{ marginBottom: 16 }}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '输入订单、设备、指令、故障、备件关键词' } }]}
-        dataSource={[]}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        options={false}
-        pagination={false}
-        onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-        onReset={() => setKeyword('')}
+      <KeywordSearchBar
+        value={keyword}
+        placeholder="输入订单、设备、指令、故障、备件关键词"
+        onSearch={setKeyword}
       />
 
       <Tabs
@@ -208,7 +218,7 @@ const DeviceOpsManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title="设备运维详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -217,40 +227,71 @@ const DeviceOpsManagement: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow="设备运维处理"
         title={modalTitle}
+        subtitle="把设备指令、故障分派、保养和备件维护拆成结构化字段，提交时生成处理说明。"
+        meta={[modalTitle || '设备运维', '平台运营']}
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={async () => {
           const values = await form.validateFields();
+          const remark = compactJoin([
+            values.action ? `处理动作：${optionLabel(deviceActionOptions, values.action)}` : undefined,
+            values.faultLevel ? `故障等级：${optionLabel(deviceFaultLevelOptions, values.faultLevel)}` : undefined,
+            values.owner ? `负责人：${values.owner}` : undefined,
+            values.plannedAt ? `计划时间：${values.plannedAt}` : undefined,
+            values.supplement ? `补充说明：${values.supplement}` : undefined,
+          ]);
           if (modalTitle === '重发设备指令') {
-            await api.deviceOps.commands.add({ commandNo: values.bizNo, deviceCode: values.bizNo, commandType: '重发指令', status: values.status || 'SENT', remark: values.remark });
+            await api.deviceOps.commands.add({ commandNo: values.bizNo, deviceCode: values.deviceCode || values.bizNo, commandType: '重发指令', commandPayload: remark, status: values.status || 'SENT', remark });
             await queryClient.invalidateQueries({ queryKey: ['device-commands'] });
           } else if (modalTitle === '分派故障处理') {
-            await api.deviceOps.faults.add({ faultNo: values.bizNo, deviceCode: values.bizNo, faultType: '人工分派', status: values.status || 'PROCESSING', remark: values.remark });
+            await api.deviceOps.faults.add({ faultNo: values.bizNo, deviceCode: values.deviceCode || values.bizNo, faultType: '人工分派', level: values.faultLevel, status: values.status || 'PROCESSING', remark });
             await queryClient.invalidateQueries({ queryKey: ['device-faults'] });
           } else if (modalTitle === '新建保养任务') {
-            await api.deviceOps.maintenances.add({ maintainNo: values.bizNo, deviceCode: values.bizNo, maintainType: '人工保养', status: values.status || 'PENDING', remark: values.remark });
+            await api.deviceOps.maintenances.add({ maintainNo: values.bizNo, deviceCode: values.deviceCode || values.bizNo, maintainType: '人工保养', owner: values.owner, plannedAt: values.plannedAt, status: values.status || 'PENDING', remark });
             await queryClient.invalidateQueries({ queryKey: ['device-maintenances'] });
           } else if (modalTitle === '新增备件') {
-            await api.deviceOps.spareParts.add({ partCode: values.bizNo, partName: values.bizNo, status: values.status || 'PENDING' });
+            await api.deviceOps.spareParts.add({ partCode: values.bizNo, partName: values.partName || values.bizNo, stockQty: values.stockQty, warningQty: values.warningQty, status: values.status || 'PENDING' });
             await queryClient.invalidateQueries({ queryKey: ['device-spare-parts'] });
           }
           setModalVisible(false);
           message.success('已保存到后端');
         }}
-        width={760}
+        width={1080}
+        okText="保存运维处理"
       >
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="bizNo" label="设备编号 / 指令号 / 故障单号" rules={[{ required: true, message: '请输入设备编号、指令号或故障单号' }]}><Input /></Form.Item>
-            <Form.Item name="status" label="处理状态"><Select options={maintainStatusOptions} /></Form.Item>
-            <Form.Item className="modal-span-2" name="remark" label="处理说明"><Input.TextArea rows={4} /></Form.Item>
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<ThunderboltOutlined />} title="处理对象" desc="录入设备、指令、故障、保养或备件编号。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="bizNo" label="设备编号 / 指令号 / 故障单号" rules={[{ required: true, message: '请输入设备编号、指令号或故障单号' }]}><Input placeholder="例如：DEV-001 或 CMD-001" /></Form.Item>
+                <Form.Item name="deviceCode" label="设备编号"><Input placeholder="例如：DEV-001" /></Form.Item>
+                <Form.Item name="status" label="处理状态"><Select options={maintainStatusOptions} placeholder="请选择处理状态" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<ToolOutlined />} title="动作与责任" desc="配置处理动作、故障等级、负责人和计划时间。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="action" label="处理动作"><Select options={deviceActionOptions} placeholder="请选择处理动作" /></Form.Item>
+                <Form.Item name="faultLevel" label="故障等级"><Select options={deviceFaultLevelOptions} placeholder="请选择故障等级" /></Form.Item>
+                <Form.Item name="owner" label="负责人"><Input placeholder="例如：设备运维-王敏" /></Form.Item>
+                <Form.Item name="plannedAt" label="计划时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<SettingOutlined />} title="备件与补充" desc="新增备件时维护名称和库存，其他处理可填写补充说明。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="partName" label="备件名称"><Input placeholder="例如：高压水枪喷头" /></Form.Item>
+                <Form.Item name="stockQty" label="库存"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                <Form.Item name="warningQty" label="预警库存"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="supplement" label="补充说明"><Input placeholder="例如：设备离线后重发启动指令" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

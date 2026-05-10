@@ -1,7 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { BookOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
-import { Button, Card, Form, Input, Modal, Select, Space, Table, Tabs, Tag, message } from 'antd';
+import { BookOutlined, DeleteOutlined, EditOutlined, FieldTimeOutlined, PlusOutlined, TagsOutlined } from '@ant-design/icons';
+import { Button, Card, Form, Input, InputNumber, Select, Space, Table, Tabs, Tag, message } from 'antd';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
@@ -159,7 +162,7 @@ const Dictionary: React.FC = () => {
   };
 
   const handleDelete = (id: number) => {
-    Modal.confirm({
+    showBusinessConfirm({
       title: '确认删除',
       content: '确定要删除该字典吗？',
       onOk: () => deleteMutation.mutate(id),
@@ -180,7 +183,7 @@ const Dictionary: React.FC = () => {
   };
 
   const handleDeleteItem = (id: number) => {
-    Modal.confirm({
+    showBusinessConfirm({
       title: '确认删除字典项',
       content: '确定要删除该字典项吗？',
       onOk: () => deleteItemMutation.mutate(id),
@@ -355,7 +358,7 @@ const Dictionary: React.FC = () => {
         ]}
       />
 
-      <Modal title={detailType === 'dict' ? '字典详情' : '字典项详情'} open={!!detailRecord} footer={null} onCancel={() => setDetailRecord(null)} width={760}>
+      <BusinessDetailModal title={detailType === 'dict' ? '字典详情' : '字典项详情'} open={!!detailRecord} onCancel={() => setDetailRecord(null)} width={760}>
         {detailRecord ? (
           <SchemaDetail
             record={detailRecord}
@@ -364,78 +367,103 @@ const Dictionary: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow={editingDict ? '字典维护' : '字典新增'}
         title={editingDict ? '编辑字典' : '新建字典'}
+        subtitle="维护系统字典类型，字典编码会被业务配置、筛选项和枚举展示复用。"
+        meta={[editingDict ? '编辑模式' : '新建模式', '系统字典']}
         open={modalVisible}
         onOk={() => form.submit()}
         onCancel={closeModal}
         confirmLoading={createMutation.isPending || updateMutation.isPending}
-        width={760}
+        width={920}
         destroyOnClose
+        okText="保存字典"
       >
-        <Form form={form} layout="vertical" onFinish={handleFinish} preserve={false}>
-          <div className="modal-grid">
-            <Form.Item name="dictName" label="字典名称" rules={[{ required: true, message: '请输入字典名称' }]}>
-              <Input autoComplete="off" />
-            </Form.Item>
-            <Form.Item name="dictCode" label="字典编码" rules={[{ required: true, message: '请输入字典编码' }]}>
-              <Input autoComplete="off" />
-            </Form.Item>
-            <Form.Item name="status" label="状态" initialValue={1}>
-              <Select
-                options={[
-                  { value: 1, label: '启用' },
-                  { value: 0, label: '禁用' },
-                ]}
-              />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="remark" label="备注">
-              <Input.TextArea rows={3} />
-            </Form.Item>
+        <Form form={form} layout="vertical" onFinish={handleFinish} preserve={false} className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<BookOutlined />} title="字典基础" desc="明确字典名称、唯一编码和启停状态。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="dictName" label="字典名称" rules={[{ required: true, message: '请输入字典名称' }]}>
+                  <Input autoComplete="off" placeholder="例如：活动状态" />
+                </Form.Item>
+                <Form.Item name="dictCode" label="字典编码" rules={[{ required: true, message: '请输入字典编码' }]}>
+                  <Input autoComplete="off" placeholder="例如：marketing_status" />
+                </Form.Item>
+                <Form.Item name="status" label="状态" initialValue={1}>
+                  <Select
+                    options={[
+                      { value: 1, label: '启用' },
+                      { value: 0, label: '禁用' },
+                    ]}
+                    placeholder="请选择状态"
+                  />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<FieldTimeOutlined />} title="维护说明" desc="记录用途、维护边界和影响模块。">
+              <div className="merchant-editor-fields merchant-editor-fields--single">
+                <Form.Item name="remark" label="备注">
+                  <Input.TextArea rows={3} placeholder="例如：用于活动中心状态筛选，不要随意删除已有值" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow={editingItem ? '字典项维护' : '字典项新增'}
         title={editingItem ? '编辑字典项' : '新建字典项'}
+        subtitle="维护字典标签和值，运营侧只需要理解标签、值、排序和状态。"
+        meta={[selectedCode || '未选择字典', editingItem ? '编辑模式' : '新建模式']}
         open={itemModalVisible}
         onOk={handleItemFinish}
         onCancel={closeItemModal}
         confirmLoading={createItemMutation.isPending || updateItemMutation.isPending}
-        width={760}
+        width={920}
         destroyOnClose
+        okText="保存字典项"
       >
-        <Form form={itemForm} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="dictCode" label="字典编码">
-              <Input disabled />
-            </Form.Item>
-            <Form.Item name="dictSort" label="排序">
-              <Input />
-            </Form.Item>
-            <Form.Item name="dictLabel" label="标签" rules={[{ required: true, message: '请输入标签' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="dictValue" label="值" rules={[{ required: true, message: '请输入值' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="status" label="状态">
-              <Select
-                options={[
-                  { value: 1, label: '启用' },
-                  { value: 0, label: '禁用' },
-                ]}
-              />
-            </Form.Item>
-            <div />
-            <Form.Item className="modal-span-2" name="remark" label="备注">
-              <Input.TextArea rows={3} />
-            </Form.Item>
+        <Form form={itemForm} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<TagsOutlined />} title="字典项基础" desc="配置后台可识别的值和前台展示的标签。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="dictCode" label="字典编码">
+                  <Input disabled />
+                </Form.Item>
+                <Form.Item name="dictLabel" label="标签" rules={[{ required: true, message: '请输入标签' }]}>
+                  <Input placeholder="例如：启用" />
+                </Form.Item>
+                <Form.Item name="dictValue" label="值" rules={[{ required: true, message: '请输入值' }]}>
+                  <Input placeholder="例如：ENABLED / 1" />
+                </Form.Item>
+                <Form.Item name="dictSort" label="排序">
+                  <InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="数字越小越靠前" />
+                </Form.Item>
+                <Form.Item name="status" label="状态">
+                  <Select
+                    options={[
+                      { value: 1, label: '启用' },
+                      { value: 0, label: '禁用' },
+                    ]}
+                    placeholder="请选择状态"
+                  />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<FieldTimeOutlined />} title="维护说明" desc="记录该值适用场景和变更注意事项。">
+              <div className="merchant-editor-fields merchant-editor-fields--single">
+                <Form.Item name="remark" label="备注">
+                  <Input.TextArea rows={3} placeholder="例如：用于列表筛选和状态标签展示" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

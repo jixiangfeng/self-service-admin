@@ -2,8 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { AppstoreOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
-import { Button, Divider, Form, Input, InputNumber, Modal, Select, Space, Tabs, message } from 'antd';
+import { AppstoreOutlined, ClockCircleOutlined, DeleteOutlined, EditOutlined, FieldTimeOutlined, PlusOutlined, PoweroffOutlined, SafetyCertificateOutlined, TagsOutlined } from '@ant-design/icons';
+import { Button, Form, Input, InputNumber, Select, Space, Tabs, message } from 'antd';
 import {
   billingModeOptions,
   categoryOptions,
@@ -13,10 +13,68 @@ import {
 } from '@/constants/businessCatalog';
 import api from '@/services/backendService';
 import type { PricingRuleRecord, SelectOptionRecord, ServiceProductRecord } from '@/services/backendService';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, formatDateTime, renderOptionTags, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import { joinCommaValues, splitCommaValues } from '@/utils/csv';
+
+const allowDenyOptions = [
+  { value: 'ALLOW', label: '允许' },
+  { value: 'DENY', label: '不允许' },
+];
+
+const combineModeOptions = [
+  { value: 'COUPON_BALANCE', label: '优惠券 + 余额支付' },
+  { value: 'MEMBER_COUPON', label: '会员价 + 优惠券' },
+  { value: 'COUPON_ONLY', label: '仅优惠券' },
+  { value: 'NONE', label: '不允许叠加优惠' },
+];
+
+const refundPolicyOptions = [
+  { value: 'UNUSED_REFUND', label: '未使用可退' },
+  { value: 'PARTIAL_REFUND', label: '部分履约按比例退' },
+  { value: 'NO_REFUND_AFTER_START', label: '启动后不可退' },
+  { value: 'MANUAL_REVIEW', label: '人工审核退款' },
+];
+
+const abnormalRefundOptions = [
+  { value: 'AUTO_REFUND', label: '设备异常自动退' },
+  { value: 'MANUAL_REVIEW', label: '设备异常人工审核' },
+  { value: 'REISSUE_SERVICE', label: '补发服务权益' },
+];
+
+const holidayPriceModeOptions = [
+  { value: 'NONE', label: '不启用节假日价' },
+  { value: 'SURCHARGE', label: '按金额加价' },
+  { value: 'DISCOUNT', label: '按折扣计价' },
+  { value: 'FIXED_PRICE', label: '固定节假日价' },
+];
+
+const nightPriceModeOptions = [
+  { value: 'NONE', label: '不启用夜间价' },
+  { value: 'SURCHARGE', label: '按分钟加价' },
+  { value: 'FIXED_PRICE', label: '固定夜间价' },
+];
+
+const stackPolicyOptions = [
+  { value: 'STACK', label: '允许叠加' },
+  { value: 'NOT_STACK', label: '不叠加' },
+];
+
+const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
+const timeRangeText = (record: PricingRuleRecord) => record.timeStart || record.timeEnd ? `${record.timeStart || '--:--'} - ${record.timeEnd || '--:--'}` : '-';
+const nightPriceText = (record: PricingRuleRecord) => [
+  optionLabel(nightPriceModeOptions, record.nightPriceMode),
+  record.nightPriceValue,
+].filter(Boolean).join(' / ') || '-';
+const holidayPriceText = (record: PricingRuleRecord) => [
+  optionLabel(holidayPriceModeOptions, record.holidayPriceMode),
+  record.holidayDates,
+  record.holidayPriceValue,
+  optionLabel(stackPolicyOptions, record.holidayStackPolicy),
+].filter(Boolean).join(' / ') || '-';
 
 const ServiceManagement: React.FC = () => {
   const queryClient = useQueryClient();
@@ -68,6 +126,11 @@ const ServiceManagement: React.FC = () => {
     queryFn: async () => (await api.store.options()).data,
   });
 
+  const { data: merchantGroupOptionsData } = useQuery({
+    queryKey: ['merchantGroupOptionsForService'],
+    queryFn: async () => (await api.merchantGroup.options()).data,
+  });
+
   const { data: serviceProductOptionsData } = useQuery({
     queryKey: ['serviceProductOptions'],
     queryFn: async () => (await api.serviceProduct.options()).data,
@@ -75,6 +138,7 @@ const ServiceManagement: React.FC = () => {
 
   const merchantOptions = merchantOptionsData || [];
   const storeOptions = storeOptionsData || [];
+  const merchantGroupOptions = merchantGroupOptionsData || [];
   const serviceProductOptions = serviceProductOptionsData || [];
 
   const closeProductModal = () => {
@@ -96,8 +160,33 @@ const ServiceManagement: React.FC = () => {
     if (productScopeType === 'STORE') {
       return storeOptions as SelectOptionRecord[];
     }
+    if (productScopeType === 'GROUP') {
+      return merchantGroupOptions as SelectOptionRecord[];
+    }
     return [];
-  }, [merchantOptions, productScopeType, storeOptions]);
+  }, [merchantGroupOptions, merchantOptions, productScopeType, storeOptions]);
+
+  const storeOptionMap = useMemo(() => new Map(storeOptions.map((item) => [item.value, item.label])), [storeOptions]);
+  const serviceProductOptionMap = useMemo(() => new Map(serviceProductOptions.map((item) => [item.value, item.label])), [serviceProductOptions]);
+
+  const handleProductScopeTypeChange = (value: string) => {
+    productForm.setFieldsValue({
+      scopeId: undefined,
+      scopeName: value === 'PLATFORM' ? '平台' : undefined,
+    });
+  };
+
+  const handleProductScopeChange = (value?: number) => {
+    productForm.setFieldValue('scopeName', value ? scopeOptions.find((item) => item.value === value)?.label : undefined);
+  };
+
+  const handlePricingStoreChange = (value?: number) => {
+    pricingForm.setFieldValue('storeName', value ? storeOptionMap.get(value) : undefined);
+  };
+
+  const handlePricingProductChange = (value?: number) => {
+    pricingForm.setFieldValue('productName', value ? serviceProductOptionMap.get(value) : undefined);
+  };
 
   const createProductMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) => api.serviceProduct.add(payload),
@@ -128,6 +217,17 @@ const ServiceManagement: React.FC = () => {
     },
   });
 
+  const productStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: number }) => api.serviceProduct.changeStatus(id, status),
+    onSuccess: () => {
+      message.success('服务商品状态已更新');
+      queryClient.invalidateQueries({ queryKey: ['serviceProducts'] });
+      queryClient.invalidateQueries({ queryKey: ['serviceProductOptions'] });
+      queryClient.invalidateQueries({ queryKey: ['productStatusLogs'] });
+      queryClient.invalidateQueries({ queryKey: ['productChangeLogs'] });
+    },
+  });
+
   const createPricingMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) => api.pricingRule.add(payload),
     onSuccess: () => {
@@ -151,6 +251,17 @@ const ServiceManagement: React.FC = () => {
     onSuccess: () => {
       message.success('计费规则删除成功');
       queryClient.invalidateQueries({ queryKey: ['pricingRules'] });
+    },
+  });
+
+  const pricingStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: number }) => api.pricingRule.changeStatus(id, status),
+    onSuccess: () => {
+      message.success('计费规则状态已更新');
+      queryClient.invalidateQueries({ queryKey: ['pricingRules'] });
+      queryClient.invalidateQueries({ queryKey: ['pricingRulesForPricingCenter'] });
+      queryClient.invalidateQueries({ queryKey: ['pricingRuleVersions'] });
+      queryClient.invalidateQueries({ queryKey: ['pricingChangeLogs'] });
     },
   });
 
@@ -189,7 +300,8 @@ const ServiceManagement: React.FC = () => {
       { title: '生效时间', dataIndex: 'effectiveAt', width: 160, search: false, render: (_, record) => formatDateTime(record.effectiveAt) },
       { title: '失效时间', dataIndex: 'expireAt', width: 160, search: false, render: (_, record) => formatDateTime(record.expireAt) },
       { title: '卖点标签', dataIndex: 'sellingPoints', width: 240, search: false, render: (_, record) => renderOptionTags(record.sellingPoints, serviceSellingPointOptions) },
-      { title: '优惠叠加', dataIndex: 'discountRule', width: 180, search: false, render: (_, record) => record.discountRule || '-' },
+      { title: '优惠组合', dataIndex: 'combineMode', width: 180, search: false, render: (_, record) => optionLabel(combineModeOptions, record.combineMode) || '-' },
+      { title: '退款口径', dataIndex: 'refundPolicy', width: 160, search: false, render: (_, record) => optionLabel(refundPolicyOptions, record.refundPolicy) || '-' },
       {
         title: '状态',
         dataIndex: 'status',
@@ -201,10 +313,25 @@ const ServiceManagement: React.FC = () => {
       { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt || record.updateTime) },
       {
         title: '操作',
-        width: 160,
+        width: 240,
         search: false,
         render: (_, record) => (
           <Space>
+            <Button
+              size="small"
+              icon={<PoweroffOutlined />}
+              loading={productStatusMutation.isPending}
+              onClick={() => {
+                const nextStatus = record.status === 1 ? 0 : 1;
+                showBusinessConfirm({
+                  title: `确认${record.status === 1 ? '下架' : '上架'}服务商品`,
+                  content: `确定${record.status === 1 ? '下架' : '上架'}商品「${record.productName}」吗？状态变更会写入商品状态日志。`,
+                  onOk: () => productStatusMutation.mutate({ id: record.id, status: nextStatus }),
+                });
+              }}
+            >
+              {record.status === 1 ? '下架' : '上架'}
+            </Button>
             <Button
               size="small"
               icon={<EditOutlined />}
@@ -224,7 +351,7 @@ const ServiceManagement: React.FC = () => {
               danger
               icon={<DeleteOutlined />}
               onClick={() => {
-                Modal.confirm({
+                showBusinessConfirm({
                   title: '确认删除服务商品',
                   content: `确定删除商品「${record.productName}」吗？`,
                   onOk: () => deleteProductMutation.mutate(record.id),
@@ -237,7 +364,7 @@ const ServiceManagement: React.FC = () => {
         ),
       },
     ],
-    [deleteProductMutation, productForm]
+    [deleteProductMutation, productForm, productStatusMutation]
   );
 
   const pricingColumns = useMemo<ProColumns<PricingRuleRecord>[]>(
@@ -266,8 +393,9 @@ const ServiceManagement: React.FC = () => {
       { title: '封顶金额', dataIndex: 'capAmount', width: 100, search: false, render: (_, record) => record.capAmount ?? '-' },
       { title: '免费分钟', dataIndex: 'freeMinutes', width: 100, search: false, render: (_, record) => record.freeMinutes ?? '-' },
       { title: '版本号', dataIndex: 'versionNo', width: 120, search: false, render: (_, record) => record.versionNo || '-' },
-      { title: '时段规则', dataIndex: 'timeSegment', width: 180, search: false, render: (_, record) => record.timeSegment || '-' },
-      { title: '节假日规则', dataIndex: 'holidayRule', width: 180, search: false, render: (_, record) => record.holidayRule || '-' },
+      { title: '适用时段', dataIndex: 'timeStart', width: 160, search: false, render: (_, record) => timeRangeText(record) },
+      { title: '夜间计价', dataIndex: 'nightPriceMode', width: 180, search: false, render: (_, record) => nightPriceText(record) },
+      { title: '节假日计价', dataIndex: 'holidayPriceMode', width: 220, search: false, render: (_, record) => holidayPriceText(record) },
       { title: '生效时间', dataIndex: 'effectiveAt', width: 160, search: false, render: (_, record) => formatDateTime(record.effectiveAt) },
       {
         title: '状态',
@@ -279,10 +407,25 @@ const ServiceManagement: React.FC = () => {
       },
       {
         title: '操作',
-        width: 160,
+        width: 240,
         search: false,
         render: (_, record) => (
           <Space>
+            <Button
+              size="small"
+              icon={<PoweroffOutlined />}
+              loading={pricingStatusMutation.isPending}
+              onClick={() => {
+                const nextStatus = record.status === 1 ? 0 : 1;
+                showBusinessConfirm({
+                  title: `确认${record.status === 1 ? '停用' : '启用'}计费规则`,
+                  content: `确定${record.status === 1 ? '停用' : '启用'}规则「${record.ruleName}」吗？状态变更会同步价格变更日志和最近版本状态。`,
+                  onOk: () => pricingStatusMutation.mutate({ id: record.id, status: nextStatus }),
+                });
+              }}
+            >
+              {record.status === 1 ? '停用' : '启用'}
+            </Button>
             <Button
               size="small"
               icon={<EditOutlined />}
@@ -299,7 +442,7 @@ const ServiceManagement: React.FC = () => {
               danger
               icon={<DeleteOutlined />}
               onClick={() => {
-                Modal.confirm({
+                showBusinessConfirm({
                   title: '确认删除计费规则',
                   content: `确定删除规则「${record.ruleName}」吗？`,
                   onOk: () => deletePricingMutation.mutate(record.id),
@@ -312,7 +455,7 @@ const ServiceManagement: React.FC = () => {
         ),
       },
     ],
-    [deletePricingMutation, pricingForm, serviceProductOptions, storeOptions]
+    [deletePricingMutation, pricingForm, pricingStatusMutation, serviceProductOptions, storeOptions]
   );
 
   return (
@@ -339,6 +482,7 @@ const ServiceManagement: React.FC = () => {
                 billingMode: 'PACKAGE',
                 scopeType: 'PLATFORM',
                 status: 1,
+                scopeName: '平台',
                 sellingPoints: ['FAST_ENTRY', 'COUPON_STACK'],
               });
               setProductModalVisible(true);
@@ -390,6 +534,7 @@ const ServiceManagement: React.FC = () => {
                         billingMode: 'PACKAGE',
                         scopeType: 'PLATFORM',
                         status: 1,
+                        scopeName: '平台',
                         sellingPoints: ['FAST_ENTRY', 'COUPON_STACK'],
                       });
                       setProductModalVisible(true);
@@ -484,10 +629,13 @@ const ServiceManagement: React.FC = () => {
         ]}
       />
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow={editingProduct ? '服务商品维护' : '服务商品建档'}
         title={editingProduct ? `编辑服务商品 · ${editingProduct.productName}` : '新建服务商品'}
+        subtitle="补齐商品基础、适用范围、价格版本、权益内容和售后规则，让商品从上架到履约可直接闭环。"
+        meta={['商品闭环', editingProduct ? '编辑模式' : '新建模式']}
         open={productModalVisible}
-        width={980}
+        width={1080}
         onCancel={closeProductModal}
         onOk={() => productForm.submit()}
         confirmLoading={createProductMutation.isPending || updateProductMutation.isPending}
@@ -497,11 +645,12 @@ const ServiceManagement: React.FC = () => {
         <Form
           form={productForm}
           layout="vertical"
+          className="merchant-editor-form"
           preserve={false}
           onFinish={(values) => {
             const sellingPoints = joinCommaValues(values.sellingPoints);
             const payload = values.scopeType === 'PLATFORM'
-              ? { ...values, scopeId: undefined, sellingPoints }
+              ? { ...values, scopeId: undefined, scopeName: '平台', sellingPoints }
               : { ...values, sellingPoints };
             if (editingProduct) {
               updateProductMutation.mutate({ id: editingProduct.id, ...payload });
@@ -510,70 +659,88 @@ const ServiceManagement: React.FC = () => {
             createProductMutation.mutate(payload);
           }}
         >
-          <div className="modal-grid">
-            <Divider className="modal-span-2" orientation="left">商品基础信息</Divider>
-            <Form.Item name="productName" label="商品名称" rules={[{ required: true, message: '请输入商品名称' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="productCode" label="商品编码" rules={[{ required: true, message: '请输入商品编码' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="categoryCode" label="商品分类" rules={[{ required: true, message: '请选择商品分类' }]}>
-              <Select options={categoryOptions} />
-            </Form.Item>
-            <Form.Item name="billingMode" label="计费模式" rules={[{ required: true, message: '请选择计费模式' }]}>
-              <Select options={billingModeOptions} />
-            </Form.Item>
-            <Form.Item name="scopeType" label="作用范围" rules={[{ required: true, message: '请选择作用范围' }]}>
-              <Select options={scopeTypeOptions} />
-            </Form.Item>
-            {productScopeType && productScopeType !== 'PLATFORM' ? (
-              <Form.Item name="scopeId" label="作用对象" rules={[{ required: true, message: '请选择作用对象' }]}>
-                <Select options={scopeOptions} />
-              </Form.Item>
-            ) : null}
-            <Divider className="modal-span-2" orientation="left">价格与叠加规则</Divider>
-            <Form.Item name="priceDesc" label="价格描述">
-              <Input placeholder="例如 29 元 / 15 分钟" />
-            </Form.Item>
-            <Form.Item name="serviceDuration" label="服务周期 / 履约时长">
-              <Input placeholder="例如 15 分钟 / 10 次 / 30 天" />
-            </Form.Item>
-            <Form.Item name="priceVersion" label="价格版本">
-              <Input placeholder="例如 V202604" />
-            </Form.Item>
-            <Form.Item name="effectiveAt" label="生效时间">
-              <Input placeholder="例如 2026-04-18 00:00:00" />
-            </Form.Item>
-            <Form.Item name="expireAt" label="失效时间">
-              <Input placeholder="例如 2026-12-31 23:59:59" />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="sellingPoints" label="卖点标签">
-              <Select mode="multiple" options={serviceSellingPointOptions} placeholder="选择商品卖点" />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="rightsContent" label="权益内容">
-              <Input.TextArea rows={3} placeholder="填写包含的服务次数、设备能力、卡券权益等" />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="discountRule" label="优惠叠加规则">
-              <Input placeholder="例如 支持券 + 余额" />
-            </Form.Item>
-            <Form.Item name="status" label="状态">
-              <Select options={statusOptions} />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="usageNotice" label="使用须知">
-              <Input.TextArea rows={4} placeholder="填写启动时效、退款规则、核销边界等说明" />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="refundRule" label="退款规则">
-              <Input.TextArea rows={3} placeholder="填写未使用退款、部分履约退款、异常中断退款规则" />
-            </Form.Item>
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<AppstoreOutlined />} title="商品基础" desc="定义商品编码、名称、分类和计费方式，作为价格、门店范围和交易履约的主档。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="productName" label="商品名称" rules={[{ required: true, message: '请输入商品名称' }]}>
+                  <Input placeholder="例如：标准洗车套餐" />
+                </Form.Item>
+                <Form.Item name="productCode" label="商品编码" rules={[{ required: true, message: '请输入商品编码' }]}>
+                  <Input placeholder="例如：SP-CAR-WASH-001" />
+                </Form.Item>
+                <Form.Item name="categoryCode" label="商品分类" rules={[{ required: true, message: '请选择商品分类' }]}>
+                  <Select options={categoryOptions} placeholder="请选择商品分类" />
+                </Form.Item>
+                <Form.Item name="billingMode" label="计费模式" rules={[{ required: true, message: '请选择计费模式' }]}>
+                  <Select options={billingModeOptions} placeholder="请选择计费模式" />
+                </Form.Item>
+                <Form.Item name="status" label="上架状态">
+                  <Select options={statusOptions} placeholder="请选择商品状态" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+
+            <BusinessEditorSection icon={<TagsOutlined />} title="适用范围与价格版本" desc="控制商品在平台、商户或门店的生效边界，并记录当前价格版本和有效期。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="scopeType" label="作用范围" rules={[{ required: true, message: '请选择作用范围' }]}>
+                  <Select options={scopeTypeOptions} placeholder="请选择平台、商户、门店或门店组" onChange={handleProductScopeTypeChange} />
+                </Form.Item>
+                {productScopeType && productScopeType !== 'PLATFORM' ? (
+                  <Form.Item name="scopeId" label="作用对象" rules={[{ required: true, message: '请选择作用对象' }]}>
+                    <Select showSearch optionFilterProp="label" options={scopeOptions} placeholder="请选择商户、门店或门店组" onChange={handleProductScopeChange} />
+                  </Form.Item>
+                ) : null}
+                <Form.Item name="scopeName" label="作用对象名称">
+                  <Input disabled placeholder="选择作用对象后自动回填" />
+                </Form.Item>
+                <Form.Item name="priceVersion" label="价格版本">
+                  <Input placeholder="例如：V202605" />
+                </Form.Item>
+                <Form.Item name="priceDesc" label="价格描述">
+                  <Input placeholder="例如：29 元 / 15 分钟" />
+                </Form.Item>
+                <Form.Item name="serviceDuration" label="服务周期 / 履约时长">
+                  <Input placeholder="例如：15 分钟 / 10 次 / 30 天" />
+                </Form.Item>
+                <Form.Item name="effectiveAt" label="生效时间">
+                  <Input placeholder="YYYY-MM-DD HH:mm:ss" />
+                </Form.Item>
+                <Form.Item name="expireAt" label="失效时间">
+                  <Input placeholder="YYYY-MM-DD HH:mm:ss" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+
+            <BusinessEditorSection icon={<SafetyCertificateOutlined />} title="权益与售后" desc="沉淀卖点、权益、使用说明、优惠叠加和退款规则，保证前台展示与售后处理一致。">
+              <div className="merchant-editor-fields merchant-editor-fields--two">
+                <Form.Item className="merchant-editor-field-span-2" name="sellingPoints" label="卖点标签">
+                  <Select mode="multiple" options={serviceSellingPointOptions} placeholder="选择商品卖点" />
+                </Form.Item>
+                <Form.Item className="merchant-editor-field-span-2" name="rightsContent" label="权益内容">
+                  <Input.TextArea rows={3} placeholder="填写包含的服务次数、设备能力、卡券权益等" />
+                </Form.Item>
+                <Form.Item name="combineMode" label="优惠组合"><Select options={combineModeOptions} placeholder="请选择优惠组合" /></Form.Item>
+                <Form.Item name="memberPriceStack" label="会员价叠加"><Select options={allowDenyOptions} placeholder="请选择是否允许" /></Form.Item>
+                <Form.Item name="couponStack" label="优惠券叠加"><Select options={allowDenyOptions} placeholder="请选择是否允许" /></Form.Item>
+                <Form.Item name="usageNotice" label="使用须知">
+                  <Input.TextArea rows={4} placeholder="填写启动时效、核销边界、设备异常处理等说明" />
+                </Form.Item>
+                <Form.Item name="refundPolicy" label="退款口径"><Select options={refundPolicyOptions} placeholder="请选择退款口径" /></Form.Item>
+                <Form.Item name="abnormalRefund" label="异常处理"><Select options={abnormalRefundOptions} placeholder="请选择异常处理" /></Form.Item>
+                <Form.Item name="refundWindowHours" label="可退时限"><InputNumber min={0} precision={0} addonAfter="小时内" style={{ width: '100%' }} placeholder="24" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow={editingPricing ? '计费规则维护' : '计费规则新增'}
         title={editingPricing ? `编辑计费规则 · ${editingPricing.ruleName}` : '新建计费规则'}
+        subtitle="把适用门店、关联商品、基础价格、封顶免费和特殊时段规则集中维护，供订单计价直接读取。"
+        meta={['计费闭环', editingPricing ? '编辑模式' : '新建模式']}
         open={pricingModalVisible}
-        width={980}
+        width={1080}
         onCancel={closePricingModal}
         onOk={() => pricingForm.submit()}
         confirmLoading={createPricingMutation.isPending || updatePricingMutation.isPending}
@@ -583,6 +750,7 @@ const ServiceManagement: React.FC = () => {
         <Form
           form={pricingForm}
           layout="vertical"
+          className="merchant-editor-form"
           preserve={false}
           onFinish={(values) => {
             if (editingPricing) {
@@ -592,63 +760,99 @@ const ServiceManagement: React.FC = () => {
             createPricingMutation.mutate(values);
           }}
         >
-          <div className="modal-grid">
-            <Divider className="modal-span-2" orientation="left">规则基础信息</Divider>
-            <Form.Item name="ruleName" label="规则名称" rules={[{ required: true, message: '请输入规则名称' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="ruleCode" label="规则编码" rules={[{ required: true, message: '请输入规则编码' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="storeId" label="适用门店">
-              <Select options={storeOptions as SelectOptionRecord[]} allowClear placeholder="为空则表示全局规则" />
-            </Form.Item>
-            <Form.Item name="serviceProductId" label="关联服务商品">
-              <Select options={serviceProductOptions as SelectOptionRecord[]} allowClear />
-            </Form.Item>
-            <Divider className="modal-span-2" orientation="left">计费细项</Divider>
-            <Form.Item name="startPrice" label="起步价">
-              <InputNumber style={{ width: '100%' }} min={0} precision={2} />
-            </Form.Item>
-            <Form.Item name="minutePrice" label="按分钟单价">
-              <InputNumber style={{ width: '100%' }} min={0} precision={2} />
-            </Form.Item>
-            <Form.Item name="countPrice" label="按次单价">
-              <InputNumber style={{ width: '100%' }} min={0} precision={2} />
-            </Form.Item>
-            <Form.Item name="capAmount" label="封顶金额">
-              <InputNumber style={{ width: '100%' }} min={0} precision={2} />
-            </Form.Item>
-            <Form.Item name="freeMinutes" label="免费分钟">
-              <InputNumber style={{ width: '100%' }} min={0} precision={0} />
-            </Form.Item>
-            <Form.Item name="versionNo" label="版本号">
-              <Input placeholder="例如 PR-V202604" />
-            </Form.Item>
-            <Form.Item name="effectiveAt" label="生效时间">
-              <Input placeholder="例如 2026-04-18 00:00:00" />
-            </Form.Item>
-            <Form.Item name="expireAt" label="失效时间">
-              <Input placeholder="例如 2026-12-31 23:59:59" />
-            </Form.Item>
-            <Form.Item name="status" label="状态" initialValue={1}>
-              <Select options={statusOptions} />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="timeSegment" label="时段规则">
-              <Input placeholder="例如 20:00-02:00 夜间价，08:00-20:00 标准价" />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="nightPriceDesc" label="夜间价格描述">
-              <Input />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="holidayPriceDesc" label="节假日价格描述">
-              <Input />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="holidayRule" label="节假日规则">
-              <Input.TextArea rows={3} placeholder="填写节假日适用日期、加价/折扣、是否与夜间价叠加" />
-            </Form.Item>
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<TagsOutlined />} title="规则归属" desc="定义规则编码、名称、适用门店和关联商品；门店为空时作为全局计价规则。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="ruleName" label="规则名称" rules={[{ required: true, message: '请输入规则名称' }]}>
+                  <Input placeholder="例如：标准洗车门店计费规则" />
+                </Form.Item>
+                <Form.Item name="ruleCode" label="规则编码" rules={[{ required: true, message: '请输入规则编码' }]}>
+                  <Input placeholder="例如：PR-CAR-WASH-001" />
+                </Form.Item>
+                <Form.Item name="storeId" label="适用门店">
+                  <Select showSearch optionFilterProp="label" options={storeOptions as SelectOptionRecord[]} allowClear placeholder="为空则表示全局规则" onChange={handlePricingStoreChange} />
+                </Form.Item>
+                <Form.Item name="serviceProductId" label="关联服务商品">
+                  <Select showSearch optionFilterProp="label" options={serviceProductOptions as SelectOptionRecord[]} allowClear placeholder="请选择服务商品" onChange={handlePricingProductChange} />
+                </Form.Item>
+                <Form.Item name="storeName" label="门店名称">
+                  <Input disabled placeholder="选择门店后自动回填" />
+                </Form.Item>
+                <Form.Item name="productName" label="商品名称">
+                  <Input disabled placeholder="选择服务商品后自动回填" />
+                </Form.Item>
+                <Form.Item name="versionNo" label="版本号">
+                  <Input placeholder="例如：PR-V202605" />
+                </Form.Item>
+                <Form.Item name="status" label="状态" initialValue={1}>
+                  <Select options={statusOptions} placeholder="请选择规则状态" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+
+            <BusinessEditorSection icon={<ClockCircleOutlined />} title="基础计价" desc="维护起步价、分钟价、按次价、封顶和免费分钟，覆盖订单计费的主链路。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="startPrice" label="起步价">
+                  <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="0.00" />
+                </Form.Item>
+                <Form.Item name="minutePrice" label="按分钟单价">
+                  <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="0.00" />
+                </Form.Item>
+                <Form.Item name="countPrice" label="按次单价">
+                  <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="0.00" />
+                </Form.Item>
+                <Form.Item name="capAmount" label="封顶金额">
+                  <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="不填则不封顶" />
+                </Form.Item>
+                <Form.Item name="freeMinutes" label="免费分钟">
+                  <InputNumber style={{ width: '100%' }} min={0} precision={0} placeholder="例如：5" />
+                </Form.Item>
+                <Form.Item name="effectiveAt" label="生效时间">
+                  <Input placeholder="YYYY-MM-DD HH:mm:ss" />
+                </Form.Item>
+                <Form.Item name="expireAt" label="失效时间">
+                  <Input placeholder="YYYY-MM-DD HH:mm:ss" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+
+            <BusinessEditorSection icon={<FieldTimeOutlined />} title="时段与节假日" desc="记录夜间价、节假日价和叠加口径，避免特殊日期价格与基础规则脱节。">
+              <div className="merchant-editor-fields merchant-editor-fields--two">
+                <Form.Item name="timeStart" label="开始时间">
+                  <Input placeholder="20:00" />
+                </Form.Item>
+                <Form.Item name="timeEnd" label="结束时间">
+                  <Input placeholder="02:00" />
+                </Form.Item>
+                <Form.Item name="nightPriceMode" label="夜间计价">
+                  <Select options={nightPriceModeOptions} placeholder="请选择夜间计价" />
+                </Form.Item>
+                <Form.Item name="nightPriceValue" label="夜间数值">
+                  <Input placeholder="例如：每分钟 +0.2 元" />
+                </Form.Item>
+                <Form.Item name="nightPriceDesc" label="夜间价格描述">
+                  <Input placeholder="例如：夜间每分钟 +0.2 元" />
+                </Form.Item>
+                <Form.Item name="holidayPriceDesc" label="节假日价格描述">
+                  <Input placeholder="例如：法定节假日起步价 39 元" />
+                </Form.Item>
+                <Form.Item name="holidayPriceMode" label="节假日计价">
+                  <Select options={holidayPriceModeOptions} placeholder="请选择节假日计价" />
+                </Form.Item>
+                <Form.Item name="holidayPriceValue" label="节假日数值">
+                  <Input placeholder="例如：39 元 / 加价 5 元 / 8 折" />
+                </Form.Item>
+                <Form.Item name="holidayDates" label="适用日期">
+                  <Input placeholder="例如：2026-05-01 至 2026-05-05" />
+                </Form.Item>
+                <Form.Item name="holidayStackPolicy" label="夜间价叠加">
+                  <Select options={stackPolicyOptions} placeholder="请选择叠加方式" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

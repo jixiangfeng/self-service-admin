@@ -1,16 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
-import { ApartmentOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, Row, Select, Statistic, Tabs, message } from 'antd';
+import { ApartmentOutlined, AuditOutlined, BankOutlined, PartitionOutlined, UserSwitchOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
   scopeTypeOptions,
   statusOptions,
 } from '@/constants/businessCatalog';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type { PlatformDepartmentRecord, PlatformOrganizationChangeLogRecord, PlatformOrganizationRecord, PlatformPositionRecord } from '@/services/backendService';
 
@@ -18,6 +20,7 @@ type OrganizationRecord = PlatformOrganizationRecord;
 type DepartmentRecord = PlatformDepartmentRecord;
 type PositionRecord = PlatformPositionRecord;
 type OrgChangeRecord = PlatformOrganizationChangeLogRecord;
+type OrganizationModalType = 'org' | 'dept' | 'position' | 'change' | null;
 
 const statusMap = buildValueEnum(statusOptions);
 const scopeMap = buildValueEnum(scopeTypeOptions);
@@ -74,6 +77,7 @@ const Organization: React.FC = () => {
   const [detail, setDetail] = useState<OrganizationRecord | DepartmentRecord | PositionRecord | OrgChangeRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
+  const [modalType, setModalType] = useState<OrganizationModalType>(null);
   const [form] = Form.useForm<Record<string, unknown>>();
   const [editingOrg, setEditingOrg] = useState<OrganizationRecord | null>(null);
   const [editingDept, setEditingDept] = useState<DepartmentRecord | null>(null);
@@ -157,6 +161,10 @@ const Organization: React.FC = () => {
 
   const openOrgModal = (record?: OrganizationRecord) => {
     setModalTitle(record ? '编辑组织' : '新增组织');
+    setModalType('org');
+    setEditingDept(null);
+    setEditingPosition(null);
+    form.resetFields();
     setEditingOrg(record || null);
     form.setFieldsValue(record ? { ...record } : { status: 'ENABLED' });
     setModalVisible(true);
@@ -164,6 +172,10 @@ const Organization: React.FC = () => {
 
   const openDeptModal = (record?: DepartmentRecord) => {
     setModalTitle(record ? '编辑部门' : '新增部门');
+    setModalType('dept');
+    setEditingOrg(null);
+    setEditingPosition(null);
+    form.resetFields();
     setEditingDept(record || null);
     form.setFieldsValue(record ? { ...record } : { status: 1 });
     setModalVisible(true);
@@ -171,6 +183,10 @@ const Organization: React.FC = () => {
 
   const openPositionModal = (record?: PositionRecord) => {
     setModalTitle(record ? '编辑岗位' : '新增岗位');
+    setModalType('position');
+    setEditingOrg(null);
+    setEditingDept(null);
+    form.resetFields();
     setEditingPosition(record || null);
     form.setFieldsValue(record ? { ...record } : { status: 1 });
     setModalVisible(true);
@@ -178,8 +194,21 @@ const Organization: React.FC = () => {
 
   const openChangeModal = () => {
     setModalTitle('新增组织变更');
+    setModalType('change');
+    setEditingOrg(null);
+    setEditingDept(null);
+    setEditingPosition(null);
     form.resetFields();
     setModalVisible(true);
+  };
+
+  const closeEditor = () => {
+    setModalVisible(false);
+    setModalType(null);
+    setEditingOrg(null);
+    setEditingDept(null);
+    setEditingPosition(null);
+    form.resetFields();
   };
 
   const orgColumns = useMemo<ProColumns<OrganizationRecord>[]>(() => [
@@ -251,15 +280,10 @@ const Organization: React.FC = () => {
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="变更记录" value={changeQuery.data?.total ?? changes.length} suffix="条" /></Card></Col>
       </Row>
 
-      <ProTable
-        style={{ marginBottom: 16 }}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '输入组织、部门、岗位、角色、范围关键词' } }]}
-        dataSource={[]}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        options={false}
-        pagination={false}
-        onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-        onReset={() => setKeyword('')}
+      <KeywordSearchBar
+        value={keyword}
+        placeholder="输入组织、部门、岗位、角色、范围关键词"
+        onSearch={setKeyword}
       />
 
       <Tabs
@@ -271,7 +295,7 @@ const Organization: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title="组织架构详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -280,63 +304,109 @@ const Organization: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow={modalTitle.includes('编辑') ? '组织架构维护' : '组织架构新增'}
         title={modalTitle}
+        subtitle="按组织、部门、岗位和变更记录拆分字段，避免把无关配置堆到一个表单里。"
+        meta={[modalType === 'org' ? '组织' : modalType === 'dept' ? '部门' : modalType === 'position' ? '岗位' : '变更记录', modalTitle.includes('编辑') ? '编辑模式' : '新建模式']}
         open={modalVisible}
-        onCancel={() => setModalVisible(false)}
+        onCancel={closeEditor}
         onOk={async () => {
           const values = await form.validateFields();
-          if (modalTitle.includes('组织') && !modalTitle.includes('变更')) {
+          if (modalType === 'org') {
             await saveOrgMutation.mutateAsync(values);
             return;
           }
-          if (modalTitle.includes('部门')) {
+          if (modalType === 'dept') {
             await saveDeptMutation.mutateAsync(values);
             return;
           }
-          if (modalTitle.includes('岗位')) {
+          if (modalType === 'position') {
             await savePositionMutation.mutateAsync(values);
             return;
           }
-          if (modalTitle.includes('变更')) {
+          if (modalType === 'change') {
             await saveChangeMutation.mutateAsync(values);
           }
         }}
         confirmLoading={saveOrgMutation.isPending || saveDeptMutation.isPending || savePositionMutation.isPending || saveChangeMutation.isPending}
-        width={760}
+        width={1040}
+        okText="保存"
       >
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="orgCode" label="组织编码"><Input /></Form.Item>
-            <Form.Item name="orgName" label="组织名称"><Input /></Form.Item>
-            <Form.Item name="deptCode" label="部门编码"><Input /></Form.Item>
-            <Form.Item name="deptName" label="部门名称"><Input /></Form.Item>
-            <Form.Item name="positionCode" label="岗位编码"><Input /></Form.Item>
-            <Form.Item name="positionName" label="岗位名称"><Input /></Form.Item>
-            <Form.Item name="organizationName" label="所属组织"><Input /></Form.Item>
-            <Form.Item name="departmentName" label="所属部门"><Input /></Form.Item>
-            <Form.Item name="parentName" label="上级组织"><Input /></Form.Item>
-            <Form.Item name="parentDept" label="上级部门"><Input /></Form.Item>
-            <Form.Item name="manager" label="负责人"><Input /></Form.Item>
-            <Form.Item name="roleName" label="绑定角色"><Input /></Form.Item>
-            <Form.Item name="dataScope" label="数据范围"><Select options={scopeTypeOptions} /></Form.Item>
-            <Form.Item name="orgType" label="组织类型"><Input /></Form.Item>
-            <Form.Item name="merchantName" label="关联商户"><Input /></Form.Item>
-            <Form.Item name="storeName" label="关联门店"><Input /></Form.Item>
-            <Form.Item name="changeNo" label="变更单号"><Input /></Form.Item>
-            <Form.Item name="objectName" label="变更对象"><Input /></Form.Item>
-            <Form.Item name="changeType" label="变更类型"><Input /></Form.Item>
-            <Form.Item name="beforeValue" label="变更前"><Input /></Form.Item>
-            <Form.Item name="afterValue" label="变更后"><Input /></Form.Item>
-            <Form.Item name="operator" label="操作人"><Input /></Form.Item>
-            <Form.Item name="changedAt" label="变更时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={statusOptions} /></Form.Item>
-            <Form.Item className="modal-span-2" name="remark" label="说明"><Input.TextArea rows={4} /></Form.Item>
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            {modalType === 'org' ? (
+              <>
+                <BusinessEditorSection icon={<ApartmentOutlined />} title="组织基础" desc="维护平台组织编码、名称、类型和上下级关系。">
+                  <div className="merchant-editor-fields">
+                    <Form.Item name="orgCode" label="组织编码" rules={[{ required: true, message: '请输入组织编码' }]}><Input placeholder="例如：PLATFORM-SH" /></Form.Item>
+                    <Form.Item name="orgName" label="组织名称" rules={[{ required: true, message: '请输入组织名称' }]}><Input placeholder="例如：上海运营中心" /></Form.Item>
+                    <Form.Item name="orgType" label="组织类型"><Input placeholder="例如：平台 / 区域 / 门店" /></Form.Item>
+                    <Form.Item name="parentName" label="上级组织"><Input placeholder="上级组织名称" /></Form.Item>
+                    <Form.Item name="status" label="状态"><Select options={statusOptions} placeholder="请选择状态" /></Form.Item>
+                  </div>
+                </BusinessEditorSection>
+                <BusinessEditorSection icon={<BankOutlined />} title="业务归属" desc="关联商户和门店，便于数据权限和运营看板按组织聚合。">
+                  <div className="merchant-editor-fields">
+                    <Form.Item name="merchantName" label="关联商户"><Input placeholder="例如：鲸洗直营" /></Form.Item>
+                    <Form.Item name="storeName" label="关联门店"><Input placeholder="例如：浦东旗舰店" /></Form.Item>
+                  </div>
+                </BusinessEditorSection>
+              </>
+            ) : null}
+            {modalType === 'dept' ? (
+              <>
+                <BusinessEditorSection icon={<PartitionOutlined />} title="部门基础" desc="维护部门编码、名称和所属组织。">
+                  <div className="merchant-editor-fields">
+                    <Form.Item name="deptCode" label="部门编码" rules={[{ required: true, message: '请输入部门编码' }]}><Input placeholder="例如：OPS-DEPT" /></Form.Item>
+                    <Form.Item name="deptName" label="部门名称" rules={[{ required: true, message: '请输入部门名称' }]}><Input placeholder="例如：运营部" /></Form.Item>
+                    <Form.Item name="organizationName" label="所属组织"><Input placeholder="例如：上海运营中心" /></Form.Item>
+                    <Form.Item name="parentDept" label="上级部门"><Input placeholder="上级部门名称" /></Form.Item>
+                    <Form.Item name="manager" label="负责人"><Input placeholder="部门负责人" /></Form.Item>
+                    <Form.Item name="status" label="状态"><Select options={statusOptions} placeholder="请选择状态" /></Form.Item>
+                  </div>
+                </BusinessEditorSection>
+              </>
+            ) : null}
+            {modalType === 'position' ? (
+              <>
+                <BusinessEditorSection icon={<UserSwitchOutlined />} title="岗位基础" desc="维护岗位编码、名称、所属部门和绑定角色。">
+                  <div className="merchant-editor-fields">
+                    <Form.Item name="positionCode" label="岗位编码" rules={[{ required: true, message: '请输入岗位编码' }]}><Input placeholder="例如：STORE_MANAGER" /></Form.Item>
+                    <Form.Item name="positionName" label="岗位名称" rules={[{ required: true, message: '请输入岗位名称' }]}><Input placeholder="例如：门店店长" /></Form.Item>
+                    <Form.Item name="departmentName" label="所属部门"><Input placeholder="例如：门店运营部" /></Form.Item>
+                    <Form.Item name="roleName" label="绑定角色"><Input placeholder="例如：门店运营" /></Form.Item>
+                    <Form.Item name="dataScope" label="数据范围"><Select options={scopeTypeOptions} placeholder="请选择数据范围" /></Form.Item>
+                    <Form.Item name="status" label="状态"><Select options={statusOptions} placeholder="请选择状态" /></Form.Item>
+                  </div>
+                </BusinessEditorSection>
+              </>
+            ) : null}
+            {modalType === 'change' ? (
+              <>
+                <BusinessEditorSection icon={<AuditOutlined />} title="变更对象" desc="记录组织、部门或岗位的变更对象和变更类型。">
+                  <div className="merchant-editor-fields">
+                    <Form.Item name="changeNo" label="变更单号" rules={[{ required: true, message: '请输入变更单号' }]}><Input placeholder="例如：ORG-CHG-20260510" /></Form.Item>
+                    <Form.Item name="objectName" label="变更对象" rules={[{ required: true, message: '请输入变更对象' }]}><Input placeholder="组织 / 部门 / 岗位名称" /></Form.Item>
+                    <Form.Item name="changeType" label="变更类型"><Input placeholder="例如：新增 / 调整负责人 / 停用" /></Form.Item>
+                    <Form.Item name="operator" label="操作人"><Input placeholder="例如：系统管理员" /></Form.Item>
+                    <Form.Item name="changedAt" label="变更时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                  </div>
+                </BusinessEditorSection>
+                <BusinessEditorSection icon={<AuditOutlined />} title="变更内容" desc="补齐变更前后内容和说明，方便后续审计追溯。">
+                  <div className="merchant-editor-fields">
+                    <Form.Item name="beforeValue" label="变更前"><Input placeholder="变更前关键内容" /></Form.Item>
+                    <Form.Item name="afterValue" label="变更后"><Input placeholder="变更后关键内容" /></Form.Item>
+                    <Form.Item className="merchant-editor-field-span-all" name="remark" label="说明"><Input.TextArea rows={3} placeholder="记录变更原因、审批依据或影响范围" /></Form.Item>
+                  </div>
+                </BusinessEditorSection>
+              </>
+            ) : null}
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

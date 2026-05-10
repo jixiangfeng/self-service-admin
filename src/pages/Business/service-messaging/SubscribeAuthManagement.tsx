@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, message } from 'antd';
-import { BellOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, Row, Select, Statistic, message } from 'antd';
+import { BellOutlined, ClockCircleOutlined, UserOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { messageChannelOptions, subscribeStatusOptions } from '@/constants/businessCatalog';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
@@ -95,24 +97,55 @@ const SubscribeAuthManagement: React.FC = () => {
         toolBarRender={() => [<Button key="new" type="primary" onClick={() => { setEditingRecord(null); form.resetFields(); setModalVisible(true); }}>新增授权记录</Button>]}
       />
 
-      <Modal title="订阅授权详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title="订阅授权详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail && (
           <SchemaDetail record={detail} fields={subscribeDetailFields} column={2} labelWidth={110} />
         )}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal title="维护订阅授权" open={modalVisible} onOk={handleSubmit} confirmLoading={saveSubscribeMutation.isPending} onCancel={() => setModalVisible(false)} width={760}>
-        <Form form={form} layout="vertical">
-          <Row gutter={16}>
-            <Col span={12}><Form.Item name="appUserName" label="用户" rules={[{ required: true, message: '请输入用户' }]}><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="templateCode" label="模板编码" rules={[{ required: true, message: '请输入模板编码' }]}><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="channel" label="渠道" rules={[{ required: true, message: '请选择渠道' }]}><Select options={messageChannelOptions} /></Form.Item></Col>
-            <Col span={12}><Form.Item name="subscribeStatus" label="订阅状态" rules={[{ required: true, message: '请选择订阅状态' }]}><Select options={subscribeStatusOptions} /></Form.Item></Col>
-            <Col span={12}><Form.Item name="subscribedAt" label="订阅时间"><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="expiredAt" label="过期时间"><Input /></Form.Item></Col>
-          </Row>
+      <BusinessEditorModal
+        eyebrow={editingRecord ? '订阅授权维护' : '订阅授权新增'}
+        title={editingRecord ? `维护授权 · ${editingRecord.appUserName}` : '新增订阅授权'}
+        subtitle="把用户、消息模板、订阅渠道、授权状态和有效期放在同一个维护动作里。"
+        meta={[editingRecord ? '编辑模式' : '新建模式', '消息订阅']}
+        open={modalVisible}
+        onOk={handleSubmit}
+        confirmLoading={saveSubscribeMutation.isPending}
+        onCancel={() => {
+          setModalVisible(false);
+          setEditingRecord(null);
+          form.resetFields();
+        }}
+        width={940}
+        okText="保存授权"
+      >
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<UserOutlined />} title="用户主体" desc="确认授权所属用户和联系方式，方便客服回查。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="appUserName" label="用户" rules={[{ required: true, message: '请输入用户' }]}><Input placeholder="例如：张三" /></Form.Item>
+                <Form.Item name="mobile" label="手机号"><Input placeholder="例如：13800000000" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<BellOutlined />} title="模板与渠道" desc="明确授权模板、消息渠道和授权状态。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="templateCode" label="模板编码" rules={[{ required: true, message: '请输入模板编码' }]}><Input placeholder="例如：WASH_DONE_NOTICE" /></Form.Item>
+                <Form.Item name="templateName" label="模板名称"><Input placeholder="例如：洗车完成通知" /></Form.Item>
+                <Form.Item name="channel" label="渠道" rules={[{ required: true, message: '请选择渠道' }]}><Select options={messageChannelOptions} placeholder="请选择渠道" /></Form.Item>
+                <Form.Item name="subscribeStatus" label="订阅状态" rules={[{ required: true, message: '请选择订阅状态' }]}><Select options={subscribeStatusOptions} placeholder="请选择状态" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<ClockCircleOutlined />} title="有效期" desc="维护订阅开始和到期时间，减少过期授权无法触达的问题。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="subscribedAt" label="订阅时间"><Input placeholder="2026-05-10 10:00:00" /></Form.Item>
+                <Form.Item name="expiredAt" label="过期时间"><Input placeholder="2026-06-10 10:00:00" /></Form.Item>
+                <Form.Item name="statusReason" label="状态说明"><Input placeholder="例如：用户主动授权 / 到期自动失效" /></Form.Item>
+                <Form.Item name="operator" label="维护人"><Input placeholder="例如：系统管理员" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+          </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

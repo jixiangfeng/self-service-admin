@@ -1,18 +1,60 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Modal, Popconfirm, Row, Select, Space, Statistic, message } from 'antd';
-import { ApartmentOutlined, PlusOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Descriptions, Form, Input, Row, Select, Space, Statistic, message } from 'antd';
+import { ApartmentOutlined, DeploymentUnitOutlined, PlusOutlined, ShopOutlined, TagsOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import { merchantGroupTypeOptions, scopeLevelOptions, templateStatusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
 import type { MerchantGroupRecord, MerchantGroupStoreRecord, SelectOptionRecord } from '@/services/backendService';
-import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, formatDateTime, renderStatusTag, safeJsonParse } from '@/pages/Business/shared';
 
 const groupTypeMap = buildValueEnum(merchantGroupTypeOptions);
 const statusMap = buildValueEnum(templateStatusOptions);
 const scopeLevelMap = buildValueEnum(scopeLevelOptions);
+const groupUsageOptions = [
+  { value: '活动投放', label: '活动投放' },
+  { value: '跨店核销', label: '跨店核销' },
+  { value: '区域统计', label: '区域统计' },
+  { value: '运维巡检', label: '运维巡检' },
+];
+const writeoffScopeOptions = [
+  { value: '同门店组通用', label: '同门店组通用' },
+  { value: '同商户门店组通用', label: '同商户门店组通用' },
+  { value: '仅原购买门店可用', label: '仅原购买门店可用' },
+];
+const writeoffLimitOptions = [
+  { value: '不支持跨商户核销', label: '不支持跨商户核销' },
+  { value: '支持跨商户核销', label: '支持跨商户核销' },
+];
+const parseGroupRules = (record: MerchantGroupRecord) => ({
+  ...parseScopeConfig(record.scope, record),
+  ...parseWriteoffConfig(record.writeoffRule, record),
+});
+const parseScopeConfig = (scope?: string, record?: MerchantGroupRecord) => ({
+  scopeUsages: record?.scopeUsages || safeJsonParse<{ scopeUsages?: string[] }>(scope, {}).scopeUsages || [],
+  scopeRemark: record?.scopeRemark || safeJsonParse<{ scopeRemark?: string }>(scope, {}).scopeRemark,
+});
+const parseWriteoffConfig = (writeoffRule?: string, record?: MerchantGroupRecord) => ({
+  writeoffScope: record?.writeoffScope || safeJsonParse<{ writeoffScope?: string }>(writeoffRule, {}).writeoffScope,
+  writeoffLimit: record?.writeoffLimit || safeJsonParse<{ writeoffLimit?: string }>(writeoffRule, {}).writeoffLimit,
+  writeoffRemark: record?.writeoffRemark || safeJsonParse<{ writeoffRemark?: string }>(writeoffRule, {}).writeoffRemark,
+});
+const buildGroupScope = (values: Record<string, any>) =>
+  JSON.stringify({
+    scopeUsages: Array.isArray(values.scopeUsages) ? values.scopeUsages : [],
+    scopeRemark: values.scopeRemark || '',
+  });
+const buildWriteoffRule = (values: Record<string, any>) =>
+  JSON.stringify({
+    writeoffScope: values.writeoffScope || '',
+    writeoffLimit: values.writeoffLimit || '',
+    writeoffRemark: values.writeoffRemark || '',
+  });
 
 const MerchantGroupManagement: React.FC = () => {
   const [form] = Form.useForm<MerchantGroupRecord>();
@@ -30,7 +72,9 @@ const MerchantGroupManagement: React.FC = () => {
   const [members, setMembers] = useState<MerchantGroupStoreRecord[]>([]);
   const [editingMember, setEditingMember] = useState<MerchantGroupStoreRecord | null>(null);
   const [memberLoading, setMemberLoading] = useState(false);
+  const { data: merchantOptions } = useQuery({ queryKey: ['merchantOptionsForMerchantGroups'], queryFn: async () => (await api.merchant.options()).data });
   const { data: storeOptions } = useQuery({ queryKey: ['storeOptionsForMerchantGroups'], queryFn: async () => (await api.store.options()).data });
+  const merchantOptionMap = useMemo(() => new Map((merchantOptions as SelectOptionRecord[] | undefined || []).map((item) => [item.value, item.label])), [merchantOptions]);
   const storeOptionMap = useMemo(() => new Map((storeOptions as SelectOptionRecord[] | undefined || []).map((item) => [item.value, item.label])), [storeOptions]);
   const fetchRecords = async (params: Record<string, unknown> = {}) => {
     setLoading(true);
@@ -44,7 +88,7 @@ const MerchantGroupManagement: React.FC = () => {
         ...params,
       });
       const page = 'data' in result ? result.data : result;
-      setRecords(page.records || []);
+      setRecords((page.records || []).map((record) => ({ ...record, ...parseGroupRules(record) })));
     } finally {
       setLoading(false);
     }
@@ -93,8 +137,39 @@ const MerchantGroupManagement: React.FC = () => {
     setEditingMember(null);
     memberForm.resetFields();
     await fetchMembers(memberGroup);
-      await api.merchantGroup.edit({ ...memberGroup, storeCount: members.length + (editingMember ? 0 : 1) } as Record<string, unknown>);
-    fetchRecords();
+    await fetchRecords();
+  };
+
+  const confirmGroupStatus = (record: MerchantGroupRecord) => {
+    const nextStatus = record.status === 'ENABLED' ? 'DISABLED' : 'ENABLED';
+    showBusinessConfirm({
+      eyebrow: '状态确认',
+      title: `确认${record.status === 'ENABLED' ? '停用' : '启用'}该门店组`,
+      content: `门店组「${record.groupName}」状态更新后，将影响活动投放、跨店核销和统计口径。`,
+      okText: '确认更新',
+      danger: false,
+      onOk: async () => {
+        await api.merchantGroup.changeStatus(record.id, nextStatus);
+        message.success('门店组状态已更新');
+        fetchRecords();
+      },
+    });
+  };
+
+  const confirmRemoveMember = (record: MerchantGroupStoreRecord) => {
+    showBusinessConfirm({
+      title: '确认移除该门店成员',
+      content: `移除「${record.storeName || record.storeCode || record.storeId}」后，该门店将不再参与当前门店组的活动、核销和统计范围。`,
+      okText: '确认移除',
+      onOk: async () => {
+        await api.merchantGroupStore.remove(record.id);
+        message.success('门店成员已移除');
+        if (memberGroup) {
+          await fetchMembers(memberGroup);
+          await fetchRecords();
+        }
+      },
+    });
   };
 
   const summary = useMemo(
@@ -139,8 +214,8 @@ const MerchantGroupManagement: React.FC = () => {
     },
     { title: '城市', dataIndex: 'city', width: 120, search: false },
     { title: '门店数', dataIndex: 'storeCount', width: 100, search: false },
-    { title: '用途范围', dataIndex: 'scope', width: 240, search: false },
-    { title: '核销规则', dataIndex: 'writeoffRule', width: 220, search: false },
+    { title: '用途范围', dataIndex: 'scopeUsages', width: 240, search: false, render: (_, record) => (record.scopeUsages && record.scopeUsages.length ? record.scopeUsages.join('、') : record.scope || '-') },
+    { title: '核销规则', dataIndex: 'writeoffRule', width: 220, search: false, render: (_, record) => [record.writeoffScope, record.writeoffLimit].filter(Boolean).join('、') || record.writeoffRule || '-' },
     { title: '负责人', dataIndex: 'owner', width: 140, search: false },
     {
       title: '状态',
@@ -162,23 +237,14 @@ const MerchantGroupManagement: React.FC = () => {
             size="small"
             onClick={() => {
               setEditingRecord(record);
-              form.setFieldsValue(record);
+              form.setFieldsValue({ ...record, ...parseGroupRules(record) } as any);
               setModalVisible(true);
             }}
           >
             编辑
           </Button>
           <Button size="small" onClick={() => openMemberModal(record)}>成员</Button>
-          <Popconfirm
-            title={`确认${record.status === 'ENABLED' ? '停用' : '启用'}该门店组？`}
-            onConfirm={async () => {
-              await api.merchantGroup.changeStatus(record.id, record.status === 'ENABLED' ? 'DISABLED' : 'ENABLED');
-              message.success('门店组状态已更新');
-              fetchRecords();
-            }}
-          >
-            <Button size="small">{record.status === 'ENABLED' ? '停用' : '启用'}</Button>
-          </Popconfirm>
+          <Button size="small" onClick={() => confirmGroupStatus(record)}>{record.status === 'ENABLED' ? '停用' : '启用'}</Button>
         </Space>
       ),
     },
@@ -186,11 +252,17 @@ const MerchantGroupManagement: React.FC = () => {
 
   const handleSubmit = async () => {
     const values = await form.validateFields();
+    const { scopeUsages, scopeRemark, writeoffScope, writeoffLimit, writeoffRemark, ...baseValues } = values as Record<string, any>;
+    const payload = {
+      ...baseValues,
+      scope: buildGroupScope({ scopeUsages, scopeRemark }),
+      writeoffRule: buildWriteoffRule({ writeoffScope, writeoffLimit, writeoffRemark }),
+    };
     if (editingRecord) {
-      await api.merchantGroup.edit({ ...editingRecord, ...values } as Record<string, unknown>);
+      await api.merchantGroup.edit({ ...editingRecord, ...payload } as Record<string, unknown>);
       message.success('门店组已更新');
     } else {
-      await api.merchantGroup.add(values as unknown as Record<string, unknown>);
+      await api.merchantGroup.add(payload as unknown as Record<string, unknown>);
       message.success('门店组已创建');
     }
     closeModal();
@@ -223,11 +295,12 @@ const MerchantGroupManagement: React.FC = () => {
             status: params.status,
           });
           const page = 'data' in result ? result.data : result;
-          setRecords(page.records || []);
+          const parsedRecords = (page.records || []).map((record) => ({ ...record, ...parseGroupRules(record) }));
+          setRecords(parsedRecords);
           setKeyword(String(params.keyword || ''));
           setTypeFilter(params.groupType as string | undefined);
           setStatusFilter(params.status as string | undefined);
-          return { data: page.records || [], total: page.total, success: true };
+          return { data: parsedRecords, total: page.total, success: true };
         }}
         search={{ labelWidth: 'auto', defaultCollapsed: false }}
         pagination={{ pageSize: 8 }}
@@ -249,55 +322,96 @@ const MerchantGroupManagement: React.FC = () => {
         ]}
       />
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow={editingRecord ? '门店组配置维护' : '门店组建档'}
         title={editingRecord ? `编辑门店组 · ${editingRecord.groupName}` : '新建门店组'}
+        subtitle="用于活动投放、跨店核销、区域运营和统计分析，需同时绑定商户主体和作用范围。"
+        meta={['门店组', editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
         onOk={handleSubmit}
         onCancel={closeModal}
-        width={860}
+        okText={editingRecord ? '保存变更' : '创建门店组'}
+        width={1120}
         destroyOnClose
       >
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="groupCode" label="门店组编码" rules={[{ required: true, message: '请输入门店组编码' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="groupName" label="门店组名称" rules={[{ required: true, message: '请输入门店组名称' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="merchantName" label="所属商户" rules={[{ required: true, message: '请输入所属商户' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="groupType" label="分组类型" rules={[{ required: true, message: '请选择分组类型' }]}>
-              <Select options={merchantGroupTypeOptions} />
-            </Form.Item>
-            <Form.Item name="scopeLevel" label="作用层级" rules={[{ required: true, message: '请选择作用层级' }]}>
-              <Select options={scopeLevelOptions} />
-            </Form.Item>
-            <Form.Item name="city" label="城市">
-              <Input />
-            </Form.Item>
-            <Form.Item name="storeCount" label="门店数">
-              <Input />
-            </Form.Item>
-            <Form.Item name="owner" label="负责人">
-              <Input />
-            </Form.Item>
-            <Form.Item name="status" label="状态">
-              <Select options={templateStatusOptions} />
-            </Form.Item>
-            <div />
-            <Form.Item className="modal-span-2" name="scope" label="用途范围">
-              <Input.TextArea rows={3} />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="writeoffRule" label="核销规则">
-              <Input.TextArea rows={3} />
-            </Form.Item>
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection
+              icon={<DeploymentUnitOutlined />}
+              title="分组基础信息"
+              desc="定义门店组编码、名称、归属商户和当前状态，支撑后续成员维护和业务引用。"
+            >
+              <div className="merchant-editor-fields">
+                <Form.Item name="groupCode" label="门店组编码" rules={[{ required: true, message: '请输入门店组编码' }]}>
+                  <Input placeholder="例如：GRP-ACT-001" />
+                </Form.Item>
+                <Form.Item name="groupName" label="门店组名称" rules={[{ required: true, message: '请输入门店组名称' }]}>
+                  <Input placeholder="例如：五一活动核心门店组" />
+                </Form.Item>
+                <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}>
+                  <Select options={templateStatusOptions} placeholder="请选择状态" />
+                </Form.Item>
+                <Form.Item name="merchantId" label="所属商户" rules={[{ required: true, message: '请选择商户' }]}>
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    options={merchantOptions as SelectOptionRecord[]}
+                    placeholder="请选择商户"
+                    onChange={(value) => form.setFieldValue('merchantName', merchantOptionMap.get(value))}
+                  />
+                </Form.Item>
+                <Form.Item name="merchantName" label="商户名称" rules={[{ required: true, message: '请选择商户' }]}>
+                  <Input disabled placeholder="选择商户后自动带出" />
+                </Form.Item>
+                <Form.Item name="owner" label="负责人">
+                  <Input placeholder="例如：区域运营负责人" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+
+            <BusinessEditorSection
+              icon={<TagsOutlined />}
+              title="作用范围与规则"
+              desc="明确门店组使用场景、城市范围和核销规则，避免活动、券和结算口径混用。"
+            >
+              <div className="merchant-editor-fields">
+                <Form.Item name="groupType" label="分组类型" rules={[{ required: true, message: '请选择分组类型' }]}>
+                  <Select options={merchantGroupTypeOptions} placeholder="请选择分组类型" />
+                </Form.Item>
+                <Form.Item name="scopeLevel" label="作用层级" rules={[{ required: true, message: '请选择作用层级' }]}>
+                  <Select options={scopeLevelOptions} placeholder="请选择作用层级" />
+                </Form.Item>
+                <Form.Item name="city" label="城市">
+                  <Input placeholder="例如：上海 / 苏州" />
+                </Form.Item>
+                <Form.Item name="storeCount" label="门店数">
+                  <Input disabled placeholder="由成员维护自动统计" />
+                </Form.Item>
+                <Form.Item name="scopeUsages" label="用途范围">
+                  <Select mode="multiple" options={groupUsageOptions} placeholder="请选择用途范围" />
+                </Form.Item>
+                <Form.Item name="scopeRemark" label="用途补充">
+                  <Input placeholder="例如：五一活动核心门店" />
+                </Form.Item>
+                <Form.Item name="writeoffScope" label="核销范围">
+                  <Select options={writeoffScopeOptions} placeholder="请选择核销范围" />
+                </Form.Item>
+                <Form.Item name="writeoffLimit" label="跨商户限制">
+                  <Select options={writeoffLimitOptions} placeholder="请选择限制方式" />
+                </Form.Item>
+                <Form.Item className="merchant-editor-field-span-2" name="writeoffRemark" label="核销补充">
+                  <Input placeholder="例如：活动券仅支持有效期内核销" />
+                </Form.Item>
+                <Form.Item className="merchant-editor-field-span-2" name="remark" label="备注">
+                  <Input.TextArea rows={3} placeholder="记录维护原因、使用边界或审批说明" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal title="门店组详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={820}>
+      <BusinessDetailModal title="门店组详情" open={!!detail} onCancel={() => setDetail(null)} width={820}>
         {detail ? (
           <Descriptions column={2} labelStyle={{ width: 110 }}>
             <Descriptions.Item label="门店组编码">{detail.groupCode}</Descriptions.Item>
@@ -307,16 +421,22 @@ const MerchantGroupManagement: React.FC = () => {
             <Descriptions.Item label="作用层级">{scopeLevelMap[detail.scopeLevel as keyof typeof scopeLevelMap]?.text || detail.scopeLevel}</Descriptions.Item>
             <Descriptions.Item label="城市">{detail.city}</Descriptions.Item>
             <Descriptions.Item label="门店数">{detail.storeCount}</Descriptions.Item>
-            <Descriptions.Item label="用途范围">{detail.scope}</Descriptions.Item>
-            <Descriptions.Item label="核销规则">{detail.writeoffRule}</Descriptions.Item>
+            <Descriptions.Item label="用途范围">{(detail.scopeUsages || []).join('、') || '-'}</Descriptions.Item>
+            <Descriptions.Item label="用途补充">{detail.scopeRemark || '-'}</Descriptions.Item>
+            <Descriptions.Item label="核销范围">{detail.writeoffScope || '-'}</Descriptions.Item>
+            <Descriptions.Item label="跨商户限制">{detail.writeoffLimit || '-'}</Descriptions.Item>
+            <Descriptions.Item label="核销补充">{detail.writeoffRemark || '-'}</Descriptions.Item>
             <Descriptions.Item label="负责人">{detail.owner}</Descriptions.Item>
             <Descriptions.Item label="更新时间">{formatDateTime(detail.updatedAt)}</Descriptions.Item>
           </Descriptions>
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow="门店组成员维护"
         title={memberGroup ? `门店组成员 · ${memberGroup.groupName}` : '门店组成员'}
+        subtitle="将门店加入当前门店组，成员变更会同步影响门店组覆盖数量。"
+        meta={['成员维护', editingMember ? '编辑成员' : '添加成员']}
         open={memberVisible}
         onCancel={() => {
           setMemberVisible(false);
@@ -325,30 +445,44 @@ const MerchantGroupManagement: React.FC = () => {
           memberForm.resetFields();
         }}
         footer={null}
-        width={920}
+        width={1080}
       >
-        <Form form={memberForm} layout="vertical" style={{ marginBottom: 16 }}>
-          <div className="modal-grid">
-            <Form.Item name="storeId" label="门店" rules={[{ required: true, message: '请选择门店' }]}>
-              <Select options={storeOptions as SelectOptionRecord[]} onChange={(value) => memberForm.setFieldValue('storeName', storeOptionMap.get(value))} />
-            </Form.Item>
-            <Form.Item name="storeCode" label="门店编码">
-              <Input />
-            </Form.Item>
-            <Form.Item name="storeName" label="门店名称" rules={[{ required: true, message: '请输入门店名称' }]}>
-              <Input disabled />
-            </Form.Item>
-            <Form.Item name="status" label="状态" initialValue="ENABLED">
-              <Select options={templateStatusOptions} />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="remark" label="备注">
-              <Input />
-            </Form.Item>
+        <Form form={memberForm} layout="vertical" className="merchant-editor-form" style={{ marginBottom: 16 }}>
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection
+              icon={<ShopOutlined />}
+              title="门店成员信息"
+              desc="选择门店后自动带出门店名称，可补充编码和成员维护说明。"
+            >
+              <div className="merchant-editor-fields">
+                <Form.Item name="storeId" label="门店" rules={[{ required: true, message: '请选择门店' }]}>
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    options={storeOptions as SelectOptionRecord[]}
+                    placeholder="请选择门店"
+                    onChange={(value) => memberForm.setFieldValue('storeName', storeOptionMap.get(value))}
+                  />
+                </Form.Item>
+                <Form.Item name="storeCode" label="门店编码">
+                  <Input placeholder="例如：STR-HQ-001" />
+                </Form.Item>
+                <Form.Item name="storeName" label="门店名称" rules={[{ required: true, message: '请选择门店' }]}>
+                  <Input disabled placeholder="选择门店后自动带出" />
+                </Form.Item>
+                <Form.Item name="status" label="状态" initialValue="ENABLED">
+                  <Select options={templateStatusOptions} placeholder="请选择状态" />
+                </Form.Item>
+                <Form.Item className="merchant-editor-field-span-2" name="remark" label="备注">
+                  <Input placeholder="记录加入门店组的原因或使用限制" />
+                </Form.Item>
+              </div>
+              <div className="merchant-editor-actions">
+                <Button onClick={() => { setEditingMember(null); memberForm.resetFields(); }}>清空</Button>
+                <Button type="primary" onClick={handleMemberSubmit}>{editingMember ? '更新成员' : '添加成员'}</Button>
+              </div>
+            </BusinessEditorSection>
           </div>
-          <Space>
-            <Button type="primary" onClick={handleMemberSubmit}>{editingMember ? '更新成员' : '添加成员'}</Button>
-            <Button onClick={() => { setEditingMember(null); memberForm.resetFields(); }}>清空</Button>
-          </Space>
         </Form>
         <ProTable<MerchantGroupStoreRecord>
           rowKey="id"
@@ -377,26 +511,13 @@ const MerchantGroupManagement: React.FC = () => {
                   >
                     编辑
                   </Button>
-                  <Popconfirm
-                    title="确认移除该门店成员？"
-                    onConfirm={async () => {
-                      await api.merchantGroupStore.remove(record.id);
-                      message.success('门店成员已移除');
-                      if (memberGroup) {
-                        await fetchMembers(memberGroup);
-                        await api.merchantGroup.edit({ ...memberGroup, storeCount: Math.max(0, members.length - 1) } as Record<string, unknown>);
-                        fetchRecords();
-                      }
-                    }}
-                  >
-                    <Button size="small" danger>移除</Button>
-                  </Popconfirm>
+                  <Button size="small" danger onClick={() => confirmRemoveMember(record)}>移除</Button>
                 </Space>
               ),
             },
           ]}
         />
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

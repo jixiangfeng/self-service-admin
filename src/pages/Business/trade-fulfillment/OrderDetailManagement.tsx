@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
-import { UnorderedListOutlined } from '@ant-design/icons';
+import { Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, Radio, Row, Select, Statistic, Tabs, message } from 'antd';
+import { CalculatorOutlined, FieldTimeOutlined, FileTextOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
@@ -12,9 +12,12 @@ import {
   writeOffObjectTypeOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
-import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import type { ServiceOrderRecord } from '@/services/backendService';
+import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 
 interface OrderItemRecord {
   id: string;
@@ -75,6 +78,30 @@ const orderStatusMap = buildValueEnum(orderStatusOptions);
 const payModeMap = buildValueEnum(payModeOptions);
 const detailTypeMap = buildValueEnum(settlementDetailTypeOptions);
 
+const billingRuleOptions = [
+  { value: 'STANDARD_TIME', label: '标准时长计费' },
+  { value: 'PACKAGE_DEDUCTION', label: '套餐权益抵扣' },
+  { value: 'PROMOTION_PRICE', label: '活动优惠价' },
+  { value: 'MANUAL_OVERRIDE', label: '人工改价' },
+];
+
+const recalcReasonOptions = [
+  { value: 'PAYMENT_REPAIR', label: '支付回调补录' },
+  { value: 'DEVICE_EXCEPTION', label: '设备异常纠偏' },
+  { value: 'CUSTOMER_SERVICE', label: '客服人工处理' },
+  { value: 'FINANCE_RECONCILE', label: '财务对账调整' },
+];
+
+const formatPickerValue = (value: any) => value?.format?.('YYYY-MM-DD HH:mm:ss') || value;
+
+const buildBillingSnapshot = (values: Record<string, any>) => [
+  `计费规则：${billingRuleOptions.find((item) => item.value === values.billingRule)?.label || '未选择'}`,
+  `优惠处理：${values.discountApplied === 'YES' ? '已应用优惠/权益抵扣' : '未应用优惠'}`,
+  `封顶规则：${values.capEnabled ? '已启用封顶' : '未启用封顶'}`,
+  `重算原因：${recalcReasonOptions.find((item) => item.value === values.recalcReason)?.label || '未选择'}`,
+  values.recalcNote ? `补充说明：${values.recalcNote}` : '',
+].filter(Boolean).join('；');
+
 const orderDetailFields: Record<'item' | 'billing' | 'deduct' | 'snapshot' | 'status', DetailField<any>[]> = {
   item: [
     { name: 'orderNo', label: '订单号' },
@@ -93,7 +120,7 @@ const orderDetailFields: Record<'item' | 'billing' | 'deduct' | 'snapshot' | 'st
     { name: 'durationMinutes', label: '计费时长' },
     { name: 'unitPrice', label: '单价', render: (value) => formatAmount(value) },
     { name: 'billingAmount', label: '计费金额', render: (value) => formatAmount(value) },
-    { name: 'billingSnapshot', label: '规则快照' },
+    { name: 'billingSnapshot', label: '计费依据' },
   ],
   deduct: [
     { name: 'orderNo', label: '订单号' },
@@ -144,6 +171,10 @@ const OrderDetailManagement: React.FC = () => {
     queryKey: ['orderStatusLogs', keyword],
     queryFn: async () => (await api.orderStatusLog.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
   });
+  const serviceOrderQuery = useQuery({
+    queryKey: ['serviceOrderOptionsForOrderDetails'],
+    queryFn: async () => (await api.serviceOrder.page({ pageNum: 1, pageSize: 500 })).data,
+  });
   const orderItems = (((itemQuery.data as any)?.records || []) as OrderItemRecord[]).map((item) => ({ ...item, id: String(item.id) }));
   const billingDetails = (((billingQuery.data as any)?.records || []) as BillingDetailRecord[]).map((item) => ({ ...item, id: String(item.id) }));
   const statusLogs = (((statusQuery.data as any)?.records || []) as OrderStatusLogRecord[]).map((item: any) => ({
@@ -151,6 +182,9 @@ const OrderDetailManagement: React.FC = () => {
     id: String(item.id),
     operator: item.operator ?? item.operatorName ?? item.operatorType,
   }));
+  const serviceOrders = (serviceOrderQuery.data?.records || []) as ServiceOrderRecord[];
+  const serviceOrderOptions = serviceOrders.map((item) => ({ value: item.id, label: `${item.orderNo} / ${item.storeName || '-'} / ${item.serviceName || '-'}` }));
+  const serviceOrderMap = useMemo(() => new Map(serviceOrders.map((item) => [item.id, item])), [serviceOrders]);
   const createBillingMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => api.orderBillingDetail.add(data),
     onSuccess: () => {
@@ -196,6 +230,17 @@ const OrderDetailManagement: React.FC = () => {
     setModalVisible(true);
   };
 
+  const handleOrderSelect = (value?: number) => {
+    const order = value ? serviceOrderMap.get(value) : undefined;
+    form.setFieldsValue({
+      orderNo: order?.orderNo,
+      billingMode: order?.billingMode,
+      startAt: undefined,
+      endAt: undefined,
+      billingAmount: order?.amount,
+    });
+  };
+
   const itemColumns = useMemo<ProColumns<OrderItemRecord>[]>(() => [
     { title: '订单号', dataIndex: 'orderNo', width: 180 },
     { title: '明细类型', dataIndex: 'itemType', width: 130, render: (_, record) => renderStatusTag(record.itemType, itemTypeMap) },
@@ -215,7 +260,7 @@ const OrderDetailManagement: React.FC = () => {
     { title: '时长', dataIndex: 'durationMinutes', width: 90 },
     { title: '单价', dataIndex: 'unitPrice', width: 110, render: (_, record) => formatAmount(record.unitPrice) },
     { title: '计费金额', dataIndex: 'billingAmount', width: 120, render: (_, record) => formatAmount(record.billingAmount) },
-    { title: '规则快照', dataIndex: 'billingSnapshot', width: 220 },
+    { title: '计费依据', dataIndex: 'billingSnapshot', width: 220 },
   ], []);
 
   const deductColumns = useMemo<ProColumns<DeductRecord>[]>(() => [
@@ -257,15 +302,10 @@ const OrderDetailManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card loading={statusQuery.isLoading}><Statistic title="状态流转" value={statusLogs.length} suffix="条" /></Card></Col>
       </Row>
 
-      <ProTable
-        style={{ marginBottom: 16 }}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '输入订单、商品、计费、券码、快照关键词' } }]}
-        dataSource={[]}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        options={false}
-        pagination={false}
-        onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-        onReset={() => setKeyword('')}
+      <KeywordSearchBar
+        value={keyword}
+        placeholder="输入订单、商品、计费、券码、快照关键词"
+        onSearch={setKeyword}
       />
 
       <Tabs
@@ -278,7 +318,7 @@ const OrderDetailManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title="订单明细详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -287,35 +327,66 @@ const OrderDetailManagement: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow="计费补录"
         title={modalTitle}
+        subtitle="重算并写入订单计费过程，补齐订单关联、计费金额和计费依据，支撑对账与状态复盘。"
+        meta={['计费过程', '人工重算']}
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={async () => {
           const values = await form.validateFields();
-          await createBillingMutation.mutateAsync(values);
+          await createBillingMutation.mutateAsync({
+            orderNo: values.orderNo,
+            serviceOrderId: values.serviceOrderId,
+            billingMode: values.billingMode,
+            durationMinutes: values.durationMinutes,
+            unitPrice: values.unitPrice,
+            billingAmount: values.billingAmount,
+            startAt: formatPickerValue(values.startAt),
+            endAt: formatPickerValue(values.endAt),
+            billingSnapshot: buildBillingSnapshot(values),
+          });
           setModalVisible(false);
           form.resetFields();
         }}
         confirmLoading={createBillingMutation.isPending}
-        width={760}
+        width={860}
       >
-        <Form form={form} layout="vertical" initialValues={{ billingMode: 'TIME' }}>
-          <div className="modal-grid">
-            <Form.Item name="orderNo" label="订单号" rules={[{ required: true, message: '请输入订单号' }]}><Input /></Form.Item>
-            <Form.Item name="serviceOrderId" label="订单ID"><Input type="number" /></Form.Item>
-            <Form.Item name="billingMode" label="计费模式" rules={[{ required: true, message: '请选择计费模式' }]}><Select options={billingModeOptions} /></Form.Item>
-            <Form.Item name="durationMinutes" label="计费时长"><Input type="number" /></Form.Item>
-            <Form.Item name="unitPrice" label="单价" rules={[{ required: true, message: '请输入单价' }]}><Input type="number" /></Form.Item>
-            <Form.Item name="billingAmount" label="计费金额" rules={[{ required: true, message: '请输入计费金额' }]}><Input type="number" /></Form.Item>
-            <Form.Item name="startAt" label="开始时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-            <Form.Item name="endAt" label="结束时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-            <Form.Item className="modal-span-2" name="billingSnapshot" label="规则快照"><Input.TextArea rows={4} /></Form.Item>
+        <Form form={form} layout="vertical" className="merchant-editor-form" initialValues={{ billingMode: 'TIME', discountApplied: 'NO', capEnabled: false, billingRule: 'STANDARD_TIME', recalcReason: 'CUSTOMER_SERVICE' }}>
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<FileTextOutlined />} title="订单关联" desc="确认需要重算的服务订单，确保计费过程能关联回订单明细。">
+              <div className="merchant-editor-fields merchant-editor-fields--two">
+                <Form.Item name="serviceOrderId" label="服务订单" rules={[{ required: true, message: '请选择服务订单' }]}><Select showSearch optionFilterProp="label" options={serviceOrderOptions} placeholder="请选择服务订单" onChange={handleOrderSelect} /></Form.Item>
+                <Form.Item name="orderNo" label="订单号" rules={[{ required: true, message: '请选择服务订单或输入订单号' }]}><Input placeholder="选择订单后自动回填" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+
+            <BusinessEditorSection icon={<CalculatorOutlined />} title="计费结果" desc="写入计费模式、时长、单价和最终计费金额，供支付、退款和结算读取。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="billingMode" label="计费模式" rules={[{ required: true, message: '请选择计费模式' }]}><Select options={billingModeOptions} placeholder="选择计费模式" /></Form.Item>
+                <Form.Item name="durationMinutes" label="计费时长"><InputNumber style={{ width: '100%' }} min={0} precision={0} addonAfter="分钟" placeholder="分钟数" /></Form.Item>
+                <Form.Item name="unitPrice" label="单价" rules={[{ required: true, message: '请输入单价' }]}><InputNumber style={{ width: '100%' }} min={0} precision={2} addonBefore="￥" placeholder="计费单价" /></Form.Item>
+                <Form.Item name="billingAmount" label="计费金额" rules={[{ required: true, message: '请输入计费金额' }]}><InputNumber style={{ width: '100%' }} min={0} precision={2} addonBefore="￥" placeholder="重算后的应计金额" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+
+            <BusinessEditorSection icon={<FieldTimeOutlined />} title="计费区间与依据" desc="选择计费时间、适用规则和重算原因，系统会生成可追溯的计费说明。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="startAt" label="开始时间"><DatePicker showTime style={{ width: '100%' }} placeholder="选择开始时间" /></Form.Item>
+                <Form.Item name="endAt" label="结束时间"><DatePicker showTime style={{ width: '100%' }} placeholder="选择结束时间" /></Form.Item>
+                <Form.Item name="billingRule" label="适用规则" rules={[{ required: true, message: '请选择适用规则' }]}><Select options={billingRuleOptions} placeholder="选择计费规则" /></Form.Item>
+                <Form.Item name="recalcReason" label="重算原因" rules={[{ required: true, message: '请选择重算原因' }]}><Select options={recalcReasonOptions} placeholder="选择重算原因" /></Form.Item>
+                <Form.Item name="discountApplied" label="优惠处理"><Radio.Group options={[{ value: 'YES', label: '已抵扣优惠' }, { value: 'NO', label: '不抵扣优惠' }]} optionType="button" /></Form.Item>
+                <Form.Item name="capEnabled" label="封顶规则" valuePropName="checked"><Checkbox>启用封顶或套餐上限</Checkbox></Form.Item>
+                <Form.Item className="merchant-editor-field-span-2" name="recalcNote" label="补充说明"><Input placeholder="例如：客服确认设备断电后按 30 分钟计费" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

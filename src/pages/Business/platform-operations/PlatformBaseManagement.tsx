@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
-import { ControlOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
+import { ControlOutlined, FileTextOutlined, NodeIndexOutlined, SafetyOutlined, SettingOutlined, TeamOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -12,7 +12,9 @@ import {
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api, {
   type BizEventRecord,
   type ContentArticleRecord,
@@ -25,6 +27,33 @@ const publishStatusMap = buildValueEnum(publishStatusOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
 const scopeMap = buildValueEnum(scopeTypeOptions);
 const ticketStatusMap = buildValueEnum(ticketStatusOptions);
+const orgTypeOptions = [
+  { value: 'PLATFORM', label: '平台组织' },
+  { value: 'MERCHANT', label: '商户组织' },
+  { value: 'STORE', label: '门店组织' },
+  { value: 'DEPARTMENT', label: '职能部门' },
+];
+const configTypeOptions = [
+  { value: 'SWITCH', label: '开关配置' },
+  { value: 'NUMBER', label: '数字配置' },
+  { value: 'TEXT', label: '文本配置' },
+  { value: 'URL', label: '链接配置' },
+];
+const configSwitchOptions = [
+  { value: '开启', label: '开启' },
+  { value: '关闭', label: '关闭' },
+];
+const contentCategoryOptions = [
+  { value: 'HELP', label: '帮助说明' },
+  { value: 'NOTICE', label: '运营公告' },
+  { value: 'AGREEMENT', label: '协议内容' },
+];
+const eventActionOptions = [
+  { value: 'RETRY', label: '立即重试' },
+  { value: 'CLOSE', label: '标记关闭' },
+  { value: 'WATCH', label: '加入观察' },
+];
+const compactJoin = (items: Array<string | undefined | false>) => items.filter(Boolean).join('；');
 
 const platformBaseDetailFields: Record<'org' | 'config' | 'sequence' | 'event' | 'content', DetailField<any>[]> = {
   org: [
@@ -79,7 +108,30 @@ const PlatformBaseManagement: React.FC = () => {
   const [detail, setDetail] = useState<PlatformOrganizationRecord | SystemConfigRecord | SequenceRuleRecord | BizEventRecord | ContentArticleRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
-  const [form] = Form.useForm<{ name: string; code: string; scopeType: string; status: string; remark: string }>();
+  const [form] = Form.useForm<{
+    name: string;
+    code: string;
+    scopeType?: string;
+    status?: string;
+    orgType?: string;
+    parentName?: string;
+    merchantName?: string;
+    storeName?: string;
+    configType?: string;
+    configValue?: string;
+    configSwitch?: string;
+    configNumber?: number;
+    configText?: string;
+    configUrl?: string;
+    bizType?: string;
+    prefix?: string;
+    datePattern?: string;
+    sequenceLength?: number;
+    currentValue?: number;
+    eventAction?: string;
+    category?: string;
+    contentSummary?: string;
+  }>();
 
   const queryParams = useMemo(() => ({ keyword, current: 1, size: 50 }), [keyword]);
   const orgQuery = useQuery({ queryKey: ['platform-organizations', queryParams], queryFn: () => api.platformBase.organizations.page(queryParams) });
@@ -97,7 +149,34 @@ const PlatformBaseManagement: React.FC = () => {
   const openModal = (title: string) => {
     setModalTitle(title);
     form.resetFields();
+    form.setFieldsValue({
+      scopeType: 'PLATFORM',
+      status: 'PUBLISHED',
+      orgType: 'PLATFORM',
+      configType: 'SWITCH',
+      eventAction: 'RETRY',
+      category: 'HELP',
+      datePattern: 'yyyyMMdd',
+      sequenceLength: 6,
+      currentValue: 0,
+    } as any);
     setModalVisible(true);
+  };
+
+  const configType = Form.useWatch('configType', form);
+
+  const buildConfigValue = (values: {
+    configType?: string;
+    configValue?: string;
+    configSwitch?: string;
+    configNumber?: number;
+    configText?: string;
+    configUrl?: string;
+  }) => {
+    if (values.configType === 'SWITCH') return values.configSwitch || values.configValue || '开启';
+    if (values.configType === 'NUMBER') return values.configNumber ?? values.configValue;
+    if (values.configType === 'URL') return values.configUrl || values.configValue;
+    return values.configText || values.configValue;
   };
 
   const organizationColumns = useMemo<ProColumns<PlatformOrganizationRecord>[]>(() => [
@@ -166,15 +245,10 @@ const PlatformBaseManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="内容帮助" value={contents.length} suffix="篇" /></Card></Col>
       </Row>
 
-      <ProTable
-        style={{ marginBottom: 16 }}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '输入组织、配置、编号、事件、内容关键词' } }]}
-        dataSource={[]}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        options={false}
-        pagination={false}
-        onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-        onReset={() => setKeyword('')}
+      <KeywordSearchBar
+        value={keyword}
+        placeholder="输入组织、配置、编号、事件、内容关键词"
+        onSearch={setKeyword}
       />
 
       <Tabs
@@ -187,7 +261,7 @@ const PlatformBaseManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title="平台基础配置详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -196,22 +270,25 @@ const PlatformBaseManagement: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow="平台基础配置"
         title={modalTitle}
+        subtitle="把组织、配置、编号、事件和内容维护拆成结构化字段，提交时兼容后端需要的配置值。"
+        meta={[modalTitle || '平台基础', '运营配置']}
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={async () => {
           const values = await form.validateFields();
           if (modalTitle === '新建组织') {
-            await api.platformBase.organizations.add({ orgCode: values.code, orgName: values.name, orgType: values.remark, status: values.status || 'PUBLISHED' });
+            await api.platformBase.organizations.add({ orgCode: values.code, orgName: values.name, orgType: values.orgType, parentName: values.parentName, merchantName: values.merchantName, storeName: values.storeName, status: values.status || 'PUBLISHED' });
             await queryClient.invalidateQueries({ queryKey: ['platform-organizations'] });
           } else if (modalTitle === '新建配置项') {
-            await api.platformBase.configs.add({ configKey: values.code, configName: values.name, configType: values.remark, scopeType: values.scopeType, configValue: values.remark, status: values.status || 'PUBLISHED' });
+            await api.platformBase.configs.add({ configKey: values.code, configName: values.name, configType: values.configType, scopeType: values.scopeType, configValue: buildConfigValue(values), status: values.status || 'PUBLISHED' });
             await queryClient.invalidateQueries({ queryKey: ['system-configs'] });
           } else if (modalTitle === '新建编号规则') {
-            await api.platformBase.sequenceRules.add({ ruleCode: values.code, bizType: values.name, prefix: values.code, datePattern: 'yyyyMMdd', sequenceLength: 6, currentValue: 0, status: values.status || 'PUBLISHED' });
+            await api.platformBase.sequenceRules.add({ ruleCode: values.code, bizType: values.bizType || values.name, prefix: values.prefix || values.code, datePattern: values.datePattern, sequenceLength: values.sequenceLength || 6, currentValue: values.currentValue || 0, status: values.status || 'PUBLISHED' });
             await queryClient.invalidateQueries({ queryKey: ['sequence-rules'] });
           } else if (modalTitle === '重试业务事件') {
             const firstEvent = events.find((item) => item.processStatus !== 'CLOSED') || events[0];
@@ -221,24 +298,86 @@ const PlatformBaseManagement: React.FC = () => {
             await api.platformBase.events.retry(firstEvent.id);
             await queryClient.invalidateQueries({ queryKey: ['biz-events'] });
           } else if (modalTitle === '新建内容') {
-            await api.platformBase.contents.add({ articleCode: values.code, title: values.name, category: values.remark, scopeType: values.scopeType, content: values.remark, status: values.status || 'PUBLISHED' });
+            await api.platformBase.contents.add({
+              articleCode: values.code,
+              title: values.name,
+              category: values.category,
+              scopeType: values.scopeType,
+              content: compactJoin([
+                values.contentSummary ? `内容摘要：${values.contentSummary}` : undefined,
+                values.configValue ? `正文要点：${values.configValue}` : undefined,
+              ]),
+              status: values.status || 'PUBLISHED',
+            });
             await queryClient.invalidateQueries({ queryKey: ['content-articles'] });
           }
           setModalVisible(false);
           message.success('已保存到后端');
         }}
-        width={760}
+        width={1080}
+        okText="保存配置"
       >
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="code" label="编码 / Key" rules={[{ required: true, message: '请输入编码或 Key' }]}><Input /></Form.Item>
-            <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}><Input /></Form.Item>
-            <Form.Item name="scopeType" label="范围"><Select options={scopeTypeOptions} /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={publishStatusOptions} /></Form.Item>
-            <Form.Item className="modal-span-2" name="remark" label="配置内容 / 说明"><Input.TextArea rows={4} /></Form.Item>
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<ControlOutlined />} title="基础信息" desc="维护编码、名称、范围和状态。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="code" label="编码 / Key" rules={[{ required: true, message: '请输入编码或 Key' }]}><Input placeholder="例如：ORG-001 / CONFIG-WASH" /></Form.Item>
+                <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}><Input placeholder="例如：平台运营部" /></Form.Item>
+                <Form.Item name="scopeType" label="范围"><Select options={scopeTypeOptions} placeholder="请选择范围" /></Form.Item>
+                <Form.Item name="status" label="状态"><Select options={publishStatusOptions} placeholder="请选择状态" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            {modalTitle === '新建组织' ? (
+              <BusinessEditorSection icon={<TeamOutlined />} title="组织关系" desc="配置组织类型、上级组织及关联商户门店。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="orgType" label="组织类型"><Select options={orgTypeOptions} placeholder="请选择组织类型" /></Form.Item>
+                  <Form.Item name="parentName" label="上级组织"><Input placeholder="例如：平台总部" /></Form.Item>
+                  <Form.Item name="merchantName" label="关联商户"><Input placeholder="例如：自助洗车直营网点" /></Form.Item>
+                  <Form.Item name="storeName" label="关联门店"><Input placeholder="例如：浦东旗舰店" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+            ) : null}
+            {modalTitle === '新建配置项' ? (
+              <BusinessEditorSection icon={<SettingOutlined />} title="配置内容" desc="按配置类型展示对应输入控件，避免运营直接写技术配置串。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="configType" label="配置类型"><Select options={configTypeOptions} placeholder="请选择配置类型" /></Form.Item>
+                  {configType === 'SWITCH' ? <Form.Item name="configSwitch" label="开关状态"><Select options={configSwitchOptions} placeholder="请选择开关状态" /></Form.Item> : null}
+                  {configType === 'NUMBER' ? <Form.Item name="configNumber" label="数字值"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="例如：30" /></Form.Item> : null}
+                  {configType === 'TEXT' ? <Form.Item className="merchant-editor-field-span-all" name="configText" label="文本内容"><Input placeholder="例如：门店暂停营业提示语" /></Form.Item> : null}
+                  {configType === 'URL' ? <Form.Item className="merchant-editor-field-span-all" name="configUrl" label="链接地址"><Input placeholder="https://example.com" /></Form.Item> : null}
+                </div>
+              </BusinessEditorSection>
+            ) : null}
+            {modalTitle === '新建编号规则' ? (
+              <BusinessEditorSection icon={<NodeIndexOutlined />} title="编号规则" desc="配置业务类型、前缀、日期格式、流水长度和当前值。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="bizType" label="业务类型"><Input placeholder="例如：ORDER / PAY / SETTLE" /></Form.Item>
+                  <Form.Item name="prefix" label="编号前缀"><Input placeholder="例如：ORD" /></Form.Item>
+                  <Form.Item name="datePattern" label="日期格式"><Input placeholder="yyyyMMdd" /></Form.Item>
+                  <Form.Item name="sequenceLength" label="流水长度"><InputNumber min={1} max={12} precision={0} style={{ width: '100%' }} /></Form.Item>
+                  <Form.Item name="currentValue" label="当前值"><InputNumber min={0} precision={0} style={{ width: '100%' }} /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+            ) : null}
+            {modalTitle === '重试业务事件' ? (
+              <BusinessEditorSection icon={<SafetyOutlined />} title="事件处理" desc="选择事件处理动作，系统会对待处理事件执行对应动作。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="eventAction" label="处理动作"><Select options={eventActionOptions} placeholder="请选择处理动作" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+            ) : null}
+            {modalTitle === '新建内容' ? (
+              <BusinessEditorSection icon={<FileTextOutlined />} title="内容信息" desc="用分类、摘要和正文要点维护内容帮助。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="category" label="内容分类"><Select options={contentCategoryOptions} placeholder="请选择内容分类" /></Form.Item>
+                  <Form.Item name="contentSummary" label="内容摘要"><Input placeholder="例如：用户洗车流程说明" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="configValue" label="正文要点"><Input placeholder="例如：扫码进入、选择门店、支付后启动设备" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+            ) : null}
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

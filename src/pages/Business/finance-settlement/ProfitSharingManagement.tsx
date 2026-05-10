@@ -1,13 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Divider, Form, Input, List, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
-import { AccountBookOutlined, PlusOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, InputNumber, List, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import { AccountBookOutlined, CalendarOutlined, PlusOutlined, TeamOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useNavigate } from 'react-router-dom';
 import { partnerRoleOptions, profitRelationStatusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, containsKeyword, formatAmount, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import api, { type ProfitPartnerRelationRecord, type ProfitRatioVersionRecord, type ProfitShareDetailRecord } from '@/services/backendService';
@@ -27,20 +29,11 @@ const profitRelationDetailFields: DetailField<ProfitPartnerRelationRecord>[] = [
   { name: 'status', label: '状态', render: (value) => statusMap[value as keyof typeof statusMap]?.text || value },
 ];
 
-const profitAdjustmentDetailFields: DetailField<ProfitShareDetailRecord>[] = [
-  { name: 'orderNo', label: '订单号', render: (value, record) => value || record.serviceOrderNo },
-  { name: 'storeName', label: '门店' },
-  { name: 'partnerName', label: '合伙人' },
-  { name: 'baseAmount', label: '分润基数', render: (value) => formatAmount(value) },
-  { name: 'shareRatio', label: '分润比例', render: (value, record) => value || record.ratio },
-  { name: 'actualAmount', label: '应分金额', render: (value, record) => formatAmount(value ?? record.shareAmount) },
-  { name: 'status', label: '状态', render: (value) => statusMap[value as keyof typeof statusMap]?.text || value },
-];
-
 const ProfitSharingManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [form] = Form.useForm<ProfitPartnerRelationRecord>();
+  const [profitAdjustForm] = Form.useForm<Record<string, unknown>>();
   const [keyword, setKeyword] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<ProfitPartnerRelationRecord | null>(null);
@@ -183,7 +176,14 @@ const ProfitSharingManagement: React.FC = () => {
       search: false,
       render: (_, record) => (
         <Space>
-          <Button size="small" onClick={() => setProfitDetail(record)}>调整</Button>
+          <Button size="small" onClick={() => {
+            setProfitDetail(record);
+            profitAdjustForm.setFieldsValue({
+              ...record,
+              actualAmount: record.actualAmount ?? record.shareAmount,
+              shareRatio: record.shareRatio ?? record.ratio,
+            });
+          }}>调整</Button>
           <Button size="small" loading={chargebackMutation.isPending} onClick={() => chargebackMutation.mutate(record)}>回冲</Button>
         </Space>
       ),
@@ -264,13 +264,13 @@ const ProfitSharingManagement: React.FC = () => {
                     loading={exportTaskMutation.isPending}
                     onClick={() => exportTaskMutation.mutate({
                       taskNo: `EXP-${Date.now()}`,
-                      taskName: '分润明细导出',
-                      taskType: 'PROFIT_SHARE_DETAIL_EXPORT',
+                      taskType: 'EXPORT',
+                      bizType: 'PROFIT_SHARE_DETAIL',
                       bizNo: keyword || 'ALL',
                       fileName: `分润明细导出-${Date.now()}.xlsx`,
+                      operator: '系统管理员',
                       status: 'PENDING',
-                      createdBy: '系统管理员',
-                      createdAt: new Date().toISOString(),
+                      remark: '分润明细导出',
                     })}
                   >
                     导出分润明细
@@ -284,30 +284,51 @@ const ProfitSharingManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title={editingRecord ? `编辑合伙关系 · ${editingRecord.partnerName}` : '新建合伙关系'} open={modalVisible} width={860} onCancel={closeModal} onOk={handleSubmit}>
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Divider className="modal-span-2" orientation="left">关系基础信息</Divider>
-            <Form.Item name="storeName" label="门店" rules={[{ required: true, message: '请输入门店' }]}><Input /></Form.Item>
-            <Form.Item name="partnerName" label="合伙人" rules={[{ required: true, message: '请输入合伙人' }]}><Input /></Form.Item>
-            <Form.Item name="partnerRole" label="角色" rules={[{ required: true, message: '请选择角色' }]}><Select options={partnerRoleOptions} /></Form.Item>
-            <Form.Item name="shareRatio" label="分润比例" rules={[{ required: true, message: '请输入分润比例' }]}><Input placeholder="例如 30" /></Form.Item>
-            <Form.Item className="modal-span-2" name="settleAccount" label="收款账户" rules={[{ required: true, message: '请输入收款账户' }]}><Input /></Form.Item>
-            <Divider className="modal-span-2" orientation="left">生效周期</Divider>
-            <Form.Item name="effectiveStart" label="生效开始"><Input placeholder="2026-04-01" /></Form.Item>
-            <Form.Item name="effectiveEnd" label="生效结束"><Input placeholder="2026-12-31" /></Form.Item>
-            <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={profitRelationStatusOptions} /></Form.Item>
+      <BusinessEditorModal
+        eyebrow="合伙关系配置"
+        title={editingRecord ? `编辑合伙关系 · ${editingRecord.partnerName}` : '新建合伙关系'}
+        subtitle="配置门店、合伙人、角色、分润比例、收款账户和生效周期，形成分润结算基础。"
+        meta={[editingRecord ? '编辑' : '新增', '多合伙人分润']}
+        open={modalVisible}
+        width={1080}
+        onCancel={closeModal}
+        onOk={handleSubmit}
+        okText="保存合伙关系"
+        confirmLoading={saveRelationMutation.isPending}
+      >
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<TeamOutlined />} title="关系基础" desc="定义门店、合伙人和合伙人角色。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="storeName" label="门店" rules={[{ required: true, message: '请输入门店' }]}><Input placeholder="例如：浦东旗舰店" /></Form.Item>
+                <Form.Item name="partnerName" label="合伙人" rules={[{ required: true, message: '请输入合伙人' }]}><Input placeholder="例如：张三" /></Form.Item>
+                <Form.Item name="partnerRole" label="角色" rules={[{ required: true, message: '请选择角色' }]}><Select options={partnerRoleOptions} placeholder="请选择角色" /></Form.Item>
+                <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={profitRelationStatusOptions} placeholder="请选择状态" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<AccountBookOutlined />} title="分润与账户" desc="配置分润比例和收款账户。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="shareRatio" label="分润比例" rules={[{ required: true, message: '请输入分润比例' }]}><InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} placeholder="30" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="settleAccount" label="收款账户" rules={[{ required: true, message: '请输入收款账户' }]}><Input placeholder="例如：招商银行 6222 **** 8888 / 张三" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<CalendarOutlined />} title="生效周期" desc="配置关系生效开始和结束时间。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="effectiveStart" label="生效开始"><Input placeholder="2026-04-01" /></Form.Item>
+                <Form.Item name="effectiveEnd" label="生效结束"><Input placeholder="2026-12-31" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal title="合伙关系详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={780}>
+      <BusinessDetailModal title="合伙关系详情" open={!!detail} onCancel={() => setDetail(null)} width={780}>
         {detail ? (
           <SchemaDetail record={detail} fields={profitRelationDetailFields} column={2} labelWidth={110} />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal title="版本管理" open={versionVisible} footer={null} onCancel={() => setVersionVisible(false)} width={720}>
+      <BusinessDetailModal title="版本管理" open={versionVisible} onCancel={() => setVersionVisible(false)} width={720}>
         <List
           dataSource={versions}
           renderItem={(item: ProfitRatioVersionRecord) => (
@@ -319,13 +340,64 @@ const ProfitSharingManagement: React.FC = () => {
             </List.Item>
           )}
         />
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal title="分润调整" open={!!profitDetail} onCancel={() => setProfitDetail(null)} onOk={() => { if (profitDetail) saveDetailMutation.mutate(profitDetail); setProfitDetail(null); }} width={760}>
-        {profitDetail ? (
-          <SchemaDetail record={profitDetail} fields={profitAdjustmentDetailFields} column={2} labelWidth={110} />
-        ) : null}
-      </Modal>
+      <BusinessEditorModal
+        eyebrow="分润明细调整"
+        title={profitDetail ? `分润调整 · ${profitDetail.orderNo || profitDetail.serviceOrderNo || profitDetail.detailNo}` : '分润调整'}
+        subtitle="核对订单、门店、合伙人、分润基数和实分金额，确认后进入结算或回冲。"
+        meta={[profitDetail?.partnerName || '合伙人', profitDetail?.status || '待确认']}
+        open={!!profitDetail}
+        onCancel={() => {
+          setProfitDetail(null);
+          profitAdjustForm.resetFields();
+        }}
+        onOk={async () => {
+          if (!profitDetail) return;
+          const values = await profitAdjustForm.validateFields();
+          saveDetailMutation.mutate({
+            ...profitDetail,
+            ...values,
+            actualAmount: Number(values.actualAmount ?? profitDetail.actualAmount ?? profitDetail.shareAmount),
+            status: String(values.status || 'APPROVED'),
+          } as ProfitShareDetailRecord);
+          setProfitDetail(null);
+          profitAdjustForm.resetFields();
+        }}
+        confirmLoading={saveDetailMutation.isPending}
+        width={980}
+        okText="确认调整"
+      >
+        <Form form={profitAdjustForm} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<AccountBookOutlined />} title="订单与合伙人" desc="确认分润归属对象，避免错调门店或合伙人。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="orderNo" label="订单号"><Input disabled placeholder="订单号" /></Form.Item>
+                <Form.Item name="storeName" label="门店"><Input disabled placeholder="门店" /></Form.Item>
+                <Form.Item name="partnerName" label="合伙人"><Input disabled placeholder="合伙人" /></Form.Item>
+                <Form.Item name="settlementBillNo" label="结算单号"><Input placeholder="关联结算单号" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<TeamOutlined />} title="金额调整" desc="录入分润基数、比例、实分金额和回冲金额。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="baseAmount" label="分润基数"><InputNumber min={0} precision={2} style={{ width: '100%' }} disabled /></Form.Item>
+                <Form.Item name="shareRatio" label="分润比例"><InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} /></Form.Item>
+                <Form.Item name="actualAmount" label="实分金额" rules={[{ required: true, message: '请输入实分金额' }]}><InputNumber min={0} precision={2} style={{ width: '100%' }} /></Form.Item>
+                <Form.Item name="refundAmount" label="回冲金额"><InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="无回冲可不填" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<CalendarOutlined />} title="处理闭环" desc="记录确认状态、确认人和调整说明。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="status" label="处理状态" rules={[{ required: true, message: '请选择处理状态' }]}><Select options={profitRelationStatusOptions} placeholder="请选择状态" /></Form.Item>
+                <Form.Item name="confirmer" label="确认人"><Input placeholder="例如：财务专员" /></Form.Item>
+                <Form.Item name="confirmNo" label="确认单号"><Input placeholder="例如：CONF-20260510-001" /></Form.Item>
+                <Form.Item name="confirmedAt" label="确认时间"><Input placeholder="2026-05-10 10:00:00" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="confirmRemark" label="确认说明"><Input.TextArea rows={3} placeholder="填写比例调整、异常回冲或结算备注" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+          </div>
+        </Form>
+      </BusinessEditorModal>
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
-import { AuditOutlined } from '@ant-design/icons';
+import { Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, Radio, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import { AuditOutlined, CheckCircleOutlined, FieldTimeOutlined, PartitionOutlined, ToolOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
@@ -12,9 +12,11 @@ import {
   writeOffStatusOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
-import type { SelectOptionRecord } from '@/services/backendService';
+import type { SelectOptionRecord, ServiceOrderRecord } from '@/services/backendService';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 
 interface WriteOffRecord {
@@ -54,6 +56,74 @@ const writeOffMethodMap = buildValueEnum(writeOffMethodOptions);
 const performStatusMap = buildValueEnum(performStatusOptions);
 const performSceneMap = buildValueEnum(performSceneOptions);
 
+const writeOffReasonOptions = [
+  { value: 'CUSTOMER_PRESENT', label: '用户到店核验' },
+  { value: 'ORDER_REPAIR', label: '订单漏核销补录' },
+  { value: 'AFTER_SALE', label: '售后补偿核销' },
+  { value: 'FINANCE_RECONCILE', label: '财务对账补齐' },
+];
+
+const evidenceOptions = [
+  { value: 'ORDER', label: '订单记录' },
+  { value: 'PAYMENT', label: '支付凭证' },
+  { value: 'STORE_CONFIRM', label: '门店确认' },
+  { value: 'CUSTOMER_CONFIRM', label: '用户确认' },
+];
+
+const performIssueOptions = [
+  { value: 'DEVICE_TIMEOUT', label: '设备超时' },
+  { value: 'POINT_OCCUPIED', label: '点位占用' },
+  { value: 'NETWORK_ERROR', label: '网络异常' },
+  { value: 'MANUAL_SERVICE', label: '人工服务完成' },
+];
+
+const correctionActionOptions = [
+  { value: 'RETRY_COMMAND', label: '重新下发指令' },
+  { value: 'MANUAL_OPEN', label: '人工开启服务' },
+  { value: 'MARK_FINISHED', label: '标记已完成' },
+  { value: 'ROLLBACK_RIGHTS', label: '回退用户权益' },
+];
+
+const followUpOptions = [
+  { value: 'NONE', label: '无需跟进' },
+  { value: 'CALL_USER', label: '回访用户' },
+  { value: 'CHECK_DEVICE', label: '检查设备' },
+  { value: 'FINANCE_REVIEW', label: '财务复核' },
+];
+
+const formatPickerValue = (value: any) => value?.format?.('YYYY-MM-DD HH:mm:ss') || value;
+const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || '未选择';
+const optionLabels = (options: { value: string; label: string }[], values?: string[]) => (values || []).map((value) => optionLabel(options, value)).join('、') || '未选择';
+
+const buildWriteOffResult = (values: Record<string, any>) => [
+  `核销原因：${optionLabel(writeOffReasonOptions, values.writeOffReason)}`,
+  `核验依据：${optionLabels(evidenceOptions, values.evidences)}`,
+  `是否通知用户：${values.notifyUser ? '已通知' : '未通知'}`,
+  values.resultNote ? `补充说明：${values.resultNote}` : '',
+].filter(Boolean).join('；');
+
+const buildPerformRemark = (values: Record<string, any>) => [
+  `异常类型：${optionLabel(performIssueOptions, values.issueType)}`,
+  `处理动作：${optionLabel(correctionActionOptions, values.correctionAction)}`,
+  `后续跟进：${optionLabel(followUpOptions, values.followUp)}`,
+  values.operatorNote ? `补充说明：${values.operatorNote}` : '',
+].filter(Boolean).join('；');
+
+const omitOperationOnlyFields = (values: Record<string, any>) => {
+  const {
+    writeOffReason,
+    evidences,
+    notifyUser,
+    resultNote,
+    issueType,
+    correctionAction,
+    followUp,
+    operatorNote,
+    ...payload
+  } = values;
+  return payload;
+};
+
 const fulfillmentDetailFields: Record<'writeoff' | 'perform', DetailField<any>[]> = {
   writeoff: [
     { name: 'writeoffNo', label: '核销单号' },
@@ -92,7 +162,7 @@ const FulfillmentManagement: React.FC = () => {
   const [actionModalVisible, setActionModalVisible] = useState(false);
   const [actionType, setActionType] = useState<'writeoff' | 'perform'>('writeoff');
   const [currentId, setCurrentId] = useState<string | null>(null);
-  const [actionForm] = Form.useForm<{ status: string; remark: string }>();
+  const [actionForm] = Form.useForm<Record<string, any>>();
   const [createType, setCreateType] = useState<'writeoff' | 'perform' | null>(null);
   const [createForm] = Form.useForm();
   const writeOffQuery = useQuery({
@@ -108,9 +178,13 @@ const FulfillmentManagement: React.FC = () => {
   const storeOptionsQuery = useQuery({ queryKey: ['storeOptionsForFulfillment'], queryFn: async () => (await api.store.options()).data });
   const servicePointOptionsQuery = useQuery({ queryKey: ['servicePointOptionsForFulfillment'], queryFn: async () => (await api.servicePoint.options()).data });
   const deviceOptionsQuery = useQuery({ queryKey: ['deviceOptionsForFulfillment'], queryFn: async () => (await api.device.options()).data });
+  const serviceOrderQuery = useQuery({ queryKey: ['serviceOrderOptionsForFulfillment'], queryFn: async () => (await api.serviceOrder.page({ pageNum: 1, pageSize: 500 })).data });
   const storeOptions = (storeOptionsQuery.data || []) as SelectOptionRecord[];
   const servicePointOptions = (servicePointOptionsQuery.data || []) as SelectOptionRecord[];
   const deviceOptions = (deviceOptionsQuery.data || []) as SelectOptionRecord[];
+  const serviceOrders = (serviceOrderQuery.data?.records || []) as ServiceOrderRecord[];
+  const serviceOrderOptions = serviceOrders.map((item) => ({ value: item.id, label: `${item.orderNo} / ${item.storeName || '-'} / ${item.serviceName || '-'}` }));
+  const serviceOrderMap = useMemo(() => new Map(serviceOrders.map((item) => [item.id, item])), [serviceOrders]);
   const storeOptionMap = useMemo(() => new Map(storeOptions.map((item) => [item.value, item.label])), [storeOptions]);
   const servicePointOptionMap = useMemo(() => new Map(servicePointOptions.map((item) => [item.value, item.label])), [servicePointOptions]);
   const deviceOptionMap = useMemo(() => new Map(deviceOptions.map((item) => [item.value, item.label])), [deviceOptions]);
@@ -172,7 +246,7 @@ const FulfillmentManagement: React.FC = () => {
             onClick={() => {
               setActionType('writeoff');
               setCurrentId(record.id);
-              actionForm.setFieldsValue({ status: record.status, remark: record.result });
+              actionForm.setFieldsValue({ status: record.status, writeOffReason: 'ORDER_REPAIR', evidences: ['ORDER'], notifyUser: false, resultNote: record.result });
               setActionModalVisible(true);
             }}
           >
@@ -216,7 +290,7 @@ const FulfillmentManagement: React.FC = () => {
             onClick={() => {
               setActionType('perform');
               setCurrentId(record.id);
-              actionForm.setFieldsValue({ status: record.status, remark: record.remark });
+              actionForm.setFieldsValue({ status: record.status, issueType: 'DEVICE_TIMEOUT', correctionAction: 'RETRY_COMMAND', followUp: 'CHECK_DEVICE', operatorNote: record.remark });
               setActionModalVisible(true);
             }}
           >
@@ -242,9 +316,9 @@ const FulfillmentManagement: React.FC = () => {
     }
 
     if (actionType === 'writeoff') {
-      await updateWriteOffMutation.mutateAsync({ id: currentId, status: values.status, remark: values.remark });
+      await updateWriteOffMutation.mutateAsync({ id: currentId, status: values.status, remark: buildWriteOffResult(values) });
     } else {
-      await updatePerformMutation.mutateAsync({ id: currentId, status: values.status, remark: values.remark });
+      await updatePerformMutation.mutateAsync({ id: currentId, status: values.status, remark: buildPerformRemark(values) });
     }
 
     setActionModalVisible(false);
@@ -256,22 +330,40 @@ const FulfillmentManagement: React.FC = () => {
     setCreateType(type);
     createForm.resetFields();
     createForm.setFieldsValue(type === 'writeoff'
-      ? { objectType: 'SERVICE', method: 'BACKEND', result: '后台补核销', status: 'SUCCESS' }
-      : { scene: 'ORDER', commandStatus: 'MANUAL', status: 'FINISHED', remark: '人工履约纠偏' });
+      ? { objectType: 'SERVICE_RIGHT', method: 'MANUAL', status: 'SUCCESS', writeOffReason: 'ORDER_REPAIR', evidences: ['ORDER'], notifyUser: false }
+      : { scene: 'SCAN_CAR_WASH', commandStatus: 'MANUAL', status: 'FINISHED', issueType: 'MANUAL_SERVICE', correctionAction: 'MARK_FINISHED', followUp: 'NONE' });
+  };
+
+  const handleOrderSelect = (value?: number) => {
+    const order = value ? serviceOrderMap.get(value) : undefined;
+    createForm.setFieldsValue({
+      serviceOrderNo: order?.orderNo,
+      relationNo: order?.orderNo,
+      userName: order?.userName === '-' ? undefined : order?.userName,
+      storeId: order?.storeId,
+      storeName: order?.storeName,
+      objectId: order?.serviceProductId,
+      objectName: order?.serviceName,
+      amount: order?.payAmount ?? order?.amount,
+    });
   };
 
   const handleCreateSubmit = async () => {
     const values = await createForm.validateFields();
     if (createType === 'writeoff') {
       await createWriteOffMutation.mutateAsync({
-        ...values,
+        ...omitOperationOnlyFields(values),
+        result: buildWriteOffResult(values),
         storeName: values.storeName || storeOptionMap.get(values.storeId),
         operatorName: values.operatorName || '后台操作',
       });
     }
     if (createType === 'perform') {
       await createPerformMutation.mutateAsync({
-        ...values,
+        ...omitOperationOnlyFields(values),
+        startAt: formatPickerValue(values.startAt),
+        finishAt: formatPickerValue(values.finishAt),
+        remark: buildPerformRemark(values),
         storeName: values.storeName || storeOptionMap.get(values.storeId),
         pointCode: values.pointCode || servicePointOptionMap.get(values.servicePointId),
         deviceCode: values.deviceCode || deviceOptionMap.get(values.deviceId),
@@ -335,7 +427,7 @@ const FulfillmentManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="记录详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={720}>
+      <BusinessDetailModal title="记录详情" open={!!detail} onCancel={() => setDetail(null)} width={720}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -344,10 +436,13 @@ const FulfillmentManagement: React.FC = () => {
             labelWidth={120}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow="履约补录"
         title={createType === 'writeoff' ? '后台补核销' : '人工履约纠偏'}
+        subtitle={createType === 'writeoff' ? '补齐核销对象、订单、用户、门店和结果摘要，形成权益消耗闭环。' : '补齐履约场景、门店点位、设备指令和纠偏结果，形成设备履约闭环。'}
+        meta={[createType === 'writeoff' ? '核销记录' : '履约日志', '人工写入']}
         open={!!createType}
         onOk={handleCreateSubmit}
         confirmLoading={createWriteOffMutation.isPending || createPerformMutation.isPending}
@@ -355,47 +450,85 @@ const FulfillmentManagement: React.FC = () => {
           setCreateType(null);
           createForm.resetFields();
         }}
-        width={860}
+        width={920}
         destroyOnClose
       >
-        <Form form={createForm} layout="vertical">
+        <Form form={createForm} layout="vertical" className="merchant-editor-form">
           {createType === 'writeoff' ? (
-            <div className="modal-grid">
-              <Form.Item name="writeoffNo" label="核销单号" rules={[{ required: true, message: '请输入核销单号' }]}><Input /></Form.Item>
-              <Form.Item name="serviceOrderNo" label="订单号" rules={[{ required: true, message: '请输入订单号' }]}><Input /></Form.Item>
-              <Form.Item name="serviceOrderId" label="订单ID"><Input type="number" /></Form.Item>
-              <Form.Item name="objectType" label="核销对象" rules={[{ required: true, message: '请选择核销对象' }]}><Select options={writeOffObjectTypeOptions} /></Form.Item>
-              <Form.Item name="objectId" label="对象ID"><Input type="number" /></Form.Item>
-              <Form.Item name="objectName" label="对象名称" rules={[{ required: true, message: '请输入对象名称' }]}><Input /></Form.Item>
-              <Form.Item name="userId" label="用户ID"><Input type="number" /></Form.Item>
-              <Form.Item name="userName" label="用户名称"><Input /></Form.Item>
-              <Form.Item name="method" label="核销方式" rules={[{ required: true, message: '请选择核销方式' }]}><Select options={writeOffMethodOptions} /></Form.Item>
-              <Form.Item name="storeId" label="门店"><Select options={storeOptions} allowClear onChange={(value) => createForm.setFieldValue('storeName', storeOptionMap.get(value))} /></Form.Item>
-              <Form.Item name="operatorName" label="操作人"><Input /></Form.Item>
-              <Form.Item name="amount" label="核销金额"><Input type="number" /></Form.Item>
-              <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={writeOffStatusOptions} /></Form.Item>
-              <Form.Item className="modal-span-2" name="result" label="结果摘要" rules={[{ required: true, message: '请输入结果摘要' }]}><Input.TextArea rows={3} /></Form.Item>
+            <div className="merchant-editor-shell">
+              <BusinessEditorSection icon={<PartitionOutlined />} title="核销对象" desc="明确核销单、订单和权益对象，保证用户权益消耗可以追溯到业务来源。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="writeoffNo" label="核销单号" rules={[{ required: true, message: '请输入核销单号' }]}><Input placeholder="例如：WO202605100001" /></Form.Item>
+                  <Form.Item name="serviceOrderId" label="服务订单"><Select showSearch optionFilterProp="label" options={serviceOrderOptions} placeholder="请选择服务订单" onChange={handleOrderSelect} /></Form.Item>
+                  <Form.Item name="serviceOrderNo" label="订单号" rules={[{ required: true, message: '请选择服务订单或输入订单号' }]}><Input placeholder="选择订单后自动回填" /></Form.Item>
+                  <Form.Item name="objectType" label="核销对象" rules={[{ required: true, message: '请选择核销对象' }]}><Select options={writeOffObjectTypeOptions} placeholder="选择权益或服务对象" /></Form.Item>
+                  <Form.Item name="objectId" label="对象ID"><InputNumber style={{ width: '100%' }} min={1} precision={0} placeholder="对象主键，可选" /></Form.Item>
+                  <Form.Item name="objectName" label="对象名称" rules={[{ required: true, message: '请输入对象名称' }]}><Input placeholder="例如：单次洗车券 / 会员套餐" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+
+              <BusinessEditorSection icon={<AuditOutlined />} title="用户与现场" desc="补齐用户、门店、核销方式和操作人，方便客服、门店和财务对齐。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="userId" label="用户ID"><InputNumber style={{ width: '100%' }} min={1} precision={0} placeholder="用户主键，可选" /></Form.Item>
+                  <Form.Item name="userName" label="用户名称"><Input placeholder="用户昵称、手机号或会员标识" /></Form.Item>
+                  <Form.Item name="method" label="核销方式" rules={[{ required: true, message: '请选择核销方式' }]}><Select options={writeOffMethodOptions} placeholder="选择核销方式" /></Form.Item>
+                  <Form.Item name="storeId" label="门店"><Select options={storeOptions} allowClear placeholder="选择核销发生门店" onChange={(value) => createForm.setFieldValue('storeName', storeOptionMap.get(value))} /></Form.Item>
+                  <Form.Item name="operatorName" label="操作人"><Input placeholder="默认后台操作" /></Form.Item>
+                  <Form.Item name="amount" label="核销金额"><InputNumber style={{ width: '100%' }} min={0} precision={2} addonBefore="￥" placeholder="本次核销金额" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+
+              <BusinessEditorSection icon={<CheckCircleOutlined />} title="核销结果" desc="写入最终状态和结果摘要，作为回滚、结算和售后判断依据。">
+                <div className="merchant-editor-fields merchant-editor-fields--two">
+                  <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={writeOffStatusOptions} placeholder="选择核销状态" /></Form.Item>
+                  <Form.Item name="writeOffReason" label="核销原因" rules={[{ required: true, message: '请选择核销原因' }]}><Select options={writeOffReasonOptions} placeholder="选择核销原因" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-2" name="evidences" label="核验依据" rules={[{ required: true, message: '请选择核验依据' }]}><Checkbox.Group options={evidenceOptions} /></Form.Item>
+                  <Form.Item name="notifyUser" label="用户通知" valuePropName="checked"><Checkbox>已同步通知用户或客服</Checkbox></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-2" name="resultNote" label="补充说明"><Input placeholder="例如：门店确认用户已完成服务，补齐漏核销记录" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
             </div>
           ) : (
-            <div className="modal-grid">
-              <Form.Item name="relationNo" label="关联单号" rules={[{ required: true, message: '请输入关联单号' }]}><Input /></Form.Item>
-              <Form.Item name="scene" label="履约场景" rules={[{ required: true, message: '请选择履约场景' }]}><Select options={performSceneOptions} /></Form.Item>
-              <Form.Item name="storeId" label="门店"><Select options={storeOptions} allowClear onChange={(value) => createForm.setFieldValue('storeName', storeOptionMap.get(value))} /></Form.Item>
-              <Form.Item name="servicePointId" label="服务点位"><Select options={servicePointOptions} allowClear onChange={(value) => createForm.setFieldValue('pointCode', servicePointOptionMap.get(value))} /></Form.Item>
-              <Form.Item name="deviceId" label="设备"><Select options={deviceOptions} allowClear onChange={(value) => createForm.setFieldValue('deviceCode', deviceOptionMap.get(value))} /></Form.Item>
-              <Form.Item name="commandNo" label="指令号"><Input /></Form.Item>
-              <Form.Item name="commandStatus" label="指令状态"><Input /></Form.Item>
-              <Form.Item name="status" label="履约状态" rules={[{ required: true, message: '请选择履约状态' }]}><Select options={performStatusOptions} /></Form.Item>
-              <Form.Item name="startAt" label="开始时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-              <Form.Item name="finishAt" label="结束时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-              <Form.Item className="modal-span-2" name="remark" label="纠偏说明" rules={[{ required: true, message: '请输入纠偏说明' }]}><Input.TextArea rows={3} /></Form.Item>
+            <div className="merchant-editor-shell">
+              <BusinessEditorSection icon={<PartitionOutlined />} title="履约关系" desc="确认关联订单、履约场景和现场门店点位，保证纠偏记录能回到原始业务。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="serviceOrderId" label="服务订单"><Select showSearch optionFilterProp="label" options={serviceOrderOptions} placeholder="请选择服务订单" onChange={handleOrderSelect} /></Form.Item>
+                  <Form.Item name="relationNo" label="关联单号" rules={[{ required: true, message: '请输入关联单号' }]}><Input placeholder="选择订单后自动回填，也可输入核销单号或售后单号" /></Form.Item>
+                  <Form.Item name="scene" label="履约场景" rules={[{ required: true, message: '请选择履约场景' }]}><Select options={performSceneOptions} placeholder="选择履约场景" /></Form.Item>
+                  <Form.Item name="storeId" label="门店"><Select options={storeOptions} allowClear placeholder="选择履约门店" onChange={(value) => createForm.setFieldValue('storeName', storeOptionMap.get(value))} /></Form.Item>
+                  <Form.Item name="servicePointId" label="服务点位"><Select options={servicePointOptions} allowClear placeholder="选择点位" onChange={(value) => createForm.setFieldValue('pointCode', servicePointOptionMap.get(value))} /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+
+              <BusinessEditorSection icon={<ToolOutlined />} title="设备指令" desc="补齐设备、指令号和指令状态，用于排查设备控制链路。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="deviceId" label="设备"><Select options={deviceOptions} allowClear placeholder="选择执行设备" onChange={(value) => createForm.setFieldValue('deviceCode', deviceOptionMap.get(value))} /></Form.Item>
+                  <Form.Item name="commandNo" label="指令号"><Input placeholder="设备控制或回调指令号" /></Form.Item>
+                  <Form.Item name="commandStatus" label="指令状态"><Radio.Group options={[{ value: 'MANUAL', label: '人工处理' }, { value: 'SUCCESS', label: '执行成功' }, { value: 'TIMEOUT', label: '执行超时' }, { value: 'FAILED', label: '执行失败' }]} optionType="button" /></Form.Item>
+                  <Form.Item name="status" label="履约状态" rules={[{ required: true, message: '请选择履约状态' }]}><Select options={performStatusOptions} placeholder="选择纠偏后的履约状态" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+
+              <BusinessEditorSection icon={<FieldTimeOutlined />} title="时间与结论" desc="记录服务起止时间和纠偏说明，作为客服回访和异常复盘依据。">
+                <div className="merchant-editor-fields merchant-editor-fields--two">
+                  <Form.Item name="startAt" label="开始时间"><DatePicker showTime style={{ width: '100%' }} placeholder="选择开始时间" /></Form.Item>
+                  <Form.Item name="finishAt" label="结束时间"><DatePicker showTime style={{ width: '100%' }} placeholder="选择结束时间" /></Form.Item>
+                  <Form.Item name="issueType" label="异常类型" rules={[{ required: true, message: '请选择异常类型' }]}><Select options={performIssueOptions} placeholder="选择异常类型" /></Form.Item>
+                  <Form.Item name="correctionAction" label="处理动作" rules={[{ required: true, message: '请选择处理动作' }]}><Select options={correctionActionOptions} placeholder="选择处理动作" /></Form.Item>
+                  <Form.Item name="followUp" label="后续跟进"><Select options={followUpOptions} placeholder="选择后续跟进" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-2" name="operatorNote" label="补充说明"><Input placeholder="例如：门店确认已人工开机，用户服务已完成" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
             </div>
           )}
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow="履约处理"
         title={actionType === 'writeoff' ? '补核销处理' : '履约异常处理'}
+        subtitle="更新核销或履约状态，并将本次处理说明同步写入结果字段。"
+        meta={[actionType === 'writeoff' ? '核销状态' : '履约状态', currentId ? `ID ${currentId}` : '待选择']}
         open={actionModalVisible}
         onOk={handleActionSubmit}
         onCancel={() => {
@@ -405,18 +538,33 @@ const FulfillmentManagement: React.FC = () => {
         }}
         width={760}
       >
-        <Form form={actionForm} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}>
-              <Select options={actionType === 'writeoff' ? writeOffStatusOptions : performStatusOptions} />
-            </Form.Item>
-            <div />
-            <Form.Item className="modal-span-2" name="remark" label="处理说明" rules={[{ required: true, message: '请输入处理说明' }]}>
-              <Input.TextArea rows={4} />
-            </Form.Item>
+        <Form form={actionForm} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<CheckCircleOutlined />} title="处理结果" desc="选择当前记录的新状态，并写明人工判断和后续动作。">
+              <div className="merchant-editor-fields merchant-editor-fields--two">
+                <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}>
+                  <Select options={actionType === 'writeoff' ? writeOffStatusOptions : performStatusOptions} placeholder="选择处理后的状态" />
+                </Form.Item>
+                {actionType === 'writeoff' ? (
+                  <>
+                    <Form.Item name="writeOffReason" label="处理原因" rules={[{ required: true, message: '请选择处理原因' }]}><Select options={writeOffReasonOptions} placeholder="选择处理原因" /></Form.Item>
+                    <Form.Item className="merchant-editor-field-span-2" name="evidences" label="核验依据" rules={[{ required: true, message: '请选择核验依据' }]}><Checkbox.Group options={evidenceOptions} /></Form.Item>
+                    <Form.Item name="notifyUser" label="用户通知" valuePropName="checked"><Checkbox>已同步通知用户或客服</Checkbox></Form.Item>
+                    <Form.Item className="merchant-editor-field-span-2" name="resultNote" label="补充说明"><Input placeholder="例如：补核销后已同步售后单" /></Form.Item>
+                  </>
+                ) : (
+                  <>
+                    <Form.Item name="issueType" label="异常类型" rules={[{ required: true, message: '请选择异常类型' }]}><Select options={performIssueOptions} placeholder="选择异常类型" /></Form.Item>
+                    <Form.Item name="correctionAction" label="处理动作" rules={[{ required: true, message: '请选择处理动作' }]}><Select options={correctionActionOptions} placeholder="选择处理动作" /></Form.Item>
+                    <Form.Item name="followUp" label="后续跟进"><Select options={followUpOptions} placeholder="选择后续跟进" /></Form.Item>
+                    <Form.Item className="merchant-editor-field-span-2" name="operatorNote" label="补充说明"><Input placeholder="例如：设备重试成功，用户已继续使用" /></Form.Item>
+                  </>
+                )}
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

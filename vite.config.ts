@@ -60,8 +60,7 @@ export default defineConfig({
           if (
             id.includes('/@tanstack/react-query/') ||
             id.includes('/@tanstack/react-query-devtools/') ||
-            id.includes('/axios/') ||
-            id.includes('/idb/')
+            id.includes('/axios/')
           ) {
             return 'vendor-data'
           }

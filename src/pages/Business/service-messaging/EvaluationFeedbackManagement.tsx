@@ -1,12 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
-import { CommentOutlined } from '@ant-design/icons';
+import { Card, Col, Form, Input, Row, Select, Statistic, Tabs, message } from 'antd';
+import { CheckCircleOutlined, CommentOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { ticketStatusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import api, { type ServiceEvaluationRecord, type UserFeedbackRecord } from '@/services/backendService';
 
@@ -26,6 +28,14 @@ const feedbackTypeOptions = [
 const evaluationStatusMap = buildValueEnum(evaluationStatusOptions);
 const feedbackTypeMap = buildValueEnum(feedbackTypeOptions);
 const handleStatusMap = buildValueEnum(ticketStatusOptions);
+const feedbackActionOptions = [
+  { value: 'REPLY_PUBLIC', label: '公开回复' },
+  { value: 'CALL_BACK', label: '电话回访' },
+  { value: 'CREATE_TICKET', label: '转客服工单' },
+  { value: 'HIDE_CONTENT', label: '隐藏内容' },
+];
+const compactJoin = (items: Array<string | undefined | false>) => items.filter(Boolean).join('；');
+const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
 
 const evaluationFeedbackDetailFields: Record<'evaluation' | 'feedback', DetailField<any>[]> = {
   evaluation: [
@@ -80,6 +90,11 @@ const EvaluationFeedbackManagement: React.FC = () => {
 
   const handleSubmit = async () => {
     const values = await form.validateFields();
+    const result = compactJoin([
+      values.action ? `处理动作：${optionLabel(feedbackActionOptions, values.action)}` : undefined,
+      values.ownerUserName ? `处理人：${values.ownerUserName}` : undefined,
+      values.supplement ? `补充说明：${values.supplement}` : undefined,
+    ]);
     if (activeType === 'evaluation') {
       if (!detail || !('serviceOrderNo' in detail)) {
         setModalVisible(false);
@@ -89,7 +104,7 @@ const EvaluationFeedbackManagement: React.FC = () => {
         ...detail,
         ...values,
         status: values.status,
-        replyContent: values.result,
+        replyContent: result,
         replyUserName: values.ownerUserName,
       });
       message.success('评价已更新');
@@ -103,7 +118,7 @@ const EvaluationFeedbackManagement: React.FC = () => {
         ...values,
         handleStatus: values.handleStatus,
         ownerUserName: values.ownerUserName,
-        result: values.result,
+        result,
       });
       message.success('反馈已更新');
     }
@@ -165,26 +180,35 @@ const EvaluationFeedbackManagement: React.FC = () => {
           { key: 'feedback', label: '用户反馈', children: <ProTable<UserFeedbackRecord> cardBordered rowKey="id" columns={feedbackColumns} loading={feedbackQuery.isLoading} dataSource={filter(feedbacks)} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1700 }} /> },
         ]}
       />
-      <Modal title={modalTitle} open={modalVisible} onOk={handleSubmit} onCancel={() => setModalVisible(false)} width={760}>
-        <Form form={form} layout="vertical">
-          <Row gutter={16}>
-            {activeType === 'evaluation' ? (
-              <>
-                <Col span={12}><Form.Item name="status" label="处理状态" rules={[{ required: true, message: '请选择处理状态' }]}><Select options={evaluationStatusOptions} /></Form.Item></Col>
-                <Col span={12}><Form.Item name="ownerUserName" label="回复人"><Input /></Form.Item></Col>
-                <Col span={24}><Form.Item name="result" label="回复内容" rules={[{ required: true, message: '请输入回复内容' }]}><Input.TextArea rows={4} /></Form.Item></Col>
-              </>
-            ) : (
-              <>
-                <Col span={12}><Form.Item name="handleStatus" label="处理状态" rules={[{ required: true, message: '请选择处理状态' }]}><Select options={ticketStatusOptions} /></Form.Item></Col>
-                <Col span={12}><Form.Item name="ownerUserName" label="处理人"><Input /></Form.Item></Col>
-                <Col span={24}><Form.Item name="result" label="处理结果" rules={[{ required: true, message: '请输入处理结果' }]}><Input.TextArea rows={4} /></Form.Item></Col>
-              </>
-            )}
-          </Row>
+      <BusinessEditorModal
+        eyebrow={activeType === 'evaluation' ? '评价回复' : '反馈处理'}
+        title={modalTitle}
+        subtitle="把回复/处理内容拆成状态、动作、处理人和补充说明，提交时生成处理结果。"
+        meta={[activeType === 'evaluation' ? '订单评价' : '用户反馈', '服务消息']}
+        open={modalVisible}
+        onOk={handleSubmit}
+        onCancel={() => setModalVisible(false)}
+        width={900}
+        okText="提交处理"
+      >
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<CheckCircleOutlined />} title="处理信息" desc="选择处理状态、处理动作和处理人。">
+              <div className="merchant-editor-fields">
+                {activeType === 'evaluation' ? (
+                  <Form.Item name="status" label="处理状态" rules={[{ required: true, message: '请选择处理状态' }]}><Select options={evaluationStatusOptions} placeholder="请选择处理状态" /></Form.Item>
+                ) : (
+                  <Form.Item name="handleStatus" label="处理状态" rules={[{ required: true, message: '请选择处理状态' }]}><Select options={ticketStatusOptions} placeholder="请选择处理状态" /></Form.Item>
+                )}
+                <Form.Item name="action" label="处理动作" rules={[{ required: true, message: '请选择处理动作' }]}><Select options={feedbackActionOptions} placeholder="请选择处理动作" /></Form.Item>
+                <Form.Item name="ownerUserName" label="处理人"><Input placeholder="例如：客服-王敏" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="supplement" label="补充说明"><Input placeholder="例如：已联系用户并补发优惠券" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+          </div>
         </Form>
-      </Modal>
-      <Modal title="详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={820}>
+      </BusinessEditorModal>
+      <BusinessDetailModal title="评价反馈详情" open={!!detail} onCancel={() => setDetail(null)} width={820}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -193,7 +217,7 @@ const EvaluationFeedbackManagement: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
     </div>
   );
 };

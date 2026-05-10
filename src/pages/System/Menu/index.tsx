@@ -1,8 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { Button, Card, Form, Input, Modal, Select, Space, Tag } from 'antd';
-import { DeleteOutlined, EditOutlined, PlusCircleOutlined, PlusOutlined } from '@ant-design/icons';
+import { Button, Card, Form, Input, InputNumber, Select, Space, Tag } from 'antd';
+import { AppstoreOutlined, DeleteOutlined, EditOutlined, LinkOutlined, PlusCircleOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { useCreateMenu, useDeleteMenu, useMenuTree, useUpdateMenu } from '@/hooks/useApi';
@@ -118,7 +121,7 @@ const MenuManagement: React.FC = () => {
   };
 
   const handleDelete = (id: number) => {
-    Modal.confirm({
+    showBusinessConfirm({
       title: '确认删除',
       content: '确定要删除该菜单吗？',
       onOk: () => deleteMutation.mutate(id),
@@ -275,7 +278,7 @@ const MenuManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="菜单详情" open={!!detailMenu} footer={null} onCancel={() => setDetailMenu(null)} width={760}>
+      <BusinessDetailModal title="菜单详情" open={!!detailMenu} onCancel={() => setDetailMenu(null)} width={760}>
         {detailMenu ? (
           <SchemaDetail
             record={detailMenu as Record<string, any>}
@@ -284,71 +287,90 @@ const MenuManagement: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow={editingMenu ? '菜单维护' : '菜单新增'}
         title={editingMenu ? '编辑菜单' : '新建菜单'}
+        subtitle="维护后台菜单树、按钮权限、路由组件和展示状态，保证权限配置和前端路由一致。"
+        meta={[editingMenu ? '编辑模式' : '新建模式', TYPE_MAP[String(form.getFieldValue('permissionType') ?? '')] || '菜单节点']}
         open={isModalOpen}
         onOk={() => form.submit()}
         onCancel={closeModal}
         confirmLoading={createMutation.isPending || updateMutation.isPending}
-        width={860}
+        width={1040}
         destroyOnClose
+        okText="保存菜单"
       >
-        <Form form={form} layout="vertical" onFinish={handleFinish} preserve={false}>
-          <div className="modal-grid">
-            <Form.Item name="id" hidden>
-              <Input />
-            </Form.Item>
-            <Form.Item name="parentId" label="上级菜单" initialValue={0}>
-              <Select options={parentOptions} />
-            </Form.Item>
-            <Form.Item name="permissionName" label="菜单名称" rules={[{ required: true, message: '请输入菜单名称' }]}>
-              <Input autoComplete="off" />
-            </Form.Item>
-            <Form.Item name="permissionCode" label="权限编码" rules={[{ required: true, message: '请输入权限编码' }]}>
-              <Input autoComplete="off" />
-            </Form.Item>
-            <Form.Item name="permissionType" label="菜单类型" rules={[{ required: true, message: '请选择菜单类型' }]}>
-              <Select
-                options={[
-                  { label: '目录', value: 0 },
-                  { label: '菜单', value: 1 },
-                  { label: '按钮', value: 2 },
-                ]}
-              />
-            </Form.Item>
-            <Form.Item name="path" label="路由路径">
-              <Input autoComplete="off" />
-            </Form.Item>
-            <Form.Item name="component" label="组件路径">
-              <Input autoComplete="off" />
-            </Form.Item>
-            <Form.Item name="icon" label="图标">
-              <Input autoComplete="off" />
-            </Form.Item>
-            <Form.Item name="sort" label="排序" initialValue={0}>
-              <Input type="number" />
-            </Form.Item>
-            <Form.Item name="visible" label="可见性" initialValue={1}>
-              <Select
-                options={[
-                  { value: 1, label: '显示' },
-                  { value: 0, label: '隐藏' },
-                ]}
-              />
-            </Form.Item>
-            <Form.Item name="status" label="状态" initialValue={1}>
-              <Select
-                options={[
-                  { value: 1, label: '正常' },
-                  { value: 0, label: '禁用' },
-                ]}
-              />
-            </Form.Item>
+        <Form form={form} layout="vertical" onFinish={handleFinish} preserve={false} className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<AppstoreOutlined />} title="节点基础" desc="定义菜单层级、名称、权限编码和节点类型。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="id" hidden>
+                  <Input />
+                </Form.Item>
+                <Form.Item name="parentId" label="上级菜单" initialValue={0}>
+                  <Select options={parentOptions} placeholder="请选择上级菜单" />
+                </Form.Item>
+                <Form.Item name="permissionName" label="菜单名称" rules={[{ required: true, message: '请输入菜单名称' }]}>
+                  <Input autoComplete="off" placeholder="例如：门店运营" />
+                </Form.Item>
+                <Form.Item name="permissionCode" label="权限编码" rules={[{ required: true, message: '请输入权限编码' }]}>
+                  <Input autoComplete="off" placeholder="例如：business:store:list" />
+                </Form.Item>
+                <Form.Item name="permissionType" label="菜单类型" rules={[{ required: true, message: '请选择菜单类型' }]}>
+                  <Select
+                    options={[
+                      { label: '目录', value: 0 },
+                      { label: '菜单', value: 1 },
+                      { label: '按钮', value: 2 },
+                    ]}
+                    placeholder="请选择菜单类型"
+                  />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<LinkOutlined />} title="路由配置" desc="菜单节点需要配置路由路径和组件，按钮权限可只填权限编码。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="path" label="路由路径">
+                  <Input autoComplete="off" placeholder="/store-operations" />
+                </Form.Item>
+                <Form.Item name="component" label="组件路径">
+                  <Input autoComplete="off" placeholder="Business/store-operations" />
+                </Form.Item>
+                <Form.Item name="icon" label="图标">
+                  <Input autoComplete="off" placeholder="例如：ShopOutlined" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<SettingOutlined />} title="展示与状态" desc="控制菜单展示、排序和启停状态。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="sort" label="排序" initialValue={0}>
+                  <InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="数字越小越靠前" />
+                </Form.Item>
+                <Form.Item name="visible" label="可见性" initialValue={1}>
+                  <Select
+                    options={[
+                      { value: 1, label: '显示' },
+                      { value: 0, label: '隐藏' },
+                    ]}
+                    placeholder="请选择可见性"
+                  />
+                </Form.Item>
+                <Form.Item name="status" label="状态" initialValue={1}>
+                  <Select
+                    options={[
+                      { value: 1, label: '正常' },
+                      { value: 0, label: '禁用' },
+                    ]}
+                    placeholder="请选择状态"
+                  />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

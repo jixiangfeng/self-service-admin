@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Modal, Row, Statistic, Tabs } from 'antd';
+import { Button, Card, Col, Row, Statistic, Tabs } from 'antd';
 import { TransactionOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -9,9 +9,10 @@ import {
   rechargeOrderStatusOptions,
   userLevelOptions,
 } from '@/constants/businessCatalog';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type { AppUserProfileRecord, BalanceFlowRecord, ServiceCardRecord, ServiceCardUsageRecord, UserRiskRecord, UserServiceCardRecord } from '@/services/backendService';
 
@@ -20,6 +21,38 @@ type DetailRecord = BalanceFlowRecord | AppUserProfileRecord | UserServiceCardRe
 const balanceFlowTypeMap = buildValueEnum(balanceFlowTypeOptions);
 const rechargeStatusMap = buildValueEnum(rechargeOrderStatusOptions);
 const userLevelMap = buildValueEnum(userLevelOptions);
+const serviceCardScopeMap: Record<string, string> = {
+  ALL_STORE: '全部门店可用',
+  SELECTED_STORE: '指定门店可用',
+  SERVICE_PACKAGE: '指定服务/套餐可用',
+  MEMBER_LEVEL: '指定会员等级可用',
+};
+
+const serviceRightMap: Record<string, string> = {
+  CAR_WASH: '洗车服务',
+  MAINTENANCE: '保养服务',
+  INSPECTION: '检测服务',
+  RESCUE: '道路救援',
+  DISCOUNT: '专属折扣',
+};
+
+const formatCsvLabels = (value?: string, labels: Record<string, string> = {}) =>
+  String(value || '').split(',').map((item) => labels[item.trim()] || item.trim()).filter(Boolean).join('、') || '-';
+
+const compactJoin = (items: Array<string | false | undefined>) => items.filter(Boolean).join('；');
+
+const formatServiceScope = (record: ServiceCardRecord) => compactJoin([
+  serviceCardScopeMap[record.scopeMode || ''] || record.scopeMode,
+  record.scopeNote,
+]) || '-';
+
+const formatServiceRights = (record: ServiceCardRecord) => compactJoin([
+  record.rightsServiceTimes ? `${record.rightsServiceTimes}次` : undefined,
+  formatCsvLabels(record.rightsServices, serviceRightMap),
+  record.rightsDiscount ? `${record.rightsDiscount}折` : undefined,
+  record.rightsTransferable ? '可转赠' : undefined,
+  record.rightsNote,
+]) || '-';
 
 const assetFlowDetailFields: Record<'balance' | 'profile' | 'serviceCard' | 'userCard' | 'usage' | 'risk', DetailField<any>[]> = {
   balance: [
@@ -45,8 +78,8 @@ const assetFlowDetailFields: Record<'balance' | 'profile' | 'serviceCard' | 'use
     { name: 'cardCode', label: '卡产品编码' },
     { name: 'cardName', label: '卡产品名称' },
     { name: 'cardType', label: '卡类型' },
-    { name: 'scope', label: '适用范围' },
-    { name: 'rights', label: '权益' },
+    { name: 'scopeMode', label: '适用范围', render: (_, record) => formatServiceScope(record) },
+    { name: 'rightsServiceTimes', label: '权益', render: (_, record) => formatServiceRights(record) },
     { name: 'salePrice', label: '售价', render: (value) => formatAmount(value) },
     { name: 'stock', label: '库存' },
     { name: 'status', label: '状态' },
@@ -85,6 +118,16 @@ const assetFlowDetailFields: Record<'balance' | 'profile' | 'serviceCard' | 'use
     { name: 'owner', label: '负责人' },
     { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
   ],
+};
+
+const resolveAssetFlowDetailTitle = (detail: DetailRecord | null) => {
+  if (!detail) return '详情查看';
+  if ('flowNo' in detail) return '余额流水详情';
+  if ('cardCode' in detail) return '服务卡产品详情';
+  if ('usageNo' in detail) return '扣次流水详情';
+  if ('cardNo' in detail) return '用户服务卡详情';
+  if ('riskScene' in detail) return '用户风控详情';
+  return '用户档案详情';
 };
 
 const AssetFlowManagement: React.FC = () => {
@@ -148,8 +191,8 @@ const AssetFlowManagement: React.FC = () => {
     { title: '卡产品编码', dataIndex: 'cardCode', width: 160 },
     { title: '卡产品名称', dataIndex: 'cardName', width: 180 },
     { title: '卡类型', dataIndex: 'cardType', width: 120 },
-    { title: '适用范围', dataIndex: 'scope', width: 160 },
-    { title: '权益', dataIndex: 'rights', width: 220 },
+    { title: '适用范围', dataIndex: 'scopeMode', width: 190, render: (_, record) => formatServiceScope(record) },
+    { title: '权益', dataIndex: 'rightsServiceTimes', width: 260, render: (_, record) => formatServiceRights(record) },
     { title: '售价', dataIndex: 'salePrice', width: 120, render: (_, record) => formatAmount(record.salePrice) },
     { title: '库存', dataIndex: 'stock', width: 90 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, rechargeStatusMap) },
@@ -207,15 +250,10 @@ const AssetFlowManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="风控记录" value={riskQuery.data?.total ?? riskRecords.length} suffix="条" /></Card></Col>
       </Row>
 
-      <ProTable
-        style={{ marginBottom: 16 }}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '输入用户、流水、充值单、标签、等级关键词' } }]}
-        dataSource={[]}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        options={false}
-        pagination={false}
-        onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-        onReset={() => setKeyword('')}
+      <KeywordSearchBar
+        value={keyword}
+        placeholder="输入用户、流水、充值单、标签、等级关键词"
+        onSearch={setKeyword}
       />
 
       <Tabs
@@ -229,7 +267,14 @@ const AssetFlowManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal
+        title={resolveAssetFlowDetailTitle(detail)}
+        eyebrow="用户资产详情"
+        subtitle="查看流水、卡产品、用户卡和风控记录的统一详情视图。"
+        open={!!detail}
+        onCancel={() => setDetail(null)}
+        width={760}
+      >
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -238,7 +283,7 @@ const AssetFlowManagement: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
     </div>
   );

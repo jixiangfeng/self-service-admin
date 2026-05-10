@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { Button, Form, Input, Modal, Select, Space, Tag } from 'antd';
-import { DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined, UserOutlined } from '@ant-design/icons';
+import { Button, Form, Input, Select, Space, Tag } from 'antd';
+import { DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined, SafetyCertificateOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
 import { useCreateUser, useDeleteUser, useResetUserPassword, useRoleOptions, useUpdateUser, useUpdateUserStatus, useUsers } from '@/hooks/useApi';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
@@ -98,7 +101,7 @@ const UserManagement: React.FC = () => {
   };
 
   const handleDelete = (record: any) => {
-    Modal.confirm({
+    showBusinessConfirm({
       title: '确认删除用户',
       content: `确定要删除用户 ${record.username} 吗？`,
       onOk: () => deleteMutation.mutate(record.id),
@@ -286,7 +289,7 @@ const UserManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="用户详情" open={!!detailUser} footer={null} onCancel={() => setDetailUser(null)} width={760}>
+      <BusinessDetailModal title="用户详情" open={!!detailUser} onCancel={() => setDetailUser(null)} width={760}>
         {detailUser ? (
           <SchemaDetail
             record={detailUser}
@@ -295,95 +298,150 @@ const UserManagement: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow={editingUser ? '账号维护' : '账号新增'}
         title={editingUser ? `编辑用户 #${editingUser.id}` : '新建用户'}
+        subtitle="维护后台账号、联系信息、默认角色和启停状态，保证账号可登录、可授权、可审计。"
+        meta={[editingUser ? '编辑模式' : '新建模式', '系统用户']}
         open={modalVisible}
         onOk={handleSubmit}
         onCancel={closeModal}
         confirmLoading={createMutation.isPending || updateMutation.isPending}
-        width={860}
+        width={980}
+        okText={editingUser ? '保存用户' : '创建用户'}
       >
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="id" hidden>
-              <Input />
-            </Form.Item>
-            <Form.Item name="username" label="用户名" rules={[{ required: true, message: '请输入用户名' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="nickname" label="昵称">
-              <Input />
-            </Form.Item>
-            <Form.Item name="phone" label="手机号">
-              <Input />
-            </Form.Item>
-            <Form.Item name="email" label="邮箱" rules={[{ type: 'email', message: '请输入正确邮箱' }]}>
-              <Input />
-            </Form.Item>
-            {!editingUser ? (
-              <Form.Item name="password" label="初始密码" rules={[{ required: true, message: '请输入初始密码' }]}>
-                <Input.Password />
-              </Form.Item>
-            ) : null}
-            <Form.Item name="role" label="角色编码">
-              <Select
-                options={(roleOptions as any[]).map((item) => ({
-                  value: item.roleCode,
-                  label: `${item.roleName} / ${item.roleCode}`,
-                }))}
-              />
-            </Form.Item>
-            <Form.Item name="status" label="状态">
-              <Select
-                options={[
-                  { value: 1, label: '正常' },
-                  { value: 0, label: '禁用' },
-                ]}
-              />
-            </Form.Item>
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<UserOutlined />} title="账号基础" desc="维护登录名、昵称和联系方式。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="id" hidden>
+                  <Input />
+                </Form.Item>
+                <Form.Item name="username" label="用户名" rules={[{ required: true, message: '请输入用户名' }]}>
+                  <Input placeholder="例如：admin.wash" />
+                </Form.Item>
+                <Form.Item name="nickname" label="昵称">
+                  <Input placeholder="例如：运营管理员" />
+                </Form.Item>
+                <Form.Item name="phone" label="手机号">
+                  <Input placeholder="用于通知和找回密码" />
+                </Form.Item>
+                <Form.Item name="email" label="邮箱" rules={[{ type: 'email', message: '请输入正确邮箱' }]}>
+                  <Input placeholder="用于系统通知" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<SafetyCertificateOutlined />} title="登录与权限" desc="配置初始密码、默认角色和账号状态。">
+              <div className="merchant-editor-fields">
+                {!editingUser ? (
+                  <Form.Item name="password" label="初始密码" rules={[{ required: true, message: '请输入初始密码' }]}>
+                    <Input.Password placeholder="请输入初始密码" />
+                  </Form.Item>
+                ) : null}
+                <Form.Item name="role" label="角色编码">
+                  <Select
+                    allowClear
+                    placeholder="请选择默认角色"
+                    options={(roleOptions as any[]).map((item) => ({
+                      value: item.roleCode,
+                      label: `${item.roleName} / ${item.roleCode}`,
+                    }))}
+                  />
+                </Form.Item>
+                <Form.Item name="status" label="状态">
+                  <Select
+                    options={[
+                      { value: 1, label: '正常' },
+                      { value: 0, label: '禁用' },
+                    ]}
+                    placeholder="请选择状态"
+                  />
+                </Form.Item>
+                <Form.Item name="operator" label="维护人">
+                  <Input placeholder="例如：系统管理员" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow="账号安全"
         title={passwordUser ? `重置密码 · ${passwordUser.username}` : '重置密码'}
+        subtitle="重置后请通过安全渠道同步给使用人，必要时要求首次登录修改。"
+        meta={['密码重置', passwordUser?.username || '未选择用户']}
         open={passwordModalVisible}
         onOk={handleResetPassword}
         onCancel={closePasswordModal}
         confirmLoading={resetPasswordMutation.isPending}
-        width={520}
+        width={760}
+        okText="确认重置"
       >
-        <Form form={form} layout="vertical">
-          <Form.Item name="newPassword" label="新密码" rules={[{ required: true, message: '请输入新密码' }]}>
-            <Input.Password />
-          </Form.Item>
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<KeyOutlined />} title="新密码" desc="设置本次重置后的临时密码。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="newPassword" label="新密码" rules={[{ required: true, message: '请输入新密码' }]}>
+                  <Input.Password placeholder="请输入新密码" />
+                </Form.Item>
+                <Form.Item name="resetOperator" label="操作人">
+                  <Input placeholder="例如：系统管理员" />
+                </Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="resetReason" label="重置原因">
+                  <Input placeholder="例如：用户忘记密码 / 岗位交接" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+          </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow="用户授权"
         title={roleUser ? `多角色授权 · ${roleUser.username}` : '多角色授权'}
+        subtitle="为用户追加角色关系，并记录授权人和授权说明，方便审计中心追溯。"
+        meta={['多角色', roleUser?.username || '未选择用户']}
         open={roleModalVisible}
         onOk={handleSaveUserRoles}
         onCancel={closeRoleModal}
-        width={620}
+        width={860}
+        okText="保存授权"
       >
-        <Form form={form} layout="vertical">
-          <Form.Item name="relationRoleCodes" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
-            <Select
-              mode="multiple"
-              options={(roleOptions as any[]).map((item) => ({
-                value: item.roleCode,
-                label: `${item.roleName} / ${item.roleCode}`,
-              }))}
-            />
-          </Form.Item>
-          <Form.Item name="grantUser" label="授权人">
-            <Input />
-          </Form.Item>
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<TeamOutlined />} title="角色范围" desc="选择需要授予的角色，可一次追加多个角色关系。">
+              <div className="merchant-editor-fields merchant-editor-fields--single">
+                <Form.Item name="relationRoleCodes" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
+                  <Select
+                    mode="multiple"
+                    placeholder="请选择角色"
+                    options={(roleOptions as any[]).map((item) => ({
+                      value: item.roleCode,
+                      label: `${item.roleName} / ${item.roleCode}`,
+                    }))}
+                  />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<SafetyCertificateOutlined />} title="授权闭环" desc="记录授权人、授权原因和有效边界。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="grantUser" label="授权人">
+                  <Input placeholder="例如：系统管理员" />
+                </Form.Item>
+                <Form.Item name="grantReason" label="授权原因">
+                  <Input placeholder="例如：运营岗位新增权限" />
+                </Form.Item>
+                <Form.Item name="scopeRemark" label="权限边界">
+                  <Input placeholder="例如：仅处理门店运营和客服工单" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+          </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

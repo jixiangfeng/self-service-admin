@@ -1,12 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
-import { FileDoneOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
+import { AuditOutlined, BankOutlined, FileDoneOutlined, FileTextOutlined, UserOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api, { type InvoiceApplyRecord, type InvoiceTitleRecord } from '@/services/backendService';
 
 type DetailRecord = InvoiceTitleRecord | InvoiceApplyRecord;
@@ -175,15 +177,10 @@ const InvoiceManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="已开票金额" value={applies.filter((item) => item.applyStatus === 'ISSUED').reduce((sum, item) => sum + Number(item.amount || 0), 0)} precision={2} prefix="￥" /></Card></Col>
       </Row>
 
-      <ProTable
-        rowKey="keyword"
-        search={false}
-        pagination={false}
-        options={false}
-        dataSource={[]}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true }]}
-        toolbar={{ search: { value: keyword, onSearch: (value) => setKeyword(value), placeholder: '申请单 / 抬头 / 用户 / 税号' } }}
-        style={{ marginBottom: 16 }}
+      <KeywordSearchBar
+        value={keyword}
+        placeholder="申请单 / 抬头 / 用户 / 税号"
+        onSearch={setKeyword}
       />
 
       <Tabs
@@ -193,7 +190,7 @@ const InvoiceManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={820}>
+      <BusinessDetailModal title="发票详情" open={!!detail} onCancel={() => setDetail(null)} width={820}>
         {detail && (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -202,60 +199,120 @@ const InvoiceManagement: React.FC = () => {
             labelWidth={110}
           />
         )}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal title={modalTitle} open={modalVisible} onOk={handleSubmit} confirmLoading={createApplyMutation.isPending} onCancel={() => setModalVisible(false)} width={780}>
-        <Form form={form} layout="vertical">
-          <Row gutter={16}>
-            <Col span={12}><Form.Item name="titleName" label="发票抬头" rules={[{ required: true, message: '请输入发票抬头' }]}><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="invoiceType" label="发票类型" rules={[{ required: true, message: '请选择发票类型' }]}><Select options={invoiceTypeOptions} /></Form.Item></Col>
-            <Col span={12}><Form.Item name="sourceBizType" label="来源类型" rules={[{ required: true, message: '请选择来源类型' }]}><Select options={invoiceSourceTypeOptions} /></Form.Item></Col>
-            <Col span={12}><Form.Item name="sourceBizNo" label="来源单号" rules={[{ required: true, message: '请输入来源单号' }]}><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="orderNos" label="关联订单"><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="settlementBillNo" label="结算单号"><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="amount" label="开票金额" rules={[{ required: true, message: '请输入开票金额' }]}><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="applyStatus" label="开票状态" rules={[{ required: true, message: '请选择开票状态' }]}><Select options={applyStatusOptions} /></Form.Item></Col>
-            <Col span={12}><Form.Item name="fileAssetId" label="发票文件ID"><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="taxNo" label="税号"><Input /></Form.Item></Col>
-            <Col span={24}><Form.Item name="applyRemark" label="申请备注"><Input.TextArea rows={2} /></Form.Item></Col>
-            <Col span={24}><Form.Item name="rejectReason" label="驳回原因 / 处理说明"><Input.TextArea rows={3} /></Form.Item></Col>
-          </Row>
+      <BusinessEditorModal
+        eyebrow="开票申请"
+        title={modalTitle || '新建开票申请'}
+        subtitle="把发票抬头、来源业务、金额、文件和处理说明补齐，方便财务开票回溯。"
+        meta={['财务结算', '开票申请']}
+        open={modalVisible}
+        onOk={handleSubmit}
+        confirmLoading={createApplyMutation.isPending}
+        onCancel={() => setModalVisible(false)}
+        width={1040}
+        okText="保存申请"
+      >
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<FileTextOutlined />} title="发票信息" desc="确认抬头、税号和发票类型。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="titleName" label="发票抬头" rules={[{ required: true, message: '请输入发票抬头' }]}><Input placeholder="例如：上海鲸洗科技有限公司" /></Form.Item>
+                <Form.Item name="invoiceType" label="发票类型" rules={[{ required: true, message: '请选择发票类型' }]}><Select options={invoiceTypeOptions} placeholder="请选择发票类型" /></Form.Item>
+                <Form.Item name="taxNo" label="税号"><Input placeholder="纳税人识别号" /></Form.Item>
+                <Form.Item name="amount" label="开票金额" rules={[{ required: true, message: '请输入开票金额' }]}><InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<AuditOutlined />} title="来源业务" desc="记录来源单据和关联订单，保证开票申请能回到交易或结算来源。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="sourceBizType" label="来源类型" rules={[{ required: true, message: '请选择来源类型' }]}><Select options={invoiceSourceTypeOptions} placeholder="请选择来源类型" /></Form.Item>
+                <Form.Item name="sourceBizNo" label="来源单号" rules={[{ required: true, message: '请输入来源单号' }]}><Input placeholder="订单号 / 结算单号" /></Form.Item>
+                <Form.Item name="orderNos" label="关联订单"><Input placeholder="多个订单用逗号分隔" /></Form.Item>
+                <Form.Item name="settlementBillNo" label="结算单号"><Input placeholder="例如：SETTLE-202605-001" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<FileDoneOutlined />} title="处理闭环" desc="维护开票状态、文件和处理说明。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="applyStatus" label="开票状态" rules={[{ required: true, message: '请选择开票状态' }]}><Select options={applyStatusOptions} placeholder="请选择开票状态" /></Form.Item>
+                <Form.Item name="fileAssetId" label="发票文件ID"><Input placeholder="开票后上传的文件资源 ID" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="applyRemark" label="申请备注"><Input placeholder="填写申请说明、客户要求或发票抬头特殊要求" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="rejectReason" label="驳回原因 / 处理说明"><Input.TextArea rows={3} placeholder="驳回时填写原因，已开票时填写处理说明" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+          </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal title="新建发票抬头" open={titleModalVisible} onCancel={() => setTitleModalVisible(false)} onOk={async () => {
-        const values = await titleForm.validateFields();
-        await createTitleMutation.mutateAsync(values);
-        setTitleModalVisible(false);
-      }} confirmLoading={createTitleMutation.isPending} width={760}>
-        <Form form={titleForm} layout="vertical">
-          <Row gutter={16}>
-            <Col span={12}><Form.Item name="titleName" label="抬头名称" rules={[{ required: true, message: '请输入抬头名称' }]}><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="titleType" label="抬头类型" rules={[{ required: true, message: '请选择抬头类型' }]}><Select options={titleTypeOptions} /></Form.Item></Col>
-            <Col span={12}><Form.Item name="appUserName" label="用户"><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="merchantName" label="商户"><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="taxNo" label="税号"><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="bankName" label="开户行"><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="bankAccount" label="银行账号"><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="phone" label="电话"><Input /></Form.Item></Col>
-            <Col span={24}><Form.Item name="address" label="地址"><Input /></Form.Item></Col>
-          </Row>
+      <BusinessEditorModal
+        eyebrow="发票抬头"
+        title="新建发票抬头"
+        subtitle="补齐抬头主体、税务信息、开户信息和联系地址，减少后续开票反复沟通。"
+        meta={['财务结算', '抬头档案']}
+        open={titleModalVisible}
+        onCancel={() => setTitleModalVisible(false)}
+        onOk={async () => {
+          const values = await titleForm.validateFields();
+          await createTitleMutation.mutateAsync(values);
+          setTitleModalVisible(false);
+          titleForm.resetFields();
+        }}
+        confirmLoading={createTitleMutation.isPending}
+        width={1040}
+        okText="保存抬头"
+      >
+        <Form form={titleForm} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<UserOutlined />} title="主体归属" desc="明确抬头归属用户或商户。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="titleName" label="抬头名称" rules={[{ required: true, message: '请输入抬头名称' }]}><Input placeholder="个人姓名或公司名称" /></Form.Item>
+                <Form.Item name="titleType" label="抬头类型" rules={[{ required: true, message: '请选择抬头类型' }]}><Select options={titleTypeOptions} placeholder="请选择抬头类型" /></Form.Item>
+                <Form.Item name="appUserName" label="用户"><Input placeholder="个人抬头对应用户" /></Form.Item>
+                <Form.Item name="merchantName" label="商户"><Input placeholder="企业抬头对应商户" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<BankOutlined />} title="税务与账户" desc="企业抬头需要维护税号和开户信息。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="taxNo" label="税号"><Input placeholder="统一社会信用代码 / 纳税人识别号" /></Form.Item>
+                <Form.Item name="bankName" label="开户行"><Input placeholder="例如：中国工商银行上海分行" /></Form.Item>
+                <Form.Item name="bankAccount" label="银行账号"><Input placeholder="企业银行账号" /></Form.Item>
+                <Form.Item name="phone" label="电话"><Input placeholder="发票联系电话" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="address" label="地址"><Input placeholder="注册地址或发票联系地址" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+          </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal title="开票处理" open={!!processingApply} onCancel={() => setProcessingApply(null)} onOk={async () => {
-        const values = await processForm.validateFields();
-        await processApplyMutation.mutateAsync(values);
-        setProcessingApply(null);
-      }} confirmLoading={processApplyMutation.isPending} width={720}>
-        <Form form={processForm} layout="vertical">
-          <Row gutter={16}>
-            <Col span={12}><Form.Item name="applyStatus" label="处理状态" rules={[{ required: true, message: '请选择处理状态' }]}><Select options={applyStatusOptions} /></Form.Item></Col>
-            <Col span={12}><Form.Item name="fileAssetId" label="发票文件ID"><Input /></Form.Item></Col>
-            <Col span={24}><Form.Item name="rejectReason" label="驳回原因 / 处理说明"><Input.TextArea rows={3} /></Form.Item></Col>
-          </Row>
+      <BusinessEditorModal
+        eyebrow="开票处理"
+        title={processingApply ? `处理开票申请 · ${processingApply.applyNo}` : '开票处理'}
+        subtitle="更新处理状态、发票文件和驳回说明，形成财务处理闭环。"
+        meta={[processingApply?.titleName || '发票申请', processingApply?.applyStatus || '待处理']}
+        open={!!processingApply}
+        onCancel={() => setProcessingApply(null)}
+        onOk={async () => {
+          const values = await processForm.validateFields();
+          await processApplyMutation.mutateAsync(values);
+          setProcessingApply(null);
+        }}
+        confirmLoading={processApplyMutation.isPending}
+        width={860}
+        okText="保存处理结果"
+      >
+        <Form form={processForm} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<AuditOutlined />} title="处理结果" desc="已开票时补发票文件，驳回时补原因。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="applyStatus" label="处理状态" rules={[{ required: true, message: '请选择处理状态' }]}><Select options={applyStatusOptions} placeholder="请选择处理状态" /></Form.Item>
+                <Form.Item name="fileAssetId" label="发票文件ID"><Input placeholder="已开票后填写文件资源 ID" /></Form.Item>
+                <Form.Item name="issuedAt" label="开票时间"><Input placeholder="2026-05-10 10:00:00" /></Form.Item>
+                <Form.Item name="operator" label="处理人"><Input placeholder="例如：财务专员" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="rejectReason" label="驳回原因 / 处理说明"><Input.TextArea rows={3} placeholder="驳回原因、文件说明或重新提交要求" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+          </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

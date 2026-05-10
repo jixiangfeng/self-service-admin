@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
-import { AuditOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, Row, Select, Statistic, Tabs, message } from 'antd';
+import { AuditOutlined, BankOutlined, SafetyCertificateOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
@@ -9,9 +9,11 @@ import {
   scopeTypeOptions,
   statusOptions,
 } from '@/constants/businessCatalog';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type { DataScopeRelationRecord, LoginLogRecord, OperationLogRecord, PermissionChangeLogRecord, UserRoleRelationRecord } from '@/services/backendService';
 
@@ -222,15 +224,10 @@ const AuthAudit: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="待审变更" value={permissionChanges.filter((item) => item.auditStatus === 'PENDING').length} suffix="条" /></Card></Col>
       </Row>
 
-      <ProTable
-        style={{ marginBottom: 16 }}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '输入用户、角色、范围、IP、模块、业务单号' } }]}
-        dataSource={[]}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        options={false}
-        pagination={false}
-        onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-        onReset={() => setKeyword('')}
+      <KeywordSearchBar
+        value={keyword}
+        placeholder="输入用户、角色、范围、IP、模块、业务单号"
+        onSearch={setKeyword}
       />
 
       <Tabs
@@ -243,7 +240,7 @@ const AuthAudit: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title="权限审计详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -252,12 +249,20 @@ const AuthAudit: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow={editingPermissionChange ? '权限变更审核' : '权限审计维护'}
         title={modalTitle}
+        subtitle="按授权角色、数据权限和权限变更拆分字段，确保授权动作可追溯。"
+        meta={[modalType === 'userRole' ? '角色授权' : modalType === 'dataScope' ? '数据权限' : '权限变更', editingPermissionChange ? '审核模式' : '新建模式']}
         open={modalVisible}
-        onCancel={() => setModalVisible(false)}
+        onCancel={() => {
+          setModalVisible(false);
+          setModalType(null);
+          setEditingPermissionChange(null);
+          form.resetFields();
+        }}
         onOk={async () => {
           if (!modalType) return;
           const values = await form.validateFields();
@@ -267,31 +272,72 @@ const AuthAudit: React.FC = () => {
           });
         }}
         confirmLoading={saveMutation.isPending}
-        width={760}
+        width={1020}
+        okText="保存审计记录"
       >
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="userName" label="用户"><Input /></Form.Item>
-            <Form.Item name="roleName" label="角色名称"><Input /></Form.Item>
-            <Form.Item name="roleCode" label="角色编码"><Input /></Form.Item>
-            <Form.Item name="grantUser" label="授权人"><Input /></Form.Item>
-            <Form.Item name="scopeType" label="范围类型"><Select options={scopeTypeOptions} /></Form.Item>
-            <Form.Item name="scopeName" label="范围名称"><Input /></Form.Item>
-            <Form.Item name="merchantName" label="关联商户"><Input /></Form.Item>
-            <Form.Item name="storeName" label="关联门店"><Input /></Form.Item>
-            <Form.Item name="changeNo" label="变更单号"><Input /></Form.Item>
-            <Form.Item name="targetUser" label="目标用户"><Input /></Form.Item>
-            <Form.Item name="changeType" label="变更类型"><Input /></Form.Item>
-            <Form.Item name="beforeValue" label="变更前"><Input /></Form.Item>
-            <Form.Item name="afterValue" label="变更后"><Input /></Form.Item>
-            <Form.Item name="grantedAt" label="授权时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-            <Form.Item name="changedAt" label="变更时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={statusOptions} /></Form.Item>
-            <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} /></Form.Item>
-            <Form.Item className="modal-span-2" name="remark" label="说明"><Input.TextArea rows={4} /></Form.Item>
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            {modalType === 'userRole' ? (
+              <>
+                <BusinessEditorSection icon={<UserOutlined />} title="授权对象" desc="确认被授权用户和目标角色。">
+                  <div className="merchant-editor-fields">
+                    <Form.Item name="userName" label="用户" rules={[{ required: true, message: '请输入用户' }]}><Input placeholder="例如：zhangsan" /></Form.Item>
+                    <Form.Item name="roleName" label="角色名称" rules={[{ required: true, message: '请输入角色名称' }]}><Input placeholder="例如：门店运营" /></Form.Item>
+                    <Form.Item name="roleCode" label="角色编码" rules={[{ required: true, message: '请输入角色编码' }]}><Input placeholder="例如：STORE_OPERATOR" /></Form.Item>
+                  </div>
+                </BusinessEditorSection>
+                <BusinessEditorSection icon={<SafetyCertificateOutlined />} title="授权闭环" desc="记录授权人、授权时间和启停状态。">
+                  <div className="merchant-editor-fields">
+                    <Form.Item name="grantUser" label="授权人"><Input placeholder="例如：系统管理员" /></Form.Item>
+                    <Form.Item name="grantedAt" label="授权时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                    <Form.Item name="status" label="状态"><Select options={statusOptions} placeholder="请选择状态" /></Form.Item>
+                    <Form.Item className="merchant-editor-field-span-all" name="remark" label="说明"><Input.TextArea rows={3} placeholder="记录授权原因、审批依据或有效边界" /></Form.Item>
+                  </div>
+                </BusinessEditorSection>
+              </>
+            ) : null}
+            {modalType === 'dataScope' ? (
+              <>
+                <BusinessEditorSection icon={<TeamOutlined />} title="角色范围" desc="确认角色的数据权限类型和权限范围名称。">
+                  <div className="merchant-editor-fields">
+                    <Form.Item name="roleName" label="角色名称" rules={[{ required: true, message: '请输入角色名称' }]}><Input placeholder="例如：区域运营" /></Form.Item>
+                    <Form.Item name="scopeType" label="范围类型" rules={[{ required: true, message: '请选择范围类型' }]}><Select options={scopeTypeOptions} placeholder="请选择范围类型" /></Form.Item>
+                    <Form.Item name="scopeName" label="范围名称" rules={[{ required: true, message: '请输入范围名称' }]}><Input placeholder="例如：上海区域" /></Form.Item>
+                    <Form.Item name="status" label="状态"><Select options={statusOptions} placeholder="请选择状态" /></Form.Item>
+                  </div>
+                </BusinessEditorSection>
+                <BusinessEditorSection icon={<BankOutlined />} title="业务归属" desc="可绑定到商户或门店，便于控制后台可见数据。">
+                  <div className="merchant-editor-fields">
+                    <Form.Item name="merchantName" label="关联商户"><Input placeholder="例如：鲸洗直营" /></Form.Item>
+                    <Form.Item name="storeName" label="关联门店"><Input placeholder="例如：浦东旗舰店" /></Form.Item>
+                    <Form.Item className="merchant-editor-field-span-all" name="remark" label="说明"><Input.TextArea rows={3} placeholder="记录数据范围用途、授权依据或边界说明" /></Form.Item>
+                  </div>
+                </BusinessEditorSection>
+              </>
+            ) : null}
+            {modalType === 'permissionChange' ? (
+              <>
+                <BusinessEditorSection icon={<AuditOutlined />} title="变更对象" desc="记录权限变更单号、目标用户和变更类型。">
+                  <div className="merchant-editor-fields">
+                    <Form.Item name="changeNo" label="变更单号" rules={[{ required: true, message: '请输入变更单号' }]}><Input placeholder="例如：AUTH-CHG-20260510" /></Form.Item>
+                    <Form.Item name="targetUser" label="目标用户" rules={[{ required: true, message: '请输入目标用户' }]}><Input placeholder="例如：zhangsan" /></Form.Item>
+                    <Form.Item name="changeType" label="变更类型"><Input placeholder="例如：新增角色 / 回收权限 / 调整数据范围" /></Form.Item>
+                    <Form.Item name="changedAt" label="变更时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                  </div>
+                </BusinessEditorSection>
+                <BusinessEditorSection icon={<SafetyCertificateOutlined />} title="审核结果" desc="补齐变更前后、审核状态和说明。">
+                  <div className="merchant-editor-fields">
+                    <Form.Item name="beforeValue" label="变更前"><Input placeholder="变更前权限或范围" /></Form.Item>
+                    <Form.Item name="afterValue" label="变更后"><Input placeholder="变更后权限或范围" /></Form.Item>
+                    <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
+                    <Form.Item className="merchant-editor-field-span-all" name="remark" label="说明"><Input.TextArea rows={3} placeholder="记录审核意见、审批单号或回滚要求" /></Form.Item>
+                  </div>
+                </BusinessEditorSection>
+              </>
+            ) : null}
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

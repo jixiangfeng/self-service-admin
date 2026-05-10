@@ -2,8 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { PlusOutlined, ShopOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
-import { Button, Divider, Form, Input, Modal, Select, Space, message } from 'antd';
+import { DeleteOutlined, EditOutlined, EnvironmentOutlined, FieldTimeOutlined, NotificationOutlined, PlusOutlined, ShopOutlined } from '@ant-design/icons';
+import { Button, Form, Input, Select, Space, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
   marketingOptions,
@@ -13,6 +13,8 @@ import {
 } from '@/constants/businessCatalog';
 import api from '@/services/backendService';
 import type { SelectOptionRecord, StoreRecord } from '@/services/backendService';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, formatDateTime, renderBooleanTag, renderOptionTags, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
@@ -44,6 +46,7 @@ const StoreManagement: React.FC = () => {
   });
 
   const merchantOptions = merchantOptionsData || [];
+  const merchantOptionMap = useMemo(() => new Map(merchantOptions.map((item) => [item.value, item.label])), [merchantOptions]);
 
   const closeDrawer = () => {
     setModalVisible(false);
@@ -156,7 +159,7 @@ const StoreManagement: React.FC = () => {
               danger
               icon={<DeleteOutlined />}
               onClick={() => {
-                Modal.confirm({
+                showBusinessConfirm({
                   title: '确认删除门店',
                   content: `确定删除门店「${record.storeName}」吗？`,
                   onOk: () => deleteMutation.mutate(record.id),
@@ -229,19 +232,23 @@ const StoreManagement: React.FC = () => {
         }}
       />
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow={editingRecord ? '门店档案维护' : '门店建档配置'}
         title={editingRecord ? `编辑门店 · ${editingRecord.storeName}` : '新建门店'}
+        subtitle="门店是点位、设备、商品、活动和运营任务的承载主体，建档时同步补齐地址、营业、服务能力和公告信息。"
+        meta={['门店闭环', editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
-        width={980}
+        width={1220}
         onCancel={closeDrawer}
         onOk={() => form.submit()}
         confirmLoading={createMutation.isPending || updateMutation.isPending}
-        okText="保存门店"
+        okText={editingRecord ? '保存变更' : '创建门店'}
         destroyOnClose
       >
         <Form
           form={form}
           layout="vertical"
+          className="merchant-editor-form"
           preserve={false}
           onFinish={(values) => {
             const payload = {
@@ -255,90 +262,135 @@ const StoreManagement: React.FC = () => {
             createMutation.mutate(payload);
           }}
         >
-          <div className="modal-grid">
-            <Divider className="modal-span-2" orientation="left">门店基础档案</Divider>
-            <Form.Item name="merchantId" label="所属商户" rules={[{ required: true, message: '请选择所属商户' }]}>
-              <Select options={merchantOptions as SelectOptionRecord[]} />
-            </Form.Item>
-            <Form.Item name="storeName" label="门店名称" rules={[{ required: true, message: '请输入门店名称' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="storeCode" label="门店编号" rules={[{ required: true, message: '请输入门店编号' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="storePhone" label="门店电话">
-              <Input />
-            </Form.Item>
-            <Form.Item name="managerName" label="店长 / 负责人">
-              <Input />
-            </Form.Item>
-            <Form.Item name="managerPhone" label="负责人电话">
-              <Input />
-            </Form.Item>
-            <Form.Item name="coverUrl" label="门店封面">
-              <Input placeholder="封面图片 URL" />
-            </Form.Item>
-            <Form.Item name="serviceRadius" label="服务半径 km">
-              <Input />
-            </Form.Item>
-            <Form.Item name="province" label="省份">
-              <Input />
-            </Form.Item>
-            <Form.Item name="city" label="城市">
-              <Input />
-            </Form.Item>
-            <Form.Item name="district" label="区县">
-              <Input />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="address" label="详细地址">
-              <Input />
-            </Form.Item>
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection
+              icon={<ShopOutlined />}
+              title="基础归属"
+              desc="明确门店属于哪个商户，并沉淀门店名称、编号、封面和负责人，后续点位、设备和交易都会引用这里。"
+            >
+              <div className="merchant-editor-fields">
+                <Form.Item name="merchantId" label="所属商户" rules={[{ required: true, message: '请选择所属商户' }]}>
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    options={merchantOptions as SelectOptionRecord[]}
+                    placeholder="请选择商户"
+                    onChange={(value) => form.setFieldValue('merchantName', merchantOptionMap.get(value))}
+                  />
+                </Form.Item>
+                <Form.Item name="merchantName" label="商户名称">
+                  <Input disabled placeholder="选择商户后自动带出" />
+                </Form.Item>
+                <Form.Item name="storeName" label="门店名称" rules={[{ required: true, message: '请输入门店名称' }]}>
+                  <Input placeholder="例如：鲸洗虹桥枢纽店" />
+                </Form.Item>
+                <Form.Item name="storeCode" label="门店编号" rules={[{ required: true, message: '请输入门店编号' }]}>
+                  <Input placeholder="例如：STORE-SH-HQ-001" />
+                </Form.Item>
+                <Form.Item name="storePhone" label="门店电话">
+                  <Input placeholder="用于小程序展示和客服回访" />
+                </Form.Item>
+                <Form.Item name="managerName" label="店长 / 负责人">
+                  <Input placeholder="现场运营负责人" />
+                </Form.Item>
+                <Form.Item name="managerPhone" label="负责人电话">
+                  <Input placeholder="异常、巡检和售后通知手机号" />
+                </Form.Item>
+                <Form.Item className="merchant-editor-field-span-2" name="coverUrl" label="门店封面">
+                  <Input placeholder="封面图片 URL，用于小程序门店页展示" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
 
-            <Divider className="modal-span-2" orientation="left">营业与能力配置</Divider>
-            <Form.Item name="businessHours" label="营业时间">
-              <Input placeholder="例如 08:00-22:00" />
-            </Form.Item>
-            <Form.Item name="openTime" label="开门时间">
-              <Input placeholder="例如 08:00" />
-            </Form.Item>
-            <Form.Item name="closeTime" label="关门时间">
-              <Input placeholder="例如 22:00" />
-            </Form.Item>
-            <Form.Item name="holidayHours" label="节假日营业时间">
-              <Input placeholder="例如 节假日 09:00-21:00" />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="serviceFlags" label="服务能力">
-              <Select mode="multiple" options={storeServiceCapabilityOptions} placeholder="选择门店支持的能力" />
-            </Form.Item>
-            <Form.Item name="marketingEnabled" label="营销开关">
-              <Select options={marketingOptions} />
-            </Form.Item>
-            <Form.Item name="status" label="门店状态">
-              <Select options={storeStatusOptions} />
-            </Form.Item>
-            <Form.Item name="tempClosed" label="是否临时停业">
-              <Select options={statusOptions.map((item) => ({ value: item.value, label: item.value === 1 ? '是' : '否' }))} />
-            </Form.Item>
-            <Form.Item name="tempClosedReason" label="临停原因">
-              <Input />
-            </Form.Item>
-            <Form.Item name="tempClosedUntil" label="临停截止时间">
-              <Input placeholder="例如 2026-04-18 20:00:00" />
-            </Form.Item>
+            <BusinessEditorSection
+              icon={<EnvironmentOutlined />}
+              title="位置与服务范围"
+              desc="补齐行政区、详细地址、经纬度和服务半径，支撑门店检索、导航、附近门店和服务范围控制。"
+            >
+              <div className="merchant-editor-fields">
+                <Form.Item name="province" label="省份">
+                  <Input placeholder="例如：上海市" />
+                </Form.Item>
+                <Form.Item name="city" label="城市">
+                  <Input placeholder="例如：上海" />
+                </Form.Item>
+                <Form.Item name="district" label="区县">
+                  <Input placeholder="例如：闵行区" />
+                </Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="address" label="详细地址">
+                  <Input placeholder="精确到园区、停车场、楼栋或入口" />
+                </Form.Item>
+                <Form.Item name="longitude" label="经度">
+                  <Input placeholder="例如：121.473701" />
+                </Form.Item>
+                <Form.Item name="latitude" label="纬度">
+                  <Input placeholder="例如：31.230416" />
+                </Form.Item>
+                <Form.Item name="serviceRadius" label="服务半径 km">
+                  <Input placeholder="例如：3" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
 
-            <Divider className="modal-span-2" orientation="left">公告与说明</Divider>
-            <Form.Item className="modal-span-2" name="imageUrls" label="门店图片">
-              <Input.TextArea rows={2} placeholder="多张图片 URL 可用逗号分隔" />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="notice" label="门店公告">
-              <Input.TextArea rows={3} />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="intro" label="门店介绍">
-              <Input.TextArea rows={4} placeholder="描述门店定位、设备组合和经营重点" />
-            </Form.Item>
+            <BusinessEditorSection
+              icon={<FieldTimeOutlined />}
+              title="营业与能力"
+              desc="配置营业时段、节假日策略、营销开关、临停原因和服务能力，决定用户是否能在该店下单。"
+            >
+              <div className="merchant-editor-fields">
+                <Form.Item name="businessHours" label="营业时间">
+                  <Input placeholder="例如：08:00-22:00" />
+                </Form.Item>
+                <Form.Item name="openTime" label="开门时间">
+                  <Input placeholder="例如：08:00" />
+                </Form.Item>
+                <Form.Item name="closeTime" label="关门时间">
+                  <Input placeholder="例如：22:00" />
+                </Form.Item>
+                <Form.Item name="holidayHours" label="节假日营业时间">
+                  <Input placeholder="例如：节假日 09:00-21:00" />
+                </Form.Item>
+                <Form.Item name="marketingEnabled" label="营销开关">
+                  <Select options={marketingOptions} placeholder="是否参与营销活动" />
+                </Form.Item>
+                <Form.Item name="status" label="门店状态">
+                  <Select options={storeStatusOptions} placeholder="请选择门店状态" />
+                </Form.Item>
+                <Form.Item name="tempClosed" label="是否临时停业">
+                  <Select options={statusOptions.map((item) => ({ value: item.value, label: item.value === 1 ? '是' : '否' }))} placeholder="请选择临停状态" />
+                </Form.Item>
+                <Form.Item name="tempClosedReason" label="临停原因">
+                  <Input placeholder="例如：设备检修 / 场地施工" />
+                </Form.Item>
+                <Form.Item name="tempClosedUntil" label="临停截止时间">
+                  <Input placeholder="例如：2026-04-18 20:00:00" />
+                </Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="serviceFlags" label="服务能力">
+                  <Select mode="multiple" options={storeServiceCapabilityOptions} placeholder="选择门店支持的能力" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+
+            <BusinessEditorSection
+              icon={<NotificationOutlined />}
+              title="展示与公告"
+              desc="维护门店图片、公告和介绍，让小程序展示、活动落地页和运营交接信息保持一致。"
+            >
+              <div className="merchant-editor-fields merchant-editor-fields--two">
+                <Form.Item className="merchant-editor-field-span-2" name="imageUrls" label="门店图片">
+                  <Input.TextArea rows={2} placeholder="多张图片 URL 可用逗号分隔" />
+                </Form.Item>
+                <Form.Item name="notice" label="门店公告">
+                  <Input.TextArea rows={3} placeholder="例如：夜间洗车请按现场引导停车" />
+                </Form.Item>
+                <Form.Item name="intro" label="门店介绍">
+                  <Input.TextArea rows={3} placeholder="描述门店定位、设备组合和经营重点" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
-import { FileSearchOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import { CalculatorOutlined, CheckCircleOutlined, FileSearchOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
@@ -12,7 +12,9 @@ import {
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api, {
   type PaymentReconciliationRecord,
   type SettlementBillDetailRecord,
@@ -47,6 +49,19 @@ const detailTypeMap = buildValueEnum(settlementDetailTypeOptions);
 const payoutStatusMap = buildValueEnum(payoutStatusOptions);
 const reconciliationStatusMap = buildValueEnum(reconciliationStatusOptions);
 const settlementStatusMap = buildValueEnum(settlementStatusOptions);
+const costBearerOptions = [
+  { value: 'PLATFORM', label: '平台承担' },
+  { value: 'MERCHANT', label: '商户承担' },
+  { value: 'STORE', label: '门店承担' },
+  { value: 'RATIO', label: '按比例分摊' },
+];
+const confirmSceneOptions = [
+  { value: 'NORMAL_SETTLE', label: '正常结算确认' },
+  { value: 'DIFF_REVIEWED', label: '差异已复核' },
+  { value: 'MANUAL_ADJUSTED', label: '人工调整后确认' },
+];
+const compactJoin = (items: Array<string | undefined | false>) => items.filter(Boolean).join('；');
+const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
 
 const settlementDetailFields: Record<'bill' | 'cost' | 'payout' | 'reconciliation' | 'confirm', DetailField<any>[]> = {
   bill: [
@@ -105,7 +120,7 @@ const SettlementDetailManagement: React.FC = () => {
   const [detail, setDetail] = useState<BillDetailRecord | CostDetailRecord | SettlementPayoutRecord | PaymentReconciliationRecord | SettlementConfirmRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
-  const [form] = Form.useForm<{ billNo: string; status: string; remark: string }>();
+  const [form] = Form.useForm<{ billNo: string; status: string; costAmount?: number; bearer?: string; relatedNo?: string; confirmer?: string; confirmScene?: string; supplement?: string }>();
 
   const billDetailQuery = useQuery({
     queryKey: ['settlementBillDetailsCenter', keyword],
@@ -168,6 +183,11 @@ const SettlementDetailManagement: React.FC = () => {
   const openModal = (title: string) => {
     setModalTitle(title);
     form.resetFields();
+    form.setFieldsValue({
+      status: title === '确认结算' ? 'SETTLED' : 'MANUAL_ADJUST',
+      bearer: 'PLATFORM',
+      confirmScene: 'NORMAL_SETTLE',
+    } as any);
     setModalVisible(true);
   };
 
@@ -249,15 +269,10 @@ const SettlementDetailManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="待确认" value={confirms.filter((item) => item.confirmStatus === 'WAIT_CONFIRM').length} suffix="单" /></Card></Col>
       </Row>
 
-      <ProTable
-        style={{ marginBottom: 16 }}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '输入结算单、订单、商户、门店、打款流水、对账单号' } }]}
-        dataSource={[]}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        options={false}
-        pagination={false}
-        onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-        onReset={() => setKeyword('')}
+      <KeywordSearchBar
+        value={keyword}
+        placeholder="输入结算单、订单、商户、门店、打款流水、对账单号"
+        onSearch={setKeyword}
       />
 
       <Tabs
@@ -270,7 +285,7 @@ const SettlementDetailManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title="结算明细详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -279,32 +294,58 @@ const SettlementDetailManagement: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow={modalTitle === '确认结算' ? '结算确认' : '成本调整'}
         title={modalTitle}
+        subtitle="把确认场景、成本金额、承担方和补充说明拆成财务可维护字段，提交时兼容原接口字段。"
+        meta={[modalTitle || '结算处理', '财务结算']}
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={async () => {
           const values = await form.validateFields();
+          const remark = compactJoin([
+            values.confirmScene ? `确认场景：${optionLabel(confirmSceneOptions, values.confirmScene)}` : undefined,
+            values.bearer ? `承担方：${optionLabel(costBearerOptions, values.bearer)}` : undefined,
+            values.supplement ? `补充说明：${values.supplement}` : undefined,
+          ]);
           if (modalTitle === '确认结算') {
-            await confirmMutation.mutateAsync({ billNo: values.billNo, subjectName: values.remark || '-', confirmNote: values.remark });
+            await confirmMutation.mutateAsync({ billNo: values.billNo, subjectName: values.relatedNo || '-', confirmer: values.confirmer, confirmNote: remark });
           } else {
-            await createCostMutation.mutateAsync({ ...values, costAmount: 0, costType: values.status || 'MANUAL_ADJUST', costName: values.remark || '成本调整', bearer: '-', relatedNo: values.billNo });
+            await createCostMutation.mutateAsync({ billNo: values.billNo, costAmount: values.costAmount || 0, costType: values.status || 'MANUAL_ADJUST', costName: remark || '成本调整', bearer: values.bearer || '-', relatedNo: values.relatedNo || values.billNo });
           }
           setModalVisible(false);
         }}
         confirmLoading={createCostMutation.isPending}
-        width={760}
+        width={980}
+        okText="提交处理"
       >
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="billNo" label="结算单号 / 业务单号" rules={[{ required: true, message: '请输入结算单号或业务单号' }]}><Input /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={settlementStatusOptions} /></Form.Item>
-            <Form.Item className="modal-span-2" name="remark" label="处理说明"><Input.TextArea rows={4} /></Form.Item>
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<FileSearchOutlined />} title="处理对象" desc="录入结算单号、关联单号和状态。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="billNo" label="结算单号 / 业务单号" rules={[{ required: true, message: '请输入结算单号或业务单号' }]}><Input placeholder="例如：SETTLE-20260510-001" /></Form.Item>
+                <Form.Item name="relatedNo" label="关联单号 / 结算主体"><Input placeholder="例如：订单号或结算主体名称" /></Form.Item>
+                <Form.Item name="status" label="状态"><Select options={settlementStatusOptions} placeholder="请选择状态" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<CalculatorOutlined />} title="成本调整" desc="成本调整时填写金额和承担方；确认结算可留空。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="costAmount" label="成本金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
+                <Form.Item name="bearer" label="承担方"><Select options={costBearerOptions} placeholder="请选择承担方" /></Form.Item>
+                <Form.Item name="confirmer" label="确认人"><Input placeholder="例如：财务管理员" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<CheckCircleOutlined />} title="确认口径" desc="选择确认场景并填写补充说明，系统合并为确认备注或成本名称。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="confirmScene" label="确认场景"><Select options={confirmSceneOptions} placeholder="请选择确认场景" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="supplement" label="补充说明"><Input placeholder="例如：差异已复核，允许进入本期结算" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

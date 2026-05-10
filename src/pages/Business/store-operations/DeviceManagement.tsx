@@ -2,8 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { DeleteOutlined, DeploymentUnitOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
-import { Button, Divider, Form, Input, Modal, Select, Space, message } from 'antd';
+import { ApiOutlined, DeleteOutlined, DeploymentUnitOutlined, EditOutlined, LinkOutlined, PlusOutlined, ToolOutlined } from '@ant-design/icons';
+import { Button, Form, Input, Select, Space, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
   deviceControlModeOptions,
@@ -14,6 +14,8 @@ import {
 } from '@/constants/businessCatalog';
 import api from '@/services/backendService';
 import type { DeviceRecord, SelectOptionRecord } from '@/services/backendService';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, formatDateTime, renderOptionTags, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
@@ -159,7 +161,7 @@ const DeviceManagement: React.FC = () => {
               danger
               icon={<DeleteOutlined />}
               onClick={() => {
-                Modal.confirm({
+                showBusinessConfirm({
                   title: '确认删除设备',
                   content: `确定删除设备「${record.deviceName}」吗？`,
                   onOk: () => deleteMutation.mutate(record.id),
@@ -262,19 +264,23 @@ const DeviceManagement: React.FC = () => {
         }}
       />
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow={editingRecord ? '设备台账维护' : '设备接入配置'}
         title={editingRecord ? `编辑设备 · ${editingRecord.deviceName}` : '新建设备'}
+        subtitle="设备台账需要同时闭环门店点位绑定、厂商协议、控制方式和运行状态，避免设备建档后无法履约。"
+        meta={['设备闭环', editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
-        width={980}
+        width={1180}
         onCancel={closeDrawer}
         onOk={() => form.submit()}
         confirmLoading={createMutation.isPending || updateMutation.isPending}
-        okText="保存设备"
+        okText={editingRecord ? '保存变更' : '创建设备'}
         destroyOnClose
       >
         <Form
           form={form}
           layout="vertical"
+          className="merchant-editor-form"
           preserve={false}
           onFinish={(values) => {
             const payload = {
@@ -288,55 +294,87 @@ const DeviceManagement: React.FC = () => {
             createMutation.mutate(payload);
           }}
         >
-          <div className="modal-grid">
-            <Divider className="modal-span-2" orientation="left">设备基础信息</Divider>
-            <Form.Item name="storeId" label="所属门店" rules={[{ required: true, message: '请选择所属门店' }]}>
-              <Select options={storeOptions as SelectOptionRecord[]} />
-            </Form.Item>
-            <Form.Item name="servicePointId" label="所属点位">
-              <Select options={pointOptions as SelectOptionRecord[]} allowClear />
-            </Form.Item>
-            <Form.Item name="deviceName" label="设备名称" rules={[{ required: true, message: '请输入设备名称' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="deviceCode" label="设备编号" rules={[{ required: true, message: '请输入设备编号' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="deviceType" label="设备类型" rules={[{ required: true, message: '请选择设备类型' }]}>
-              <Select options={deviceTypeOptions} />
-            </Form.Item>
-            <Divider className="modal-span-2" orientation="left">厂商与接入协议</Divider>
-            <Form.Item name="vendorName" label="厂商名称">
-              <Input />
-            </Form.Item>
-            <Form.Item name="protocolType" label="协议类型">
-              <Select options={deviceProtocolTypeOptions} allowClear />
-            </Form.Item>
-            <Form.Item name="protocolVersion" label="协议版本">
-              <Input />
-            </Form.Item>
-            <Form.Item name="controlMode" label="控制方式">
-              <Select options={deviceControlModeOptions} />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="abilityTags" label="能力标签">
-              <Select mode="tags" placeholder="输入 START_STOP / HEARTBEAT 等能力标签" />
-            </Form.Item>
-            <Divider className="modal-span-2" orientation="left">运行状态</Divider>
-            <Form.Item name="faultLevel" label="故障级别">
-              <Select options={deviceFaultLevelOptions} />
-            </Form.Item>
-            <Form.Item name="signalStrength" label="信号强度（%）">
-              <Input type="number" />
-            </Form.Item>
-            <Form.Item name="installTime" label="安装时间">
-              <Input placeholder="例如 2026-02-12" />
-            </Form.Item>
-            <Form.Item name="status" label="设备状态">
-              <Select options={deviceStatusOptions} />
-            </Form.Item>
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection
+              icon={<LinkOutlined />}
+              title="绑定关系"
+              desc="先把设备绑定到门店和点位，确保设备状态、履约启动和售后排查都能回到具体现场。"
+            >
+              <div className="merchant-editor-fields">
+                <Form.Item name="storeId" label="所属门店" rules={[{ required: true, message: '请选择所属门店' }]}>
+                  <Select showSearch optionFilterProp="label" options={storeOptions as SelectOptionRecord[]} placeholder="请选择门店" />
+                </Form.Item>
+                <Form.Item name="servicePointId" label="所属点位">
+                  <Select showSearch optionFilterProp="label" options={pointOptions as SelectOptionRecord[]} allowClear placeholder={selectedStoreId ? '请选择点位' : '请先选择门店'} />
+                </Form.Item>
+                <Form.Item name="deviceType" label="设备类型" rules={[{ required: true, message: '请选择设备类型' }]}>
+                  <Select options={deviceTypeOptions} placeholder="请选择设备类型" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+
+            <BusinessEditorSection
+              icon={<DeploymentUnitOutlined />}
+              title="设备基础"
+              desc="维护设备名称、编号、厂商和安装时间，形成设备资产台账和后续维护追踪依据。"
+            >
+              <div className="merchant-editor-fields">
+                <Form.Item name="deviceName" label="设备名称" rules={[{ required: true, message: '请输入设备名称' }]}>
+                  <Input placeholder="例如：A 区 1 号高压水枪" />
+                </Form.Item>
+                <Form.Item name="deviceCode" label="设备编号" rules={[{ required: true, message: '请输入设备编号' }]}>
+                  <Input placeholder="例如：DEV-HP-A01" />
+                </Form.Item>
+                <Form.Item name="vendorName" label="厂商名称">
+                  <Input placeholder="设备供应商或集成商名称" />
+                </Form.Item>
+                <Form.Item name="installTime" label="安装时间">
+                  <Input placeholder="例如：2026-02-12" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+
+            <BusinessEditorSection
+              icon={<ApiOutlined />}
+              title="协议与能力"
+              desc="配置协议类型、版本、控制方式和设备能力标签，决定平台如何向设备下发启动、停止和状态查询指令。"
+            >
+              <div className="merchant-editor-fields">
+                <Form.Item name="protocolType" label="协议类型">
+                  <Select options={deviceProtocolTypeOptions} allowClear placeholder="请选择协议类型" />
+                </Form.Item>
+                <Form.Item name="protocolVersion" label="协议版本">
+                  <Input placeholder="例如：v1.0" />
+                </Form.Item>
+                <Form.Item name="controlMode" label="控制方式">
+                  <Select options={deviceControlModeOptions} placeholder="请选择控制方式" />
+                </Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="abilityTags" label="能力标签">
+                  <Select mode="tags" placeholder="输入 START_STOP / HEARTBEAT / FOAM 等能力标签" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+
+            <BusinessEditorSection
+              icon={<ToolOutlined />}
+              title="运行与告警"
+              desc="维护在线状态、信号强度和故障级别，支撑运营台巡检、设备告警和履约异常处理。"
+            >
+              <div className="merchant-editor-fields">
+                <Form.Item name="faultLevel" label="故障级别">
+                  <Select options={deviceFaultLevelOptions} placeholder="请选择故障级别" />
+                </Form.Item>
+                <Form.Item name="signalStrength" label="信号强度（%）">
+                  <Input type="number" placeholder="例如：80" />
+                </Form.Item>
+                <Form.Item name="status" label="设备状态">
+                  <Select options={deviceStatusOptions} placeholder="请选择设备状态" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

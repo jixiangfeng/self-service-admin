@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, List, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
-import { ProfileOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, List, Radio, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import { AuditOutlined, FieldTimeOutlined, FileAddOutlined, ProfileOutlined, ReloadOutlined, SolutionOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useNavigate } from 'react-router-dom';
@@ -12,6 +12,8 @@ import {
   ticketStatusOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
 import type { SelectOptionRecord } from '@/services/backendService';
@@ -73,6 +75,88 @@ const orderStatusMap = buildValueEnum(orderStatusOptions);
 const refundStatusMap = buildValueEnum(refundStatusOptions);
 const afterSaleStatusMap = buildValueEnum(ticketStatusOptions);
 
+const supplementSourceOptions = [
+  { value: 'STORE', label: '门店补录' },
+  { value: 'CUSTOMER_SERVICE', label: '客服补录' },
+  { value: 'PAYMENT_REPAIR', label: '支付补偿' },
+  { value: 'FINANCE_RECONCILE', label: '财务对账' },
+];
+
+const actionReasonOptions = {
+  order: [
+    { value: 'PAYMENT_EXCEPTION', label: '支付异常' },
+    { value: 'DEVICE_EXCEPTION', label: '设备异常' },
+    { value: 'CUSTOMER_REQUEST', label: '用户要求处理' },
+    { value: 'STORE_CONFIRM', label: '门店确认调整' },
+  ],
+  refund: [
+    { value: 'SERVICE_FAILED', label: '服务未完成' },
+    { value: 'DUPLICATE_PAYMENT', label: '重复支付' },
+    { value: 'CUSTOMER_APPEAL', label: '用户申诉通过' },
+    { value: 'RISK_REJECT', label: '风控拒绝' },
+  ],
+  afterSale: [
+    { value: 'DEVICE_FAULT', label: '设备故障' },
+    { value: 'SERVICE_DISPUTE', label: '服务争议' },
+    { value: 'COMPENSATION_APPROVED', label: '补偿通过' },
+    { value: 'NO_COMPENSATION', label: '无需补偿' },
+  ],
+};
+
+const responsibilityOptions = [
+  { value: 'PLATFORM', label: '平台' },
+  { value: 'STORE', label: '门店' },
+  { value: 'USER', label: '用户' },
+  { value: 'DEVICE', label: '设备' },
+  { value: 'THIRD_PARTY', label: '第三方' },
+];
+
+const nextStepOptions = [
+  { value: 'NONE', label: '无需后续动作' },
+  { value: 'REFUND', label: '发起退款' },
+  { value: 'COMPENSATE', label: '补偿用户' },
+  { value: 'RETRY_SERVICE', label: '重新履约' },
+  { value: 'FOLLOW_UP', label: '客服跟进' },
+];
+
+const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || '未选择';
+const formatPickerValue = (value: any) => value?.format?.('YYYY-MM-DD HH:mm:ss') || value;
+const buildActionNote = (type: Exclude<ActionModalType, null>, values: Record<string, any>) => [
+  `处理原因：${optionLabel(actionReasonOptions[type], values.actionReason)}`,
+  `责任归属：${optionLabel(responsibilityOptions, values.responsibility)}`,
+  `后续动作：${optionLabel(nextStepOptions, values.nextStep)}`,
+  `通知用户：${values.notifyUser ? '已通知' : '未通知'}`,
+  values.actionNote ? `补充说明：${values.actionNote}` : '',
+].filter(Boolean).join('；');
+
+const buildSupplementNote = (values: Record<string, any>) => [
+  `补单来源：${optionLabel(supplementSourceOptions, values.supplementSource)}`,
+  `用户确认：${values.userConfirmed ? '已确认' : '未确认'}`,
+  values.supplementNote ? `补充说明：${values.supplementNote}` : '',
+].filter(Boolean).join('；');
+
+const buildTradeReminderItems = (record: TradeOrderRecord | RefundRecord | AfterSaleRecord) => {
+  if ('refundNo' in record) {
+    return [
+      `退款状态：${record.status || '未记录'}`,
+      `退款金额：${formatAmount(record.amount)}`,
+      record.auditNote ? `审核备注：${record.auditNote}` : `关联订单：${record.orderNo}`,
+    ];
+  }
+  if ('ticketNo' in record) {
+    return [
+      `工单状态：${record.status || '未记录'}`,
+      record.compensation ? `补偿方案：${record.compensation}` : `处理人：${record.owner || '未分派'}`,
+      record.result ? `处理结果：${record.result}` : `关联订单：${record.orderNo}`,
+    ];
+  }
+  return [
+    `订单状态：${record.status || '未记录'}`,
+    `支付方式：${record.payMode || '未记录'}`,
+    record.note ? `订单备注：${record.note}` : `订单金额：${formatAmount(record.amount)}`,
+  ];
+};
+
 const tradeDetailFields: Record<'order' | 'refund' | 'afterSale', DetailField<any>[]> = {
   order: [
     { name: 'orderNo', label: '订单号' },
@@ -117,7 +201,7 @@ const TradeManagement: React.FC = () => {
   const [detail, setDetail] = useState<TradeOrderRecord | RefundRecord | AfterSaleRecord | null>(null);
   const [actionModalType, setActionModalType] = useState<ActionModalType>(null);
   const [actionTargetId, setActionTargetId] = useState<string | null>(null);
-  const [actionForm] = Form.useForm<{ status: string; note: string }>();
+  const [actionForm] = Form.useForm<Record<string, any>>();
   const [createOrderVisible, setCreateOrderVisible] = useState(false);
   const [orderFilters, setOrderFilters] = useState({ keyword: '', orderType: undefined as string | undefined, payMode: undefined as string | undefined, status: undefined as string | undefined });
   const [refundFilters, setRefundFilters] = useState({ keyword: '', status: undefined as string | undefined });
@@ -165,7 +249,7 @@ const TradeManagement: React.FC = () => {
     },
   });
   const updateAfterSaleMutation = useMutation({
-    mutationFn: async ({ id, status, note }: { id: string; status: string; note?: string }) => api.afterSaleTicket.updateStatus(Number(id), { status, note }),
+    mutationFn: async ({ id, status, note, owner }: { id: string; status: string; note?: string; owner?: string }) => api.afterSaleTicket.updateStatus(Number(id), { status, note, owner }),
     onSuccess: () => {
       message.success('售后工单已更新');
       queryClient.invalidateQueries({ queryKey: ['afterSaleTickets'] });
@@ -189,13 +273,13 @@ const TradeManagement: React.FC = () => {
   const createExportTask = () => {
     exportTaskMutation.mutate({
       taskNo: `EXP-${Date.now()}`,
-      taskName: '订单导出',
-      taskType: 'TRADE_ORDER_EXPORT',
+      taskType: 'EXPORT',
+      bizType: 'TRADE_ORDER',
       bizNo: orderFilters.keyword || undefined,
       fileName: `订单导出-${Date.now()}.xlsx`,
+      operator: '系统管理员',
       status: 'PENDING',
-      createdBy: '系统管理员',
-      createdAt: new Date().toISOString(),
+      remark: '订单导出',
     });
   };
 
@@ -234,7 +318,9 @@ const TradeManagement: React.FC = () => {
   const openActionModal = (type: ActionModalType, id: string, currentStatus: string, currentNote?: string) => {
     setActionModalType(type);
     setActionTargetId(id);
-    actionForm.setFieldsValue({ status: currentStatus, note: currentNote || '' });
+    if (type) {
+      actionForm.setFieldsValue({ status: currentStatus, actionReason: actionReasonOptions[type][0].value, responsibility: 'PLATFORM', nextStep: 'FOLLOW_UP', notifyUser: true, owner: '后台客服', actionNote: currentNote || '' });
+    }
   };
 
   const openDetailAction = () => {
@@ -263,15 +349,15 @@ const TradeManagement: React.FC = () => {
     }
 
     if (actionModalType === 'order') {
-      await updateOrderMutation.mutateAsync({ id: actionTargetId, status: values.status, note: values.note });
+      await updateOrderMutation.mutateAsync({ id: actionTargetId, status: values.status, note: buildActionNote(actionModalType, values) });
     }
 
     if (actionModalType === 'refund') {
-      await updateRefundMutation.mutateAsync({ id: actionTargetId, status: values.status, note: values.note });
+      await updateRefundMutation.mutateAsync({ id: actionTargetId, status: values.status, note: buildActionNote(actionModalType, values) });
     }
 
     if (actionModalType === 'afterSale') {
-      await updateAfterSaleMutation.mutateAsync({ id: actionTargetId, status: values.status, note: values.note });
+      await updateAfterSaleMutation.mutateAsync({ id: actionTargetId, status: values.status, owner: values.owner, note: buildActionNote(actionModalType, values) });
     }
 
     closeActionModal();
@@ -373,7 +459,7 @@ const TradeManagement: React.FC = () => {
     <div style={{ padding: 24 }}>
       <PageBanner
         title="交易中心"
-        subtitle="把服务订单、退款中心和售后工单做成可处理、可审核、可回写结果的本地业务页。"
+        subtitle="把服务订单、退款中心和售后工单做成可处理、可审核、可回写结果的动态业务页。"
         icon={<ProfileOutlined />}
       />
       <WorkflowGuide
@@ -411,6 +497,7 @@ const TradeManagement: React.FC = () => {
                 scroll={{ x: 1820 }}
                 toolBarRender={() => [
                   <Button key="export" loading={exportTaskMutation.isPending} onClick={createExportTask}>导出订单</Button>,
+                  <Button key="new" icon={<FileAddOutlined />} onClick={() => { createOrderForm.resetFields(); setCreateOrderVisible(true); }}>人工补单</Button>,
                   <Button key="exception" type="primary" onClick={() => {
                     const target = filteredOrders.find((item) => item.status !== 'COMPLETED') || filteredOrders[0];
                     if (target) setDetail(target);
@@ -471,8 +558,11 @@ const TradeManagement: React.FC = () => {
         ]}
       />
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow="交易补录"
         title="人工补单"
+        subtitle="补齐订单主体、履约对象、支付金额和时间备注，写入后继续进入履约与结算链路。"
+        meta={['服务订单', '后台补录']}
         open={createOrderVisible}
         onCancel={() => {
           setCreateOrderVisible(false);
@@ -481,7 +571,21 @@ const TradeManagement: React.FC = () => {
         onOk={async () => {
           const values = await createOrderForm.validateFields();
           await createOrderMutation.mutateAsync({
-            ...values,
+            orderNo: values.orderNo,
+            merchantId: values.merchantId,
+            storeId: values.storeId,
+            servicePointId: values.servicePointId,
+            serviceProductId: values.serviceProductId,
+            orderType: values.orderType,
+            billingMode: values.billingMode,
+            payMode: values.payMode,
+            orderStatus: values.orderStatus,
+            amount: values.amount,
+            payAmount: values.payAmount,
+            userName: values.userName,
+            startedAt: formatPickerValue(values.startedAt),
+            finishedAt: formatPickerValue(values.finishedAt),
+            note: buildSupplementNote(values),
             storeName: storeOptionMap.get(values.storeId),
             pointCode: servicePointOptionMap.get(values.servicePointId),
             serviceName: serviceProductOptionMap.get(values.serviceProductId),
@@ -490,56 +594,95 @@ const TradeManagement: React.FC = () => {
           createOrderForm.resetFields();
         }}
         confirmLoading={createOrderMutation.isPending}
-        width={880}
+        width={920}
         destroyOnClose
       >
-        <Form form={createOrderForm} layout="vertical" initialValues={{ orderType: 'SCAN', billingMode: 'TIME', payMode: 'WX', orderStatus: 'PAID' }}>
-          <div className="modal-grid">
-            <Form.Item name="orderNo" label="订单号" rules={[{ required: true, message: '请输入订单号' }]}><Input /></Form.Item>
-            <Form.Item name="merchantId" label="商户" rules={[{ required: true, message: '请选择商户' }]}><Select options={merchantOptions} /></Form.Item>
-            <Form.Item name="storeId" label="门店" rules={[{ required: true, message: '请选择门店' }]}><Select options={storeOptions} /></Form.Item>
-            <Form.Item name="servicePointId" label="服务点位"><Select options={servicePointOptions} allowClear /></Form.Item>
-            <Form.Item name="serviceProductId" label="服务商品" rules={[{ required: true, message: '请选择服务商品' }]}><Select options={serviceProductOptions} /></Form.Item>
-            <Form.Item name="orderType" label="订单类型" rules={[{ required: true, message: '请选择订单类型' }]}><Select options={orderTypeOptions} /></Form.Item>
-            <Form.Item name="billingMode" label="计费模式" rules={[{ required: true, message: '请选择计费模式' }]}><Select options={[{ value: 'TIME', label: '按时长' }, { value: 'COUNT', label: '按次' }, { value: 'PACKAGE', label: '套餐' }]} /></Form.Item>
-            <Form.Item name="payMode" label="支付方式" rules={[{ required: true, message: '请选择支付方式' }]}><Select options={payModeOptions} /></Form.Item>
-            <Form.Item name="orderStatus" label="订单状态" rules={[{ required: true, message: '请选择订单状态' }]}><Select options={orderStatusOptions} /></Form.Item>
-            <Form.Item name="amount" label="订单金额" rules={[{ required: true, message: '请输入订单金额' }]}><Input type="number" /></Form.Item>
-            <Form.Item name="payAmount" label="实付金额" rules={[{ required: true, message: '请输入实付金额' }]}><Input type="number" /></Form.Item>
-            <Form.Item name="userName" label="用户"><Input /></Form.Item>
-            <Form.Item name="startedAt" label="开始时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-            <Form.Item name="finishedAt" label="结束时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-            <Form.Item className="modal-span-2" name="note" label="补单说明"><Input.TextArea rows={3} /></Form.Item>
+        <Form form={createOrderForm} layout="vertical" className="merchant-editor-form" initialValues={{ orderType: 'SCAN', billingMode: 'TIME', payMode: 'WX', orderStatus: 'PAID', supplementSource: 'CUSTOMER_SERVICE', userConfirmed: true }}>
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<FileAddOutlined />} title="订单归属" desc="确认订单号、商户、门店、点位和服务商品，保证补录订单能回到履约对象。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="orderNo" label="订单号" rules={[{ required: true, message: '请输入订单号' }]}><Input placeholder="例如：SO202605100001" /></Form.Item>
+                <Form.Item name="merchantId" label="商户" rules={[{ required: true, message: '请选择商户' }]}><Select options={merchantOptions} placeholder="选择商户主体" /></Form.Item>
+                <Form.Item name="storeId" label="门店" rules={[{ required: true, message: '请选择门店' }]}><Select options={storeOptions} placeholder="选择发生门店" /></Form.Item>
+                <Form.Item name="servicePointId" label="服务点位"><Select options={servicePointOptions} allowClear placeholder="选择点位，非点位订单可为空" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-2" name="serviceProductId" label="服务商品" rules={[{ required: true, message: '请选择服务商品' }]}><Select options={serviceProductOptions} placeholder="选择本次补录的服务商品" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+
+            <BusinessEditorSection icon={<AuditOutlined />} title="交易计费" desc="补齐订单类型、计费模式、支付方式和金额，供退款、对账和结算复盘使用。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="orderType" label="订单类型" rules={[{ required: true, message: '请选择订单类型' }]}><Select options={orderTypeOptions} placeholder="选择订单来源类型" /></Form.Item>
+                <Form.Item name="billingMode" label="计费模式" rules={[{ required: true, message: '请选择计费模式' }]}><Select options={[{ value: 'TIME', label: '按时长' }, { value: 'COUNT', label: '按次' }, { value: 'PACKAGE', label: '套餐' }]} placeholder="选择计费方式" /></Form.Item>
+                <Form.Item name="payMode" label="支付方式" rules={[{ required: true, message: '请选择支付方式' }]}><Select options={payModeOptions} placeholder="选择支付渠道" /></Form.Item>
+                <Form.Item name="orderStatus" label="订单状态" rules={[{ required: true, message: '请选择订单状态' }]}><Select options={orderStatusOptions} placeholder="选择写入状态" /></Form.Item>
+                <Form.Item name="amount" label="订单金额" rules={[{ required: true, message: '请输入订单金额' }]}><InputNumber style={{ width: '100%' }} min={0} precision={2} addonBefore="￥" placeholder="订单应收金额" /></Form.Item>
+                <Form.Item name="payAmount" label="实付金额" rules={[{ required: true, message: '请输入实付金额' }]}><InputNumber style={{ width: '100%' }} min={0} precision={2} addonBefore="￥" placeholder="用户实际支付金额" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+
+            <BusinessEditorSection icon={<FieldTimeOutlined />} title="履约补充" desc="记录用户、服务起止时间和补单原因，形成后续异常处置依据。">
+              <div className="merchant-editor-fields merchant-editor-fields--two">
+                <Form.Item name="userName" label="用户"><Input placeholder="用户昵称、手机号或会员标识" /></Form.Item>
+                <Form.Item name="supplementSource" label="补单来源" rules={[{ required: true, message: '请选择补单来源' }]}><Select options={supplementSourceOptions} placeholder="选择补单来源" /></Form.Item>
+                <Form.Item name="startedAt" label="开始时间"><DatePicker showTime style={{ width: '100%' }} placeholder="选择开始时间" /></Form.Item>
+                <Form.Item name="finishedAt" label="结束时间"><DatePicker showTime style={{ width: '100%' }} placeholder="选择结束时间" /></Form.Item>
+                <Form.Item name="userConfirmed" label="用户确认" valuePropName="checked"><Checkbox>已完成用户或门店确认</Checkbox></Form.Item>
+                <Form.Item className="merchant-editor-field-span-2" name="supplementNote" label="补充说明"><Input placeholder="例如：支付成功但订单未生成，已按支付凭证补录" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow="交易处理"
         title={actionModalType === 'order' ? '订单处置' : actionModalType === 'refund' ? '退款审核' : actionModalType === 'afterSale' ? '售后处理' : '处理动作'}
+        subtitle="更新业务状态并记录处理意见，结果会回写到对应订单、退款单或售后工单。"
+        meta={[actionModalType === 'order' ? '订单状态' : actionModalType === 'refund' ? '退款审核' : '售后结论', actionTargetId ? `ID ${actionTargetId}` : '待选择']}
         open={!!actionModalType}
         onOk={handleActionSubmit}
         onCancel={closeActionModal}
-        width={820}
+        width={760}
       >
-        <Form form={actionForm} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}>
-              <Select
-                options={actionModalType === 'order' ? orderStatusOptions : actionModalType === 'refund' ? refundStatusOptions : ticketStatusOptions}
-              />
-            </Form.Item>
-            <div />
-            <Form.Item className="modal-span-2" name="note" label="处理说明" rules={[{ required: true, message: '请输入处理说明' }]}>
-              <Input.TextArea rows={4} placeholder="记录审核意见、补偿方案、异常结论等" />
-            </Form.Item>
+        <Form form={actionForm} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<SolutionOutlined />} title="处理结果" desc="选择最终状态并沉淀可追溯的处置说明。">
+              <div className="merchant-editor-fields merchant-editor-fields--two">
+                <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}>
+                  <Select
+                    options={actionModalType === 'order' ? orderStatusOptions : actionModalType === 'refund' ? refundStatusOptions : ticketStatusOptions}
+                    placeholder="选择本次处理后的状态"
+                  />
+                </Form.Item>
+                <Form.Item name="actionReason" label="处理原因" rules={[{ required: true, message: '请选择处理原因' }]}>
+                  <Select options={actionModalType ? actionReasonOptions[actionModalType] : []} placeholder="选择处理原因" />
+                </Form.Item>
+                <Form.Item name="responsibility" label="责任归属" rules={[{ required: true, message: '请选择责任归属' }]}>
+                  <Radio.Group options={responsibilityOptions} optionType="button" />
+                </Form.Item>
+                <Form.Item name="nextStep" label="后续动作" rules={[{ required: true, message: '请选择后续动作' }]}>
+                  <Select options={nextStepOptions} placeholder="选择后续动作" />
+                </Form.Item>
+                {actionModalType === 'afterSale' ? (
+                  <Form.Item name="owner" label="处理人" rules={[{ required: true, message: '请输入处理人' }]}>
+                    <Input placeholder="例如：后台客服" />
+                  </Form.Item>
+                ) : null}
+                <Form.Item name="notifyUser" label="用户通知" valuePropName="checked"><Checkbox>已同步通知用户或客服</Checkbox></Form.Item>
+                <Form.Item className="merchant-editor-field-span-2" name="actionNote" label="补充说明"><Input placeholder="例如：退款审核通过，预计 1 个工作日原路退回" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal
+      <BusinessDetailModal
         title={detail && 'orderNo' in detail ? `订单处置台 · ${String(detail.orderNo)}` : '详情查看'}
+        eyebrow="交易履约详情"
+        subtitle="核对订单、退款或售后记录，并快速进入后续处理动作。"
+        meta={[detail && 'refundNo' in detail ? '退款单' : detail && 'ticketNo' in detail ? '售后单' : '订单记录', '可处理']}
         open={!!detail}
-        width={760}
+        width={900}
         onCancel={() => setDetail(null)}
         footer={(
           <Space>
@@ -582,11 +725,7 @@ const TradeManagement: React.FC = () => {
               <Col span={12}>
                 <Card title="关联提醒">
                   <List
-                    dataSource={[
-                      '退款会同步影响结算单和活动成本分摊',
-                      '售后补偿要同步到用户资产中心',
-                      '异常设备建议回到设备中心做维护标记',
-                    ]}
+                    dataSource={buildTradeReminderItems(detail)}
                     renderItem={(item: string) => <List.Item>{item}</List.Item>}
                   />
                 </Card>
@@ -594,7 +733,7 @@ const TradeManagement: React.FC = () => {
             </Row>
           </>
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
     </div>
   );

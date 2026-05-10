@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { Button, Form, Input, Modal, Select, Space, Tag, Tree } from 'antd';
-import { DeleteOutlined, EditOutlined, PlusOutlined, SafetyOutlined } from '@ant-design/icons';
+import { Button, Form, Input, InputNumber, Select, Space, Tag, Tree } from 'antd';
+import { DeleteOutlined, EditOutlined, FieldTimeOutlined, PlusOutlined, SafetyOutlined, TeamOutlined } from '@ant-design/icons';
 import { useCreateRole, useDeleteRole, usePermissionTree, useRolePermissionIds, useRoles, useUpdateRole } from '@/hooks/useApi';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 
@@ -90,7 +93,7 @@ const RoleManagement: React.FC = () => {
   };
 
   const handleDelete = (id: number) => {
-    Modal.confirm({
+    showBusinessConfirm({
       title: '确认删除',
       content: '确定要删除该角色吗？',
       onOk: () => deleteMutation.mutate(id),
@@ -254,7 +257,7 @@ const RoleManagement: React.FC = () => {
         }}
       />
 
-      <Modal title="角色详情" open={!!detailRole} footer={null} onCancel={() => setDetailRole(null)} width={760}>
+      <BusinessDetailModal title="角色详情" open={!!detailRole} onCancel={() => setDetailRole(null)} width={760}>
         {detailRole ? (
           <SchemaDetail
             record={detailRole}
@@ -263,57 +266,74 @@ const RoleManagement: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow={editingRole ? '角色维护' : '角色新增'}
         title={editingRole ? '编辑角色' : '新建角色'}
+        subtitle="维护角色编码、状态和权限树，角色变更会影响后台菜单、按钮和数据操作边界。"
+        meta={[editingRole ? '编辑模式' : '新建模式', `${checkedPermissionIds.length} 项权限`]}
         open={modalVisible}
         onOk={() => form.submit()}
         onCancel={closeModal}
         confirmLoading={createMutation.isPending || updateMutation.isPending}
-        width={880}
+        width={1040}
         destroyOnClose
+        okText="保存角色"
       >
-        <Form form={form} layout="vertical" onFinish={handleFinish} preserve={false}>
-          <div className="modal-grid">
-            <Form.Item name="id" hidden>
-              <Input />
-            </Form.Item>
-            <Form.Item name="roleName" label="角色名称" rules={[{ required: true, message: '请输入角色名称' }]}>
-              <Input autoComplete="off" />
-            </Form.Item>
-            <Form.Item name="roleCode" label="角色编码" rules={[{ required: true, message: '请输入角色编码' }]}>
-              <Input autoComplete="off" />
-            </Form.Item>
-            <Form.Item name="sort" label="排序" initialValue={0}>
-              <Input type="number" autoComplete="off" />
-            </Form.Item>
-            <Form.Item name="status" label="状态" initialValue={1}>
-              <Select
-                options={[
-                  { value: 1, label: '正常' },
-                  { value: 0, label: '禁用' },
-                ]}
-              />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="description" label="描述">
-              <Input.TextArea rows={3} />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="permissionIds" label="权限范围">
-              <Tree
-                checkable
-                defaultExpandAll
-                treeData={normalizeTree((permissionTree as any[]) || [])}
-                checkedKeys={checkedPermissionIds}
-                onCheck={(checkedKeys) => form.setFieldValue('permissionIds', Array.isArray(checkedKeys) ? checkedKeys : checkedKeys.checked)}
-              />
-            </Form.Item>
-            {editingRole?.id && permissionIdsLoading ? (
-              <div className="modal-span-2" style={{ marginTop: -8, color: 'rgba(0, 0, 0, 0.45)', fontSize: 12 }}>正在加载角色已有权限...</div>
-            ) : null}
+        <Form form={form} layout="vertical" onFinish={handleFinish} preserve={false} className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<TeamOutlined />} title="角色基础" desc="角色编码用于权限校验，创建后应保持稳定。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="id" hidden>
+                  <Input />
+                </Form.Item>
+                <Form.Item name="roleName" label="角色名称" rules={[{ required: true, message: '请输入角色名称' }]}>
+                  <Input autoComplete="off" placeholder="例如：门店运营" />
+                </Form.Item>
+                <Form.Item name="roleCode" label="角色编码" rules={[{ required: true, message: '请输入角色编码' }]}>
+                  <Input autoComplete="off" placeholder="例如：STORE_OPERATOR" />
+                </Form.Item>
+                <Form.Item name="sort" label="排序" initialValue={0}>
+                  <InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="数字越小越靠前" />
+                </Form.Item>
+                <Form.Item name="status" label="状态" initialValue={1}>
+                  <Select
+                    options={[
+                      { value: 1, label: '正常' },
+                      { value: 0, label: '禁用' },
+                    ]}
+                    placeholder="请选择状态"
+                  />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<FieldTimeOutlined />} title="角色说明" desc="记录角色用途和授权边界，便于后续审计。">
+              <div className="merchant-editor-fields merchant-editor-fields--single">
+                <Form.Item name="description" label="描述">
+                  <Input.TextArea rows={3} placeholder="例如：负责门店运营、设备巡检和客服工单处理" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<SafetyOutlined />} title="权限范围" desc="勾选菜单、按钮和操作权限，保存后立即影响角色授权。">
+              <div className="merchant-editor-fields merchant-editor-fields--single">
+                <Form.Item name="permissionIds" label="权限范围">
+                  <Tree
+                    checkable
+                    defaultExpandAll
+                    treeData={normalizeTree((permissionTree as any[]) || [])}
+                    checkedKeys={checkedPermissionIds}
+                    onCheck={(checkedKeys) => form.setFieldValue('permissionIds', Array.isArray(checkedKeys) ? checkedKeys : checkedKeys.checked)}
+                  />
+                </Form.Item>
+                {editingRole?.id && permissionIdsLoading ? (
+                  <div style={{ marginTop: -8, color: 'rgba(0, 0, 0, 0.45)', fontSize: 12 }}>正在加载角色已有权限...</div>
+                ) : null}
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

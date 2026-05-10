@@ -1,12 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
-import { CustomerServiceOutlined, PlusOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import { CustomerServiceOutlined, PlusOutlined, SendOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { messageChannelOptions, messageStatusOptions, subscribeStatusOptions, templateStatusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import api, { type MessageRecord, type MessageTemplateRecord } from '@/services/backendService';
 
@@ -14,6 +16,25 @@ const statusMap = buildValueEnum(templateStatusOptions);
 const channelMap = buildValueEnum(messageChannelOptions);
 const messageStatusMap = buildValueEnum(messageStatusOptions);
 const subscribeStatusMap = buildValueEnum(subscribeStatusOptions);
+const triggerSceneOptions = [
+  { value: 'ORDER_PAID', label: '订单支付成功' },
+  { value: 'SERVICE_DONE', label: '服务完成' },
+  { value: 'COUPON_EXPIRE', label: '券即将过期' },
+  { value: 'TICKET_UPDATE', label: '工单状态更新' },
+];
+const targetUserOptions = [
+  { value: 'ALL_USER', label: '全部用户' },
+  { value: 'ORDER_USER', label: '下单用户' },
+  { value: 'MEMBER_USER', label: '会员用户' },
+  { value: 'STORE_OWNER', label: '门店负责人' },
+];
+type MessageTemplateFormRecord = MessageTemplateRecord & {
+  triggerScene?: string;
+  delayMinutes?: number;
+  triggerLimit?: string;
+};
+const compactJoin = (items: Array<string | undefined | false>) => items.filter(Boolean).join('；');
+const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
 
 const messageTemplateDetailFields: DetailField<MessageTemplateRecord>[] = [
   { name: 'templateCode', label: '模板编码' },
@@ -40,7 +61,7 @@ const messageRecordDetailFields: DetailField<MessageRecord>[] = [
 
 const MessageCenterManagement: React.FC = () => {
   const queryClient = useQueryClient();
-  const [form] = Form.useForm<MessageTemplateRecord>();
+  const [form] = Form.useForm<MessageTemplateFormRecord>();
   const [keyword, setKeyword] = useState('');
   const [messageKeyword, setMessageKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
@@ -171,7 +192,12 @@ const MessageCenterManagement: React.FC = () => {
 
   const handleSubmit = async () => {
     const values = await form.validateFields();
-    await saveTemplateMutation.mutateAsync(values as unknown as Record<string, unknown>);
+    const triggerCondition = compactJoin([
+      values.triggerScene ? `触发场景：${optionLabel(triggerSceneOptions, values.triggerScene as string)}` : undefined,
+      values.delayMinutes ? `延迟发送：${values.delayMinutes}分钟` : undefined,
+      values.triggerLimit ? `频控：${values.triggerLimit}` : undefined,
+    ]);
+    await saveTemplateMutation.mutateAsync({ ...(values as unknown as Record<string, unknown>), triggerCondition, targetUser: values.targetUser || optionLabel(targetUserOptions, values.targetUser as string) });
     closeModal();
   };
 
@@ -180,9 +206,9 @@ const MessageCenterManagement: React.FC = () => {
       <PageBanner title="消息中心" subtitle="补齐消息模板的编码、场景、渠道、触发条件、目标用户和状态控制。" icon={<CustomerServiceOutlined />} />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="消息模板" value={records.length} suffix="个" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="发送渠道" value={3} suffix="类" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="触发场景" value={records.length + 2} suffix="种" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="消息模板" value={templateQuery.data?.total ?? records.length} suffix="个" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="发送渠道" value={new Set(records.map((item) => item.channel).filter(Boolean)).size} suffix="类" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="触发场景" value={new Set(records.map((item) => item.scene).filter(Boolean)).size} suffix="种" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="启用模板" value={records.filter((item) => item.status === 'ENABLED').length} suffix="个" /></Card></Col>
       </Row>
 
@@ -238,21 +264,42 @@ const MessageCenterManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title={editingRecord ? `编辑消息模板 · ${editingRecord.templateName}` : '新建消息模板'} open={modalVisible} onOk={handleSubmit} confirmLoading={saveTemplateMutation.isPending} onCancel={closeModal} width={860}>
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="templateCode" label="模板编码" rules={[{ required: true, message: '请输入模板编码' }]}><Input /></Form.Item>
-            <Form.Item name="templateName" label="模板名称" rules={[{ required: true, message: '请输入模板名称' }]}><Input /></Form.Item>
-            <Form.Item name="scene" label="场景"><Input /></Form.Item>
-            <Form.Item name="channel" label="发送渠道"><Select options={messageChannelOptions} /></Form.Item>
-            <Form.Item name="targetUser" label="目标用户"><Input /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={templateStatusOptions} /></Form.Item>
-            <Form.Item className="modal-span-2" name="triggerCondition" label="触发条件"><Input.TextArea rows={3} /></Form.Item>
+      <BusinessEditorModal
+        eyebrow="消息模板配置"
+        title={editingRecord ? `编辑消息模板 · ${editingRecord.templateName}` : '新建消息模板'}
+        subtitle="把触发条件拆成场景、延迟、频控和目标用户，运营不需要手写触发规则。"
+        meta={[editingRecord ? '编辑' : '新增', '消息中心']}
+        open={modalVisible}
+        onOk={handleSubmit}
+        confirmLoading={saveTemplateMutation.isPending}
+        onCancel={closeModal}
+        width={1080}
+        okText="保存模板"
+      >
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<CustomerServiceOutlined />} title="模板基础" desc="定义模板编码、名称、场景和渠道。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="templateCode" label="模板编码" rules={[{ required: true, message: '请输入模板编码' }]}><Input placeholder="例如：MSG-ORDER-PAID" /></Form.Item>
+                <Form.Item name="templateName" label="模板名称" rules={[{ required: true, message: '请输入模板名称' }]}><Input placeholder="例如：订单支付成功提醒" /></Form.Item>
+                <Form.Item name="scene" label="场景"><Input placeholder="例如：订单通知" /></Form.Item>
+                <Form.Item name="channel" label="发送渠道"><Select options={messageChannelOptions} placeholder="请选择发送渠道" /></Form.Item>
+                <Form.Item name="status" label="状态"><Select options={templateStatusOptions} placeholder="请选择状态" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<SendOutlined />} title="触发策略" desc="配置触发场景、发送延迟、频控和目标用户。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="triggerScene" label="触发场景"><Select options={triggerSceneOptions} placeholder="请选择触发场景" /></Form.Item>
+                <Form.Item name="delayMinutes" label="延迟发送"><Input placeholder="例如：0 或 10" /></Form.Item>
+                <Form.Item name="triggerLimit" label="频控"><Input placeholder="例如：每用户每天最多1次" /></Form.Item>
+                <Form.Item name="targetUser" label="目标用户"><Select options={targetUserOptions} placeholder="请选择目标用户" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal title={detail && 'messageNo' in detail ? '消息发送详情' : '消息模板详情'} open={!!detail} footer={null} onCancel={() => setDetail(null)} width={820}>
+      <BusinessDetailModal title={detail && 'messageNo' in detail ? '消息发送详情' : '消息模板详情'} open={!!detail} onCancel={() => setDetail(null)} width={820}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -261,7 +308,7 @@ const MessageCenterManagement: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
     </div>
   );
 };

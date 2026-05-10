@@ -1,20 +1,14 @@
 import React, { useState } from 'react';
-import { Button, Card, Col, List, Modal, Row, Space, Spin, Statistic, Tag } from 'antd';
+import { Button, Card, Col, List, Row, Space, Spin, Statistic, Tag } from 'antd';
 import { AlertOutlined, ApartmentOutlined, BarChartOutlined, CheckCircleOutlined, ClockCircleOutlined, FundProjectionScreenOutlined, RightOutlined, SettingOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import PageBanner from '@/components/PageBanner';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
 import type { PlatformDashboardCardRecord, PlatformDashboardItemRecord } from '@/services/backendService';
 import { formatAmount } from '@/pages/Business/shared';
-
-const fallbackCards: PlatformDashboardCardRecord[] = [
-  { key: 'merchant', title: '商户 / 门店', value: '0 / 0', suffix: '家', route: '/merchant', status: 'NORMAL' },
-  { key: 'order', title: '订单', value: 0, suffix: '单', route: '/trade', status: 'NORMAL' },
-  { key: 'revenue', title: '实收金额', value: 0, suffix: '元', route: '/analysis', status: 'NORMAL' },
-  { key: 'todo', title: '待办任务', value: 0, suffix: '项', route: '/merchant-console', status: 'NORMAL' },
-];
 
 const dashboardItemFields: DetailField<PlatformDashboardItemRecord>[] = [
   { name: 'title', label: '标题' },
@@ -63,7 +57,7 @@ const Dashboard: React.FC = () => {
     queryFn: async () => (await api.platformDashboard.overview()).data,
   });
 
-  const cards = data?.cards?.length ? data.cards : fallbackCards;
+  const cards = data?.cards || [];
   const todos = data?.todos || [];
   const alerts = data?.alerts || [];
   const changes = data?.changes || [];
@@ -145,9 +139,9 @@ const Dashboard: React.FC = () => {
           ))}
         </Row>
 
-        <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+        <BusinessDetailModal title="工作台事项详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
           {detail ? <SchemaDetail record={detail as Record<string, any>} fields={('key' in detail ? dashboardCardFields : dashboardItemFields) as DetailField<Record<string, any>>[]} /> : null}
-        </Modal>
+        </BusinessDetailModal>
       </div>
     </Spin>
   );

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Popconfirm, Row, Select, Statistic, Tabs, message } from 'antd';
-import { DeleteOutlined, EditOutlined, HomeOutlined, PlusOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, Row, Select, Statistic, Tabs, message } from 'antd';
+import { DeleteOutlined, EditOutlined, FieldTimeOutlined, HomeOutlined, NotificationOutlined, PlusOutlined, ToolOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
@@ -11,6 +11,9 @@ import {
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
 import type {
   StoreBusinessHoursRecord,
@@ -19,7 +22,7 @@ import type {
   StoreServiceCapabilityRecord,
   StoreTempCloseRecord,
 } from '@/services/backendService';
-import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, safeJsonParse } from '@/pages/Business/shared';
 
 type StoreProfileTab = 'image' | 'business' | 'tempClose' | 'capability' | 'change';
 type EditableRecord = StoreImageRecord | StoreBusinessHoursRecord | StoreTempCloseRecord | StoreServiceCapabilityRecord | StoreChangeLogRecord;
@@ -27,6 +30,45 @@ type EditableRecord = StoreImageRecord | StoreBusinessHoursRecord | StoreTempClo
 const publishStatusMap = buildValueEnum(publishStatusOptions);
 const storeStatusMap = buildValueEnum(storeStatusOptions);
 const capabilityMap = buildValueEnum(storeServiceCapabilityOptions);
+
+const storeProfileModalTitleMap: Record<StoreProfileTab, string> = {
+  image: '门店图片',
+  business: '营业时间',
+  tempClose: '临停记录',
+  capability: '服务能力',
+  change: '变更日志',
+};
+
+const storeProfileModalDescMap: Record<StoreProfileTab, string> = {
+  image: '维护门店封面、环境图和展示排序，保证小程序门店页有可用素材。',
+  business: '配置门店每周营业时段和开放状态，支撑下单可用性判断。',
+  tempClose: '记录临时停业原因、起止时间和操作人，保证前端展示与运营动作一致。',
+  capability: '配置门店可用能力和扩展参数，承接服务、活动和履约范围。',
+  change: '记录门店关键字段变更前后内容，方便审计、交接和问题追溯。',
+};
+
+const capabilityLimitOptions = [
+  { value: 'ALL_DAY', label: '全天开放' },
+  { value: 'BUSINESS_HOURS', label: '营业时间内开放' },
+  { value: 'APPOINTMENT_ONLY', label: '仅预约可用' },
+];
+
+const capabilityPointOptions = [
+  { value: 'ALL_POINTS', label: '全部点位' },
+  { value: 'CAR_WASH_ONLY', label: '洗车点位' },
+  { value: 'RETAIL_ONLY', label: '零售点位' },
+];
+
+const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
+const buildCapabilityConfig = (values: Record<string, any>) =>
+  JSON.stringify({
+    limitMode: values.limitMode,
+    pointScope: values.pointScope,
+    extraLimit: values.extraLimit,
+  });
+
+const parseCapabilityConfig = (configJson?: string) =>
+  safeJsonParse<{ limitMode?: string; pointScope?: string; extraLimit?: string }>(configJson, {});
 
 const storeProfileDetailFields: Record<StoreProfileTab, DetailField<any>[]> = {
   image: [
@@ -56,7 +98,9 @@ const storeProfileDetailFields: Record<StoreProfileTab, DetailField<any>[]> = {
   capability: [
     { name: 'storeName', label: '门店' },
     { name: 'capabilityCode', label: '能力' },
-    { name: 'configJson', label: '配置' },
+    { name: 'limitMode', label: '开放限制', render: (_, record) => optionLabel(capabilityLimitOptions, record.limitMode) || '-' },
+    { name: 'pointScope', label: '适用点位', render: (_, record) => optionLabel(capabilityPointOptions, record.pointScope) || '-' },
+    { name: 'extraLimit', label: '补充限制' },
     { name: 'status', label: '状态' },
     { name: 'updatedAt', label: '更新时间' },
   ],
@@ -79,6 +123,7 @@ const StoreProfileManagement: React.FC = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<EditableRecord | null>(null);
   const [form] = Form.useForm<Record<string, unknown>>();
+  const [searchForm] = Form.useForm<{ keyword?: string }>();
 
   const { data: storeOptions } = useQuery({ queryKey: ['storeOptionsForProfiles'], queryFn: async () => (await api.store.options()).data });
   const storeMap = new Map((storeOptions || []).map((item) => [item.value, item.label]));
@@ -94,7 +139,10 @@ const StoreProfileManagement: React.FC = () => {
   const images = withStoreName(imageQuery.data?.records);
   const businessHours = withStoreName(businessQuery.data?.records);
   const tempCloses = withStoreName(tempCloseQuery.data?.records);
-  const capabilities = withStoreName(capabilityQuery.data?.records);
+  const capabilities = withStoreName(capabilityQuery.data?.records).map((record) => ({
+    ...record,
+    ...parseCapabilityConfig(record.configJson),
+  }));
   const changes = withStoreName(changeQuery.data?.records);
 
   const invalidateTab = (tab: StoreProfileTab) => {
@@ -139,12 +187,24 @@ const StoreProfileManagement: React.FC = () => {
   const filter = <T extends object>(items: T[]) =>
     items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
 
+  const confirmRemove = (tab: StoreProfileTab, id: number) => {
+    showBusinessConfirm({
+      title: '确认删除该门店档案',
+      content: `删除后将移除「${storeProfileModalTitleMap[tab]}」记录，并影响门店运营资料追溯，请确认后继续。`,
+      onOk: () => removeMutation.mutate({ tab, id }),
+    });
+  };
+
   const openModal = (tab: StoreProfileTab, record?: EditableRecord) => {
     setActiveTab(tab);
     setEditingRecord(record || null);
     form.resetFields();
     if (record) {
-      form.setFieldsValue({ ...(record as unknown as Record<string, string | number | undefined>) });
+      const recordValues = record as unknown as Record<string, string | number | undefined>;
+      form.setFieldsValue({
+        ...recordValues,
+        ...(tab === 'capability' ? parseCapabilityConfig(String((recordValues as any).configJson || '')) : {}),
+      });
     } else if (tab === 'image') {
       form.setFieldsValue({ imageType: 'COVER', sortNo: 0, status: 'PUBLISHED' });
     } else if (tab === 'business') {
@@ -165,9 +225,7 @@ const StoreProfileManagement: React.FC = () => {
       <>
         <Button size="small" type="link" onClick={() => setDetail(record)}>详情</Button>
         <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openModal(tab, record)}>编辑</Button>
-        <Popconfirm title="确认删除该记录？" onConfirm={() => removeMutation.mutate({ tab, id: record.id })}>
-          <Button size="small" type="link" danger icon={<DeleteOutlined />}>删除</Button>
-        </Popconfirm>
+        <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => confirmRemove(tab, record.id)}>删除</Button>
       </>
     ),
   });
@@ -201,7 +259,9 @@ const StoreProfileManagement: React.FC = () => {
   const capabilityColumns: ProColumns<StoreServiceCapabilityRecord>[] = [
     { title: '门店', dataIndex: 'storeName', width: 180 },
     { title: '能力', dataIndex: 'capabilityCode', width: 130, render: (_, record) => renderStatusTag(record.capabilityCode, capabilityMap) },
-    { title: '配置', dataIndex: 'configJson', width: 280 },
+    { title: '开放限制', dataIndex: 'limitMode', width: 140, render: (_, record) => optionLabel(capabilityLimitOptions, record.limitMode) || '-' },
+    { title: '适用点位', dataIndex: 'pointScope', width: 140, render: (_, record) => optionLabel(capabilityPointOptions, record.pointScope) || '-' },
+    { title: '补充限制', dataIndex: 'extraLimit', width: 220, ellipsis: true },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
     actionColumn('capability') as ProColumns<StoreServiceCapabilityRecord>,
@@ -229,16 +289,22 @@ const StoreProfileManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="变更日志" value={changes.length} suffix="条" /></Card></Col>
       </Row>
 
-      <ProTable
+      <Form
+        form={searchForm}
+        layout="inline"
         style={{ marginBottom: 16 }}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '输入门店、图片、营业时间、能力、变更关键词' } }]}
-        dataSource={[]}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        options={false}
-        pagination={false}
-        onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-        onReset={() => setKeyword('')}
-      />
+        onFinish={(values) => setKeyword(String(values.keyword || ''))}
+      >
+        <Form.Item name="keyword" label="关键词">
+          <Input allowClear placeholder="输入门店、图片、营业时间、能力、变更关键词" style={{ width: 360 }} />
+        </Form.Item>
+        <Form.Item>
+          <Button type="primary" htmlType="submit">查询</Button>
+        </Form.Item>
+        <Form.Item>
+          <Button onClick={() => { searchForm.resetFields(); setKeyword(''); }}>重置</Button>
+        </Form.Item>
+      </Form>
 
       <Tabs
         activeKey={activeTab}
@@ -252,73 +318,105 @@ const StoreProfileManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title={`${storeProfileModalTitleMap[activeTab]}详情`} open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? <SchemaDetail record={detail as Record<string, any>} fields={storeProfileDetailFields[activeTab]} /> : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
-        title={editingRecord ? '编辑门店档案' : '新增门店档案'}
+      <BusinessEditorModal
+        eyebrow={editingRecord ? '门店档案维护' : '门店档案新增'}
+        title={`${editingRecord ? '编辑' : '新增'}${storeProfileModalTitleMap[activeTab]}`}
+        subtitle={storeProfileModalDescMap[activeTab]}
+        meta={[storeProfileModalTitleMap[activeTab], editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
         onCancel={() => {
           setModalVisible(false);
           setEditingRecord(null);
           form.resetFields();
         }}
-        onOk={async () => saveMutation.mutate(await form.validateFields())}
+        onOk={async () => {
+          const values = await form.validateFields();
+      saveMutation.mutate(activeTab === 'capability' ? { ...values, configJson: buildCapabilityConfig(values as Record<string, any>) } : values);
+        }}
         confirmLoading={saveMutation.isPending}
-        width={760}
+        width={980}
+        okText={editingRecord ? '保存变更' : '保存档案'}
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" className="merchant-editor-form">
           <Form.Item name="id" hidden><Input /></Form.Item>
-          <div className="modal-grid">
-            <Form.Item name="storeId" label="所属门店" rules={[{ required: true, message: '请选择门店' }]}>
-              <Select showSearch optionFilterProp="label" options={storeOptions || []} />
-            </Form.Item>
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection
+              icon={<HomeOutlined />}
+              title="归属门店"
+              desc="所有档案都必须挂到具体门店，保证展示、营业、临停和变更记录能回到同一个经营主体。"
+            >
+              <div className="merchant-editor-fields merchant-editor-fields--two">
+                <Form.Item name="storeId" label="所属门店" rules={[{ required: true, message: '请选择门店' }]}>
+                  <Select showSearch optionFilterProp="label" options={storeOptions || []} placeholder="请选择门店" />
+                </Form.Item>
+                {activeTab === 'image' ? <Form.Item name="imageType" label="图片类型" rules={[{ required: true, message: '请输入图片类型' }]}><Input placeholder="例如：COVER / ENVIRONMENT" /></Form.Item> : null}
+                {activeTab === 'business' ? <Form.Item name="weekday" label="星期" rules={[{ required: true, message: '请输入星期' }]}><Input placeholder="例如：周一至周日" /></Form.Item> : null}
+                {activeTab === 'capability' ? <Form.Item name="capabilityCode" label="能力" rules={[{ required: true, message: '请选择能力' }]}><Select options={storeServiceCapabilityOptions} placeholder="请选择服务能力" /></Form.Item> : null}
+                {activeTab === 'change' ? <Form.Item name="changeNo" label="变更单号" rules={[{ required: true, message: '请输入变更单号' }]}><Input placeholder="例如：CHG-STORE-20260510-001" /></Form.Item> : null}
+              </div>
+            </BusinessEditorSection>
+
             {activeTab === 'image' ? (
-              <>
-                <Form.Item name="imageType" label="图片类型" rules={[{ required: true, message: '请输入图片类型' }]}><Input /></Form.Item>
-                <Form.Item className="modal-span-2" name="imageUrl" label="图片地址" rules={[{ required: true, message: '请输入图片地址' }]}><Input /></Form.Item>
-                <Form.Item name="sortNo" label="排序"><Input /></Form.Item>
-                <Form.Item name="status" label="状态"><Select options={publishStatusOptions} /></Form.Item>
-              </>
+              <BusinessEditorSection icon={<NotificationOutlined />} title="图片展示" desc="配置图片地址、排序和发布状态，支撑门店详情页展示。">
+                <div className="merchant-editor-fields">
+                  <Form.Item className="merchant-editor-field-span-all" name="imageUrl" label="图片地址" rules={[{ required: true, message: '请输入图片地址' }]}><Input placeholder="图片 URL" /></Form.Item>
+                  <Form.Item name="sortNo" label="排序"><Input placeholder="数字越小越靠前" /></Form.Item>
+                  <Form.Item name="status" label="状态"><Select options={publishStatusOptions} placeholder="请选择状态" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
             ) : null}
+
             {activeTab === 'business' ? (
-              <>
-                <Form.Item name="weekday" label="星期" rules={[{ required: true, message: '请输入星期' }]}><Input /></Form.Item>
-                <Form.Item name="openTime" label="开门时间" rules={[{ required: true, message: '请输入开门时间' }]}><Input placeholder="08:00" /></Form.Item>
-                <Form.Item name="closeTime" label="闭店时间" rules={[{ required: true, message: '请输入闭店时间' }]}><Input placeholder="23:00" /></Form.Item>
-                <Form.Item name="status" label="状态"><Select options={storeStatusOptions} /></Form.Item>
-              </>
+              <BusinessEditorSection icon={<FieldTimeOutlined />} title="营业时段" desc="配置开门、闭店时间和状态，影响门店是否可下单。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="openTime" label="开门时间" rules={[{ required: true, message: '请输入开门时间' }]}><Input placeholder="08:00" /></Form.Item>
+                  <Form.Item name="closeTime" label="闭店时间" rules={[{ required: true, message: '请输入闭店时间' }]}><Input placeholder="23:00" /></Form.Item>
+                  <Form.Item name="status" label="状态"><Select options={storeStatusOptions} placeholder="请选择状态" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
             ) : null}
+
             {activeTab === 'tempClose' ? (
-              <>
-                <Form.Item className="modal-span-2" name="closeReason" label="临停原因" rules={[{ required: true, message: '请输入临停原因' }]}><Input /></Form.Item>
-                <Form.Item name="startAt" label="开始时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-                <Form.Item name="endAt" label="结束时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-                <Form.Item name="operator" label="操作人"><Input /></Form.Item>
-                <Form.Item name="status" label="状态"><Select options={storeStatusOptions} /></Form.Item>
-              </>
+              <BusinessEditorSection icon={<FieldTimeOutlined />} title="临停安排" desc="记录临时停业原因、起止时间、操作人和状态，确保用户端和运营端同步。">
+                <div className="merchant-editor-fields">
+                  <Form.Item className="merchant-editor-field-span-all" name="closeReason" label="临停原因" rules={[{ required: true, message: '请输入临停原因' }]}><Input placeholder="例如：设备检修 / 场地施工 / 电力维护" /></Form.Item>
+                  <Form.Item name="startAt" label="开始时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                  <Form.Item name="endAt" label="结束时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                  <Form.Item name="operator" label="操作人"><Input placeholder="记录发起人或审批人" /></Form.Item>
+                  <Form.Item name="status" label="状态"><Select options={storeStatusOptions} placeholder="请选择状态" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
             ) : null}
+
             {activeTab === 'capability' ? (
-              <>
-                <Form.Item name="capabilityCode" label="能力" rules={[{ required: true, message: '请选择能力' }]}><Select options={storeServiceCapabilityOptions} /></Form.Item>
-                <Form.Item name="status" label="状态"><Select options={publishStatusOptions} /></Form.Item>
-                <Form.Item className="modal-span-2" name="configJson" label="配置"><Input.TextArea rows={4} /></Form.Item>
-              </>
+              <BusinessEditorSection icon={<ToolOutlined />} title="能力策略" desc="用开放限制、适用点位和补充限制维护能力策略，不让运营直接维护技术配置。">
+                <div className="merchant-editor-fields merchant-editor-fields--two">
+                  <Form.Item name="status" label="状态"><Select options={publishStatusOptions} placeholder="请选择状态" /></Form.Item>
+                  <Form.Item name="limitMode" label="开放限制"><Select options={capabilityLimitOptions} placeholder="请选择开放限制" /></Form.Item>
+                  <Form.Item name="pointScope" label="适用点位"><Select options={capabilityPointOptions} placeholder="请选择适用点位" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-2" name="extraLimit" label="补充限制"><Input placeholder="例如：夜间仅开放 1-3 号洗车位" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
             ) : null}
+
             {activeTab === 'change' ? (
-              <>
-                <Form.Item name="changeNo" label="变更单号" rules={[{ required: true, message: '请输入变更单号' }]}><Input /></Form.Item>
-                <Form.Item name="changeType" label="变更类型" rules={[{ required: true, message: '请输入变更类型' }]}><Input /></Form.Item>
-                <Form.Item name="operator" label="操作人"><Input /></Form.Item>
-                <Form.Item name="changedAt" label="变更时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-                <Form.Item className="modal-span-2" name="beforeValue" label="变更前"><Input.TextArea rows={3} /></Form.Item>
-                <Form.Item className="modal-span-2" name="afterValue" label="变更后"><Input.TextArea rows={3} /></Form.Item>
-              </>
+              <BusinessEditorSection icon={<NotificationOutlined />} title="变更内容" desc="记录变更类型、操作人、时间和变更前后值，保证门店资料可追溯。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="changeType" label="变更类型" rules={[{ required: true, message: '请输入变更类型' }]}><Input placeholder="例如：营业时间调整 / 地址变更" /></Form.Item>
+                  <Form.Item name="operator" label="操作人"><Input placeholder="记录变更发起人" /></Form.Item>
+                  <Form.Item name="changedAt" label="变更时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="beforeValue" label="变更前"><Input.TextArea rows={3} placeholder="记录变更前关键字段和值" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="afterValue" label="变更后"><Input.TextArea rows={3} placeholder="记录变更后关键字段和值" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
             ) : null}
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

@@ -1,27 +1,77 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Statistic, message } from 'antd';
-import { GiftOutlined, PlusOutlined } from '@ant-design/icons';
+import { Button, Card, Checkbox, Col, Form, Input, InputNumber, Row, Select, Space, Statistic, message } from 'antd';
+import { CalendarOutlined, GiftOutlined, PlusOutlined, SafetyOutlined, TagsOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { couponTypeOptions, templateStatusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import api, { type CouponTemplateRecord } from '@/services/backendService';
 
 const typeMap = buildValueEnum(couponTypeOptions);
 const statusMap = buildValueEnum(templateStatusOptions);
+const scopeOptions = [
+  { label: '全部门店', value: '全部门店' },
+  { label: '指定门店组', value: '指定门店组' },
+  { label: '指定商品/服务', value: '指定商品/服务' },
+  { label: '新客专享', value: '新客专享' },
+  { label: '会员专享', value: '会员专享' },
+];
+const thresholdOptions = [
+  { label: '无门槛', value: 'NONE' },
+  { label: '满额可用', value: 'AMOUNT' },
+];
+const validityOptions = [
+  { label: '领券后固定天数', value: 'DAYS' },
+  { label: '长期有效', value: 'LONG_TERM' },
+];
+const issueChannelOptions = [
+  { label: '运营手动发放', value: '运营手动发放' },
+  { label: '用户主动领取', value: '用户主动领取' },
+  { label: '活动自动发放', value: '活动自动发放' },
+];
+const issueAudienceOptions = [
+  { label: '全部用户', value: '全部用户' },
+  { label: '新注册用户', value: '新注册用户' },
+  { label: '沉睡用户', value: '沉睡用户' },
+  { label: '指定会员等级', value: '指定会员等级' },
+];
+const stackLimitOptions = [
+  { label: '不可与同类型券叠加', value: '同类券不可叠加' },
+  { label: '不可与平台促销同享', value: '不可与平台促销同享' },
+  { label: '可与余额混用', value: '余额可与单张券混用' },
+];
+
+const splitMultiValue = (value?: string) => String(value || '').split(/[;；,，]/).map((item) => item.trim()).filter(Boolean);
+const joinMultiValue = (value: unknown) => Array.isArray(value) ? value.join('；') : String(value || '');
+const optionLabel = (options: { label: string; value: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
+const thresholdText = (record: CouponTemplateRecord) => record.thresholdType === 'NONE'
+  ? '无门槛'
+  : record.thresholdAmount ? `满 ${record.thresholdAmount} 元可用` : optionLabel(thresholdOptions, record.thresholdType);
+const validityText = (record: CouponTemplateRecord) => record.validityType === 'LONG_TERM'
+  ? '长期有效'
+  : record.validityDays ? `领券后 ${record.validityDays} 天内有效` : optionLabel(validityOptions, record.validityType);
+
+const buildCouponPayload = (values: Record<string, any>) => ({ ...values, stackLimits: joinMultiValue(values.stackLimits) });
 
 const couponTemplateDetailFields: DetailField<CouponTemplateRecord>[] = [
   { name: 'templateCode', label: '编码' },
   { name: 'templateName', label: '名称' },
   { name: 'couponType', label: '券类型', render: (value) => typeMap[value as keyof typeof typeMap]?.text || value },
   { name: 'scope', label: '作用范围' },
-  { name: 'threshold', label: '使用门槛' },
-  { name: 'validity', label: '有效期' },
-  { name: 'issueRule', label: '发放规则' },
-  { name: 'stackRule', label: '叠加规则' },
+  { name: 'thresholdType', label: '门槛类型' },
+  { name: 'thresholdAmount', label: '满额门槛' },
+  { name: 'validityType', label: '有效期类型' },
+  { name: 'validityDays', label: '有效天数' },
+  { name: 'issueChannel', label: '发放方式' },
+  { name: 'issueAudience', label: '领取人群' },
+  { name: 'perUserLimit', label: '每人限领' },
+  { name: 'totalBudget', label: '预算上限' },
+  { name: 'stackLimits', label: '叠加限制' },
   { name: 'stock', label: '库存' },
   { name: 'status', label: '状态', render: (value) => statusMap[value as keyof typeof statusMap]?.text || value },
   { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
@@ -74,7 +124,7 @@ const CouponTemplateManagement: React.FC = () => {
     () =>
       records.filter(
         (item) =>
-          containsKeyword(keyword, [item.templateCode, item.templateName, item.scope, item.threshold, item.issueRule]) &&
+          containsKeyword(keyword, [item.templateCode, item.templateName, item.scope, item.issueChannel, item.issueAudience, item.stackLimits]) &&
           (!typeFilter || item.couponType === typeFilter) &&
           (!statusFilter || item.status === statusFilter)
       ),
@@ -104,10 +154,11 @@ const CouponTemplateManagement: React.FC = () => {
       render: (_, record) => renderStatusTag(record.couponType, typeMap),
     },
     { title: '适用范围', dataIndex: 'scope', width: 160, search: false },
-    { title: '使用门槛', dataIndex: 'threshold', width: 160, search: false },
-    { title: '有效期', dataIndex: 'validity', width: 140, search: false },
-    { title: '发放规则', dataIndex: 'issueRule', width: 180, search: false },
-    { title: '叠加规则', dataIndex: 'stackRule', width: 180, search: false },
+    { title: '使用门槛', dataIndex: 'thresholdType', width: 160, search: false, render: (_, record) => thresholdText(record) || '-' },
+    { title: '有效期', dataIndex: 'validityType', width: 160, search: false, render: (_, record) => validityText(record) || '-' },
+    { title: '发放方式', dataIndex: 'issueChannel', width: 160, search: false },
+    { title: '领取人群', dataIndex: 'issueAudience', width: 160, search: false },
+    { title: '叠加限制', dataIndex: 'stackLimits', width: 220, search: false },
     { title: '库存', dataIndex: 'stock', width: 100, search: false },
     {
       title: '状态',
@@ -129,7 +180,7 @@ const CouponTemplateManagement: React.FC = () => {
             size="small"
             onClick={() => {
               setEditingRecord(record);
-              form.setFieldsValue(record);
+              form.setFieldsValue({ ...record, stackLimits: splitMultiValue(record.stackLimits) } as any);
               setModalVisible(true);
             }}
           >
@@ -150,10 +201,11 @@ const CouponTemplateManagement: React.FC = () => {
 
   const handleSubmit = async () => {
     const values = await form.validateFields();
+    const payload = buildCouponPayload(values as Record<string, any>);
     if (editingRecord) {
-      await saveMutation.mutateAsync({ ...values, id: editingRecord.id } as Record<string, unknown>);
+      await saveMutation.mutateAsync({ ...payload, id: editingRecord.id } as Record<string, unknown>);
     } else {
-      await saveMutation.mutateAsync(values as unknown as Record<string, unknown>);
+      await saveMutation.mutateAsync(payload as Record<string, unknown>);
     }
     closeModal();
   };
@@ -165,7 +217,7 @@ const CouponTemplateManagement: React.FC = () => {
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="券模板数" value={records.length} suffix="个" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="启用模板" value={records.filter((item) => item.status === 'ENABLED').length} suffix="个" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="作用范围" value={3} suffix="层" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="作用范围" value={new Set(records.map((item) => item.scope).filter(Boolean)).size} suffix="层" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="库存总量" value={records.reduce((sum, item) => sum + Number(item.stock || 0), 0)} suffix="张" /></Card></Col>
       </Row>
 
@@ -182,7 +234,7 @@ const CouponTemplateManagement: React.FC = () => {
           <Button key="rules" onClick={() => {
             setEditingRecord(null);
             form.resetFields();
-            form.setFieldsValue({ couponType: 'FULL_REDUCTION', status: 'ENABLED', stock: 0, stackRule: '同类券不可叠加；立减券与服务券互斥；余额可与单张券混用' });
+            form.setFieldsValue({ couponType: 'FULL_REDUCTION', status: 'ENABLED', stock: 0, scope: '全部门店', thresholdType: 'AMOUNT', validityType: 'DAYS', issueChannel: '用户主动领取', issueAudience: '全部用户', stackLimits: ['同类券不可叠加', '余额可与单张券混用'] } as any);
             setModalVisible(true);
           }}>叠加规则</Button>,
           <Button
@@ -192,7 +244,7 @@ const CouponTemplateManagement: React.FC = () => {
             onClick={() => {
               setEditingRecord(null);
               form.resetFields();
-              form.setFieldsValue({ couponType: 'FULL_REDUCTION', status: 'ENABLED', stock: 0 });
+              form.setFieldsValue({ couponType: 'FULL_REDUCTION', status: 'ENABLED', stock: 0, scope: '全部门店', thresholdType: 'AMOUNT', validityType: 'DAYS', issueChannel: '用户主动领取', issueAudience: '全部用户' } as any);
               setModalVisible(true);
             }}
           >
@@ -211,48 +263,86 @@ const CouponTemplateManagement: React.FC = () => {
         }}
       />
 
-      <Modal title={editingRecord ? `编辑券模板 · ${editingRecord.templateName}` : '新建券模板'} open={modalVisible} onOk={handleSubmit} confirmLoading={saveMutation.isPending} onCancel={closeModal} width={860}>
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="templateCode" label="券模板编码" rules={[{ required: true, message: '请输入券模板编码' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="templateName" label="券模板名称" rules={[{ required: true, message: '请输入券模板名称' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="couponType" label="券类型" rules={[{ required: true, message: '请选择券类型' }]}>
-              <Select options={couponTypeOptions} />
-            </Form.Item>
-            <Form.Item name="scope" label="作用范围">
-              <Input />
-            </Form.Item>
-            <Form.Item name="threshold" label="使用门槛">
-              <Input />
-            </Form.Item>
-            <Form.Item name="validity" label="有效期">
-              <Input />
-            </Form.Item>
-            <Form.Item name="stock" label="库存">
-              <Input />
-            </Form.Item>
-            <Form.Item name="status" label="状态">
-              <Select options={templateStatusOptions} />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="issueRule" label="发放规则">
-              <Input.TextArea rows={3} />
-            </Form.Item>
-            <Form.Item className="modal-span-2" name="stackRule" label="叠加规则">
-              <Input.TextArea rows={3} />
-            </Form.Item>
+      <BusinessEditorModal
+        eyebrow="券模板配置"
+        title={editingRecord ? `编辑券模板 · ${editingRecord.templateName}` : '新建券模板'}
+        subtitle="把券模板的范围、门槛、有效期、发放和叠加规则拆成可配置字段，运营不需要维护大段规则文本。"
+        meta={[editingRecord ? '编辑' : '新增', '营销活动']}
+        open={modalVisible}
+        onOk={handleSubmit}
+        confirmLoading={saveMutation.isPending}
+        onCancel={closeModal}
+        width={1080}
+        okText="保存券模板"
+      >
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<TagsOutlined />} title="模板基础" desc="定义券模板编码、名称、类型和当前状态。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="templateCode" label="券模板编码" rules={[{ required: true, message: '请输入券模板编码' }]}>
+                  <Input placeholder="例如：CP-WASH-202605" />
+                </Form.Item>
+                <Form.Item name="templateName" label="券模板名称" rules={[{ required: true, message: '请输入券模板名称' }]}>
+                  <Input placeholder="例如：新客首洗满减券" />
+                </Form.Item>
+                <Form.Item name="couponType" label="券类型" rules={[{ required: true, message: '请选择券类型' }]}>
+                  <Select options={couponTypeOptions} placeholder="请选择券类型" />
+                </Form.Item>
+                <Form.Item name="status" label="状态">
+                  <Select options={templateStatusOptions} placeholder="请选择状态" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<CalendarOutlined />} title="适用与有效期" desc="配置适用范围、使用门槛、库存和有效期。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="scope" label="作用范围">
+                  <Select options={scopeOptions} placeholder="请选择作用范围" />
+                </Form.Item>
+                <Form.Item name="thresholdType" label="使用门槛">
+                  <Select options={thresholdOptions} placeholder="请选择门槛类型" />
+                </Form.Item>
+                <Form.Item name="thresholdAmount" label="满额门槛">
+                  <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" />
+                </Form.Item>
+                <Form.Item name="validityType" label="有效期类型">
+                  <Select options={validityOptions} placeholder="请选择有效期类型" />
+                </Form.Item>
+                <Form.Item name="validityDays" label="有效天数">
+                  <InputNumber min={1} precision={0} addonAfter="天" style={{ width: '100%' }} placeholder="7" />
+                </Form.Item>
+                <Form.Item name="stock" label="库存">
+                  <InputNumber min={0} precision={0} addonAfter="张" style={{ width: '100%' }} placeholder="0" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<SafetyOutlined />} title="发放与叠加" desc="配置发放渠道、领取人群、领取上限、预算和叠加限制。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="issueChannel" label="发放方式">
+                  <Select options={issueChannelOptions} placeholder="请选择发放方式" />
+                </Form.Item>
+                <Form.Item name="issueAudience" label="领取人群">
+                  <Select options={issueAudienceOptions} placeholder="请选择领取人群" />
+                </Form.Item>
+                <Form.Item name="perUserLimit" label="每人限领">
+                  <InputNumber min={1} precision={0} addonAfter="张" style={{ width: '100%' }} placeholder="1" />
+                </Form.Item>
+                <Form.Item name="totalBudget" label="预算上限">
+                  <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" />
+                </Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="stackLimits" label="叠加限制">
+                  <Checkbox.Group options={stackLimitOptions} />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal title="券模板详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={820}>
+      <BusinessDetailModal title="券模板详情" open={!!detail} onCancel={() => setDetail(null)} width={820}>
         {detail ? (
           <SchemaDetail record={detail} fields={couponTemplateDetailFields} column={2} labelWidth={100} />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
     </div>
   );

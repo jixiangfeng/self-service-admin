@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
-import { PayCircleOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
+import { BankOutlined, DiffOutlined, PayCircleOutlined, SafetyOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -13,7 +13,9 @@ import {
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { buildValueEnum, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type { PaymentCallbackLogRecord, PaymentChannelRecord, PaymentOrderRecord, PaymentReconciliationRecord, RefundCallbackLogRecord } from '@/services/backendService';
 
@@ -22,6 +24,19 @@ const publishStatusMap = buildValueEnum(publishStatusOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
 const refundStatusMap = buildValueEnum(refundStatusOptions);
 const reconciliationStatusMap = buildValueEnum(reconciliationStatusOptions);
+const callbackTypeOptions = [
+  { value: 'PAY_SUCCESS', label: '支付成功回调' },
+  { value: 'PAY_FAIL', label: '支付失败回调' },
+  { value: 'REFUND_SUCCESS', label: '退款成功回调' },
+  { value: 'REPLAY', label: '人工重放' },
+];
+const reconcileReasonOptions = [
+  { value: 'CHANNEL_DELAY', label: '渠道延迟入账' },
+  { value: 'REFUND_DIFF', label: '退款差异' },
+  { value: 'MANUAL_REVIEW', label: '人工复核' },
+];
+const compactJoin = (items: Array<string | undefined | false>) => items.filter(Boolean).join('；');
+const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
 
 const paymentDetailFields: Record<'order' | 'channel' | 'callback' | 'refund' | 'recon', DetailField<any>[]> = {
   order: [
@@ -76,7 +91,7 @@ const PaymentOpsManagement: React.FC = () => {
   const [detail, setDetail] = useState<PaymentOrderRecord | PaymentChannelRecord | PaymentCallbackLogRecord | RefundCallbackLogRecord | PaymentReconciliationRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
-  const [form] = Form.useForm<Record<string, unknown>>();
+  const [form] = Form.useForm<Record<string, any>>();
   const paymentQuery = useQuery({
     queryKey: ['paymentOrders', keyword],
     queryFn: async () => (await api.payment.orders.page({ pageNum: 1, pageSize: 200, keyword })).data,
@@ -128,6 +143,11 @@ const PaymentOpsManagement: React.FC = () => {
   const openModal = (title: string) => {
     setModalTitle(title);
     form.resetFields();
+    form.setFieldsValue({
+      status: 'PENDING',
+      callbackType: title.includes('退款') ? 'REFUND_SUCCESS' : 'PAY_SUCCESS',
+      reconcileReason: 'MANUAL_REVIEW',
+    });
     setModalVisible(true);
   };
 
@@ -222,15 +242,10 @@ const PaymentOpsManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="差异对账" value={reconciliations.filter((item) => item.status === 'DIFF').length} suffix="单" /></Card></Col>
       </Row>
 
-      <ProTable
-        style={{ marginBottom: 16 }}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '输入支付单、订单号、渠道流水、对账单号' } }]}
-        dataSource={[]}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        options={false}
-        pagination={false}
-        onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-        onReset={() => setKeyword('')}
+      <KeywordSearchBar
+        value={keyword}
+        placeholder="输入支付单、订单号、渠道流水、对账单号"
+        onSearch={setKeyword}
       />
 
       <Tabs
@@ -243,7 +258,7 @@ const PaymentOpsManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title="支付运维详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -252,61 +267,94 @@ const PaymentOpsManagement: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow="支付运维处理"
         title={modalTitle}
+        subtitle="把渠道、回调、退款和对账处理拆成结构化字段，避免运营直接维护回调报文或大段处理说明。"
+        meta={[modalTitle || '支付运维', '平台运营']}
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={async () => {
           const values = await form.validateFields();
+          const payloadSummary = compactJoin([
+            values.callbackType ? `回调类型：${optionLabel(callbackTypeOptions, values.callbackType)}` : undefined,
+            values.requestId ? `请求编号：${values.requestId}` : undefined,
+            values.paymentNo ? `支付单号：${values.paymentNo}` : undefined,
+            values.reconcileReason ? `处理原因：${optionLabel(reconcileReasonOptions, values.reconcileReason)}` : undefined,
+            values.owner ? `处理人：${values.owner}` : undefined,
+          ]);
           if (modalTitle.includes('支付渠道')) {
             await api.payment.channels.add(values);
             queryClient.invalidateQueries({ queryKey: ['paymentChannels'] });
             message.success('支付渠道已创建');
           } else if (modalTitle.includes('支付回调')) {
-            await api.payment.callbackLogs.add({ ...values, callbackType: values.callbackType || 'REPLAY', callbackStatus: values.status || 'PENDING' });
+            await api.payment.callbackLogs.add({ ...values, payload: payloadSummary, remark: payloadSummary, callbackType: values.callbackType || 'REPLAY', callbackStatus: values.status || 'PENDING' });
             queryClient.invalidateQueries({ queryKey: ['paymentCallbackLogs'] });
             message.success('支付回调已登记');
           } else if (modalTitle.includes('退款回调')) {
-            await api.payment.refundCallbacks.add(values);
+            await api.payment.refundCallbacks.add({ ...values, payload: payloadSummary, remark: payloadSummary });
             queryClient.invalidateQueries({ queryKey: ['refundCallbackLogs'] });
             message.success('退款回调已登记');
           } else if (modalTitle.includes('对账')) {
-            await api.payment.reconciliations.add(values);
+            await api.payment.reconciliations.add({ ...values, handleRemark: payloadSummary });
             queryClient.invalidateQueries({ queryKey: ['paymentReconciliations'] });
             message.success('对账记录已保存');
           }
           setModalVisible(false);
         }}
-        width={760}
+        width={1120}
+        okText="保存处理"
       >
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="channelCode" label="渠道编码"><Input /></Form.Item>
-            <Form.Item name="channelName" label="渠道名称"><Input /></Form.Item>
-            <Form.Item name="mchId" label="商户号"><Input /></Form.Item>
-            <Form.Item name="appId" label="AppID"><Input /></Form.Item>
-            <Form.Item name="settleAccount" label="结算账户"><Input /></Form.Item>
-            <Form.Item name="callbackType" label="回调类型"><Input /></Form.Item>
-            <Form.Item name="requestId" label="请求编号"><Input /></Form.Item>
-            <Form.Item name="refundNo" label="退款单号"><Input /></Form.Item>
-            <Form.Item name="paymentNo" label="支付单号"><Input /></Form.Item>
-            <Form.Item name="payOrderNo" label="支付单号"><Input /></Form.Item>
-            <Form.Item name="refundAmount" label="退款金额"><Input /></Form.Item>
-            <Form.Item name="channelRefundNo" label="渠道退款流水"><Input /></Form.Item>
-            <Form.Item name="reconNo" label="对账单号"><Input /></Form.Item>
-            <Form.Item name="billDate" label="账单日期"><Input placeholder="YYYY-MM-DD" /></Form.Item>
-            <Form.Item name="platformAmount" label="平台金额"><Input /></Form.Item>
-            <Form.Item name="channelAmount" label="渠道金额"><Input /></Form.Item>
-            <Form.Item name="diffAmount" label="差异金额"><Input /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={auditStatusOptions} /></Form.Item>
-            <Form.Item className="modal-span-2" name="payload" label="回调报文"><Input.TextArea rows={3} /></Form.Item>
-            <Form.Item className="modal-span-2" name="handleRemark" label="对账处理说明"><Input.TextArea rows={3} /></Form.Item>
-            <Form.Item className="modal-span-2" name="remark" label="处理说明"><Input.TextArea rows={4} /></Form.Item>
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            {modalTitle.includes('支付渠道') ? (
+              <BusinessEditorSection icon={<BankOutlined />} title="渠道基础" desc="配置渠道编码、商户号、AppID 和结算账户。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="channelCode" label="渠道编码" rules={[{ required: true, message: '请输入渠道编码' }]}><Input placeholder="例如：WX_PAY" /></Form.Item>
+                  <Form.Item name="channelName" label="渠道名称" rules={[{ required: true, message: '请输入渠道名称' }]}><Input placeholder="例如：微信支付" /></Form.Item>
+                  <Form.Item name="mchId" label="商户号"><Input placeholder="请输入商户号" /></Form.Item>
+                  <Form.Item name="appId" label="AppID"><Input placeholder="请输入 AppID" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="settleAccount" label="结算账户"><Input placeholder="例如：招商银行 6222 **** 8888" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+            ) : null}
+            {modalTitle.includes('回调') ? (
+              <BusinessEditorSection icon={<PayCircleOutlined />} title="回调对象" desc="登记支付或退款回调的关键业务编号。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="callbackType" label="回调类型"><Select options={callbackTypeOptions} placeholder="请选择回调类型" /></Form.Item>
+                  <Form.Item name="requestId" label="请求编号"><Input placeholder="例如：REQ-20260510-001" /></Form.Item>
+                  <Form.Item name="paymentNo" label="支付单号"><Input placeholder="请输入支付单号" /></Form.Item>
+                  <Form.Item name="payOrderNo" label="支付单号"><Input placeholder="退款回调对应支付单号" /></Form.Item>
+                  <Form.Item name="refundNo" label="退款单号"><Input placeholder="退款回调时填写" /></Form.Item>
+                  <Form.Item name="channelRefundNo" label="渠道退款流水"><Input placeholder="退款回调时填写" /></Form.Item>
+                  <Form.Item name="refundAmount" label="退款金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+            ) : null}
+            {modalTitle.includes('对账') ? (
+              <BusinessEditorSection icon={<DiffOutlined />} title="对账差异" desc="维护对账金额、差异金额和处理原因。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="reconNo" label="对账单号"><Input placeholder="例如：RECON-20260510-001" /></Form.Item>
+                  <Form.Item name="channelCode" label="渠道编码"><Input placeholder="例如：WX_PAY" /></Form.Item>
+                  <Form.Item name="billDate" label="账单日期"><Input placeholder="YYYY-MM-DD" /></Form.Item>
+                  <Form.Item name="platformAmount" label="平台金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
+                  <Form.Item name="channelAmount" label="渠道金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
+                  <Form.Item name="diffAmount" label="差异金额"><InputNumber precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
+                  <Form.Item name="reconcileReason" label="处理原因"><Select options={reconcileReasonOptions} placeholder="请选择处理原因" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+            ) : null}
+            <BusinessEditorSection icon={<SafetyOutlined />} title="处理状态" desc="选择处理状态和处理人，系统生成回调报文摘要或对账处理说明。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="status" label="状态"><Select options={auditStatusOptions} placeholder="请选择状态" /></Form.Item>
+                <Form.Item name="owner" label="处理人"><Input placeholder="例如：支付运营-王敏" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

@@ -1,13 +1,15 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
-import { AlertOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
+import { AlertOutlined, ClockCircleOutlined, SafetyOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { messageChannelOptions, statusOptions, ticketPriorityOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
-import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import api, {
   type AlarmRecord,
   type AlarmRuleRecord,
@@ -87,6 +89,18 @@ const alarmSceneMap = buildValueEnum(alarmSceneOptions);
 const alarmLevelMap = buildValueEnum(alarmLevelOptions);
 const channelMap = buildValueEnum(messageChannelOptions);
 const priorityMap = buildValueEnum(ticketPriorityOptions);
+const compareOperatorOptions = [
+  { value: 'GTE', label: '大于等于' },
+  { value: 'GT', label: '大于' },
+  { value: 'EQ', label: '等于' },
+];
+const jobCycleOptions = [
+  { value: 'DAILY', label: '每天执行' },
+  { value: 'HOURLY', label: '每小时执行' },
+  { value: 'MANUAL', label: '手动执行' },
+];
+const compactJoin = (items: Array<string | undefined | false>) => items.filter(Boolean).join('；');
+const optionLabel = (options: { value: string; label: string }[], value?: string | number) => options.find((item) => item.value === value)?.label || value;
 
 const detailFields: Record<string, DetailField<Record<string, any>>[]> = {
   riskRule: [
@@ -94,7 +108,7 @@ const detailFields: Record<string, DetailField<Record<string, any>>[]> = {
     { name: 'ruleName', label: '规则名称' },
     { name: 'riskScene', label: '场景', render: (value) => renderStatusTag(value, riskSceneMap) },
     { name: 'actionType', label: '处置动作', render: (value) => renderStatusTag(value, actionMap) },
-    { name: 'ruleConfig', label: '规则配置' },
+    { name: 'ruleConfig', label: '触发策略' },
     { name: 'status', label: '状态', render: (value) => renderStatusTag(value, statusMap) },
     { name: 'createdAt', label: '创建时间', render: (value) => formatDateTime(value) },
     { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
@@ -123,9 +137,9 @@ const detailFields: Record<string, DetailField<Record<string, any>>[]> = {
   job: [
     { name: 'jobCode', label: '任务编码' },
     { name: 'jobName', label: '任务名称' },
-    { name: 'cronExpression', label: 'Cron' },
-    { name: 'jobHandler', label: '执行器' },
-    { name: 'jobParam', label: '参数' },
+    { name: 'cronExpression', label: '执行计划' },
+    { name: 'jobHandler', label: '处理场景' },
+    { name: 'jobParam', label: '执行策略' },
     { name: 'status', label: '状态', render: (value) => renderStatusTag(value, statusMap) },
     { name: 'createdAt', label: '创建时间', render: (value) => formatDateTime(value) },
     { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
@@ -142,7 +156,7 @@ const detailFields: Record<string, DetailField<Record<string, any>>[]> = {
   alarmRule: [
     { name: 'ruleName', label: '规则名称' },
     { name: 'alarmScene', label: '告警场景', render: (value) => renderStatusTag(value, alarmSceneMap) },
-    { name: 'ruleConfig', label: '规则配置' },
+    { name: 'ruleConfig', label: '触发策略' },
     { name: 'notifyChannel', label: '通知渠道' },
     { name: 'receiverConfig', label: '接收人' },
     { name: 'status', label: '状态', render: (value) => renderStatusTag(value, statusMap) },
@@ -201,22 +215,40 @@ const RiskScheduleAlarmManagement: React.FC = () => {
   const openModal = (title: string) => {
     setModalTitle(title);
     form.resetFields();
+    form.setFieldsValue({
+      scene: title.includes('告警') ? 'DEVICE' : 'INVITE',
+      actionType: 'WARN',
+      operator: 'GTE',
+      threshold: 1,
+      windowMinutes: 10,
+      status: 1,
+      jobCycle: 'DAILY',
+      notifyChannel: 'IN_APP',
+    });
     setModalVisible(true);
   };
 
   const handleSubmit = async () => {
     const values = await form.validateFields();
+    const config = compactJoin([
+      values.operator ? `条件：${optionLabel(compareOperatorOptions, values.operator)} ${values.threshold ?? 1}` : undefined,
+      values.windowMinutes ? `统计窗口：${values.windowMinutes}分钟` : undefined,
+      values.actionType ? `处置动作：${optionLabel(actionTypeOptions, values.actionType)}` : undefined,
+      values.jobCycle ? `执行周期：${optionLabel(jobCycleOptions, values.jobCycle)}` : undefined,
+      values.receiver ? `接收人：${values.receiver}` : undefined,
+      values.supplement ? `补充说明：${values.supplement}` : undefined,
+    ]);
     if (modalTitle === '新建风控规则') {
-      await api.riskScheduleAlarm.riskRules.add({ ruleName: values.name, ruleCode: values.code, riskScene: values.scene, ruleConfig: values.config, actionType: 'WARN', status: values.status });
+      await api.riskScheduleAlarm.riskRules.add({ ruleName: values.name, ruleCode: values.code, riskScene: values.scene, ruleConfig: config, actionType: values.actionType, status: values.status });
       await queryClient.invalidateQueries({ queryKey: ['risk-rules'] });
     } else if (modalTitle === '新增黑名单') {
-      await api.riskScheduleAlarm.blacklists.add({ targetType: values.scene, targetValue: values.code, reason: values.config, sourceType: 'MANUAL', status: values.status, operator: values.name });
+      await api.riskScheduleAlarm.blacklists.add({ targetType: values.targetType || values.scene, targetValue: values.code, reason: config, sourceType: 'MANUAL', status: values.status, operator: values.name });
       await queryClient.invalidateQueries({ queryKey: ['risk-blacklists'] });
     } else if (modalTitle === '新建定时任务') {
-      await api.riskScheduleAlarm.jobs.add({ jobName: values.name, jobCode: values.code, cronExpression: values.config, jobHandler: values.scene, status: values.status });
+      await api.riskScheduleAlarm.jobs.add({ jobName: values.name, jobCode: values.code, cronExpression: values.jobCycle === 'HOURLY' ? '0 0 * * * ?' : values.jobCycle === 'MANUAL' ? 'MANUAL' : '0 0 2 * * ?', jobHandler: values.scene, jobParam: config, status: values.status });
       await queryClient.invalidateQueries({ queryKey: ['scheduled-jobs'] });
     } else if (modalTitle === '新建告警规则') {
-      await api.riskScheduleAlarm.alarmRules.add({ ruleName: values.name, alarmScene: values.scene, ruleConfig: values.config, notifyChannel: values.code, receiverConfig: values.name, status: values.status });
+      await api.riskScheduleAlarm.alarmRules.add({ ruleName: values.name, alarmScene: values.scene, ruleConfig: config, notifyChannel: values.notifyChannel, receiverConfig: values.receiver || values.name, status: values.status });
       await queryClient.invalidateQueries({ queryKey: ['alarm-rules'] });
     }
     setModalVisible(false);
@@ -228,7 +260,7 @@ const RiskScheduleAlarmManagement: React.FC = () => {
     { title: '规则名称', dataIndex: 'ruleName', width: 180 },
     { title: '场景', dataIndex: 'riskScene', width: 120, render: (_, record) => renderStatusTag(record.riskScene, riskSceneMap) },
     { title: '处置动作', dataIndex: 'actionType', width: 130, render: (_, record) => renderStatusTag(record.actionType, actionMap) },
-    { title: '规则配置', dataIndex: 'ruleConfig', width: 260, ellipsis: true },
+    { title: '触发策略', dataIndex: 'ruleConfig', width: 260, ellipsis: true },
     { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, statusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
     { title: '操作', valueType: 'option', width: 90, fixed: 'right', render: (_, record) => [<a key="detail" onClick={() => setDetail(record)}>详情</a>] },
@@ -262,9 +294,9 @@ const RiskScheduleAlarmManagement: React.FC = () => {
   const jobColumns = useMemo<ProColumns<ScheduledJobRecord>[]>(() => [
     { title: '任务编码', dataIndex: 'jobCode', width: 200, fixed: 'left' },
     { title: '任务名称', dataIndex: 'jobName', width: 180 },
-    { title: 'Cron', dataIndex: 'cronExpression', width: 170 },
-    { title: '执行器', dataIndex: 'jobHandler', width: 220 },
-    { title: '参数', dataIndex: 'jobParam', width: 240, ellipsis: true },
+    { title: '执行计划', dataIndex: 'cronExpression', width: 170, renderText: (value) => value === 'MANUAL' ? '手动执行' : value === '0 0 * * * ?' ? '每小时执行' : value === '0 0 2 * * ?' ? '每天 02:00 执行' : value },
+    { title: '处理场景', dataIndex: 'jobHandler', width: 220 },
+    { title: '执行策略', dataIndex: 'jobParam', width: 240, ellipsis: true },
     { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, statusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
     {
@@ -297,7 +329,7 @@ const RiskScheduleAlarmManagement: React.FC = () => {
   const alarmRuleColumns = useMemo<ProColumns<AlarmRuleRecord>[]>(() => [
     { title: '规则名称', dataIndex: 'ruleName', width: 180, fixed: 'left' },
     { title: '告警场景', dataIndex: 'alarmScene', width: 120, render: (_, record) => renderStatusTag(record.alarmScene, alarmSceneMap) },
-    { title: '规则配置', dataIndex: 'ruleConfig', width: 240, ellipsis: true },
+    { title: '触发策略', dataIndex: 'ruleConfig', width: 240, ellipsis: true },
     { title: '通知渠道', dataIndex: 'notifyChannel', width: 160, render: (_, record) => (record.notifyChannel ?? '').split(',').filter(Boolean).map((item) => renderStatusTag(item, channelMap)) },
     { title: '接收人', dataIndex: 'receiverConfig', width: 160 },
     { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, statusMap) },
@@ -332,25 +364,10 @@ const RiskScheduleAlarmManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="待处理告警" value={alarms.filter((item) => item.handleStatus !== 'HANDLED').length} suffix="条" /></Card></Col>
       </Row>
 
-      <ProTable
-        rowKey="keyword"
-        search={false}
-        pagination={false}
-        options={false}
-        dataSource={[]}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true }]}
-        toolBarRender={() => [
-          <Input.Search
-            key="keyword"
-            allowClear
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            onSearch={(value) => setKeyword(value)}
-            placeholder="规则 / 用户 / 业务ID / 任务 / 告警"
-            style={{ width: 320 }}
-          />,
-        ]}
-        style={{ marginBottom: 16 }}
+      <KeywordSearchBar
+        value={keyword}
+        placeholder="规则 / 用户 / 业务ID / 任务 / 告警"
+        onSearch={setKeyword}
       />
 
       <Tabs
@@ -365,7 +382,7 @@ const RiskScheduleAlarmManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="明细详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={860}>
+      <BusinessDetailModal title="明细详情" open={!!detail} onCancel={() => setDetail(null)} width={860}>
         {detail && (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -374,19 +391,48 @@ const RiskScheduleAlarmManagement: React.FC = () => {
             labelWidth={110}
           />
         )}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal title={modalTitle} open={modalVisible} onOk={handleSubmit} onCancel={() => setModalVisible(false)} width={780}>
-        <Form form={form} layout="vertical">
-          <Row gutter={16}>
-            <Col span={12}><Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="code" label="编码" rules={[{ required: true, message: '请输入编码' }]}><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="scene" label="场景" rules={[{ required: true, message: '请选择场景' }]}><Select options={[...riskSceneOptions, ...alarmSceneOptions]} /></Form.Item></Col>
-            <Col span={12}><Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={statusOptions} /></Form.Item></Col>
-            <Col span={24}><Form.Item name="config" label="配置 JSON" rules={[{ required: true, message: '请输入配置' }]}><Input.TextArea rows={4} /></Form.Item></Col>
-          </Row>
+      <BusinessEditorModal
+        eyebrow="风控告警配置"
+        title={modalTitle}
+        subtitle="把规则条件、阈值、统计窗口、处置动作和通知人拆成运营可维护字段，提交时合并为规则配置。"
+        meta={[modalTitle || '风控告警', '平台运营']}
+        open={modalVisible}
+        onOk={handleSubmit}
+        onCancel={() => setModalVisible(false)}
+        width={1080}
+        okText="保存规则"
+      >
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<SafetyOutlined />} title="规则基础" desc="配置名称、编码、场景和状态。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}><Input placeholder="例如：邀请异常频次规则" /></Form.Item>
+                <Form.Item name="code" label="编码" rules={[{ required: true, message: '请输入编码' }]}><Input placeholder="例如：RISK-INVITE-FREQ" /></Form.Item>
+                <Form.Item name="scene" label="场景" rules={[{ required: true, message: '请选择场景' }]}><Select options={[...riskSceneOptions, ...alarmSceneOptions]} placeholder="请选择场景" /></Form.Item>
+                <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={statusOptions} placeholder="请选择状态" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<ClockCircleOutlined />} title="触发条件" desc="配置比较方式、阈值、统计窗口和任务周期。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="operator" label="比较方式"><Select options={compareOperatorOptions} placeholder="请选择比较方式" /></Form.Item>
+                <Form.Item name="threshold" label="触发阈值"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="1" /></Form.Item>
+                <Form.Item name="windowMinutes" label="统计窗口"><InputNumber min={1} precision={0} addonAfter="分钟" style={{ width: '100%' }} placeholder="10" /></Form.Item>
+                <Form.Item name="jobCycle" label="执行周期"><Select options={jobCycleOptions} placeholder="请选择执行周期" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<AlertOutlined />} title="处置通知" desc="配置处置动作、通知渠道、接收人和补充说明。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="actionType" label="处置动作"><Select options={actionTypeOptions} placeholder="请选择处置动作" /></Form.Item>
+                <Form.Item name="notifyChannel" label="通知渠道"><Select options={messageChannelOptions} placeholder="请选择通知渠道" /></Form.Item>
+                <Form.Item name="receiver" label="接收人"><Input placeholder="例如：risk-ops" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="supplement" label="补充说明"><Input placeholder="例如：同设备 10 分钟内邀请超过 3 次触发预警" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+          </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

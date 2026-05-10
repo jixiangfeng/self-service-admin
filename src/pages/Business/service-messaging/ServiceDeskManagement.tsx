@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
-import { CustomerServiceOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import { CustomerServiceOutlined, SendOutlined, ToolOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
@@ -13,6 +13,8 @@ import {
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import api, { type AfterSaleTicketRecord, type MessageRecord, type MessageTemplateRecord } from '@/services/backendService';
 
@@ -21,6 +23,14 @@ const messageChannelMap = buildValueEnum(messageChannelOptions);
 const ticketStatusMap = buildValueEnum(ticketStatusOptions);
 const ticketTypeMap = buildValueEnum(ticketTypeOptions);
 const compensationTypeMap = buildValueEnum(compensationTypeOptions);
+const ticketResultOptions = [
+  { value: 'REMOTE_GUIDE', label: '远程引导' },
+  { value: 'REFUND_PROCESS', label: '退款处理' },
+  { value: 'COUPON_COMPENSATE', label: '补偿优惠券' },
+  { value: 'DEVICE_REPAIR', label: '设备维修' },
+];
+const compactJoin = (items: Array<string | undefined | false>) => items.filter(Boolean).join('；');
+const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
 
 const serviceDeskDetailFields: Record<'ticket' | 'message' | 'template', DetailField<any>[]> = {
   ticket: [
@@ -175,11 +185,18 @@ const ServiceDeskManagement: React.FC = () => {
     if (!editingTicket) {
       return;
     }
+    const result = compactJoin([
+      values.resultAction ? `处理动作：${optionLabel(ticketResultOptions, values.resultAction)}` : undefined,
+      values.owner ? `处理人：${values.owner}` : undefined,
+      values.compensationType ? `补偿类型：${optionLabel(compensationTypeOptions, values.compensationType)}` : undefined,
+      values.compensationAmount ? `补偿金额：${values.compensationAmount}元` : undefined,
+      values.supplement ? `补充说明：${values.supplement}` : undefined,
+    ]);
     await api.afterSaleTicket.updateStatus(editingTicket.id, {
       ticketStatus: values.status,
       compensationType: values.compensationType,
-      compensationValue: values.result,
-      result: values.result,
+      compensationValue: result,
+      result,
     });
     message.success('工单处理结果已更新');
     queryClient.invalidateQueries({ queryKey: ['afterSaleTickets'] });
@@ -195,7 +212,7 @@ const ServiceDeskManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="今日消息发送" value={messages.length} suffix="条" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="待处理工单" value={tickets.filter((item) => item.status !== 'CLOSED').length} suffix="单" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="消息失败" value={messages.filter((item) => item.status === 'FAILED').length} suffix="条" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="高优先级工单" value={0} suffix="单" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="高优先级工单" value={tickets.filter((item) => ['DEVICE_FAULT', 'REFUND_APPEAL', 'COMPLAINT'].includes(item.ticketType || '') && item.status !== 'CLOSED').length} suffix="单" /></Card></Col>
       </Row>
       <Tabs
         items={[
@@ -250,46 +267,85 @@ const ServiceDeskManagement: React.FC = () => {
           },
         ]}
       />
-      <Modal title={editingTicket ? `处理工单 · ${editingTicket.ticketNo}` : '新建工单'} open={ticketModalVisible} onOk={async () => {
+      <BusinessEditorModal
+        eyebrow={editingTicket ? '工单处理' : '工单创建'}
+        title={editingTicket ? `处理工单 · ${editingTicket.ticketNo}` : '新建工单'}
+        subtitle="把工单状态、补偿和处理结果拆成结构化字段，提交时生成客服处理结果。"
+        meta={[editingTicket ? '处理' : '新增', '客服工单']}
+        open={ticketModalVisible}
+        onOk={async () => {
         if (editingTicket) {
           await handleTicketSubmit();
           return;
         }
         const values = await ticketForm.validateFields();
-        await createTicketMutation.mutateAsync({ ...values, ticketNo: values.ticketNo || `TK${Date.now()}`, ticketStatus: values.status || 'PENDING' });
+        const result = compactJoin([
+          values.resultAction ? `处理动作：${optionLabel(ticketResultOptions, values.resultAction)}` : undefined,
+          values.supplement ? `补充说明：${values.supplement}` : undefined,
+        ]);
+        await createTicketMutation.mutateAsync({ ...values, ticketNo: values.ticketNo || `TK${Date.now()}`, ticketStatus: values.status || 'PENDING', result });
         setTicketModalVisible(false);
         ticketForm.resetFields();
-      }} confirmLoading={createTicketMutation.isPending} onCancel={() => setTicketModalVisible(false)} width={760}>
-        <Form form={ticketForm} layout="vertical">
-          <Row gutter={16}>
-            {!editingTicket && <Col span={12}><Form.Item name="ticketNo" label="工单号"><Input /></Form.Item></Col>}
-            {!editingTicket && <Col span={12}><Form.Item name="ticketType" label="工单类型" rules={[{ required: true, message: '请选择工单类型' }]}><Select options={ticketTypeOptions} /></Form.Item></Col>}
-            <Col span={12}><Form.Item name="status" label="工单状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={ticketStatusOptions} /></Form.Item></Col>
-            <Col span={12}><Form.Item name="compensationType" label="补偿类型"><Select options={compensationTypeOptions} /></Form.Item></Col>
-            <Col span={12}><Form.Item name="owner" label="处理人"><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="compensationAmount" label="补偿金额"><Input /></Form.Item></Col>
-            <Col span={24}><Form.Item name="result" label="处理结果" rules={[{ required: true, message: '请输入处理结果' }]}><Input.TextArea rows={4} /></Form.Item></Col>
-          </Row>
+      }}
+        confirmLoading={createTicketMutation.isPending}
+        onCancel={() => setTicketModalVisible(false)}
+        width={1080}
+        okText={editingTicket ? '提交处理' : '创建工单'}
+      >
+        <Form form={ticketForm} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<CustomerServiceOutlined />} title="工单基础" desc="维护工单号、类型和当前状态。">
+              <div className="merchant-editor-fields">
+                {!editingTicket ? <Form.Item name="ticketNo" label="工单号"><Input placeholder="不填自动生成" /></Form.Item> : null}
+                {!editingTicket ? <Form.Item name="ticketType" label="工单类型" rules={[{ required: true, message: '请选择工单类型' }]}><Select options={ticketTypeOptions} placeholder="请选择工单类型" /></Form.Item> : null}
+                <Form.Item name="status" label="工单状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={ticketStatusOptions} placeholder="请选择工单状态" /></Form.Item>
+                <Form.Item name="owner" label="处理人"><Input placeholder="例如：客服-王敏" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<ToolOutlined />} title="处理与补偿" desc="配置处理动作、补偿类型和补偿金额。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="resultAction" label="处理动作" rules={[{ required: true, message: '请选择处理动作' }]}><Select options={ticketResultOptions} placeholder="请选择处理动作" /></Form.Item>
+                <Form.Item name="compensationType" label="补偿类型"><Select options={compensationTypeOptions} placeholder="请选择补偿类型" /></Form.Item>
+                <Form.Item name="compensationAmount" label="补偿金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="supplement" label="补充说明"><Input placeholder="例如：用户反馈设备未启动，已补偿洗车券" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+          </div>
         </Form>
-      </Modal>
-      <Modal title={helperTitle} open={helperVisible} onCancel={() => setHelperVisible(false)} footer={null} width={640}>
+      </BusinessEditorModal>
+      <BusinessEditorModal
+        eyebrow={helperTitle === '手工发送' ? '手工消息' : '模板管理'}
+        title={helperTitle}
+        subtitle={helperTitle === '手工发送' ? '录入模板、接收人和发送渠道后立即发送消息。' : '当前入口用于查看已接入的消息模板。'}
+        meta={['客服工单', helperTitle]}
+        open={helperVisible}
+        onCancel={() => setHelperVisible(false)}
+        footer={null}
+        width={760}
+      >
         {helperTitle === '手工发送' ? (
-          <Form form={messageForm} layout="vertical">
-            <Form.Item name="templateCode" label="模板编码" rules={[{ required: true, message: '请输入模板编码' }]}><Input /></Form.Item>
-            <Form.Item name="receiver" label="接收人" rules={[{ required: true, message: '请输入接收人' }]}><Input /></Form.Item>
-            <Form.Item name="phone" label="手机号"><Input /></Form.Item>
-            <Form.Item name="channel" label="渠道"><Select options={messageChannelOptions} /></Form.Item>
-            <Button type="primary" loading={sendMessageMutation.isPending} onClick={async () => {
-              const values = await messageForm.validateFields();
-              await sendMessageMutation.mutateAsync(values);
-              setHelperVisible(false);
-            }}>发送</Button>
+          <Form form={messageForm} layout="vertical" className="merchant-editor-form">
+            <div className="merchant-editor-shell">
+              <BusinessEditorSection icon={<SendOutlined />} title="发送对象" desc="维护模板、接收人、手机号和发送渠道。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="templateCode" label="模板编码" rules={[{ required: true, message: '请输入模板编码' }]}><Input placeholder="例如：MSG-ORDER-PAID" /></Form.Item>
+                  <Form.Item name="receiver" label="接收人" rules={[{ required: true, message: '请输入接收人' }]}><Input placeholder="例如：张三" /></Form.Item>
+                  <Form.Item name="phone" label="手机号"><Input placeholder="请输入手机号" /></Form.Item>
+                  <Form.Item name="channel" label="渠道"><Select options={messageChannelOptions} placeholder="请选择渠道" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+              <Button type="primary" loading={sendMessageMutation.isPending} onClick={async () => {
+                const values = await messageForm.validateFields();
+                await sendMessageMutation.mutateAsync(values);
+                setHelperVisible(false);
+              }}>发送</Button>
+            </div>
           </Form>
         ) : (
           <div style={{ color: 'rgba(0,0,0,0.65)' }}>该入口已接入现有后端数据，当前可查看模板并处理工单。</div>
         )}
-      </Modal>
-      <Modal title="详情" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={820}>
+      </BusinessEditorModal>
+      <BusinessDetailModal title="客服工单详情" open={!!detail} onCancel={() => setDetail(null)} width={820}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -298,7 +354,7 @@ const ServiceDeskManagement: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
     </div>
   );
 };

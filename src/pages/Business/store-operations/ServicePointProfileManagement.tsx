@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Popconfirm, Row, Select, Statistic, Tabs, message } from 'antd';
-import { DeleteOutlined, EditOutlined, PlusOutlined, QrcodeOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, Row, Select, Statistic, Tabs, message } from 'antd';
+import { DeleteOutlined, EditOutlined, LinkOutlined, PlusOutlined, QrcodeOutlined, SwapOutlined, ToolOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
@@ -12,6 +12,9 @@ import {
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
 import type {
   PointDeviceBindLogRecord,
@@ -28,6 +31,20 @@ const auditStatusMap = buildValueEnum(auditStatusOptions);
 const maintainStatusMap = buildValueEnum(maintainStatusOptions);
 const pointStatusMap = buildValueEnum(pointStatusOptions);
 const pointTypeMap = buildValueEnum(pointTypeOptions);
+
+const pointProfileModalTitleMap: Record<PointProfileTab, string> = {
+  qr: '点位二维码',
+  maintain: '维护记录',
+  bind: '设备绑定',
+  status: '状态流转',
+};
+
+const pointProfileModalDescMap: Record<PointProfileTab, string> = {
+  qr: '生成或维护点位二维码，保证扫码入口和点位一一对应。',
+  maintain: '记录点位维护计划、负责人和状态，支撑现场保养闭环。',
+  bind: '记录点位设备绑定前后变化，保证履约设备可追溯。',
+  status: '记录点位状态从空闲、占用、维护到关闭的流转原因。',
+};
 
 const pointProfileDetailFields: Record<PointProfileTab, DetailField<any>[]> = {
   qr: [
@@ -73,6 +90,7 @@ const ServicePointProfileManagement: React.FC = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<EditableRecord | null>(null);
   const [form] = Form.useForm<Record<string, unknown>>();
+  const [searchForm] = Form.useForm<{ keyword?: string }>();
 
   const { data: pointOptions } = useQuery({ queryKey: ['pointOptionsForProfiles'], queryFn: async () => (await api.servicePoint.options()).data });
 
@@ -125,6 +143,14 @@ const ServicePointProfileManagement: React.FC = () => {
   const filter = <T extends object>(items: T[]) =>
     items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
 
+  const confirmRemove = (tab: PointProfileTab, id: number) => {
+    showBusinessConfirm({
+      title: '确认删除该点位档案',
+      content: `删除后将移除「${pointProfileModalTitleMap[tab]}」记录，并影响点位运营追溯，请确认后继续。`,
+      onOk: () => removeMutation.mutate({ tab, id }),
+    });
+  };
+
   const openModal = (tab: PointProfileTab, record?: EditableRecord) => {
     setActiveTab(tab);
     setEditingRecord(record || null);
@@ -151,9 +177,7 @@ const ServicePointProfileManagement: React.FC = () => {
       <>
         <Button size="small" type="link" onClick={() => setDetail(record)}>详情</Button>
         <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openModal(tab, record)}>编辑</Button>
-        <Popconfirm title="确认删除该记录？" onConfirm={() => removeMutation.mutate({ tab, id: record.id })}>
-          <Button size="small" type="link" danger icon={<DeleteOutlined />}>删除</Button>
-        </Popconfirm>
+        <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => confirmRemove(tab, record.id)}>删除</Button>
       </>
     ),
   });
@@ -209,16 +233,22 @@ const ServicePointProfileManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="状态流转" value={statusLogs.length} suffix="条" /></Card></Col>
       </Row>
 
-      <ProTable
+      <Form
+        form={searchForm}
+        layout="inline"
         style={{ marginBottom: 16 }}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '输入点位、二维码、维护单、设备关键词' } }]}
-        dataSource={[]}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        options={false}
-        pagination={false}
-        onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-        onReset={() => setKeyword('')}
-      />
+        onFinish={(values) => setKeyword(String(values.keyword || ''))}
+      >
+        <Form.Item name="keyword" label="关键词">
+          <Input allowClear placeholder="输入点位、二维码、维护单、设备关键词" style={{ width: 360 }} />
+        </Form.Item>
+        <Form.Item>
+          <Button type="primary" htmlType="submit">查询</Button>
+        </Form.Item>
+        <Form.Item>
+          <Button onClick={() => { searchForm.resetFields(); setKeyword(''); }}>重置</Button>
+        </Form.Item>
+      </Form>
 
       <Tabs
         activeKey={activeTab}
@@ -231,12 +261,15 @@ const ServicePointProfileManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title={`${pointProfileModalTitleMap[activeTab]}详情`} open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? <SchemaDetail record={detail as Record<string, any>} fields={pointProfileDetailFields[activeTab]} /> : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
-        title={editingRecord ? '编辑点位档案' : '新增点位档案'}
+      <BusinessEditorModal
+        eyebrow={editingRecord ? '点位档案维护' : '点位档案新增'}
+        title={`${editingRecord ? '编辑' : '新增'}${pointProfileModalTitleMap[activeTab]}`}
+        subtitle={pointProfileModalDescMap[activeTab]}
+        meta={[pointProfileModalTitleMap[activeTab], editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
         onCancel={() => {
           setModalVisible(false);
@@ -245,53 +278,74 @@ const ServicePointProfileManagement: React.FC = () => {
         }}
         onOk={async () => saveMutation.mutate(await form.validateFields())}
         confirmLoading={saveMutation.isPending}
-        width={760}
+        width={980}
+        okText={editingRecord ? '保存变更' : '保存档案'}
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" className="merchant-editor-form">
           <Form.Item name="id" hidden><Input /></Form.Item>
-          <div className="modal-grid">
-            <Form.Item name="servicePointId" label="所属点位" rules={[{ required: true, message: '请选择点位' }]}>
-              <Select showSearch optionFilterProp="label" options={pointOptions || []} />
-            </Form.Item>
-            <Form.Item name="pointCode" label="点位编号"><Input /></Form.Item>
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection
+              icon={<QrcodeOutlined />}
+              title="归属点位"
+              desc="所有二维码、维护、绑定和状态记录都需要落到具体点位，便于现场追踪和扫码履约。"
+            >
+              <div className="merchant-editor-fields merchant-editor-fields--two">
+                <Form.Item name="servicePointId" label="所属点位" rules={[{ required: true, message: '请选择点位' }]}>
+                  <Select showSearch optionFilterProp="label" options={pointOptions || []} placeholder="请选择点位" />
+                </Form.Item>
+                <Form.Item name="pointCode" label="点位编号"><Input placeholder="选择点位后可回填或手动记录" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+
             {activeTab === 'qr' ? (
-              <>
-                <Form.Item className="modal-span-2" name="qrCode" label="二维码" rules={[{ required: true, message: '请输入二维码' }]}><Input /></Form.Item>
-                <Form.Item name="qrVersion" label="版本"><Input /></Form.Item>
-                <Form.Item name="status" label="状态"><Select options={auditStatusOptions} /></Form.Item>
-              </>
+              <BusinessEditorSection icon={<QrcodeOutlined />} title="二维码信息" desc="维护二维码内容、版本和审核状态，保证扫码入口有效。">
+                <div className="merchant-editor-fields">
+                  <Form.Item className="merchant-editor-field-span-all" name="qrCode" label="二维码" rules={[{ required: true, message: '请输入二维码' }]}><Input placeholder="二维码内容或资源地址" /></Form.Item>
+                  <Form.Item name="qrVersion" label="版本"><Input placeholder="例如：v1.0" /></Form.Item>
+                  <Form.Item name="status" label="状态"><Select options={auditStatusOptions} placeholder="请选择状态" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
             ) : null}
+
             {activeTab === 'maintain' ? (
-              <>
-                <Form.Item name="maintainNo" label="维护单号" rules={[{ required: true, message: '请输入维护单号' }]}><Input /></Form.Item>
-                <Form.Item name="maintainType" label="维护类型"><Input /></Form.Item>
-                <Form.Item name="owner" label="负责人"><Input /></Form.Item>
-                <Form.Item name="status" label="状态"><Select options={maintainStatusOptions} /></Form.Item>
-                <Form.Item name="plannedAt" label="计划时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-              </>
+              <BusinessEditorSection icon={<ToolOutlined />} title="维护计划" desc="记录维护单号、类型、负责人、计划时间和状态，形成现场保养闭环。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="maintainNo" label="维护单号" rules={[{ required: true, message: '请输入维护单号' }]}><Input placeholder="例如：MT-BAY-20260510-001" /></Form.Item>
+                  <Form.Item name="maintainType" label="维护类型"><Input placeholder="例如：日常巡检 / 故障检修" /></Form.Item>
+                  <Form.Item name="owner" label="负责人"><Input placeholder="现场处理人" /></Form.Item>
+                  <Form.Item name="status" label="状态"><Select options={maintainStatusOptions} placeholder="请选择状态" /></Form.Item>
+                  <Form.Item name="plannedAt" label="计划时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
             ) : null}
+
             {activeTab === 'bind' ? (
-              <>
-                <Form.Item name="bindNo" label="绑定单号" rules={[{ required: true, message: '请输入绑定单号' }]}><Input /></Form.Item>
-                <Form.Item name="pointType" label="点位类型"><Select options={pointTypeOptions} /></Form.Item>
-                <Form.Item name="beforeDevice" label="原设备"><Input /></Form.Item>
-                <Form.Item name="afterDevice" label="新设备"><Input /></Form.Item>
-                <Form.Item name="operator" label="操作人"><Input /></Form.Item>
-                <Form.Item name="boundAt" label="绑定时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-              </>
+              <BusinessEditorSection icon={<LinkOutlined />} title="绑定变更" desc="记录设备绑定前后关系、操作人和绑定时间，保证点位设备切换可追溯。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="bindNo" label="绑定单号" rules={[{ required: true, message: '请输入绑定单号' }]}><Input placeholder="例如：BIND-BAY-20260510-001" /></Form.Item>
+                  <Form.Item name="pointType" label="点位类型"><Select options={pointTypeOptions} placeholder="请选择点位类型" /></Form.Item>
+                  <Form.Item name="operator" label="操作人"><Input placeholder="记录绑定操作人" /></Form.Item>
+                  <Form.Item name="beforeDevice" label="原设备"><Input placeholder="原设备编号或名称" /></Form.Item>
+                  <Form.Item name="afterDevice" label="新设备"><Input placeholder="新设备编号或名称" /></Form.Item>
+                  <Form.Item name="boundAt" label="绑定时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
             ) : null}
+
             {activeTab === 'status' ? (
-              <>
-                <Form.Item name="logNo" label="日志编号" rules={[{ required: true, message: '请输入日志编号' }]}><Input /></Form.Item>
-                <Form.Item name="beforeStatus" label="原状态"><Select options={pointStatusOptions} /></Form.Item>
-                <Form.Item name="afterStatus" label="新状态"><Select options={pointStatusOptions} /></Form.Item>
-                <Form.Item name="changedAt" label="变更时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-                <Form.Item className="modal-span-2" name="reason" label="原因"><Input.TextArea rows={3} /></Form.Item>
-              </>
+              <BusinessEditorSection icon={<SwapOutlined />} title="状态变更" desc="记录点位状态变化、变更时间和原因，支撑异常复盘和用户端展示一致。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="logNo" label="日志编号" rules={[{ required: true, message: '请输入日志编号' }]}><Input placeholder="例如：LOG-BAY-20260510-001" /></Form.Item>
+                  <Form.Item name="beforeStatus" label="原状态"><Select options={pointStatusOptions} placeholder="请选择原状态" /></Form.Item>
+                  <Form.Item name="afterStatus" label="新状态"><Select options={pointStatusOptions} placeholder="请选择新状态" /></Form.Item>
+                  <Form.Item name="changedAt" label="变更时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="reason" label="原因"><Input.TextArea rows={3} placeholder="记录状态变更原因、异常说明或人工处理备注" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
             ) : null}
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

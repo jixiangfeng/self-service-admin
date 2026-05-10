@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
-import { AccountBookOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import { AccountBookOutlined, CalculatorOutlined, CalendarOutlined, DollarOutlined, TeamOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useNavigate } from 'react-router-dom';
@@ -9,12 +9,15 @@ import {
   costBearerOptions,
   payoutStatusOptions,
   reconciliationStatusOptions,
+  settlementCycleOptions,
   settlementDetailTypeOptions,
   settlementStatusOptions,
   settlementSubjectTypeOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import api, {
@@ -140,8 +143,8 @@ const SettlementManagement: React.FC = () => {
   const [generateVisible, setGenerateVisible] = useState(false);
   const [costVisible, setCostVisible] = useState(false);
   const [shareDetail, setShareDetail] = useState<ProfitShareRecord | null>(null);
-  const [costForm] = Form.useForm<{ couponCost: string; rechargeCost: string; inviteCost: string; owner: string }>();
-  const [generateForm] = Form.useForm<{ billNo: string; billType: string; subjectId: string; cycleType: string; periodStart: string; periodEnd: string; incomeAmount: string; refundAmount: string; costAmount: string; settlementAmount: string }>();
+  const [costForm] = Form.useForm<{ couponCost: number; rechargeCost: number; inviteCost: number; owner: string }>();
+  const [generateForm] = Form.useForm<{ billNo: string; billType: string; subjectId: number; cycleType: string; periodStart: string; periodEnd: string; incomeAmount: number; refundAmount: number; costAmount: number; settlementAmount: number }>();
 
   const billQuery = useQuery({
     queryKey: ['settlementBills', billKeyword],
@@ -195,13 +198,13 @@ const SettlementManagement: React.FC = () => {
   const handleExportTask = (taskName: string, taskType: string, bizNo?: string) => {
     exportTaskMutation.mutate({
       taskNo: `EXP-${Date.now()}`,
-      taskName,
-      taskType,
+      taskType: 'EXPORT',
+      bizType: taskType,
       bizNo,
       fileName: `${taskName}-${Date.now()}.xlsx`,
+      operator: '系统管理员',
       status: 'PENDING',
-      createdBy: '系统管理员',
-      createdAt: new Date().toISOString(),
+      remark: taskName,
     });
   };
 
@@ -397,7 +400,7 @@ const SettlementManagement: React.FC = () => {
                   <Button
                     key="cost"
                     onClick={() => {
-                      costForm.setFieldsValue({ couponCost: '200', rechargeCost: '360', inviteCost: '120', owner: 'RATIO' });
+                      costForm.setFieldsValue({ couponCost: 200, rechargeCost: 360, inviteCost: 120, owner: 'RATIO' });
                       setCostVisible(true);
                     }}
                   >
@@ -491,7 +494,7 @@ const SettlementManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title={detail && 'payoutNo' in detail ? '打款流水详情' : detail && 'reconNo' in detail ? '对账差异详情' : detail && 'sourceNo' in detail ? '结算明细详情' : '结算单详情'} open={!!detail} footer={null} onCancel={() => setDetail(null)} width={820}>
+      <BusinessDetailModal title={detail && 'payoutNo' in detail ? '打款流水详情' : detail && 'reconNo' in detail ? '对账差异详情' : detail && 'sourceNo' in detail ? '结算明细详情' : '结算单详情'} open={!!detail} onCancel={() => setDetail(null)} width={820}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -500,69 +503,110 @@ const SettlementManagement: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal title="成本分摊配置" open={costVisible} onOk={handleCostSubmit} onCancel={() => { setCostVisible(false); costForm.resetFields(); }} width={820}>
-        <Form form={costForm} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="couponCost" label="优惠券成本" rules={[{ required: true, message: '请输入优惠券成本' }]}>
-              <Select options={costBearerOptions} />
-            </Form.Item>
-            <Form.Item name="rechargeCost" label="充值赠送成本" rules={[{ required: true, message: '请输入充值成本' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="inviteCost" label="邀请奖励成本" rules={[{ required: true, message: '请输入邀请成本' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="owner" label="承担方式" rules={[{ required: true, message: '请输入承担方式' }]}>
-              <Input />
-            </Form.Item>
+      <BusinessEditorModal
+        eyebrow="成本分摊配置"
+        title="配置活动成本分摊"
+        subtitle="把优惠券、充值赠送、邀请奖励和承担方式拆成财务可维护字段，避免手写成本说明。"
+        meta={['结算总览', '成本分摊']}
+        open={costVisible}
+        onOk={handleCostSubmit}
+        onCancel={() => { setCostVisible(false); costForm.resetFields(); }}
+        width={980}
+        okText="保存成本配置"
+      >
+        <Form form={costForm} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<CalculatorOutlined />} title="活动成本" desc="按成本来源维护金额，后续用于结算单成本归集。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="couponCost" label="优惠券成本" rules={[{ required: true, message: '请输入优惠券成本' }]}>
+                  <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" />
+                </Form.Item>
+                <Form.Item name="rechargeCost" label="充值赠送成本" rules={[{ required: true, message: '请输入充值成本' }]}>
+                  <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" />
+                </Form.Item>
+                <Form.Item name="inviteCost" label="邀请奖励成本" rules={[{ required: true, message: '请输入邀请成本' }]}>
+                  <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<TeamOutlined />} title="承担方式" desc="配置成本承担方，保持财务和运营口径一致。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="owner" label="承担方式" rules={[{ required: true, message: '请选择承担方式' }]}>
+                  <Select options={costBearerOptions} placeholder="请选择承担方式" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
-      <Modal title="分润明细" open={!!shareDetail} footer={null} onCancel={() => setShareDetail(null)} width={760}>
+      <BusinessDetailModal title="分润明细" open={!!shareDetail} onCancel={() => setShareDetail(null)} width={760}>
         {shareDetail ? (
           <SchemaDetail record={shareDetail} fields={profitShareSummaryFields} column={2} labelWidth={110} />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal title="生成结算单" open={generateVisible} onOk={handleGenerate} confirmLoading={createBillMutation.isPending} onCancel={() => { setGenerateVisible(false); generateForm.resetFields(); }} width={820}>
-        <Form form={generateForm} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="billType" label="结算层级" rules={[{ required: true, message: '请选择结算层级' }]}>
-              <Select options={settlementSubjectTypeOptions} />
-            </Form.Item>
-            <Form.Item name="subjectId" label="结算主体ID" rules={[{ required: true, message: '请输入结算主体ID' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="billNo" label="结算单号" rules={[{ required: true, message: '请输入结算单号' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="cycleType" label="周期类型" rules={[{ required: true, message: '请输入周期类型' }]}>
-              <Input placeholder="WEEKLY / MONTHLY" />
-            </Form.Item>
-            <Form.Item name="periodStart" label="周期开始" rules={[{ required: true, message: '请输入周期开始' }]}>
-              <Input placeholder="2026-05-01" />
-            </Form.Item>
-            <Form.Item name="periodEnd" label="周期结束" rules={[{ required: true, message: '请输入周期结束' }]}>
-              <Input placeholder="2026-05-07" />
-            </Form.Item>
-            <Form.Item name="incomeAmount" label="收入金额" rules={[{ required: true, message: '请输入收入金额' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="refundAmount" label="退款冲减" rules={[{ required: true, message: '请输入退款金额' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="costAmount" label="成本金额" rules={[{ required: true, message: '请输入成本金额' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="settlementAmount" label="应结金额" rules={[{ required: true, message: '请输入应结金额' }]}>
-              <Input />
-            </Form.Item>
+      <BusinessEditorModal
+        eyebrow="生成结算单"
+        title="新建结算单"
+        subtitle="按结算主体、账期周期、收入、退款、成本和应结金额生成结算单。"
+        meta={['结算总览', '生成']}
+        open={generateVisible}
+        onOk={handleGenerate}
+        confirmLoading={createBillMutation.isPending}
+        onCancel={() => { setGenerateVisible(false); generateForm.resetFields(); }}
+        width={1120}
+        okText="生成结算单"
+      >
+        <Form form={generateForm} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<AccountBookOutlined />} title="结算主体" desc="配置结算层级、主体 ID 和结算单号。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="billType" label="结算层级" rules={[{ required: true, message: '请选择结算层级' }]}>
+                  <Select options={settlementSubjectTypeOptions} placeholder="请选择结算层级" />
+                </Form.Item>
+                <Form.Item name="subjectId" label="结算主体ID" rules={[{ required: true, message: '请输入结算主体ID' }]}>
+                  <InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder="例如：1001" />
+                </Form.Item>
+                <Form.Item name="billNo" label="结算单号" rules={[{ required: true, message: '请输入结算单号' }]}>
+                  <Input placeholder="例如：SETTLE-20260510-001" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<CalendarOutlined />} title="账期周期" desc="配置周期类型和起止日期。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="cycleType" label="周期类型" rules={[{ required: true, message: '请选择周期类型' }]}>
+                  <Select options={settlementCycleOptions} placeholder="请选择周期类型" />
+                </Form.Item>
+                <Form.Item name="periodStart" label="周期开始" rules={[{ required: true, message: '请输入周期开始' }]}>
+                  <Input placeholder="2026-05-01" />
+                </Form.Item>
+                <Form.Item name="periodEnd" label="周期结束" rules={[{ required: true, message: '请输入周期结束' }]}>
+                  <Input placeholder="2026-05-07" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<DollarOutlined />} title="金额归集" desc="录入收入、退款、成本和最终应结金额。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="incomeAmount" label="收入金额" rules={[{ required: true, message: '请输入收入金额' }]}>
+                  <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" />
+                </Form.Item>
+                <Form.Item name="refundAmount" label="退款冲减" rules={[{ required: true, message: '请输入退款金额' }]}>
+                  <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" />
+                </Form.Item>
+                <Form.Item name="costAmount" label="成本金额" rules={[{ required: true, message: '请输入成本金额' }]}>
+                  <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" />
+                </Form.Item>
+                <Form.Item name="settlementAmount" label="应结金额" rules={[{ required: true, message: '请输入应结金额' }]}>
+                  <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
 
     </div>
   );

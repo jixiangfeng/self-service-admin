@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Form, Input, Modal, Row, Space, Statistic, Tabs, message } from 'antd';
-import { SafetyOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import { ClockCircleOutlined, FileOutlined, SafetyOutlined, TeamOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useNavigate } from 'react-router-dom';
@@ -8,7 +8,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { auditStatusOptions, publishStatusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api, {
   type AlarmRecord,
   type ApprovalTaskRecord,
@@ -20,6 +22,22 @@ import api, {
 
 const auditStatusMap = buildValueEnum(auditStatusOptions);
 const publishStatusMap = buildValueEnum(publishStatusOptions);
+const taskTypeOptions = [
+  { value: 'IMPORT', label: '导入' },
+  { value: 'EXPORT', label: '导出' },
+];
+const fileTypeOptions = [
+  { value: 'OPS', label: '运营文件' },
+  { value: 'SETTLEMENT', label: '结算文件' },
+  { value: 'MERCHANT', label: '商户文件' },
+];
+const jobCycleOptions = [
+  { value: 'DAILY', label: '每天执行' },
+  { value: 'WEEKLY', label: '每周执行' },
+  { value: 'MANUAL', label: '手动执行' },
+];
+const compactJoin = (items: Array<string | undefined | false>) => items.filter(Boolean).join('；');
+const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
 
 const supportDetailFields: Record<'file' | 'approval' | 'task' | 'risk' | 'job' | 'alarm', DetailField<any>[]> = {
   file: [
@@ -63,9 +81,9 @@ const supportDetailFields: Record<'file' | 'approval' | 'task' | 'risk' | 'job' 
   job: [
     { name: 'jobCode', label: '任务编码' },
     { name: 'jobName', label: '任务名称' },
-    { name: 'cronExpression', label: 'Cron' },
-    { name: 'jobHandler', label: '执行器' },
-    { name: 'jobParam', label: '参数' },
+    { name: 'cronExpression', label: '执行计划' },
+    { name: 'jobHandler', label: '处理场景' },
+    { name: 'jobParam', label: '执行策略' },
     { name: 'status', label: '状态' },
   ],
   alarm: [
@@ -85,7 +103,7 @@ const OperationsSupportManagement: React.FC = () => {
   const [detail, setDetail] = useState<FileAssetRecord | ApprovalTaskRecord | ImportExportTaskRecord | RiskHitRecord | ScheduledJobRecord | AlarmRecord | null>(null);
   const [helperVisible, setHelperVisible] = useState(false);
   const [helperTitle, setHelperTitle] = useState('');
-  const [form] = Form.useForm<{ name: string; owner: string; remark: string }>();
+  const [form] = Form.useForm<{ name: string; owner: string; fileType?: string; taskType?: string; bizType?: string; bizNo?: string; jobCycle?: string; handler?: string; status?: string; supplement?: string }>();
 
   const queryParams = useMemo(() => ({ keyword, current: 1, size: 50 }), [keyword]);
   const fileQuery = useQuery({ queryKey: ['ops-support-files', queryParams], queryFn: () => api.file.assets.page(queryParams) });
@@ -142,7 +160,7 @@ const OperationsSupportManagement: React.FC = () => {
           <Button size="small" type="link" onClick={async () => {
             await api.file.importExportTasks.run(record.id);
             await queryClient.invalidateQueries({ queryKey: ['ops-support-import-export-tasks'] });
-            message.success('任务已执行');
+            message.success('任务状态已更新');
           }}>执行</Button>
         </>
       ),
@@ -163,9 +181,9 @@ const OperationsSupportManagement: React.FC = () => {
   const jobColumns = useMemo<ProColumns<ScheduledJobRecord>[]>(() => [
     { title: '任务编码', dataIndex: 'jobCode', width: 200 },
     { title: '任务名称', dataIndex: 'jobName', width: 180 },
-    { title: 'Cron', dataIndex: 'cronExpression', width: 160 },
-    { title: '执行器', dataIndex: 'jobHandler', width: 220 },
-    { title: '参数', dataIndex: 'jobParam', width: 180 },
+    { title: '执行计划', dataIndex: 'cronExpression', width: 160, renderText: (value) => value === 'MANUAL' ? '手动执行' : value === '0 0 2 ? * MON' ? '每周一 02:00 执行' : value === '0 0 2 * * ?' ? '每天 02:00 执行' : value },
+    { title: '处理场景', dataIndex: 'jobHandler', width: 220 },
+    { title: '执行策略', dataIndex: 'jobParam', width: 180 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, auditStatusMap) },
     {
       title: '操作',
@@ -176,7 +194,7 @@ const OperationsSupportManagement: React.FC = () => {
           <Button size="small" type="link" onClick={async () => {
             await api.riskScheduleAlarm.jobs.run(record.id);
             await queryClient.invalidateQueries({ queryKey: ['ops-support-jobs'] });
-            message.success('任务已执行');
+            message.success('执行日志已记录');
           }}>执行</Button>
         </Space>
       ),
@@ -197,6 +215,12 @@ const OperationsSupportManagement: React.FC = () => {
   const openHelper = (title: string) => {
     setHelperTitle(title);
     form.resetFields();
+    form.setFieldsValue({
+      fileType: 'OPS',
+      taskType: title === '新建导出任务' ? 'EXPORT' : 'IMPORT',
+      jobCycle: 'DAILY',
+      status: 'PENDING',
+    });
     setHelperVisible(true);
   };
 
@@ -213,15 +237,10 @@ const OperationsSupportManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="未处理告警" value={alarms.filter((item) => item.handleStatus !== 'HANDLED').length} suffix="条" /></Card></Col>
       </Row>
 
-      <ProTable
-        style={{ marginBottom: 16 }}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '输入任意单号、名称、负责人过滤当前 Tab' } }]}
-        dataSource={[]}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        options={false}
-        pagination={false}
-        onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-        onReset={() => setKeyword('')}
+      <KeywordSearchBar
+        value={keyword}
+        placeholder="输入任意单号、名称、负责人过滤当前 Tab"
+        onSearch={setKeyword}
       />
 
       <Tabs
@@ -235,7 +254,7 @@ const OperationsSupportManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title="运营支撑详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -244,46 +263,75 @@ const OperationsSupportManagement: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow="运营支撑处理"
         title={helperTitle}
+        subtitle="把文件、审批、导入导出和定时任务拆成结构化字段，避免直接填写说明文本。"
+        meta={[helperTitle || '运营支撑', '平台运营']}
         open={helperVisible}
         onCancel={() => setHelperVisible(false)}
         onOk={async () => {
           const values = await form.validateFields();
+          const remark = compactJoin([
+            values.fileType ? `文件类型：${optionLabel(fileTypeOptions, values.fileType)}` : undefined,
+            values.taskType ? `任务类型：${optionLabel(taskTypeOptions, values.taskType)}` : undefined,
+            values.jobCycle ? `执行周期：${optionLabel(jobCycleOptions, values.jobCycle)}` : undefined,
+            values.supplement ? `补充说明：${values.supplement}` : undefined,
+          ]);
           if (helperTitle === '新建审批流') {
-            await api.approval.tasks.add({ taskNo: values.name, processNo: values.name, bizType: values.name, bizNo: values.name, applicant: values.owner, status: 'PENDING', currentNode: '人工创建', approver: values.owner, remark: values.remark });
+            await api.approval.tasks.add({ taskNo: values.name, processNo: values.name, bizType: values.bizType || values.name, bizNo: values.bizNo || values.name, applicant: values.owner, status: values.status || 'PENDING', currentNode: '人工创建', approver: values.owner, remark });
             await queryClient.invalidateQueries({ queryKey: ['ops-support-approvals'] });
           } else if (helperTitle === '新建导入任务' || helperTitle === '新建导出任务') {
-            await api.file.importExportTasks.add({ taskType: helperTitle === '新建导出任务' ? 'EXPORT' : 'IMPORT', bizType: values.name, bizNo: values.name, fileName: values.remark || `${values.name}.xlsx`, operator: values.owner, status: 'PENDING', remark: values.remark });
+            await api.file.importExportTasks.add({ taskType: values.taskType || (helperTitle === '新建导出任务' ? 'EXPORT' : 'IMPORT'), bizType: values.bizType || values.name, bizNo: values.bizNo || values.name, fileName: `${values.name}.xlsx`, operator: values.owner, status: values.status || 'PENDING', remark });
             await queryClient.invalidateQueries({ queryKey: ['ops-support-import-export-tasks'] });
           } else if (helperTitle === '维护风控规则') {
-            await api.riskScheduleAlarm.riskRules.add({ ruleName: values.name, ruleCode: values.name, riskScene: 'MANUAL', actionType: 'WARN', ruleConfig: values.remark, status: 1 });
+            await api.riskScheduleAlarm.riskRules.add({ ruleName: values.name, ruleCode: values.name, riskScene: 'MANUAL', actionType: 'WARN', ruleConfig: remark, status: 1 });
             await queryClient.invalidateQueries({ queryKey: ['ops-support-risks'] });
           } else if (helperTitle === '新建定时任务') {
-            await api.riskScheduleAlarm.jobs.add({ jobName: values.name, jobCode: values.name, cronExpression: values.remark || '0 0 0 * * ?', jobHandler: values.owner || 'manualHandler', status: 1 });
+            await api.riskScheduleAlarm.jobs.add({ jobName: values.name, jobCode: values.name, cronExpression: values.jobCycle === 'WEEKLY' ? '0 0 2 ? * MON' : values.jobCycle === 'MANUAL' ? 'MANUAL' : '0 0 2 * * ?', jobHandler: values.handler || values.owner || '人工处理', jobParam: remark, status: 1 });
             await queryClient.invalidateQueries({ queryKey: ['ops-support-jobs'] });
           } else if (helperTitle === '维护告警规则') {
-            await api.riskScheduleAlarm.alarmRules.add({ ruleName: values.name, alarmScene: 'MANUAL', ruleConfig: values.remark, receiverConfig: values.owner, status: 1 });
+            await api.riskScheduleAlarm.alarmRules.add({ ruleName: values.name, alarmScene: 'MANUAL', ruleConfig: remark, receiverConfig: values.owner, status: 1 });
             await queryClient.invalidateQueries({ queryKey: ['ops-support-alarms'] });
           } else if (helperTitle === '上传文件') {
-            await api.file.assets.add({ fileAssetId: `FILE-${Date.now()}`, fileName: values.name, fileType: 'OPS', storageProvider: values.owner || 'LOCAL', status: 'PENDING' });
+            await api.file.assets.add({ fileAssetId: `FILE-${Date.now()}`, fileName: values.name, fileType: values.fileType || 'OPS', storageProvider: values.owner || 'LOCAL', status: values.status || 'PENDING' });
             await queryClient.invalidateQueries({ queryKey: ['ops-support-files'] });
           }
           setHelperVisible(false);
           message.success('已保存到后端');
         }}
-        width={760}
+        width={980}
+        okText="保存处理"
       >
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="name" label="名称 / 单号" rules={[{ required: true, message: '请输入名称或单号' }]}><Input /></Form.Item>
-            <Form.Item name="owner" label="负责人"><Input /></Form.Item>
-            <Form.Item className="modal-span-2" name="remark" label="说明"><Input.TextArea rows={4} /></Form.Item>
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<FileOutlined />} title="处理对象" desc="录入名称、业务类型、业务单号和负责人。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="name" label="名称 / 单号" rules={[{ required: true, message: '请输入名称或单号' }]}><Input placeholder="例如：结算明细导出" /></Form.Item>
+                <Form.Item name="bizType" label="业务类型"><Input placeholder="例如：SETTLEMENT" /></Form.Item>
+                <Form.Item name="bizNo" label="业务单号"><Input placeholder="例如：SETTLE-20260510-001" /></Form.Item>
+                <Form.Item name="owner" label="负责人"><Input placeholder="例如：运营-王敏" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<TeamOutlined />} title="任务配置" desc="按不同处理场景选择文件类型、任务类型和状态。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="fileType" label="文件类型"><Select options={fileTypeOptions} placeholder="请选择文件类型" /></Form.Item>
+                <Form.Item name="taskType" label="任务类型"><Select options={taskTypeOptions} placeholder="请选择任务类型" /></Form.Item>
+                <Form.Item name="status" label="状态"><Select options={publishStatusOptions} placeholder="请选择状态" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<ClockCircleOutlined />} title="执行策略" desc="配置定时任务周期、处理场景和补充说明。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="jobCycle" label="执行周期"><Select options={jobCycleOptions} placeholder="请选择执行周期" /></Form.Item>
+                <Form.Item name="handler" label="处理场景"><Input placeholder="例如：结算明细导出" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="supplement" label="补充说明"><Input placeholder="例如：仅导出本月已确认结算单" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };

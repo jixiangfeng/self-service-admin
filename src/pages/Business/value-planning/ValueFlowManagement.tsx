@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Modal, Row, Select, Statistic, Tabs, message } from 'antd';
-import { LineChartOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, Row, Select, Statistic, Tabs, message } from 'antd';
+import { CheckCircleOutlined, LineChartOutlined, SyncOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
@@ -12,13 +12,31 @@ import {
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api, { type AdConversionRecord, type AdEventRecord, type RetailOrderRecord, type RetailShipmentRecord, type RetailStockFlowRecord } from '@/services/backendService';
 
 const deliveryTypeMap = buildValueEnum(retailDeliveryTypeOptions);
 const retailStatusMap = buildValueEnum(retailProductStatusOptions);
 const writeOffStatusMap = buildValueEnum(writeOffStatusOptions);
 const adDeliveryStatusMap = buildValueEnum(adDeliveryStatusOptions);
+const flowSceneOptions = [
+  { value: 'ORDER_SYNC', label: '订单同步' },
+  { value: 'SHIP_RETRY', label: '设备出货重试' },
+  { value: 'STOCK_REPAIR', label: '库存流水修正' },
+];
+const flowActionOptions = [
+  { value: 'SYNC_NOW', label: '立即同步' },
+  { value: 'RETRY_NOW', label: '立即重试' },
+  { value: 'MARK_EXCEPTION', label: '标记异常' },
+];
+const yesNoOptions = [
+  { value: 'YES', label: '是' },
+  { value: 'NO', label: '否' },
+];
+const compactJoin = (items: Array<string | undefined | false>) => items.filter(Boolean).join('；');
+const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
 
 const valueFlowDetailFields: Record<'adEvent' | 'conversion' | 'order' | 'stockFlow' | 'ship', DetailField<any>[]> = {
   adEvent: [
@@ -88,7 +106,7 @@ const ValueFlowManagement: React.FC = () => {
   const [detail, setDetail] = useState<AdEventRecord | RetailOrderRecord | RetailStockFlowRecord | AdConversionRecord | RetailShipmentRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
-  const [form] = Form.useForm<{ bizNo: string; status: string; remark: string }>();
+  const [form] = Form.useForm<{ bizNo: string; status: string; processScene?: string; processAction?: string; notifyOwner?: string; owner?: string; supplement?: string }>();
 
   const filter = <T extends object>(items: T[]) =>
     items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
@@ -96,6 +114,11 @@ const ValueFlowManagement: React.FC = () => {
   const openModal = (title: string) => {
     setModalTitle(title);
     form.resetFields();
+    form.setFieldsValue({
+      processScene: title === '同步零售订单' ? 'ORDER_SYNC' : 'SHIP_RETRY',
+      processAction: title === '同步零售订单' ? 'SYNC_NOW' : 'RETRY_NOW',
+      notifyOwner: 'YES',
+    });
     setModalVisible(true);
   };
 
@@ -168,15 +191,10 @@ const ValueFlowManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="待出货" value={deviceShips.filter((item) => item.shipResult === 'PENDING').length} suffix="单" /></Card></Col>
       </Row>
 
-      <ProTable
-        style={{ marginBottom: 16 }}
-        columns={[{ title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '输入广告、订单、SKU、设备、库存流水关键词' } }]}
-        dataSource={[]}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        options={false}
-        pagination={false}
-        onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-        onReset={() => setKeyword('')}
+      <KeywordSearchBar
+        value={keyword}
+        placeholder="输入广告、订单、SKU、设备、库存流水关键词"
+        onSearch={setKeyword}
       />
 
       <Tabs
@@ -189,7 +207,7 @@ const ValueFlowManagement: React.FC = () => {
         ]}
       />
 
-      <Modal title="详情查看" open={!!detail} footer={null} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title={detail && 'eventNo' in detail ? '广告事件详情' : detail && 'sourceEvent' in detail ? '广告转化详情' : detail && 'flowNo' in detail ? '库存流水详情' : detail && 'shipNo' in detail ? '设备出货详情' : '零售订单详情'} open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
@@ -198,16 +216,26 @@ const ValueFlowManagement: React.FC = () => {
             labelWidth={110}
           />
         ) : null}
-      </Modal>
+      </BusinessDetailModal>
 
-      <Modal
+      <BusinessEditorModal
+        eyebrow={modalTitle === '同步零售订单' ? '订单同步' : '出货处理'}
         title={modalTitle}
+        subtitle="把处理动作拆成场景、动作、通知和补充说明，运营不需要维护大段处理文本。"
+        meta={[modalTitle || '增值流水', '处理']}
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={async () => {
           const values = await form.validateFields();
+          const processRemark = compactJoin([
+            values.processScene ? `处理场景：${optionLabel(flowSceneOptions, values.processScene)}` : undefined,
+            values.processAction ? `处理动作：${optionLabel(flowActionOptions, values.processAction)}` : undefined,
+            values.notifyOwner ? `通知负责人：${optionLabel(yesNoOptions, values.notifyOwner)}` : undefined,
+            values.owner ? `负责人：${values.owner}` : undefined,
+            values.supplement ? `补充说明：${values.supplement}` : undefined,
+          ]);
           if (modalTitle === '同步零售订单') {
-            await api.valuePlanning.retailOrders.add({ orderNo: values.bizNo, status: values.status || 'PENDING', productName: values.remark });
+            await api.valuePlanning.retailOrders.add({ orderNo: values.bizNo, status: values.status || 'PENDING', productName: processRemark });
             queryClient.invalidateQueries({ queryKey: ['valueRetailOrders'] });
           } else {
             const first = deviceShips.find((item) => item.shipResult === 'PENDING');
@@ -221,16 +249,29 @@ const ValueFlowManagement: React.FC = () => {
           setModalVisible(false);
           message.success('增值流水已更新');
         }}
-        width={760}
+        width={980}
+        okText="提交处理"
       >
-        <Form form={form} layout="vertical">
-          <div className="modal-grid">
-            <Form.Item name="bizNo" label="订单 / 设备 / 流水号" rules={[{ required: true, message: '请输入订单、设备或流水号' }]}><Input /></Form.Item>
-            <Form.Item name="status" label="状态"><Select options={writeOffStatusOptions} /></Form.Item>
-            <Form.Item className="modal-span-2" name="remark" label="处理说明"><Input.TextArea rows={4} /></Form.Item>
+        <Form form={form} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<SyncOutlined />} title="处理对象" desc="录入订单号、设备号或流水号，并选择处理后的业务状态。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="bizNo" label="订单 / 设备 / 流水号" rules={[{ required: true, message: '请输入订单、设备或流水号' }]}><Input placeholder="例如：RO-20260510-001" /></Form.Item>
+                <Form.Item name="status" label="状态"><Select options={writeOffStatusOptions} placeholder="请选择处理后状态" /></Form.Item>
+                <Form.Item name="owner" label="负责人"><Input placeholder="例如：增值运营-王敏" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+            <BusinessEditorSection icon={<CheckCircleOutlined />} title="处理动作" desc="用结构化选项描述处理场景和动作，提交时合并为后端说明字段。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="processScene" label="处理场景"><Select options={flowSceneOptions} placeholder="请选择处理场景" /></Form.Item>
+                <Form.Item name="processAction" label="处理动作"><Select options={flowActionOptions} placeholder="请选择处理动作" /></Form.Item>
+                <Form.Item name="notifyOwner" label="通知负责人"><Select options={yesNoOptions} placeholder="请选择是否通知" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="supplement" label="补充说明"><Input placeholder="例如：订单已在支付侧确认，重新同步零售单" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
-      </Modal>
+      </BusinessEditorModal>
     </div>
   );
 };
