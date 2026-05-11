@@ -31,7 +31,6 @@ export default function Login() {
       const parsed = JSON.parse(cached) as LoginFormValues;
       form.setFieldsValue({
         username: parsed.username || '',
-        password: parsed.password || '',
         remember: Boolean(parsed.remember),
       });
     } catch {
@@ -48,7 +47,6 @@ export default function Login() {
 
     localStorage.setItem(LOGIN_REMEMBER_KEY, JSON.stringify({
       username: values.username,
-      password: values.password,
       remember: true,
     }));
   };
@@ -69,6 +67,8 @@ export default function Login() {
         username: currentUser.username,
         avatar: currentUser.avatar,
         role: currentUser.role,
+        roles: response.data.roles || [],
+        permissions: response.data.permissions || [],
       };
 
       localStorage.setItem('satoken', response.data.token);
@@ -129,9 +129,9 @@ export default function Login() {
 
               <div className="form-extra">
                 <Form.Item name="remember" valuePropName="checked" noStyle>
-                  <Checkbox>记住密码</Checkbox>
+                  <Checkbox>记住用户名</Checkbox>
                 </Form.Item>
-                <span>建议仅在可信设备上使用</span>
+                <span>仅记住用户名，不保存密码</span>
               </div>
 
               <Button type="primary" htmlType="submit" loading={loading} className="login-button">

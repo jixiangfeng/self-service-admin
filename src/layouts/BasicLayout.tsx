@@ -57,20 +57,24 @@ import {
   WalletOutlined,
 } from '@ant-design/icons';
 import { authApi } from '@/services/backendService';
+import { getStoredUserAuth, hasAnyPermission } from '@/utils/authz';
 
 const BasicLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [pathname, setPathname] = useState(location.pathname);
-  const currentUser = useMemo(() => {
-    const raw = localStorage.getItem('user');
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return null;
-    }
-  }, []);
+  const currentUser = useMemo(() => getStoredUserAuth(), []);
+
+  const filterMenuByPermission = (items: MenuDataItem[]): MenuDataItem[] =>
+    items
+      .map((item) => {
+        const permissions = (item as any).permissions as string[] | undefined;
+        const children = item.children ? filterMenuByPermission(item.children) : undefined;
+        const allowed = !permissions || hasAnyPermission(permissions) || Boolean(children?.length);
+        if (!allowed) return null;
+        return { ...item, children };
+      })
+      .filter(Boolean) as MenuDataItem[];
 
   const menuData: MenuDataItem[] = useMemo(() => [
     { key: '/dashboard', path: '/dashboard', name: '工作台', icon: <DashboardOutlined /> },
@@ -209,11 +213,11 @@ const BasicLayout: React.FC = () => {
       name: '系统管理',
       icon: <SafetyOutlined />,
       children: [
-        { key: '/system/user', path: '/system/user', name: '用户管理', icon: <UserOutlined /> },
-        { key: '/system/role', path: '/system/role', name: '角色管理', icon: <TeamOutlined /> },
-        { key: '/system/menu', path: '/system/menu', name: '菜单管理', icon: <MenuOutlined /> },
-        { key: '/system/dictionary', path: '/system/dictionary', name: '字典管理', icon: <BookOutlined /> },
-        { key: '/system/auth-audit', path: '/system/auth-audit', name: '权限审计中心', icon: <AuditOutlined /> },
+        { key: '/system/user', path: '/system/user', name: '用户管理', icon: <UserOutlined />, permissions: ['system:user:list'] } as MenuDataItem,
+        { key: '/system/role', path: '/system/role', name: '角色管理', icon: <TeamOutlined />, permissions: ['system:role:list'] } as MenuDataItem,
+        { key: '/system/menu', path: '/system/menu', name: '菜单管理', icon: <MenuOutlined />, permissions: ['system:menu:list'] } as MenuDataItem,
+        { key: '/system/dictionary', path: '/system/dictionary', name: '字典管理', icon: <BookOutlined />, permissions: ['system:dictionary:list'] } as MenuDataItem,
+        { key: '/system/auth-audit', path: '/system/auth-audit', name: '权限审计中心', icon: <AuditOutlined />, permissions: ['system:permission:list'] } as MenuDataItem,
         { key: '/system/organization', path: '/system/organization', name: '组织架构中心', icon: <ApartmentOutlined /> },
       ],
     },
@@ -257,6 +261,8 @@ const BasicLayout: React.FC = () => {
     });
   }, [location.pathname, pathKeyChains]);
 
+  const filteredMenuData = useMemo(() => filterMenuByPermission(menuData), [menuData]);
+
   const userMenuItems = [
     { key: 'logout', label: '退出登录' },
   ];
@@ -286,7 +292,7 @@ const BasicLayout: React.FC = () => {
       fixedHeader
       fixSiderbar
       siderWidth={248}
-      route={{ path: '/', routes: menuData }}
+      route={{ path: '/', routes: filteredMenuData }}
       location={{ pathname }}
       menuProps={{
         openKeys,

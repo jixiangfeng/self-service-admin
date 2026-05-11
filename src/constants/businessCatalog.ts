@@ -35,6 +35,19 @@ export const statusOptions = [
   { value: 0, label: '停用' },
 ];
 
+
+export const merchantAccountTypeOptions = [
+  { value: 'MERCHANT_ADMIN', label: '商户管理员' },
+  { value: 'STORE_MANAGER', label: '门店店长' },
+  { value: 'FINANCE', label: '财务账号' },
+  { value: 'OPERATOR', label: '运营账号' },
+];
+
+export const merchantEntityStatusOptions = [
+  { value: 'ACTIVE', label: '启用' },
+  { value: 'DISABLED', label: '停用' },
+];
+
 export const storeStatusOptions = [
   { value: 'OPEN', label: '营业中' },
   { value: 'PAUSED', label: '暂停营业' },

@@ -116,18 +116,7 @@ const UserManagement: React.FC = () => {
   const handleSaveUserRoles = async () => {
     const values = await form.validateFields(['relationRoleCodes', 'grantUser']);
     const roleCodes = (values.relationRoleCodes || []) as string[];
-    await Promise.all(roleCodes.map((roleCode) => {
-      const role = (roleOptions as any[]).find((item) => item.roleCode === roleCode);
-      return api.authAudit.userRoles.add({
-        userId: roleUser.id,
-        userName: roleUser.username,
-        roleName: role?.roleName || roleCode,
-        roleCode,
-        grantUser: values.grantUser || '系统管理员',
-        status: 1,
-        grantedAt: new Date().toISOString(),
-      });
-    }));
+    await api.user.updateRoles(roleUser.id, roleCodes, values.grantUser || '系统管理员');
     closeRoleModal();
   };
 

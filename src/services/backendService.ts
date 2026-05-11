@@ -35,6 +35,8 @@ export interface BackendUser {
 
 export interface LoginResponse {
   user: BackendUser;
+  roles?: string[];
+  permissions?: string[];
   token: string;
   tokenName?: string;
 }
@@ -130,6 +132,7 @@ export interface DictDataRecord {
 export interface SelectOptionRecord {
   value: number;
   label: string;
+  code?: string;
 }
 
 export interface MerchantRecord {
@@ -2233,20 +2236,16 @@ export const authApi = {
   login: async (payload: LoginRequest) =>
     request.post<ApiEnvelope<LoginResponse>>('/auth/login', payload),
   logout: async () => request.post<ApiEnvelope<void>>('/auth/logout'),
-  getCurrentUser: async () => httpGet<BackendUser>('/auth/me'),
+  getCurrentUser: async () => httpGet<LoginResponse>('/auth/me'),
 };
 
 export const userApi = {
   page: async (params: Record<string, unknown>) =>
     httpPage<UserRecord>('/users', params),
-  add: async (data: Record<string, unknown>) => (async () => {
-    const res = await httpPost<UserRecord>('/auth/register', data);
-    if (res.data?.id) {
-      await httpPut<void>(`/users/${res.data.id}`, { ...data, id: res.data.id });
-    }
-    return res;
-  })(),
+  add: async (data: Record<string, unknown>) => httpPost<UserRecord>('/users', data),
   edit: async (data: Record<string, unknown>) => httpPut<void>(`/users/${data.id}`, data),
+  updateRoles: async (id: number, roleCodes: string[], grantUser?: string) =>
+    httpPut<void>(`/users/${id}/roles`, { roleCodes, grantUser }),
   remove: async (id: number) => httpDelete<void>(`/users/${id}`),
   changeStatus: async (id: number, status: number) => httpPut<void>(`/users/${id}/status`, { status }),
   resetPassword: async (id: number, newPassword: string) => request.post<ApiEnvelope<void>>(`/users/${id}/reset-password`, { newPassword }),

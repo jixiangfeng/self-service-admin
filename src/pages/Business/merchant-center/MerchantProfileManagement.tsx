@@ -109,6 +109,15 @@ const profileTabMeta: Record<ProfileTab, { eyebrow: string; createTitle: string;
   },
 };
 
+
+const normalizeProfilePayload = (payload: Record<string, unknown>, tab: ProfileTab) => {
+  const next = { ...payload };
+  if (tab === 'change' && typeof next.changedAt === 'string' && next.changedAt) {
+    next.changedAt = String(next.changedAt).replace('T', ' ');
+  }
+  return next;
+};
+
 const profileDetailFields: Record<ProfileTab, DetailField<any>[]> = {
   contact: [
     { name: 'merchantName', label: '商户' },
@@ -199,11 +208,12 @@ const MerchantProfileManagement: React.FC = () => {
 
   const saveMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) => {
-      if (activeTab === 'contact') return payload.id ? api.merchantContact.edit(payload) : api.merchantContact.add(payload);
-      if (activeTab === 'qualification') return payload.id ? api.merchantQualification.edit(payload) : api.merchantQualification.add(payload);
-      if (activeTab === 'contract') return payload.id ? api.merchantContract.edit(payload) : api.merchantContract.add(payload);
-      if (activeTab === 'account') return payload.id ? api.merchantSettlementAccount.edit(payload) : api.merchantSettlementAccount.add(payload);
-      return payload.id ? api.merchantChangeLog.edit(payload) : api.merchantChangeLog.add(payload);
+      const normalizedPayload = normalizeProfilePayload(payload, activeTab);
+      if (activeTab === 'contact') return normalizedPayload.id ? api.merchantContact.edit(normalizedPayload) : api.merchantContact.add(normalizedPayload);
+      if (activeTab === 'qualification') return normalizedPayload.id ? api.merchantQualification.edit(normalizedPayload) : api.merchantQualification.add(normalizedPayload);
+      if (activeTab === 'contract') return normalizedPayload.id ? api.merchantContract.edit(normalizedPayload) : api.merchantContract.add(normalizedPayload);
+      if (activeTab === 'account') return normalizedPayload.id ? api.merchantSettlementAccount.edit(normalizedPayload) : api.merchantSettlementAccount.add(normalizedPayload);
+      return normalizedPayload.id ? api.merchantChangeLog.edit(normalizedPayload) : api.merchantChangeLog.add(normalizedPayload);
     },
     onSuccess: () => {
       message.success('商户档案已保存');
@@ -468,7 +478,7 @@ const MerchantProfileManagement: React.FC = () => {
                 <Form.Item name="fileUrl" label="文件地址"><Input placeholder="资质文件链接或对象存储地址" /></Form.Item>
                 <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
                 <Form.Item name="status" label="状态"><Select options={accountStatusOptions} placeholder="请选择状态" /></Form.Item>
-                <Form.Item name="expireAt" label="到期日"><Input placeholder="YYYY-MM-DD" /></Form.Item>
+                <Form.Item name="expireAt" label="到期日"><Input type="date" /></Form.Item>
               </>
             ) : null}
             {activeTab === 'contract' ? (
@@ -478,8 +488,8 @@ const MerchantProfileManagement: React.FC = () => {
                 <Form.Item name="settlementCycle" label="结算周期"><Select options={settlementCycleOptions} placeholder="请选择结算周期" /></Form.Item>
                 <Form.Item name="contractStatus" label="合同状态"><Select options={merchantContractStatusOptions} placeholder="请选择合同状态" /></Form.Item>
                 <Form.Item name="status" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
-                <Form.Item name="startAt" label="开始日期"><Input placeholder="YYYY-MM-DD" /></Form.Item>
-                <Form.Item name="endAt" label="结束日期"><Input placeholder="YYYY-MM-DD" /></Form.Item>
+                <Form.Item name="startAt" label="开始日期"><Input type="date" /></Form.Item>
+                <Form.Item name="endAt" label="结束日期"><Input type="date" /></Form.Item>
               </>
             ) : null}
             {activeTab === 'account' ? (
@@ -489,7 +499,7 @@ const MerchantProfileManagement: React.FC = () => {
                 <Form.Item name="bankName" label="开户行"><Input placeholder="例如：招商银行上海分行" /></Form.Item>
                 <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
                 <Form.Item name="status" label="账户状态"><Select options={accountStatusOptions} placeholder="请选择账户状态" /></Form.Item>
-                <Form.Item name="effectiveAt" label="生效日期"><Input placeholder="YYYY-MM-DD" /></Form.Item>
+                <Form.Item name="effectiveAt" label="生效日期"><Input type="date" /></Form.Item>
               </>
             ) : null}
             {activeTab === 'change' ? (
@@ -497,7 +507,7 @@ const MerchantProfileManagement: React.FC = () => {
                 <Form.Item name="changeNo" label="变更单号" rules={[{ required: true, message: '请输入变更单号' }]}><Input placeholder="例如：MCG202605100001" /></Form.Item>
                 <Form.Item name="changeType" label="变更类型"><Select options={changeTypeOptions} placeholder="请选择变更类型" /></Form.Item>
                 <Form.Item name="operator" label="操作人"><Input placeholder="例如：平台运营" /></Form.Item>
-                <Form.Item name="changedAt" label="变更时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                <Form.Item name="changedAt" label="变更时间"><Input type="datetime-local" /></Form.Item>
                 <Form.Item className="merchant-editor-field-span-2" name="beforeValue" label="变更前"><Input.TextArea rows={3} placeholder="记录变更前的关键字段和值" /></Form.Item>
                 <Form.Item className="merchant-editor-field-span-2" name="afterValue" label="变更后"><Input.TextArea rows={3} placeholder="记录变更后的关键字段和值" /></Form.Item>
               </>

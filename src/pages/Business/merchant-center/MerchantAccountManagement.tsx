@@ -4,7 +4,7 @@ import { SafetyCertificateOutlined, ShopOutlined, TeamOutlined, UserSwitchOutlin
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
-import { auditStatusOptions, scopeTypeOptions, statusOptions } from '@/constants/businessCatalog';
+import { auditStatusOptions, merchantAccountTypeOptions, scopeTypeOptions, statusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
@@ -96,7 +96,7 @@ const MerchantAccountManagement: React.FC = () => {
   const openAccount = (record?: MerchantAccountRecord) => {
     setEditingAccount(record || null);
     form.resetFields();
-    form.setFieldsValue(record || { accountType: '商户账号', dataScopeType: 'MERCHANT', status: 1 });
+    form.setFieldsValue(record || { accountType: 'MERCHANT_ADMIN', dataScopeType: 'MERCHANT', status: 1 });
     setAccountVisible(true);
   };
 
@@ -280,7 +280,7 @@ const MerchantAccountManagement: React.FC = () => {
                 <Form.Item name="userId" label="平台用户ID"><Input placeholder="可选，已有平台用户时填写" /></Form.Item>
                 <Form.Item name="userName" label="账号名称" rules={[{ required: true, message: '请输入账号名称' }]}><Input placeholder="例如：merchant_direct_admin" /></Form.Item>
                 <Form.Item name="mobile" label="手机号"><Input placeholder="用于登录校验和通知" /></Form.Item>
-                <Form.Item name="accountType" label="账号类型" rules={[{ required: true, message: '请输入账号类型' }]}><Input placeholder="例如：商户管理员 / 门店店长" /></Form.Item>
+                <Form.Item name="accountType" label="账号类型" rules={[{ required: true, message: '请选择账号类型' }]}><Select options={merchantAccountTypeOptions} placeholder="请选择账号类型" /></Form.Item>
                 <Form.Item name="status" label="状态"><Select options={statusOptions} placeholder="请选择状态" /></Form.Item>
               </div>
             </BusinessEditorSection>
