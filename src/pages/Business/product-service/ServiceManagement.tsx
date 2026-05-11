@@ -19,6 +19,23 @@ import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, formatDateTime, renderOptionTags, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import { joinCommaValues, splitCommaValues } from '@/utils/csv';
+import { DateTimeField, TimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue } from '@/utils/formControls';
+
+
+const normalizePickerValues = (values: Record<string, any>) => {
+  const next = { ...values };
+  Object.entries(next).forEach(([key, value]) => {
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = fromTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = fromDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = fromDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
+
 
 const allowDenyOptions = [
   { value: 'ALLOW', label: '允许' },
@@ -648,6 +665,7 @@ const ServiceManagement: React.FC = () => {
           className="merchant-editor-form"
           preserve={false}
           onFinish={(values) => {
+            values = normalizePickerValues(values);
             const sellingPoints = joinCommaValues(values.sellingPoints);
             const payload = values.scopeType === 'PLATFORM'
               ? { ...values, scopeId: undefined, scopeName: '平台', sellingPoints }
@@ -703,10 +721,10 @@ const ServiceManagement: React.FC = () => {
                   <Input placeholder="例如：15 分钟 / 10 次 / 30 天" />
                 </Form.Item>
                 <Form.Item name="effectiveAt" label="生效时间">
-                  <Input placeholder="YYYY-MM-DD HH:mm:ss" />
+                  <DateTimeField />
                 </Form.Item>
                 <Form.Item name="expireAt" label="失效时间">
-                  <Input placeholder="YYYY-MM-DD HH:mm:ss" />
+                  <DateTimeField />
                 </Form.Item>
               </div>
             </BusinessEditorSection>
@@ -808,10 +826,10 @@ const ServiceManagement: React.FC = () => {
                   <InputNumber style={{ width: '100%' }} min={0} precision={0} placeholder="例如：5" />
                 </Form.Item>
                 <Form.Item name="effectiveAt" label="生效时间">
-                  <Input placeholder="YYYY-MM-DD HH:mm:ss" />
+                  <DateTimeField />
                 </Form.Item>
                 <Form.Item name="expireAt" label="失效时间">
-                  <Input placeholder="YYYY-MM-DD HH:mm:ss" />
+                  <DateTimeField />
                 </Form.Item>
               </div>
             </BusinessEditorSection>
@@ -819,10 +837,10 @@ const ServiceManagement: React.FC = () => {
             <BusinessEditorSection icon={<FieldTimeOutlined />} title="时段与节假日" desc="记录夜间价、节假日价和叠加口径，避免特殊日期价格与基础规则脱节。">
               <div className="merchant-editor-fields merchant-editor-fields--two">
                 <Form.Item name="timeStart" label="开始时间">
-                  <Input placeholder="20:00" />
+                  <TimeField placeholder="请选择开始时间" />
                 </Form.Item>
                 <Form.Item name="timeEnd" label="结束时间">
-                  <Input placeholder="02:00" />
+                  <TimeField placeholder="请选择结束时间" />
                 </Form.Item>
                 <Form.Item name="nightPriceMode" label="夜间计价">
                   <Select options={nightPriceModeOptions} placeholder="请选择夜间计价" />

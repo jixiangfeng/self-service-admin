@@ -16,6 +16,23 @@ import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type { BizFileRefRecord, FileAuditRecord, FileRetentionRecord, FileUsageRecord } from '@/services/backendService';
+import { DateField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue } from '@/utils/formControls';
+
+
+const normalizePickerValues = (values: Record<string, any>) => {
+  const next = { ...values };
+  Object.entries(next).forEach(([key, value]) => {
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = fromTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = fromDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = fromDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
+
 
 const publishStatusMap = buildValueEnum(publishStatusOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
@@ -176,7 +193,7 @@ const FileRelationManagement: React.FC = () => {
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={async () => {
-          const values = await form.validateFields();
+          const values = normalizePickerValues(await form.validateFields());
           const remark = compactJoin([
             values.refType ? `关联类型：${optionLabel(refTypeOptions, values.refType)}` : undefined,
             values.retentionRule ? `留存规则：${optionLabel(retentionRuleOptions, values.retentionRule)}` : undefined,
@@ -223,7 +240,7 @@ const FileRelationManagement: React.FC = () => {
             <BusinessEditorSection icon={<FileProtectOutlined />} title="留存规则" desc="配置留存规则、到期日期和补充说明。">
               <div className="merchant-editor-fields">
                 <Form.Item name="retentionRule" label="留存规则"><Select options={retentionRuleOptions} placeholder="请选择留存规则" /></Form.Item>
-                <Form.Item name="expireAt" label="到期日期"><Input placeholder="YYYY-MM-DD" /></Form.Item>
+                <Form.Item name="expireAt" label="到期日期"><DateField /></Form.Item>
                 <Form.Item className="merchant-editor-field-span-all" name="supplement" label="补充说明"><Input placeholder="例如：合同类文件长期留存" /></Form.Item>
               </div>
             </BusinessEditorSection>

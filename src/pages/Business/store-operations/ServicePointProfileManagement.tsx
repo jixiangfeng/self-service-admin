@@ -23,10 +23,40 @@ import type {
   ServicePointStatusLogRecord,
 } from '@/services/backendService';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { DateTimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue, toDatePickerValue, toDateTimePickerValue, toTimePickerValue } from '@/utils/formControls';
 
 type PointProfileTab = 'qr' | 'maintain' | 'bind' | 'status';
 type EditableRecord = ServicePointQrRecord | ServicePointMaintainRecord | PointDeviceBindLogRecord | ServicePointStatusLogRecord;
 
+
+const normalizePickerValues = (values: Record<string, any>) => {
+  const next = { ...values };
+  Object.entries(next).forEach(([key, value]) => {
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = fromTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = fromDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = fromDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
+
+const normalizePickerInitialValues = (record: Record<string, any>) => {
+  const next = { ...record };
+  Object.entries(next).forEach(([key, value]) => {
+    if (!value) return;
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = toTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = toDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = toDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
 const auditStatusMap = buildValueEnum(auditStatusOptions);
 const maintainStatusMap = buildValueEnum(maintainStatusOptions);
 const pointStatusMap = buildValueEnum(pointStatusOptions);
@@ -156,7 +186,7 @@ const ServicePointProfileManagement: React.FC = () => {
     setEditingRecord(record || null);
     form.resetFields();
     if (record) {
-      form.setFieldsValue({ ...(record as unknown as Record<string, string | number | undefined>) });
+      form.setFieldsValue(normalizePickerInitialValues(record as unknown as Record<string, any>));
     } else if (tab === 'qr') {
       form.setFieldsValue({ status: 'APPROVED' });
     } else if (tab === 'maintain') {
@@ -276,7 +306,7 @@ const ServicePointProfileManagement: React.FC = () => {
           setEditingRecord(null);
           form.resetFields();
         }}
-        onOk={async () => saveMutation.mutate(await form.validateFields())}
+        onOk={async () => saveMutation.mutate(normalizePickerValues(await form.validateFields()))}
         confirmLoading={saveMutation.isPending}
         width={980}
         okText={editingRecord ? '保存变更' : '保存档案'}
@@ -314,7 +344,7 @@ const ServicePointProfileManagement: React.FC = () => {
                   <Form.Item name="maintainType" label="维护类型"><Input placeholder="例如：日常巡检 / 故障检修" /></Form.Item>
                   <Form.Item name="owner" label="负责人"><Input placeholder="现场处理人" /></Form.Item>
                   <Form.Item name="status" label="状态"><Select options={maintainStatusOptions} placeholder="请选择状态" /></Form.Item>
-                  <Form.Item name="plannedAt" label="计划时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                  <Form.Item name="plannedAt" label="计划时间"><DateTimeField /></Form.Item>
                 </div>
               </BusinessEditorSection>
             ) : null}
@@ -327,7 +357,7 @@ const ServicePointProfileManagement: React.FC = () => {
                   <Form.Item name="operator" label="操作人"><Input placeholder="记录绑定操作人" /></Form.Item>
                   <Form.Item name="beforeDevice" label="原设备"><Input placeholder="原设备编号或名称" /></Form.Item>
                   <Form.Item name="afterDevice" label="新设备"><Input placeholder="新设备编号或名称" /></Form.Item>
-                  <Form.Item name="boundAt" label="绑定时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                  <Form.Item name="boundAt" label="绑定时间"><DateTimeField /></Form.Item>
                 </div>
               </BusinessEditorSection>
             ) : null}
@@ -338,7 +368,7 @@ const ServicePointProfileManagement: React.FC = () => {
                   <Form.Item name="logNo" label="日志编号" rules={[{ required: true, message: '请输入日志编号' }]}><Input placeholder="例如：LOG-BAY-20260510-001" /></Form.Item>
                   <Form.Item name="beforeStatus" label="原状态"><Select options={pointStatusOptions} placeholder="请选择原状态" /></Form.Item>
                   <Form.Item name="afterStatus" label="新状态"><Select options={pointStatusOptions} placeholder="请选择新状态" /></Form.Item>
-                  <Form.Item name="changedAt" label="变更时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                  <Form.Item name="changedAt" label="变更时间"><DateTimeField /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="reason" label="原因"><Input.TextArea rows={3} placeholder="记录状态变更原因、异常说明或人工处理备注" /></Form.Item>
                 </div>
               </BusinessEditorSection>

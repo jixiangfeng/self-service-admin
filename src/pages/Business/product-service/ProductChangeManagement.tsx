@@ -12,7 +12,37 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
 import type { PricingChangeLogRecord, PricingRuleVersionRecord, ProductChangeLogRecord, ProductStatusLogRecord } from '@/services/backendService';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import { DateTimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue, toDatePickerValue, toDateTimePickerValue, toTimePickerValue } from '@/utils/formControls';
 
+
+const normalizePickerValues = (values: Record<string, any>) => {
+  const next = { ...values };
+  Object.entries(next).forEach(([key, value]) => {
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = fromTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = fromDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = fromDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
+
+const normalizePickerInitialValues = (record: Record<string, any>) => {
+  const next = { ...record };
+  Object.entries(next).forEach(([key, value]) => {
+    if (!value) return;
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = toTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = toDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = toDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
 const publishStatusMap = buildValueEnum(publishStatusOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
 const billingModeMap = buildValueEnum(billingModeOptions);
@@ -118,7 +148,7 @@ const ProductChangeManagement: React.FC = () => {
     form.resetFields();
     setEditingRecord(record || null);
     if (record) {
-      form.setFieldsValue(record as unknown as Record<string, string | number | undefined>);
+      form.setFieldsValue(normalizePickerInitialValues(record as unknown as Record<string, any>));
     } else if (title.includes('版本')) {
       form.setFieldsValue({ status: 'PUBLISHED' });
     } else {
@@ -239,7 +269,7 @@ const ProductChangeManagement: React.FC = () => {
         open={modalVisible}
         onCancel={() => { setModalVisible(false); setEditingRecord(null); form.resetFields(); }}
         onOk={async () => {
-          const values = await form.validateFields();
+          const values = normalizePickerValues(await form.validateFields());
           if (modalTitle.includes('版本')) {
             savePricingVersionMutation.mutate(values);
           } else {
@@ -266,7 +296,7 @@ const ProductChangeManagement: React.FC = () => {
                 <BusinessEditorSection icon={<ClockCircleOutlined />} title="价格发布" desc="记录基础价格、生效时间和发布状态，形成计费版本从创建到发布的闭环。">
                   <div className="merchant-editor-fields">
                     <Form.Item name="basePrice" label="基础价格"><Input placeholder="例如：29.00" /></Form.Item>
-                    <Form.Item name="effectiveAt" label="生效时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                    <Form.Item name="effectiveAt" label="生效时间"><DateTimeField /></Form.Item>
                     <Form.Item name="status" label="状态"><Select options={publishStatusOptions} placeholder="请选择发布状态" /></Form.Item>
                   </div>
                 </BusinessEditorSection>

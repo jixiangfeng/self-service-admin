@@ -16,6 +16,23 @@ import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type { ApprovalProcessRecord, ApprovalRecord, ApprovalSlaRecord, ApprovalTaskRecord } from '@/services/backendService';
+import { DateTimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue } from '@/utils/formControls';
+
+
+const normalizePickerValues = (values: Record<string, any>) => {
+  const next = { ...values };
+  Object.entries(next).forEach(([key, value]) => {
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = fromTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = fromDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = fromDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
+
 
 const publishStatusMap = buildValueEnum(publishStatusOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
@@ -198,7 +215,7 @@ const ApprovalFlowManagement: React.FC = () => {
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={async () => {
-          const values = await form.validateFields();
+          const values = normalizePickerValues(await form.validateFields());
           const nodeConfig = compactJoin([
             values.nodeOne ? `一级节点：${optionLabel(approvalNodeOptions, String(values.nodeOne))}` : undefined,
             values.nodeTwo ? `二级节点：${optionLabel(approvalNodeOptions, String(values.nodeTwo))}` : undefined,
@@ -256,7 +273,7 @@ const ApprovalFlowManagement: React.FC = () => {
               <div className="merchant-editor-fields">
                 <Form.Item name="priority" label="优先级"><Select options={ticketPriorityOptions} placeholder="请选择优先级" /></Form.Item>
                 <Form.Item name="owner" label="负责人"><Input placeholder="例如：财务-王敏" /></Form.Item>
-                <Form.Item name="deadline" label="截止时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                <Form.Item name="deadline" label="截止时间"><DateTimeField /></Form.Item>
                 <Form.Item name="status" label="状态"><Select options={auditStatusOptions} placeholder="请选择状态" /></Form.Item>
               </div>
             </BusinessEditorSection>

@@ -22,10 +22,40 @@ import type {
   DeviceVendorRecord,
 } from '@/services/backendService';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, safeJsonParse } from '@/pages/Business/shared';
+import { DateTimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue, toDatePickerValue, toDateTimePickerValue, toTimePickerValue } from '@/utils/formControls';
 
 type DeviceProfileTab = 'vendor' | 'model' | 'protocol' | 'bind';
 type EditableRecord = DeviceVendorRecord | DeviceModelRecord | DeviceProtocolRecord | DeviceBindLogRecord;
 
+
+const normalizePickerValues = (values: Record<string, any>) => {
+  const next = { ...values };
+  Object.entries(next).forEach(([key, value]) => {
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = fromTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = fromDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = fromDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
+
+const normalizePickerInitialValues = (record: Record<string, any>) => {
+  const next = { ...record };
+  Object.entries(next).forEach(([key, value]) => {
+    if (!value) return;
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = toTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = toDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = toDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
 const publishStatusMap = buildValueEnum(publishStatusOptions);
 const deviceTypeMap = buildValueEnum(deviceTypeOptions);
 const protocolTypeMap = buildValueEnum(deviceProtocolTypeOptions);
@@ -193,7 +223,7 @@ const DeviceProfileManagement: React.FC = () => {
     setEditingRecord(record || null);
     form.resetFields();
     if (record) {
-      const recordValues = record as unknown as Record<string, string | number | undefined>;
+      const recordValues = normalizePickerInitialValues(record as unknown as Record<string, any>);
       form.setFieldsValue({
         ...recordValues,
         ...(tab === 'protocol' ? parseAuthConfig(String(recordValues.authConfig || '')) : {}),
@@ -320,7 +350,7 @@ const DeviceProfileManagement: React.FC = () => {
           form.resetFields();
         }}
         onOk={async () => {
-          const values = await form.validateFields();
+          const values = normalizePickerValues(await form.validateFields());
           saveMutation.mutate(activeTab === 'protocol' ? { ...values, authConfig: buildAuthConfig(values) } : values);
         }}
         confirmLoading={saveMutation.isPending}
@@ -399,7 +429,7 @@ const DeviceProfileManagement: React.FC = () => {
                     <Form.Item name="bindNo" label="绑定单号" rules={[{ required: true, message: '请输入绑定单号' }]}><Input placeholder="例如：BIND-DEV-20260510-001" /></Form.Item>
                     <Form.Item name="deviceId" label="设备"><Select showSearch optionFilterProp="label" options={deviceOptionsQuery.data || []} placeholder="请选择设备" /></Form.Item>
                     <Form.Item name="deviceCode" label="设备编号"><Input placeholder="选择设备后可回填或手动记录" /></Form.Item>
-                    <Form.Item name="boundAt" label="绑定时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                    <Form.Item name="boundAt" label="绑定时间"><DateTimeField /></Form.Item>
                   </div>
                 </BusinessEditorSection>
                 <BusinessEditorSection icon={<ToolOutlined />} title="绑定前后" desc="记录设备迁移前后的门店和点位，方便异常履约、资产盘点和运维交接。">

@@ -20,6 +20,10 @@ import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, formatDateTime, renderOptionTags, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import { joinCommaValues, splitCommaValues } from '@/utils/csv';
+import { DateField, fromDatePickerValue, toDatePickerValue } from '@/utils/formControls';
+
+const normalizeDeviceValues = (values: Record<string, any>) => ({ ...values, installTime: fromDatePickerValue(values.installTime) || values.installTime });
+const normalizeDeviceInitialValues = (record: DeviceRecord) => ({ ...record, installTime: toDatePickerValue(record.installTime) || record.installTime }) as Record<string, unknown>;
 
 const DeviceManagement: React.FC = () => {
   const navigate = useNavigate();
@@ -148,7 +152,7 @@ const DeviceManagement: React.FC = () => {
               onClick={() => {
                 setEditingRecord(record);
                 form.setFieldsValue({
-                  ...record,
+                  ...normalizeDeviceInitialValues(record),
                   abilityTags: splitCommaValues(record.abilityTags),
                 });
                 setModalVisible(true);
@@ -284,7 +288,7 @@ const DeviceManagement: React.FC = () => {
           preserve={false}
           onFinish={(values) => {
             const payload = {
-              ...values,
+              ...normalizeDeviceValues(values),
               abilityTags: joinCommaValues(values.abilityTags),
             };
             if (editingRecord) {
@@ -329,7 +333,7 @@ const DeviceManagement: React.FC = () => {
                   <Input placeholder="设备供应商或集成商名称" />
                 </Form.Item>
                 <Form.Item name="installTime" label="安装时间">
-                  <Input placeholder="例如：2026-02-12" />
+                  <DateField />
                 </Form.Item>
               </div>
             </BusinessEditorSection>

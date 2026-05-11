@@ -23,10 +23,40 @@ import type {
   StoreTempCloseRecord,
 } from '@/services/backendService';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, safeJsonParse } from '@/pages/Business/shared';
+import { DateTimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue, toDatePickerValue, toDateTimePickerValue, toTimePickerValue } from '@/utils/formControls';
 
 type StoreProfileTab = 'image' | 'business' | 'tempClose' | 'capability' | 'change';
 type EditableRecord = StoreImageRecord | StoreBusinessHoursRecord | StoreTempCloseRecord | StoreServiceCapabilityRecord | StoreChangeLogRecord;
 
+
+const normalizePickerValues = (values: Record<string, any>) => {
+  const next = { ...values };
+  Object.entries(next).forEach(([key, value]) => {
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = fromTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = fromDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = fromDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
+
+const normalizePickerInitialValues = (record: Record<string, any>) => {
+  const next = { ...record };
+  Object.entries(next).forEach(([key, value]) => {
+    if (!value) return;
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = toTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = toDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = toDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
 const publishStatusMap = buildValueEnum(publishStatusOptions);
 const storeStatusMap = buildValueEnum(storeStatusOptions);
 const capabilityMap = buildValueEnum(storeServiceCapabilityOptions);
@@ -200,7 +230,7 @@ const StoreProfileManagement: React.FC = () => {
     setEditingRecord(record || null);
     form.resetFields();
     if (record) {
-      const recordValues = record as unknown as Record<string, string | number | undefined>;
+      const recordValues = normalizePickerInitialValues(record as unknown as Record<string, any>);
       form.setFieldsValue({
         ...recordValues,
         ...(tab === 'capability' ? parseCapabilityConfig(String((recordValues as any).configJson || '')) : {}),
@@ -334,7 +364,7 @@ const StoreProfileManagement: React.FC = () => {
           form.resetFields();
         }}
         onOk={async () => {
-          const values = await form.validateFields();
+          const values = normalizePickerValues(await form.validateFields());
       saveMutation.mutate(activeTab === 'capability' ? { ...values, configJson: buildCapabilityConfig(values as Record<string, any>) } : values);
         }}
         confirmLoading={saveMutation.isPending}
@@ -384,8 +414,8 @@ const StoreProfileManagement: React.FC = () => {
               <BusinessEditorSection icon={<FieldTimeOutlined />} title="临停安排" desc="记录临时停业原因、起止时间、操作人和状态，确保用户端和运营端同步。">
                 <div className="merchant-editor-fields">
                   <Form.Item className="merchant-editor-field-span-all" name="closeReason" label="临停原因" rules={[{ required: true, message: '请输入临停原因' }]}><Input placeholder="例如：设备检修 / 场地施工 / 电力维护" /></Form.Item>
-                  <Form.Item name="startAt" label="开始时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-                  <Form.Item name="endAt" label="结束时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                  <Form.Item name="startAt" label="开始时间"><DateTimeField /></Form.Item>
+                  <Form.Item name="endAt" label="结束时间"><DateTimeField /></Form.Item>
                   <Form.Item name="operator" label="操作人"><Input placeholder="记录发起人或审批人" /></Form.Item>
                   <Form.Item name="status" label="状态"><Select options={storeStatusOptions} placeholder="请选择状态" /></Form.Item>
                 </div>
@@ -408,7 +438,7 @@ const StoreProfileManagement: React.FC = () => {
                 <div className="merchant-editor-fields">
                   <Form.Item name="changeType" label="变更类型" rules={[{ required: true, message: '请输入变更类型' }]}><Input placeholder="例如：营业时间调整 / 地址变更" /></Form.Item>
                   <Form.Item name="operator" label="操作人"><Input placeholder="记录变更发起人" /></Form.Item>
-                  <Form.Item name="changedAt" label="变更时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                  <Form.Item name="changedAt" label="变更时间"><DateTimeField /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="beforeValue" label="变更前"><Input.TextArea rows={3} placeholder="记录变更前关键字段和值" /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="afterValue" label="变更后"><Input.TextArea rows={3} placeholder="记录变更后关键字段和值" /></Form.Item>
                 </div>

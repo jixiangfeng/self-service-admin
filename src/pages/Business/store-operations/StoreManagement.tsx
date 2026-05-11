@@ -4,6 +4,7 @@ import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { DeleteOutlined, EditOutlined, EnvironmentOutlined, FieldTimeOutlined, NotificationOutlined, PlusOutlined, ShopOutlined } from '@ant-design/icons';
 import { Button, Form, Input, Select, Space, message } from 'antd';
+import type { CascaderProps } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
   marketingOptions,
@@ -19,6 +20,18 @@ import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, formatDateTime, renderBooleanTag, renderOptionTags, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import { joinCommaValues, splitCommaValues } from '@/utils/csv';
+import { DateTimeField, fromDateTimePickerValue, toDateTimePickerValue, RegionCascader } from '@/utils/formControls';
+
+const normalizePickerValues = (values: Record<string, any>) => ({
+  ...values,
+  tempClosedUntil: fromDateTimePickerValue(values.tempClosedUntil) || values.tempClosedUntil,
+});
+
+const normalizePickerInitialValues = (record: StoreRecord) => ({
+  ...record,
+  tempClosedUntil: toDateTimePickerValue(record.tempClosedUntil) || record.tempClosedUntil,
+  region: [record.province, record.city, record.district].filter(Boolean),
+});
 
 const StoreManagement: React.FC = () => {
   const navigate = useNavigate();
@@ -146,7 +159,7 @@ const StoreManagement: React.FC = () => {
               onClick={() => {
                 setEditingRecord(record);
                 form.setFieldsValue({
-                  ...record,
+                  ...normalizePickerInitialValues(record),
                   serviceFlags: splitCommaValues(record.serviceFlags),
                 });
                 setModalVisible(true);
@@ -251,8 +264,9 @@ const StoreManagement: React.FC = () => {
           className="merchant-editor-form"
           preserve={false}
           onFinish={(values) => {
+            const { region, ...restValues } = values;
             const payload = {
-              ...values,
+              ...normalizePickerValues(restValues),
               serviceFlags: joinCommaValues(values.serviceFlags),
             };
             if (editingRecord) {
@@ -308,15 +322,17 @@ const StoreManagement: React.FC = () => {
               desc="补齐行政区、详细地址、经纬度和服务半径，支撑门店检索、导航、附近门店和服务范围控制。"
             >
               <div className="merchant-editor-fields">
-                <Form.Item name="province" label="省份">
-                  <Input placeholder="例如：上海市" />
+                <Form.Item className="merchant-editor-field-span-all" name="region" label="省 / 市 / 区">
+                  <RegionCascader
+                    onChange={(value: CascaderProps['value']) => {
+                      const [province, city, district] = (value || []) as string[];
+                      form.setFieldsValue({ province, city, district });
+                    }}
+                  />
                 </Form.Item>
-                <Form.Item name="city" label="城市">
-                  <Input placeholder="例如：上海" />
-                </Form.Item>
-                <Form.Item name="district" label="区县">
-                  <Input placeholder="例如：闵行区" />
-                </Form.Item>
+                <Form.Item name="province" hidden><Input /></Form.Item>
+                <Form.Item name="city" hidden><Input /></Form.Item>
+                <Form.Item name="district" hidden><Input /></Form.Item>
                 <Form.Item className="merchant-editor-field-span-all" name="address" label="详细地址">
                   <Input placeholder="精确到园区、停车场、楼栋或入口" />
                 </Form.Item>
@@ -363,7 +379,7 @@ const StoreManagement: React.FC = () => {
                   <Input placeholder="例如：设备检修 / 场地施工" />
                 </Form.Item>
                 <Form.Item name="tempClosedUntil" label="临停截止时间">
-                  <Input placeholder="例如：2026-04-18 20:00:00" />
+                  <DateTimeField />
                 </Form.Item>
                 <Form.Item className="merchant-editor-field-span-all" name="serviceFlags" label="服务能力">
                   <Select mode="multiple" options={storeServiceCapabilityOptions} placeholder="选择门店支持的能力" />

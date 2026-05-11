@@ -17,6 +17,11 @@ import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
 import type { MerchantTodoRecord, MerchantWorkbenchStoreOverviewRecord, SelectOptionRecord } from '@/services/backendService';
 import { buildValueEnum, formatAmount, renderStatusTag } from '@/pages/Business/shared';
+import { DateTimeField } from '@/utils/formControls';
+
+
+
+
 
 const priorityMap = buildValueEnum(ticketPriorityOptions);
 const todoStatusMap = buildValueEnum(todoStatusOptions);
@@ -243,7 +248,7 @@ const MerchantWorkbench: React.FC = () => {
                   <Input placeholder="例如：张晨" />
                 </Form.Item>
                 <Form.Item name="deadline" label="截止时间">
-                  <Input placeholder="YYYY-MM-DDTHH:mm:ss" />
+                  <DateTimeField />
                 </Form.Item>
                 <Form.Item name="priority" label="优先级" rules={[{ required: true, message: '请选择优先级' }]}>
                   <Select options={ticketPriorityOptions} placeholder="请选择优先级" />

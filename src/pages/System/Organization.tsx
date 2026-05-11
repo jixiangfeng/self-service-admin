@@ -15,6 +15,7 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, containsKeyword, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type { PlatformDepartmentRecord, PlatformOrganizationChangeLogRecord, PlatformOrganizationRecord, PlatformPositionRecord } from '@/services/backendService';
+import { DateTimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue, toDatePickerValue, toDateTimePickerValue, toTimePickerValue } from '@/utils/formControls';
 
 type OrganizationRecord = PlatformOrganizationRecord;
 type DepartmentRecord = PlatformDepartmentRecord;
@@ -22,6 +23,35 @@ type PositionRecord = PlatformPositionRecord;
 type OrgChangeRecord = PlatformOrganizationChangeLogRecord;
 type OrganizationModalType = 'org' | 'dept' | 'position' | 'change' | null;
 
+
+const normalizePickerValues = (values: Record<string, any>) => {
+  const next = { ...values };
+  Object.entries(next).forEach(([key, value]) => {
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = fromTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = fromDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = fromDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
+
+const normalizePickerInitialValues = (record: Record<string, any>) => {
+  const next = { ...record };
+  Object.entries(next).forEach(([key, value]) => {
+    if (!value) return;
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = toTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = toDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = toDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
 const statusMap = buildValueEnum(statusOptions);
 const scopeMap = buildValueEnum(scopeTypeOptions);
 
@@ -166,7 +196,7 @@ const Organization: React.FC = () => {
     setEditingPosition(null);
     form.resetFields();
     setEditingOrg(record || null);
-    form.setFieldsValue(record ? { ...record } : { status: 'ENABLED' });
+    form.setFieldsValue(record ? normalizePickerInitialValues(record as unknown as Record<string, any>) : { status: 'ENABLED' });
     setModalVisible(true);
   };
 
@@ -177,7 +207,7 @@ const Organization: React.FC = () => {
     setEditingPosition(null);
     form.resetFields();
     setEditingDept(record || null);
-    form.setFieldsValue(record ? { ...record } : { status: 1 });
+    form.setFieldsValue(record ? normalizePickerInitialValues(record as unknown as Record<string, any>) : { status: 1 });
     setModalVisible(true);
   };
 
@@ -188,7 +218,7 @@ const Organization: React.FC = () => {
     setEditingDept(null);
     form.resetFields();
     setEditingPosition(record || null);
-    form.setFieldsValue(record ? { ...record } : { status: 1 });
+    form.setFieldsValue(record ? normalizePickerInitialValues(record as unknown as Record<string, any>) : { status: 1 });
     setModalVisible(true);
   };
 
@@ -314,7 +344,7 @@ const Organization: React.FC = () => {
         open={modalVisible}
         onCancel={closeEditor}
         onOk={async () => {
-          const values = await form.validateFields();
+          const values = normalizePickerValues(await form.validateFields());
           if (modalType === 'org') {
             await saveOrgMutation.mutateAsync(values);
             return;
@@ -392,7 +422,7 @@ const Organization: React.FC = () => {
                     <Form.Item name="objectName" label="变更对象" rules={[{ required: true, message: '请输入变更对象' }]}><Input placeholder="组织 / 部门 / 岗位名称" /></Form.Item>
                     <Form.Item name="changeType" label="变更类型"><Input placeholder="例如：新增 / 调整负责人 / 停用" /></Form.Item>
                     <Form.Item name="operator" label="操作人"><Input placeholder="例如：系统管理员" /></Form.Item>
-                    <Form.Item name="changedAt" label="变更时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                    <Form.Item name="changedAt" label="变更时间"><DateTimeField /></Form.Item>
                   </div>
                 </BusinessEditorSection>
                 <BusinessEditorSection icon={<AuditOutlined />} title="变更内容" desc="补齐变更前后内容和说明，方便后续审计追溯。">

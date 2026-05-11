@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Button, Card, Col, Descriptions, Form, Input, Row, Select, Space, Statistic, message } from 'antd';
+import type { CascaderProps } from 'antd';
 import { ApartmentOutlined, DeploymentUnitOutlined, PlusOutlined, ShopOutlined, TagsOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -12,6 +13,7 @@ import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
 import type { MerchantGroupRecord, MerchantGroupStoreRecord, SelectOptionRecord } from '@/services/backendService';
 import { buildValueEnum, formatDateTime, renderStatusTag, safeJsonParse } from '@/pages/Business/shared';
+import { RegionCascader } from '@/utils/formControls';
 
 const groupTypeMap = buildValueEnum(merchantGroupTypeOptions);
 const statusMap = buildValueEnum(templateStatusOptions);
@@ -237,7 +239,7 @@ const MerchantGroupManagement: React.FC = () => {
             size="small"
             onClick={() => {
               setEditingRecord(record);
-              form.setFieldsValue({ ...record, ...parseGroupRules(record) } as any);
+              form.setFieldsValue({ ...record, ...parseGroupRules(record), region: [record.city].filter(Boolean) } as any);
               setModalVisible(true);
             }}
           >
@@ -381,9 +383,16 @@ const MerchantGroupManagement: React.FC = () => {
                 <Form.Item name="scopeLevel" label="作用层级" rules={[{ required: true, message: '请选择作用层级' }]}>
                   <Select options={scopeLevelOptions} placeholder="请选择作用层级" />
                 </Form.Item>
-                <Form.Item name="city" label="城市">
-                  <Input placeholder="例如：上海 / 苏州" />
+                <Form.Item name="region" label="城市">
+                  <RegionCascader
+                    placeholder="请选择城市"
+                    onChange={(value: CascaderProps['value']) => {
+                      const parts = (value || []) as string[];
+                      form.setFieldValue('city', parts[1] || parts[0]);
+                    }}
+                  />
                 </Form.Item>
+                <Form.Item name="city" hidden><Input /></Form.Item>
                 <Form.Item name="storeCount" label="门店数">
                   <Input disabled placeholder="由成员维护自动统计" />
                 </Form.Item>

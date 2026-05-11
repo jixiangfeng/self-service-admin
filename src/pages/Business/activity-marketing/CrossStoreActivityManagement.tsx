@@ -12,6 +12,7 @@ import BusinessEditorModal, { BusinessEditorSection } from '@/components/Busines
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import api, { type CrossStoreActivityRecord } from '@/services/backendService';
+import { DateField, fromDatePickerValue, toDatePickerValue } from '@/utils/formControls';
 
 const activityTypeMap = buildValueEnum(activityTypeOptions);
 const statusMap = buildValueEnum(activityStatusOptions);
@@ -26,7 +27,21 @@ const cycleTypeOptions = [
 
 const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
 
+const normalizeInitialValues = (record: CrossStoreActivityRecord) => {
+  const values = record as CrossStoreActivityRecord & { startAt?: string; endAt?: string };
+  return {
+    ...values,
+    startAt: toDatePickerValue(values.startAt) || values.startAt,
+    endAt: toDatePickerValue(values.endAt) || values.endAt,
+  };
+};
+
 const buildCrossStorePayload = (values: Record<string, any>, editingRecord?: CrossStoreActivityRecord | null) => {
+  values = {
+    ...values,
+    startAt: fromDatePickerValue(values.startAt) || values.startAt,
+    endAt: fromDatePickerValue(values.endAt) || values.endAt,
+  };
   const cycle = [
     optionLabel(cycleTypeOptions, values.cycleType),
     values.startAt && values.endAt ? `${values.startAt} 至 ${values.endAt}` : undefined,
@@ -123,7 +138,7 @@ const CrossStoreActivityManagement: React.FC = () => {
       render: (_, record) => (
         <Space>
           <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-          <Button size="small" onClick={() => { setEditingRecord(record); form.setFieldsValue(record); setModalVisible(true); }}>编辑</Button>
+          <Button size="small" onClick={() => { setEditingRecord(record); form.setFieldsValue(normalizeInitialValues(record)); setModalVisible(true); }}>编辑</Button>
           <Button
             size="small"
             onClick={() => {
@@ -216,8 +231,8 @@ const CrossStoreActivityManagement: React.FC = () => {
             <BusinessEditorSection icon={<CalendarOutlined />} title="活动周期" desc="用周期类型和开始/结束日期生成活动周期说明。">
               <div className="merchant-editor-fields">
                 <Form.Item name="cycleType" label="周期类型"><Select options={cycleTypeOptions} placeholder="请选择周期类型" /></Form.Item>
-                <Form.Item name="startAt" label="开始日期"><Input placeholder="例如：2026-05-01" /></Form.Item>
-                <Form.Item name="endAt" label="结束日期"><Input placeholder="例如：2026-05-31" /></Form.Item>
+                <Form.Item name="startAt" label="开始日期"><DateField /></Form.Item>
+                <Form.Item name="endAt" label="结束日期"><DateField /></Form.Item>
               </div>
             </BusinessEditorSection>
           </div>

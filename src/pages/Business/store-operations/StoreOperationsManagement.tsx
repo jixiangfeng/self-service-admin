@@ -17,6 +17,7 @@ import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
 import type { SelectOptionRecord, StoreNoticeRecord, StoreOperationTaskRecord, StoreOperationTaskSummaryRecord } from '@/services/backendService';
 import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { DateTimeField, fromDateTimePickerValue, toDateTimePickerValue } from '@/utils/formControls';
 
 const taskTypeMap = buildValueEnum(storeOperationTaskTypeOptions);
 const taskStatusMap = buildValueEnum(storeOperationTaskStatusOptions);
@@ -24,6 +25,10 @@ const priorityMap = buildValueEnum(ticketPriorityOptions);
 const noticeTypeMap = buildValueEnum(storeNoticeTypeOptions);
 const publishStatusMap = buildValueEnum(publishStatusOptions);
 const pageData = <T,>(result: any) => ('data' in result ? result.data : result) as { records: T[]; total: number };
+const normalizeTaskValues = (values: Record<string, any>) => ({ ...values, deadline: fromDateTimePickerValue(values.deadline) || values.deadline });
+const normalizeNoticeValues = (values: Record<string, any>) => ({ ...values, publishAt: fromDateTimePickerValue(values.publishAt) || values.publishAt });
+const normalizeTaskInitialValues = (record: StoreOperationTaskRecord) => ({ ...record, deadline: toDateTimePickerValue(record.deadline) || record.deadline }) as Record<string, unknown>;
+const normalizeNoticeInitialValues = (record: StoreNoticeRecord) => ({ ...record, publishAt: toDateTimePickerValue(record.publishAt) || record.publishAt }) as Record<string, unknown>;
 
 const taskDetailFields: DetailField<StoreOperationTaskRecord>[] = [
   { name: 'taskNo', label: '任务编号' },
@@ -104,19 +109,19 @@ const StoreOperationsManagement: React.FC = () => {
   const openTask = (record?: StoreOperationTaskRecord) => {
     setEditingTask(record || null);
     taskForm.resetFields();
-    taskForm.setFieldsValue(record || { storeId, store: storeId ? storeOptionMap.get(storeId) : undefined, status: 'PENDING', priority: 'MEDIUM' });
+    taskForm.setFieldsValue((record ? normalizeTaskInitialValues(record) : { storeId, store: storeId ? storeOptionMap.get(storeId) : undefined, status: 'PENDING', priority: 'MEDIUM' }) as any);
     setTaskVisible(true);
   };
 
   const openNotice = (record?: StoreNoticeRecord) => {
     setEditingNotice(record || null);
     noticeForm.resetFields();
-    noticeForm.setFieldsValue(record || { storeId, store: storeId ? storeOptionMap.get(storeId) : undefined, status: 'PENDING' });
+    noticeForm.setFieldsValue((record ? normalizeNoticeInitialValues(record) : { storeId, store: storeId ? storeOptionMap.get(storeId) : undefined, status: 'PENDING' }) as any);
     setNoticeVisible(true);
   };
 
   const handleTaskSubmit = async () => {
-    const values = await taskForm.validateFields();
+    const values = normalizeTaskValues(await taskForm.validateFields());
     if (editingTask) {
       await api.storeOperationTask.edit({ ...editingTask, ...values } as unknown as Record<string, unknown>);
       message.success('门店运营任务已更新');
@@ -131,7 +136,7 @@ const StoreOperationsManagement: React.FC = () => {
   };
 
   const handleNoticeSubmit = async () => {
-    const values = await noticeForm.validateFields();
+    const values = normalizeNoticeValues(await noticeForm.validateFields());
     if (editingNotice) {
       await api.storeNotice.edit({ ...editingNotice, ...values } as unknown as Record<string, unknown>);
       message.success('门店公告已更新');
@@ -311,7 +316,7 @@ const StoreOperationsManagement: React.FC = () => {
                 <Form.Item name="deviceId" label="关联设备"><Select showSearch optionFilterProp="label" options={deviceOptions as SelectOptionRecord[]} allowClear placeholder="可选，绑定设备任务时选择" onChange={(value) => taskForm.setFieldValue('relatedDevice', deviceOptionMap.get(value))} /></Form.Item>
                 <Form.Item name="relatedDevice" label="设备名称"><Input disabled placeholder="选择设备后自动带出" /></Form.Item>
                 <Form.Item name="owner" label="负责人" rules={[{ required: true, message: '请输入负责人' }]}><Input placeholder="现场负责人或区域运营" /></Form.Item>
-                <Form.Item name="deadline" label="截止时间"><Input placeholder="例如：2026-05-10 18:00:00" /></Form.Item>
+                <Form.Item name="deadline" label="截止时间"><DateTimeField /></Form.Item>
               </div>
             </BusinessEditorSection>
 
@@ -362,7 +367,7 @@ const StoreOperationsManagement: React.FC = () => {
                 <Form.Item name="storeId" label="门店" rules={[{ required: true, message: '请选择门店' }]}><Select showSearch optionFilterProp="label" options={storeOptions as SelectOptionRecord[]} placeholder="请选择门店" onChange={(value) => noticeForm.setFieldValue('store', storeOptionMap.get(value))} /></Form.Item>
                 <Form.Item name="store" label="门店名称"><Input disabled placeholder="选择门店后自动带出" /></Form.Item>
                 <Form.Item name="publisher" label="发布人"><Input placeholder="例如：区域运营-王敏" /></Form.Item>
-                <Form.Item name="publishAt" label="发布时间"><Input placeholder="例如：2026-05-10 09:00:00" /></Form.Item>
+                <Form.Item name="publishAt" label="发布时间"><DateTimeField /></Form.Item>
               </div>
             </BusinessEditorSection>
 

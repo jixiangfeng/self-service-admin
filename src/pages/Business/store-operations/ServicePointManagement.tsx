@@ -20,6 +20,18 @@ import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, formatDateTime, renderBooleanTag, renderOptionTags, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import { joinCommaValues, splitCommaValues } from '@/utils/csv';
+import { DateTimeField, fromDateTimePickerValue, toDateTimePickerValue } from '@/utils/formControls';
+
+const normalizePointValues = (values: Record<string, any>) => ({
+  ...values,
+  lastMaintainAt: fromDateTimePickerValue(values.lastMaintainAt) || values.lastMaintainAt,
+  temporaryClosedUntil: fromDateTimePickerValue(values.temporaryClosedUntil) || values.temporaryClosedUntil,
+});
+const normalizePointInitialValues = (record: ServicePointRecord) => ({
+  ...record,
+  lastMaintainAt: toDateTimePickerValue(record.lastMaintainAt) || record.lastMaintainAt,
+  temporaryClosedUntil: toDateTimePickerValue(record.temporaryClosedUntil) || record.temporaryClosedUntil,
+}) as Record<string, unknown>;
 
 const ServicePointManagement: React.FC = () => {
   const navigate = useNavigate();
@@ -130,7 +142,7 @@ const ServicePointManagement: React.FC = () => {
               onClick={() => {
                 setEditingRecord(record);
                 form.setFieldsValue({
-                  ...record,
+                  ...normalizePointInitialValues(record),
                   abilityTags: splitCommaValues(record.abilityTags),
                 });
                 setModalVisible(true);
@@ -266,7 +278,7 @@ const ServicePointManagement: React.FC = () => {
           preserve={false}
           onFinish={(values) => {
             const payload = {
-              ...values,
+              ...normalizePointValues(values),
               abilityTags: joinCommaValues(values.abilityTags),
             };
             if (editingRecord) {
@@ -338,7 +350,7 @@ const ServicePointManagement: React.FC = () => {
                   <Select options={maintainStatusOptions} placeholder="请选择维护状态" />
                 </Form.Item>
                 <Form.Item name="lastMaintainAt" label="最近维护时间">
-                  <Input placeholder="例如：2026-04-18 09:00:00" />
+                  <DateTimeField />
                 </Form.Item>
                 <Form.Item name="status" label="点位状态">
                   <Select options={pointStatusOptions} placeholder="请选择点位状态" />
@@ -350,7 +362,7 @@ const ServicePointManagement: React.FC = () => {
                   <Input placeholder="例如：最多排队 3 人，超时 10 分钟释放" />
                 </Form.Item>
                 <Form.Item name="temporaryClosedUntil" label="临时关闭截止时间">
-                  <Input placeholder="例如：2026-04-18 20:00" />
+                  <DateTimeField />
                 </Form.Item>
               </div>
             </BusinessEditorSection>

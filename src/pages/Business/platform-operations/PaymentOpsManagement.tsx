@@ -18,6 +18,23 @@ import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type { PaymentCallbackLogRecord, PaymentChannelRecord, PaymentOrderRecord, PaymentReconciliationRecord, RefundCallbackLogRecord } from '@/services/backendService';
+import { DateField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue } from '@/utils/formControls';
+
+
+const normalizePickerValues = (values: Record<string, any>) => {
+  const next = { ...values };
+  Object.entries(next).forEach(([key, value]) => {
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = fromTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = fromDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = fromDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
+
 
 const payModeMap = buildValueEnum(payModeOptions);
 const publishStatusMap = buildValueEnum(publishStatusOptions);
@@ -277,7 +294,7 @@ const PaymentOpsManagement: React.FC = () => {
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={async () => {
-          const values = await form.validateFields();
+          const values = normalizePickerValues(await form.validateFields());
           const payloadSummary = compactJoin([
             values.callbackType ? `回调类型：${optionLabel(callbackTypeOptions, values.callbackType)}` : undefined,
             values.requestId ? `请求编号：${values.requestId}` : undefined,
@@ -338,7 +355,7 @@ const PaymentOpsManagement: React.FC = () => {
                 <div className="merchant-editor-fields">
                   <Form.Item name="reconNo" label="对账单号"><Input placeholder="例如：RECON-20260510-001" /></Form.Item>
                   <Form.Item name="channelCode" label="渠道编码"><Input placeholder="例如：WX_PAY" /></Form.Item>
-                  <Form.Item name="billDate" label="账单日期"><Input placeholder="YYYY-MM-DD" /></Form.Item>
+                  <Form.Item name="billDate" label="账单日期"><DateField /></Form.Item>
                   <Form.Item name="platformAmount" label="平台金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
                   <Form.Item name="channelAmount" label="渠道金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
                   <Form.Item name="diffAmount" label="差异金额"><InputNumber precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>

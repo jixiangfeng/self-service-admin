@@ -16,6 +16,7 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import { DateTimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue } from '@/utils/formControls';
 import api, {
   type DeviceCommandLogRecord,
   type DeviceCommandRecord,
@@ -24,6 +25,22 @@ import api, {
   type DeviceMaintenanceRecord,
   type DeviceSparePartRecord,
 } from '@/services/backendService';
+
+
+const normalizePickerValues = (values: Record<string, any>) => {
+  const next = { ...values };
+  Object.entries(next).forEach(([key, value]) => {
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = fromTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = fromDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = fromDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
+
 
 const commandStatusMap = buildValueEnum(deviceCommandStatusOptions);
 const deviceStatusMap = buildValueEnum(deviceStatusOptions);
@@ -237,7 +254,7 @@ const DeviceOpsManagement: React.FC = () => {
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={async () => {
-          const values = await form.validateFields();
+          const values = normalizePickerValues(await form.validateFields());
           const remark = compactJoin([
             values.action ? `处理动作：${optionLabel(deviceActionOptions, values.action)}` : undefined,
             values.faultLevel ? `故障等级：${optionLabel(deviceFaultLevelOptions, values.faultLevel)}` : undefined,
@@ -278,7 +295,7 @@ const DeviceOpsManagement: React.FC = () => {
                 <Form.Item name="action" label="处理动作"><Select options={deviceActionOptions} placeholder="请选择处理动作" /></Form.Item>
                 <Form.Item name="faultLevel" label="故障等级"><Select options={deviceFaultLevelOptions} placeholder="请选择故障等级" /></Form.Item>
                 <Form.Item name="owner" label="负责人"><Input placeholder="例如：设备运维-王敏" /></Form.Item>
-                <Form.Item name="plannedAt" label="计划时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                <Form.Item name="plannedAt" label="计划时间"><DateTimeField /></Form.Item>
               </div>
             </BusinessEditorSection>
             <BusinessEditorSection icon={<SettingOutlined />} title="备件与补充" desc="新增备件时维护名称和库存，其他处理可填写补充说明。">

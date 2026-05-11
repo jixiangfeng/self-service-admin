@@ -16,6 +16,7 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, containsKeyword, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type { DataScopeRelationRecord, LoginLogRecord, OperationLogRecord, PermissionChangeLogRecord, UserRoleRelationRecord } from '@/services/backendService';
+import { DateTimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue, toDatePickerValue, toDateTimePickerValue, toTimePickerValue } from '@/utils/formControls';
 
 type UserRoleRecord = UserRoleRelationRecord;
 type DataScopeRecord = DataScopeRelationRecord;
@@ -24,6 +25,35 @@ type OperationLogRecordView = OperationLogRecord;
 type PermissionChangeRecord = PermissionChangeLogRecord;
 type AuditTab = 'userRole' | 'dataScope' | 'permissionChange';
 
+
+const normalizePickerValues = (values: Record<string, any>) => {
+  const next = { ...values };
+  Object.entries(next).forEach(([key, value]) => {
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = fromTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = fromDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = fromDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
+
+const normalizePickerInitialValues = (record: Record<string, any>) => {
+  const next = { ...record };
+  Object.entries(next).forEach(([key, value]) => {
+    if (!value) return;
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = toTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = toDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = toDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
 const statusMap = buildValueEnum(statusOptions);
 const scopeMap = buildValueEnum(scopeTypeOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
@@ -147,7 +177,7 @@ const AuthAudit: React.FC = () => {
     setEditingPermissionChange(record || null);
     form.resetFields();
     if (record) {
-      form.setFieldsValue(record as unknown as Record<string, string | number | undefined>);
+      form.setFieldsValue(normalizePickerInitialValues(record as unknown as Record<string, any>));
     } else if (type === 'userRole' || type === 'dataScope') {
       form.setFieldsValue({ status: 1 });
     } else {
@@ -265,7 +295,7 @@ const AuthAudit: React.FC = () => {
         }}
         onOk={async () => {
           if (!modalType) return;
-          const values = await form.validateFields();
+          const values = normalizePickerValues(await form.validateFields());
           await saveMutation.mutateAsync({
             type: modalType,
             values: editingPermissionChange ? { ...values, id: editingPermissionChange.id } : values,
@@ -289,7 +319,7 @@ const AuthAudit: React.FC = () => {
                 <BusinessEditorSection icon={<SafetyCertificateOutlined />} title="授权闭环" desc="记录授权人、授权时间和启停状态。">
                   <div className="merchant-editor-fields">
                     <Form.Item name="grantUser" label="授权人"><Input placeholder="例如：系统管理员" /></Form.Item>
-                    <Form.Item name="grantedAt" label="授权时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                    <Form.Item name="grantedAt" label="授权时间"><DateTimeField /></Form.Item>
                     <Form.Item name="status" label="状态"><Select options={statusOptions} placeholder="请选择状态" /></Form.Item>
                     <Form.Item className="merchant-editor-field-span-all" name="remark" label="说明"><Input.TextArea rows={3} placeholder="记录授权原因、审批依据或有效边界" /></Form.Item>
                   </div>
@@ -322,7 +352,7 @@ const AuthAudit: React.FC = () => {
                     <Form.Item name="changeNo" label="变更单号" rules={[{ required: true, message: '请输入变更单号' }]}><Input placeholder="例如：AUTH-CHG-20260510" /></Form.Item>
                     <Form.Item name="targetUser" label="目标用户" rules={[{ required: true, message: '请输入目标用户' }]}><Input placeholder="例如：zhangsan" /></Form.Item>
                     <Form.Item name="changeType" label="变更类型"><Input placeholder="例如：新增角色 / 回收权限 / 调整数据范围" /></Form.Item>
-                    <Form.Item name="changedAt" label="变更时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                    <Form.Item name="changedAt" label="变更时间"><DateTimeField /></Form.Item>
                   </div>
                 </BusinessEditorSection>
                 <BusinessEditorSection icon={<SafetyCertificateOutlined />} title="审核结果" desc="补齐变更前后、审核状态和说明。">

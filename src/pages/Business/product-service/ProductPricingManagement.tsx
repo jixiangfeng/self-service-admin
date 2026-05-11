@@ -18,10 +18,40 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
 import type { PricingRuleRecord, SelectOptionRecord, ServiceProductRecord } from '@/services/backendService';
 import { buildValueEnum, containsKeyword, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import { DateTimeField, TimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue, toDatePickerValue, toDateTimePickerValue, toTimePickerValue } from '@/utils/formControls';
 
 type PricingTab = 'category' | 'scope' | 'version' | 'segment' | 'holiday' | 'change';
 type EditableRecord = ServiceProductRecord | PricingRuleRecord;
 
+
+const normalizePickerValues = (values: Record<string, any>) => {
+  const next = { ...values };
+  Object.entries(next).forEach(([key, value]) => {
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = fromTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = fromDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = fromDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
+
+const normalizePickerInitialValues = (record: Record<string, any>) => {
+  const next = { ...record };
+  Object.entries(next).forEach(([key, value]) => {
+    if (!value) return;
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = toTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = toDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = toDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
 const refundPolicyOptions = [
   { value: 'UNUSED_REFUND', label: '未使用可退' },
   { value: 'PARTIAL_REFUND', label: '部分履约按比例退' },
@@ -270,7 +300,7 @@ const ProductPricingManagement: React.FC = () => {
     setEditingRecord(record || null);
     form.resetFields();
     if (record) {
-      form.setFieldsValue(record as unknown as Record<string, string | number | undefined>);
+      form.setFieldsValue(normalizePickerInitialValues(record as unknown as Record<string, any>));
     } else if (tab === 'category') {
       form.setFieldsValue({ categoryCode: 'CAR_WASH_PACKAGE', billingMode: 'PACKAGE', scopeType: 'PLATFORM', scopeName: '平台', status: 1 });
     } else if (tab === 'scope') {
@@ -430,7 +460,7 @@ const ProductPricingManagement: React.FC = () => {
           form.resetFields();
         }}
         onOk={async () => {
-          const values = await form.validateFields();
+          const values = normalizePickerValues(await form.validateFields());
           const payload = values.scopeType === 'PLATFORM' ? { ...values, scopeId: undefined, scopeName: '平台' } : values;
           saveMutation.mutate(payload);
         }}
@@ -465,8 +495,8 @@ const ProductPricingManagement: React.FC = () => {
                     <Form.Item name="priceVersion" label="价格版本"><Input placeholder="例如：V202605" /></Form.Item>
                     <Form.Item name="priceDesc" label="价格描述"><Input placeholder="例如：29 元 / 15 分钟" /></Form.Item>
                     <Form.Item name="serviceDuration" label="服务周期"><Input placeholder="例如：15 分钟 / 10 次 / 30 天" /></Form.Item>
-                    <Form.Item name="effectiveAt" label="生效时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-                    <Form.Item name="expireAt" label="失效时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                    <Form.Item name="effectiveAt" label="生效时间"><DateTimeField /></Form.Item>
+                    <Form.Item name="expireAt" label="失效时间"><DateTimeField /></Form.Item>
                   </div>
                 </BusinessEditorSection>
 
@@ -501,15 +531,15 @@ const ProductPricingManagement: React.FC = () => {
                     <Form.Item name="countPrice" label="按次单价"><InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="0.00" /></Form.Item>
                     <Form.Item name="capAmount" label="封顶金额"><InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="不填则不封顶" /></Form.Item>
                     <Form.Item name="freeMinutes" label="免费分钟"><InputNumber style={{ width: '100%' }} min={0} precision={0} placeholder="例如：5" /></Form.Item>
-                    <Form.Item name="effectiveAt" label="生效时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
-                    <Form.Item name="expireAt" label="失效时间"><Input placeholder="YYYY-MM-DD HH:mm:ss" /></Form.Item>
+                    <Form.Item name="effectiveAt" label="生效时间"><DateTimeField /></Form.Item>
+                    <Form.Item name="expireAt" label="失效时间"><DateTimeField /></Form.Item>
                   </div>
                 </BusinessEditorSection>
 
                 <BusinessEditorSection icon={<FieldTimeOutlined />} title="特殊时段" desc="记录时段、夜间和节假日价格口径，形成特殊日期和常规计价的闭环。">
                   <div className="merchant-editor-fields">
-                    <Form.Item name="timeStart" label="开始时间"><Input placeholder="20:00" /></Form.Item>
-                    <Form.Item name="timeEnd" label="结束时间"><Input placeholder="02:00" /></Form.Item>
+                    <Form.Item name="timeStart" label="开始时间"><TimeField placeholder="请选择开始时间" /></Form.Item>
+                    <Form.Item name="timeEnd" label="结束时间"><TimeField placeholder="请选择结束时间" /></Form.Item>
                     <Form.Item name="nightPriceMode" label="夜间计价"><Select options={nightPriceModeOptions} placeholder="请选择夜间计价" /></Form.Item>
                     <Form.Item name="nightPriceValue" label="夜间数值"><Input placeholder="例如：每分钟 +0.2 元" /></Form.Item>
                     <Form.Item name="nightPriceDesc" label="夜间价格描述"><Input placeholder="例如：夜间每分钟 +0.2 元" /></Form.Item>
