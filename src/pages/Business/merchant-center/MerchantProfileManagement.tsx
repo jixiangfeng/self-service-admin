@@ -476,7 +476,7 @@ const MerchantProfileManagement: React.FC = () => {
                 <Form.Item name="qualificationType" label="资质类型" rules={[{ required: true, message: '请选择资质类型' }]}><Select options={qualificationTypeOptions} placeholder="请选择资质类型" /></Form.Item>
                 <Form.Item name="qualificationNo" label="资质编号" rules={[{ required: true, message: '请输入资质编号' }]}><Input placeholder="统一信用代码或许可证编号" /></Form.Item>
                 <Form.Item name="fileName" label="文件名称"><Input placeholder="例如：营业执照.pdf" /></Form.Item>
-                <Form.Item name="fileUrl" label="资质文件"><OssImageUpload prefix="merchant/qualifications" placeholder="上传资质文件" /></Form.Item>
+                <Form.Item name="fileUrl" label="资质文件"><OssImageUpload fileKind="file" prefix="merchant/qualifications" placeholder="上传资质文件" /></Form.Item>
                 <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
                 <Form.Item name="status" label="状态"><Select options={accountStatusOptions} placeholder="请选择状态" /></Form.Item>
                 <Form.Item name="expireAt" label="到期日"><Input type="date" /></Form.Item>
@@ -489,7 +489,7 @@ const MerchantProfileManagement: React.FC = () => {
                 <Form.Item name="settlementCycle" label="结算周期"><Select options={settlementCycleOptions} placeholder="请选择结算周期" /></Form.Item>
                 <Form.Item name="contractStatus" label="合同状态"><Select options={merchantContractStatusOptions} placeholder="请选择合同状态" /></Form.Item>
                 <Form.Item name="status" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
-                <Form.Item name="fileUrl" label="合同文件"><OssImageUpload prefix="merchant/contracts" placeholder="上传合同文件" /></Form.Item>
+                <Form.Item name="fileUrl" label="合同文件"><OssImageUpload fileKind="file" prefix="merchant/contracts" placeholder="上传合同文件" /></Form.Item>
                 <Form.Item name="startAt" label="开始日期"><Input type="date" /></Form.Item>
                 <Form.Item name="endAt" label="结束日期"><Input type="date" /></Form.Item>
               </>

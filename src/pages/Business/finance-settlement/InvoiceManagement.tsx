@@ -235,7 +235,7 @@ const InvoiceManagement: React.FC = () => {
             <BusinessEditorSection icon={<FileDoneOutlined />} title="处理闭环" desc="维护开票状态、文件和处理说明。">
               <div className="merchant-editor-fields">
                 <Form.Item name="applyStatus" label="开票状态" rules={[{ required: true, message: '请选择开票状态' }]}><Select options={applyStatusOptions} placeholder="请选择开票状态" /></Form.Item>
-                <Form.Item name="fileAssetId" label="发票文件"><OssImageUpload returnField="assetId" prefix="invoice/files" placeholder="上传发票文件" /></Form.Item>
+                <Form.Item name="fileAssetId" label="发票文件"><OssImageUpload fileKind="file" returnField="assetId" prefix="invoice/files" placeholder="上传发票文件" /></Form.Item>
                 <Form.Item className="merchant-editor-field-span-all" name="applyRemark" label="申请备注"><Input placeholder="填写申请说明、客户要求或发票抬头特殊要求" /></Form.Item>
                 <Form.Item className="merchant-editor-field-span-all" name="rejectReason" label="驳回原因 / 处理说明"><Input.TextArea rows={3} placeholder="驳回时填写原因，已开票时填写处理说明" /></Form.Item>
               </div>
@@ -305,7 +305,7 @@ const InvoiceManagement: React.FC = () => {
             <BusinessEditorSection icon={<AuditOutlined />} title="处理结果" desc="已开票时补发票文件，驳回时补原因。">
               <div className="merchant-editor-fields">
                 <Form.Item name="applyStatus" label="处理状态" rules={[{ required: true, message: '请选择处理状态' }]}><Select options={applyStatusOptions} placeholder="请选择处理状态" /></Form.Item>
-                <Form.Item name="fileAssetId" label="发票文件"><OssImageUpload returnField="assetId" prefix="invoice/files" placeholder="上传发票文件" /></Form.Item>
+                <Form.Item name="fileAssetId" label="发票文件"><OssImageUpload fileKind="file" returnField="assetId" prefix="invoice/files" placeholder="上传发票文件" /></Form.Item>
                 <Form.Item name="issuedAt" label="开票时间"><Input placeholder="2026-05-10 10:00:00" /></Form.Item>
                 <Form.Item name="operator" label="处理人"><Input placeholder="例如：财务专员" /></Form.Item>
                 <Form.Item className="merchant-editor-field-span-all" name="rejectReason" label="驳回原因 / 处理说明"><Input.TextArea rows={3} placeholder="驳回原因、文件说明或重新提交要求" /></Form.Item>

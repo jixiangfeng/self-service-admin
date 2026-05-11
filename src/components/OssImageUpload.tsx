@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button, Image, Space, Upload, message } from 'antd';
+import { Button, Image, Space, Tag, Upload, message } from 'antd';
 import type { UploadProps } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import api from '@/services/backendService';
@@ -11,10 +11,14 @@ export interface OssImageUploadProps {
   prefix?: string;
   placeholder?: string;
   returnField?: 'url' | 'assetId';
+  fileKind?: 'image' | 'file';
+  accept?: string;
+  maxSizeMb?: number;
 }
 
-const splitUrls = (value?: string) => String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
-const joinUrls = (urls: string[]) => urls.filter(Boolean).join(',');
+const splitValues = (value?: string) => String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
+const joinValues = (values: string[]) => values.filter(Boolean).join(',');
+const isImageUrl = (value: string) => /^https?:\/\//.test(value) && /\.(png|jpe?g|gif|webp|bmp|svg)(\?|#|$)/i.test(value);
 
 const OssImageUpload: React.FC<OssImageUploadProps> = ({
   value,
@@ -23,33 +27,40 @@ const OssImageUpload: React.FC<OssImageUploadProps> = ({
   prefix = 'images',
   placeholder = '上传图片',
   returnField = 'url',
+  fileKind = 'image',
+  accept,
+  maxSizeMb,
 }) => {
-  const urls = splitUrls(value);
+  const values = splitValues(value);
+  const resolvedAccept = accept || (fileKind === 'image' ? 'image/*' : '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp');
+  const resolvedMaxSize = maxSizeMb || (fileKind === 'image' ? 10 : 50);
 
   const uploadProps: UploadProps = {
     showUploadList: false,
-    accept: 'image/*',
+    accept: resolvedAccept,
     multiple,
     beforeUpload: async (file) => {
       const isImage = file.type.startsWith('image/');
-      if (!isImage) {
+      if (fileKind === 'image' && !isImage) {
         message.error('仅支持上传图片文件');
         return Upload.LIST_IGNORE;
       }
-      const isLt10M = file.size / 1024 / 1024 <= 10;
-      if (!isLt10M) {
-        message.error('图片大小不能超过 10MB');
+      const withinSize = file.size / 1024 / 1024 <= resolvedMaxSize;
+      if (!withinSize) {
+        message.error(`文件大小不能超过 ${resolvedMaxSize}MB`);
         return Upload.LIST_IGNORE;
       }
       try {
-        const result = await api.file.assets.uploadImage(file, prefix);
+        const result = fileKind === 'image'
+          ? await api.file.assets.uploadImage(file, prefix)
+          : await api.file.assets.uploadFile(file, prefix);
         const uploadedValue = returnField === 'assetId' ? result.data.fileAssetId : result.data.fileUrl;
         if (!uploadedValue) {
           message.error('上传成功但未返回文件信息');
           return Upload.LIST_IGNORE;
         }
-        onChange?.(multiple ? joinUrls([...urls, uploadedValue]) : uploadedValue);
-        message.success('图片上传成功');
+        onChange?.(multiple ? joinValues([...values, uploadedValue]) : uploadedValue);
+        message.success('上传成功');
       } catch {
         // request 拦截器已提示错误
       }
@@ -62,13 +73,13 @@ const OssImageUpload: React.FC<OssImageUploadProps> = ({
       <Upload {...uploadProps}>
         <Button icon={<PlusOutlined />}>{placeholder}</Button>
       </Upload>
-      {urls.length ? (
+      {values.length ? (
         <Space wrap>
-          {urls.map((url) => (
-            url.startsWith('http') ? (
-              <Image key={url} src={url} width={88} height={88} style={{ objectFit: 'cover', borderRadius: 8 }} />
+          {values.map((item) => (
+            isImageUrl(item) ? (
+              <Image key={item} src={item} width={88} height={88} style={{ objectFit: 'cover', borderRadius: 8 }} />
             ) : (
-              <span key={url}>{url}</span>
+              <Tag key={item}>{item}</Tag>
             )
           ))}
         </Space>

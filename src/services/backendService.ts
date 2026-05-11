@@ -2923,6 +2923,15 @@ export const fileApi = {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
     },
+    uploadFile: async (file: File, prefix = 'files', fileType?: string) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('prefix', prefix);
+      if (fileType) formData.append('fileType', fileType);
+      return request.post<ApiEnvelope<FileAssetRecord>>('/file-assets/upload-file', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    },
   },
   refs: {
     page: async (params: Record<string, unknown>) => httpPage<BizFileRefRecord>('/biz-file-refs', params),
