@@ -135,6 +135,13 @@ export interface SelectOptionRecord {
   code?: string;
 }
 
+export interface BusinessEnumOption {
+  value: string | number;
+  label: string;
+}
+
+export type BusinessEnumMap = Record<string, BusinessEnumOption[]>;
+
 export interface MerchantRecord {
   id: number;
   merchantName: string;
@@ -2302,6 +2309,10 @@ export const menuApi = {
   remove: async (id: number) => httpDelete<void>(`/menus/${id}`),
 };
 
+export const businessEnumApi = {
+  list: async () => httpGet<BusinessEnumMap>('/business-enums'),
+};
+
 export const dictApi = {
   typeList: async (params: Record<string, unknown>) => (async () => {
     const res = await httpPage<Record<string, any>>('/dictionaries', params);
@@ -3107,6 +3118,7 @@ export default {
   role: roleApi,
   menu: menuApi,
   permission: permissionApi,
+  businessEnums: businessEnumApi,
   dict: dictApi,
   merchant: merchantApi,
   merchantContact: merchantContactApi,

@@ -4,6 +4,7 @@ import { ConfigProvider, Spin } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { QueryProvider } from './utils/queryClient';
 import './App.css';
+import { useBusinessEnums } from './constants/businessCatalog';
 
 const BasicLayout = lazy(() => import('./layouts/BasicLayout'));
 const Login = lazy(() => import('./pages/Login'));
@@ -79,10 +80,16 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   return token ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
+const BusinessEnumBootstrap = () => {
+  useBusinessEnums();
+  return null;
+};
+
 function App() {
   return (
     <QueryProvider>
       <ConfigProvider locale={zhCN}>
+        <BusinessEnumBootstrap />
         <BrowserRouter>
           <Suspense fallback={<PageLoading />}>
             <Routes>
