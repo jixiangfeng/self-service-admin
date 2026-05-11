@@ -489,6 +489,7 @@ const MerchantProfileManagement: React.FC = () => {
                 <Form.Item name="settlementCycle" label="结算周期"><Select options={settlementCycleOptions} placeholder="请选择结算周期" /></Form.Item>
                 <Form.Item name="contractStatus" label="合同状态"><Select options={merchantContractStatusOptions} placeholder="请选择合同状态" /></Form.Item>
                 <Form.Item name="status" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
+                <Form.Item name="fileUrl" label="合同文件"><OssImageUpload prefix="merchant/contracts" placeholder="上传合同文件" /></Form.Item>
                 <Form.Item name="startAt" label="开始日期"><Input type="date" /></Form.Item>
                 <Form.Item name="endAt" label="结束日期"><Input type="date" /></Form.Item>
               </>

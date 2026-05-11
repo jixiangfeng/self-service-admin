@@ -13,6 +13,7 @@ import {
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import OssImageUpload from '@/components/OssImageUpload';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag, safeJsonParse } from '@/pages/Business/shared';
 import api, {
@@ -273,7 +274,7 @@ const OperationsConfigManagement: React.FC = () => {
             {modalTitle === '新建 Banner' ? (
               <BusinessEditorSection icon={<PictureOutlined />} title="Banner 配置" desc="配置图片文件、跳转地址和排序。">
                 <div className="merchant-editor-fields">
-                  <Form.Item name="imageFileAssetId" label="图片文件ID"><Input placeholder="例如：FILE-20260510-001" /></Form.Item>
+                  <Form.Item name="imageFileAssetId" label="Banner 图片"><OssImageUpload returnField="assetId" prefix="mini-program/banners" placeholder="上传 Banner 图片" /></Form.Item>
                   <Form.Item name="jumpValue" label="跳转目标"><Input placeholder="例如：/pages/activity/detail?id=1" /></Form.Item>
                   <Form.Item name="sortNo" label="排序"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="1" /></Form.Item>
                 </div>

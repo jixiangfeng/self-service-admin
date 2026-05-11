@@ -10,6 +10,7 @@ export interface OssImageUploadProps {
   multiple?: boolean;
   prefix?: string;
   placeholder?: string;
+  returnField?: 'url' | 'assetId';
 }
 
 const splitUrls = (value?: string) => String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
@@ -21,6 +22,7 @@ const OssImageUpload: React.FC<OssImageUploadProps> = ({
   multiple = false,
   prefix = 'images',
   placeholder = '上传图片',
+  returnField = 'url',
 }) => {
   const urls = splitUrls(value);
 
@@ -41,12 +43,12 @@ const OssImageUpload: React.FC<OssImageUploadProps> = ({
       }
       try {
         const result = await api.file.assets.uploadImage(file, prefix);
-        const url = result.data.fileUrl;
-        if (!url) {
-          message.error('上传成功但未返回图片地址');
+        const uploadedValue = returnField === 'assetId' ? result.data.fileAssetId : result.data.fileUrl;
+        if (!uploadedValue) {
+          message.error('上传成功但未返回文件信息');
           return Upload.LIST_IGNORE;
         }
-        onChange?.(multiple ? joinUrls([...urls, url]) : url);
+        onChange?.(multiple ? joinUrls([...urls, uploadedValue]) : uploadedValue);
         message.success('图片上传成功');
       } catch {
         // request 拦截器已提示错误
@@ -63,7 +65,11 @@ const OssImageUpload: React.FC<OssImageUploadProps> = ({
       {urls.length ? (
         <Space wrap>
           {urls.map((url) => (
-            <Image key={url} src={url} width={88} height={88} style={{ objectFit: 'cover', borderRadius: 8 }} />
+            url.startsWith('http') ? (
+              <Image key={url} src={url} width={88} height={88} style={{ objectFit: 'cover', borderRadius: 8 }} />
+            ) : (
+              <span key={url}>{url}</span>
+            )
           ))}
         </Space>
       ) : null}

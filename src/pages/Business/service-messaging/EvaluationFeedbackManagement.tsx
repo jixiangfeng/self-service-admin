@@ -8,6 +8,7 @@ import { ticketStatusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import OssImageUpload from '@/components/OssImageUpload';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import api, { type ServiceEvaluationRecord, type UserFeedbackRecord } from '@/services/backendService';
@@ -106,6 +107,7 @@ const EvaluationFeedbackManagement: React.FC = () => {
         status: values.status,
         replyContent: result,
         replyUserName: values.ownerUserName,
+        imageUrls: values.imageUrls || detail.imageUrls,
       });
       message.success('评价已更新');
     } else {
@@ -119,6 +121,7 @@ const EvaluationFeedbackManagement: React.FC = () => {
         handleStatus: values.handleStatus,
         ownerUserName: values.ownerUserName,
         result,
+        imageUrls: values.imageUrls || detail.imageUrls,
       });
       message.success('反馈已更新');
     }
@@ -202,6 +205,7 @@ const EvaluationFeedbackManagement: React.FC = () => {
                 )}
                 <Form.Item name="action" label="处理动作" rules={[{ required: true, message: '请选择处理动作' }]}><Select options={feedbackActionOptions} placeholder="请选择处理动作" /></Form.Item>
                 <Form.Item name="ownerUserName" label="处理人"><Input placeholder="例如：客服-王敏" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="imageUrls" label="补充图片"><OssImageUpload multiple prefix="service-message/images" placeholder="上传处理图片" /></Form.Item>
                 <Form.Item className="merchant-editor-field-span-all" name="supplement" label="补充说明"><Input placeholder="例如：已联系用户并补发优惠券" /></Form.Item>
               </div>
             </BusinessEditorSection>

@@ -8,6 +8,7 @@ import { statusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import OssImageUpload from '@/components/OssImageUpload';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag, safeJsonParse } from '@/pages/Business/shared';
 import api, {
@@ -278,7 +279,7 @@ const MiniProgramOpsManagement: React.FC = () => {
             {modalTitle === '新建 Banner' ? (
               <BusinessEditorSection icon={<PictureOutlined />} title="Banner 投放" desc="配置图片文件、跳转类型和跳转值。">
                 <div className="merchant-editor-fields">
-                  <Form.Item name="imageFileAssetId" label="图片文件ID"><Input placeholder="例如：FILE-20260510-001" /></Form.Item>
+                  <Form.Item name="imageFileAssetId" label="Banner 图片"><OssImageUpload returnField="assetId" prefix="mini-program/banners" placeholder="上传 Banner 图片" /></Form.Item>
                   <Form.Item name="jumpType" label="跳转类型"><Select options={jumpTypeOptions} placeholder="请选择跳转类型" /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="jumpValue" label="跳转值"><Input placeholder="例如：/pages/activity/detail?id=1" /></Form.Item>
                 </div>
