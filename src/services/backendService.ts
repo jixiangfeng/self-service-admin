@@ -1918,7 +1918,7 @@ export interface PlatformDashboardOverviewRecord {
 }
 
 export interface FileAssetRecord {
-  id: number;
+  id?: number;
   fileAssetId: string;
   fileName: string;
   fileUrl?: string;
@@ -2914,6 +2914,15 @@ export const fileApi = {
   assets: {
     page: async (params: Record<string, unknown>) => httpPage<FileAssetRecord>('/file-assets', params),
     add: async (data: Record<string, unknown>) => httpPost<FileAssetRecord>('/file-assets', data),
+    uploadImage: async (file: File, prefix = 'images', fileType?: string) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('prefix', prefix);
+      if (fileType) formData.append('fileType', fileType);
+      return request.post<ApiEnvelope<FileAssetRecord>>('/file-assets/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    },
   },
   refs: {
     page: async (params: Record<string, unknown>) => httpPage<BizFileRefRecord>('/biz-file-refs', params),

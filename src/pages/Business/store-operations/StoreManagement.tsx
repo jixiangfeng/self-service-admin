@@ -16,6 +16,7 @@ import api from '@/services/backendService';
 import type { SelectOptionRecord, StoreRecord } from '@/services/backendService';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import OssImageUpload from '@/components/OssImageUpload';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, formatDateTime, renderBooleanTag, renderOptionTags, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
@@ -311,7 +312,7 @@ const StoreManagement: React.FC = () => {
                   <Input placeholder="异常、巡检和售后通知手机号" />
                 </Form.Item>
                 <Form.Item className="merchant-editor-field-span-2" name="coverUrl" label="门店封面">
-                  <Input placeholder="封面图片 URL，用于小程序门店页展示" />
+                  <OssImageUpload prefix="store/covers" placeholder="上传门店封面" />
                 </Form.Item>
               </div>
             </BusinessEditorSection>
@@ -394,7 +395,7 @@ const StoreManagement: React.FC = () => {
             >
               <div className="merchant-editor-fields merchant-editor-fields--two">
                 <Form.Item className="merchant-editor-field-span-2" name="imageUrls" label="门店图片">
-                  <Input.TextArea rows={2} placeholder="多张图片 URL 可用逗号分隔" />
+                  <OssImageUpload multiple prefix="store/images" placeholder="上传门店图片" />
                 </Form.Item>
                 <Form.Item name="notice" label="门店公告">
                   <Input.TextArea rows={3} placeholder="例如：夜间洗车请按现场引导停车" />

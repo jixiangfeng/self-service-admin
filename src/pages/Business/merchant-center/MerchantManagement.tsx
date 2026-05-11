@@ -22,6 +22,7 @@ import api from '@/services/backendService';
 import type { MerchantRecord } from '@/services/backendService';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import BusinessEditorModal from '@/components/BusinessEditorModal';
+import OssImageUpload from '@/components/OssImageUpload';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
@@ -321,8 +322,8 @@ const MerchantManagement: React.FC = () => {
                   <Form.Item name="creditCode" label="统一信用代码">
                     <Input placeholder="用于对接资质、发票与风控核验" />
                   </Form.Item>
-                  <Form.Item className="merchant-editor-field-span-2" name="licenseUrl" label="营业资质地址">
-                    <Input placeholder="录入资质文件链接，用于资质、发票与风控核验" />
+                  <Form.Item className="merchant-editor-field-span-2" name="licenseUrl" label="营业资质图片">
+                    <OssImageUpload prefix="merchant/licenses" placeholder="上传营业资质" />
                   </Form.Item>
                 </div>
               </section>

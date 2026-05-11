@@ -13,6 +13,7 @@ import {
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import OssImageUpload from '@/components/OssImageUpload';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
@@ -475,7 +476,7 @@ const MerchantProfileManagement: React.FC = () => {
                 <Form.Item name="qualificationType" label="资质类型" rules={[{ required: true, message: '请选择资质类型' }]}><Select options={qualificationTypeOptions} placeholder="请选择资质类型" /></Form.Item>
                 <Form.Item name="qualificationNo" label="资质编号" rules={[{ required: true, message: '请输入资质编号' }]}><Input placeholder="统一信用代码或许可证编号" /></Form.Item>
                 <Form.Item name="fileName" label="文件名称"><Input placeholder="例如：营业执照.pdf" /></Form.Item>
-                <Form.Item name="fileUrl" label="文件地址"><Input placeholder="资质文件链接或对象存储地址" /></Form.Item>
+                <Form.Item name="fileUrl" label="资质文件"><OssImageUpload prefix="merchant/qualifications" placeholder="上传资质文件" /></Form.Item>
                 <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
                 <Form.Item name="status" label="状态"><Select options={accountStatusOptions} placeholder="请选择状态" /></Form.Item>
                 <Form.Item name="expireAt" label="到期日"><Input type="date" /></Form.Item>

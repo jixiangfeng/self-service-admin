@@ -12,6 +12,7 @@ import {
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import OssImageUpload from '@/components/OssImageUpload';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
@@ -393,7 +394,7 @@ const StoreProfileManagement: React.FC = () => {
             {activeTab === 'image' ? (
               <BusinessEditorSection icon={<NotificationOutlined />} title="图片展示" desc="配置图片地址、排序和发布状态，支撑门店详情页展示。">
                 <div className="merchant-editor-fields">
-                  <Form.Item className="merchant-editor-field-span-all" name="imageUrl" label="图片地址" rules={[{ required: true, message: '请输入图片地址' }]}><Input placeholder="图片 URL" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="imageUrl" label="图片" rules={[{ required: true, message: '请上传图片' }]}><OssImageUpload prefix="store/images" placeholder="上传图片" /></Form.Item>
                   <Form.Item name="sortNo" label="排序"><Input placeholder="数字越小越靠前" /></Form.Item>
                   <Form.Item name="status" label="状态"><Select options={publishStatusOptions} placeholder="请选择状态" /></Form.Item>
                 </div>
