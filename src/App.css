@@ -8,6 +8,83 @@
   min-height: 100vh;
 }
 
+.dashboard-stat-card {
+  height: 132px;
+}
+
+.dashboard-stat-card .ant-card-body {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.dashboard-stat-card .ant-tag {
+  width: fit-content;
+  margin-top: 8px;
+}
+
+.dashboard-stat-card .ant-statistic-content {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.dashboard-stat-card .ant-statistic-content-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-stat-card .ant-statistic-content-suffix {
+  flex: none;
+  margin-inline-start: 6px;
+}
+
+.dashboard-list-card {
+  height: 300px;
+}
+
+.dashboard-list-card .ant-card-body {
+  height: calc(100% - 57px);
+  overflow: auto;
+}
+
+.dashboard-list .ant-list-empty-text {
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dashboard-list__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dashboard-list__title > span:first-child,
+.dashboard-list__meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-list__title .ant-tag {
+  flex: none;
+  margin-inline-end: 0;
+}
+
+.dashboard-entry-card {
+  height: 132px;
+}
+
+.dashboard-entry-card .ant-card-body {
+  height: 100%;
+}
+
 .ant-modal .ant-modal-content {
   padding: 0;
   overflow: hidden;

@@ -15,6 +15,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { buildValueEnum, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type { PaymentCallbackLogRecord, PaymentChannelRecord, PaymentOrderRecord, PaymentReconciliationRecord, RefundCallbackLogRecord } from '@/services/backendService';
@@ -151,6 +152,36 @@ const PaymentOpsManagement: React.FC = () => {
     },
   });
 
+  const confirmMarkSuccess = (record: PaymentOrderRecord) => {
+    showBusinessConfirm({
+      title: '确认标记支付成功',
+      content: `确定将支付单「${record.paymentNo || record.orderNo || record.id}」标记为支付成功吗？该操作会影响订单支付状态。`,
+      okText: '确认标记成功',
+      danger: false,
+      onOk: () => updateStatusMutation.mutate({ id: record.id, payStatus: 'SUCCESS' }),
+    });
+  };
+
+  const confirmSyncPayment = (record?: PaymentOrderRecord) => {
+    if (!record) return;
+    showBusinessConfirm({
+      title: '确认同步支付状态',
+      content: `确定同步支付单「${record.paymentNo || record.orderNo || record.id}」的渠道状态吗？`,
+      okText: '确认同步',
+      danger: false,
+      onOk: () => syncPaymentMutation.mutate(record.id),
+    });
+  };
+
+  const confirmReplayCallback = (record: PaymentCallbackLogRecord) => {
+    showBusinessConfirm({
+      title: '确认重放支付回调',
+      content: `确定重放回调「${record.requestId || record.paymentNo || record.id}」吗？重复回调可能触发状态重算。`,
+      okText: '确认重放',
+      onOk: () => replayCallbackMutation.mutate(record.id),
+    });
+  };
+
   const paymentOrderRecords = paymentQuery.data?.records || [];
   const callbackRecords = callbackQuery.data?.records || [];
   const payChannels = channelQuery.data?.records || [];
@@ -186,7 +217,7 @@ const PaymentOpsManagement: React.FC = () => {
             size="small"
             type="link"
             loading={updateStatusMutation.isPending}
-            onClick={() => updateStatusMutation.mutate({ id: record.id, payStatus: 'SUCCESS' })}
+            onClick={() => confirmMarkSuccess(record)}
           >
             标记成功
           </Button>
@@ -194,7 +225,7 @@ const PaymentOpsManagement: React.FC = () => {
             size="small"
             type="link"
             loading={syncPaymentMutation.isPending}
-            onClick={() => syncPaymentMutation.mutate(record.id)}
+            onClick={() => confirmSyncPayment(record)}
           >
             同步
           </Button>
@@ -224,7 +255,7 @@ const PaymentOpsManagement: React.FC = () => {
     {
       title: '操作',
       width: 120,
-      render: (_, record) => <Button size="small" type="link" loading={replayCallbackMutation.isPending} onClick={() => replayCallbackMutation.mutate(record.id)}>重放</Button>,
+      render: (_, record) => <Button size="small" type="link" loading={replayCallbackMutation.isPending} onClick={() => confirmReplayCallback(record)}>重放</Button>,
     },
   ], [replayCallbackMutation]);
 
@@ -267,7 +298,7 @@ const PaymentOpsManagement: React.FC = () => {
 
       <Tabs
         items={[
-          { key: 'payment', label: '支付单', children: <ProTable<PaymentOrderRecord> cardBordered rowKey="id" columns={paymentColumns} dataSource={paymentOrderRecords} loading={paymentQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1460 }} toolBarRender={() => [<Button key="sync" type="primary" disabled={!paymentOrderRecords.length} loading={syncPaymentMutation.isPending} onClick={() => paymentOrderRecords[0] && syncPaymentMutation.mutate(paymentOrderRecords[0].id)}>同步支付状态</Button>]} /> },
+          { key: 'payment', label: '支付单', children: <ProTable<PaymentOrderRecord> cardBordered rowKey="id" columns={paymentColumns} dataSource={paymentOrderRecords} loading={paymentQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1460 }} toolBarRender={() => [<Button key="sync" type="primary" disabled={!paymentOrderRecords.length} loading={syncPaymentMutation.isPending} onClick={() => confirmSyncPayment(paymentOrderRecords[0])}>同步支付状态</Button>]} /> },
           { key: 'channel', label: '支付渠道', children: <ProTable<PaymentChannelRecord> cardBordered rowKey="id" columns={channelColumns} dataSource={payChannels} loading={channelQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建支付渠道')}>新建渠道</Button>]} /> },
           { key: 'callback', label: '支付回调', children: <ProTable<PaymentCallbackLogRecord> cardBordered rowKey="id" columns={callbackColumns} dataSource={callbackRecords} loading={callbackQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1380 }} toolBarRender={() => [<Button key="retry" type="primary" onClick={() => openModal('登记支付回调')}>登记回调</Button>]} /> },
           { key: 'refund', label: '退款回调', children: <ProTable<RefundCallbackLogRecord> cardBordered rowKey="id" columns={refundColumns} dataSource={refundCallbacks} loading={refundCallbackQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="sync" type="primary" onClick={() => openModal('登记退款回调')}>登记回调</Button>]} /> },

@@ -108,6 +108,17 @@ const UserManagement: React.FC = () => {
     });
   };
 
+  const handleStatusChange = (record: any) => {
+    const nextStatus = record.status === 1 ? 0 : 1;
+    showBusinessConfirm({
+      title: `确认${nextStatus === 1 ? '启用' : '禁用'}用户`,
+      content: `确定要${nextStatus === 1 ? '启用' : '禁用'}用户 ${record.username} 吗？`,
+      okText: nextStatus === 1 ? '确认启用' : '确认禁用',
+      danger: nextStatus !== 1,
+      onOk: () => updateStatusMutation.mutate({ id: record.id, status: nextStatus }),
+    });
+  };
+
   const handleResetPassword = async () => {
     const values = await form.validateFields(['newPassword']);
     resetPasswordMutation.mutate({ id: passwordUser.id, newPassword: values.newPassword }, { onSuccess: closePasswordModal });
@@ -206,7 +217,7 @@ const UserManagement: React.FC = () => {
           </Button>
           <Button
             size="small"
-            onClick={() => updateStatusMutation.mutate({ id: record.id, status: record.status === 1 ? 0 : 1 })}
+            onClick={() => handleStatusChange(record)}
             loading={updateStatusMutation.isPending}
           >
             {record.status === 1 ? '禁用' : '启用'}

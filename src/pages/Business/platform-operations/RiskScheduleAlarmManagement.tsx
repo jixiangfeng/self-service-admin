@@ -10,6 +10,7 @@ import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag } fro
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api, {
   type AlarmRecord,
   type AlarmRuleRecord,
@@ -255,6 +256,19 @@ const RiskScheduleAlarmManagement: React.FC = () => {
     message.success('已保存到后端');
   };
 
+  const confirmRunJob = (record: ScheduledJobRecord) => {
+    showBusinessConfirm({
+      title: '确认执行定时任务',
+      content: `确定手动执行任务「${record.jobName || record.jobCode}」吗？执行后会写入任务日志并触发对应处理逻辑。`,
+      okText: '确认执行',
+      onOk: async () => {
+        await api.riskScheduleAlarm.jobs.run(record.id);
+        await queryClient.invalidateQueries({ queryKey: ['scheduled-job-logs'] });
+        message.success('已记录手动执行日志');
+      },
+    });
+  };
+
   const riskRuleColumns = useMemo<ProColumns<RiskRuleRecord>[]>(() => [
     { title: '规则编码', dataIndex: 'ruleCode', width: 180, fixed: 'left' },
     { title: '规则名称', dataIndex: 'ruleName', width: 180 },
@@ -305,11 +319,7 @@ const RiskScheduleAlarmManagement: React.FC = () => {
       width: 140,
       fixed: 'right',
       render: (_, record) => [
-        <a key="run" onClick={async () => {
-          await api.riskScheduleAlarm.jobs.run(record.id);
-          await queryClient.invalidateQueries({ queryKey: ['scheduled-job-logs'] });
-          message.success('已记录手动执行日志');
-        }}>执行</a>,
+        <a key="run" onClick={() => confirmRunJob(record)}>执行</a>,
         <a key="detail" onClick={() => setDetail(record)}>详情</a>,
       ],
     },

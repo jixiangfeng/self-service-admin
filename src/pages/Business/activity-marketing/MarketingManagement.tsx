@@ -10,6 +10,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import api, { type CouponTemplateRecord, type InviteActivityRecord, type MarketingBudgetRecord, type RechargeActivityRecord, type SelectOptionRecord } from '@/services/backendService';
@@ -297,7 +298,15 @@ const MarketingManagement: React.FC = () => {
   };
 
   const updateStatus = (type: ActivityTab, record: MarketingRecord, nextStatus: ActivityStatus) => {
-    statusMutation.mutate({ type, record, nextStatus });
+    const actionText = nextStatus === 'RUNNING' || nextStatus === 'ENABLED' ? '启动' : '暂停';
+    const name = 'templateName' in record ? record.templateName : record.activityName;
+    showBusinessConfirm({
+      title: `确认${actionText}活动`,
+      content: `确定${actionText}「${name}」吗？该操作会立即影响活动展示和权益发放。`,
+      okText: `确认${actionText}`,
+      danger: actionText !== '启动',
+      onOk: () => statusMutation.mutate({ type, record, nextStatus }),
+    });
   };
 
   const couponColumns: ProColumns<CouponTemplateRecord>[] = [

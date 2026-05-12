@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { serviceCardStatusOptions, serviceCardTypeOptions, templateStatusOptions } from '@/constants/businessCatalog';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, formatAmount, renderStatusTag } from '@/pages/Business/shared';
@@ -211,6 +212,31 @@ const ServiceCardManagement: React.FC = () => {
       message.success('卡产品状态已更新');
     },
   });
+
+  const confirmCardStatus = (record: ServiceCardRecord) => {
+    const nextStatus = record.status === 'ENABLED' ? '暂停' : '启用';
+    showBusinessConfirm({
+      title: `确认${nextStatus}卡产品`,
+      content: `确定${nextStatus}「${record.cardName}」吗？该操作会影响用户购买和发放。`,
+      okText: `确认${nextStatus}`,
+      danger: nextStatus === '暂停',
+      onOk: () => statusMutation.mutate(record),
+    });
+  };
+
+  const confirmRollbackUsage = (record: ServiceCardUsageRecord) => {
+    showBusinessConfirm({
+      title: '确认回滚扣次',
+      content: `确定回滚使用流水「${record.usageNo || record.serviceOrderNo || record.id}」吗？回滚后用户卡次数会恢复。`,
+      okText: '确认回滚',
+      onOk: async () => {
+        await api.asset.serviceCardUsages.rollback(record.id, { remark: '后台回滚扣次' });
+        queryClient.invalidateQueries({ queryKey: ['serviceCardUsages'] });
+        queryClient.invalidateQueries({ queryKey: ['userServiceCards'] });
+        message.success('扣次已回滚');
+      },
+    });
+  };
   const issueMutation = useMutation({
     mutationFn: async (values: Record<string, unknown>) => api.asset.serviceCards.issue(Number(currentCard?.id), values),
     onSuccess: () => {
@@ -328,7 +354,7 @@ const ServiceCardManagement: React.FC = () => {
           <Button
             size="small"
             loading={statusMutation.isPending}
-            onClick={() => statusMutation.mutate(record)}
+            onClick={() => confirmCardStatus(record)}
           >
             {record.status === 'ENABLED' ? '暂停' : '启用'}
           </Button>
@@ -368,7 +394,7 @@ const ServiceCardManagement: React.FC = () => {
     { title: '操作', width: 150, search: false, render: (_, record) => (
       <Space>
         <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-        <Button size="small" onClick={async () => { await api.asset.serviceCardUsages.rollback(record.id, { remark: '后台回滚扣次' }); queryClient.invalidateQueries({ queryKey: ['serviceCardUsages'] }); queryClient.invalidateQueries({ queryKey: ['userServiceCards'] }); message.success('扣次已回滚'); }}>回滚</Button>
+        <Button size="small" onClick={() => confirmRollbackUsage(record)}>回滚</Button>
       </Space>
     ) },
   ];

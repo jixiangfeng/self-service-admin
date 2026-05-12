@@ -11,6 +11,7 @@ import {
 } from '@/constants/businessCatalog';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
@@ -174,6 +175,15 @@ const UserProfileManagement: React.FC = () => {
     },
   });
 
+  const confirmRollbackUsage = (record: ServiceCardUsageRecord) => {
+    showBusinessConfirm({
+      title: '确认回滚服务卡使用',
+      content: `确定回滚使用流水「${record.usageNo || record.serviceOrderNo || record.id}」吗？回滚后会恢复对应服务卡权益。`,
+      okText: '确认回滚',
+      onOk: () => rollbackUsageMutation.mutate(record.id),
+    });
+  };
+
   const profiles = profileQuery.data?.records || [];
   const vehicles = vehicleQuery.data?.records || [];
   const favoriteStores = storeQuery.data?.records || [];
@@ -233,7 +243,7 @@ const UserProfileManagement: React.FC = () => {
       render: (_, record) => (
         <>
           <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-          <Button size="small" type="link" loading={rollbackUsageMutation.isPending} onClick={() => rollbackUsageMutation.mutate(record.id)}>回滚</Button>
+          <Button size="small" type="link" loading={rollbackUsageMutation.isPending} onClick={() => confirmRollbackUsage(record)}>回滚</Button>
         </>
       ),
     },
@@ -272,7 +282,7 @@ const UserProfileManagement: React.FC = () => {
           { key: 'profile', label: '用户档案', children: <ProTable<AppUserProfileRecord> cardBordered rowKey="id" columns={profileColumns} dataSource={profiles} loading={profileQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="tag" type="primary" onClick={() => openModal('维护用户档案')}>维护档案</Button>]} /> },
           { key: 'vehicle', label: '用户车辆', children: <ProTable<UserVehicleRecord> cardBordered rowKey="id" columns={vehicleColumns} dataSource={vehicles} loading={vehicleQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1120 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新增用户车辆')}>新增车辆</Button>]} /> },
           { key: 'store', label: '常用门店', children: <ProTable<UserFavoriteStoreRecord> cardBordered rowKey="id" columns={storeColumns} dataSource={favoriteStores} loading={storeQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1080 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('维护常用门店')}>维护门店</Button>]} /> },
-          { key: 'cardUsage', label: '服务卡使用', children: <ProTable<ServiceCardUsageRecord> cardBordered rowKey="id" columns={cardUsageColumns} dataSource={cardUsages} loading={cardUsageQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1460 }} toolBarRender={() => [<Button key="rollback" type="primary" disabled={!cardUsages.length} onClick={() => rollbackUsageMutation.mutate(cardUsages[0].id)}>回滚使用</Button>]} /> },
+          { key: 'cardUsage', label: '服务卡使用', children: <ProTable<ServiceCardUsageRecord> cardBordered rowKey="id" columns={cardUsageColumns} dataSource={cardUsages} loading={cardUsageQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1460 }} toolBarRender={() => [<Button key="rollback" type="primary" disabled={!cardUsages.length} onClick={() => cardUsages[0] && confirmRollbackUsage(cardUsages[0])}>回滚使用</Button>]} /> },
           { key: 'risk', label: '用户风控', children: <ProTable<UserRiskRecord> cardBordered rowKey="id" columns={riskColumns} dataSource={userRisks} loading={riskQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="handle" type="primary" onClick={() => openModal('处理用户风控')}>处理风控</Button>]} /> },
         ]}
       />

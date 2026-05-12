@@ -14,6 +14,7 @@ import {
 } from '@/constants/businessCatalog';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api from '@/services/backendService';
@@ -305,6 +306,36 @@ const CouponCardDetailManagement: React.FC = () => {
     setModalVisible(false);
   };
 
+  const confirmRecycleCoupon = (record: UserCouponRecord) => {
+    showBusinessConfirm({
+      title: '确认回收用户券',
+      content: `确定回收券码「${record.couponNo || record.id}」吗？回收后用户将无法继续使用该券。`,
+      okText: '确认回收',
+      onOk: async () => {
+        await api.asset.userCoupons.recycle(Number(record.id), { remark: '后台回收' });
+        queryClient.invalidateQueries({ queryKey: ['userCoupons'] });
+        queryClient.invalidateQueries({ queryKey: ['couponIssues'] });
+        message.success('已回收');
+      },
+    });
+  };
+
+  const confirmRollbackIssue = (record: CouponIssueRecord) => {
+    showBusinessConfirm({
+      title: '确认回滚发放记录',
+      content: `确定回滚发放单「${record.issueNo || record.id}」吗？回滚后关联用户券会被同步处理。`,
+      okText: '确认回滚',
+      onOk: async () => {
+        if (record.userCouponId) {
+          await api.asset.userCoupons.rollback(Number(record.userCouponId), { remark: '后台用券回滚' });
+        }
+        queryClient.invalidateQueries({ queryKey: ['userCoupons'] });
+        queryClient.invalidateQueries({ queryKey: ['couponUsages'] });
+        message.success('已回滚');
+      },
+    });
+  };
+
   const couponColumns = useMemo<ProColumns<UserCouponRecord>[]>(() => [
     { title: '券码', dataIndex: 'couponNo', width: 160, fixed: 'left' },
     { title: '用户', dataIndex: 'userName', width: 110 },
@@ -318,7 +349,7 @@ const CouponCardDetailManagement: React.FC = () => {
     { title: '领取时间', dataIndex: 'receivedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.receivedAt) },
     { title: '有效期', dataIndex: 'validStart', width: 260, search: false, render: (_, record) => `${formatDateTime(record.validStart)} - ${formatDateTime(record.validEnd)}` },
     { title: '使用订单', dataIndex: 'serviceOrderNo', width: 160, search: false, renderText: (value) => value || '-' },
-    { title: '操作', valueType: 'option', width: 150, fixed: 'right', render: (_, record) => [<a key="detail" onClick={() => setDetail(record)}>详情</a>, <a key="recycle" onClick={async () => { await api.asset.userCoupons.recycle(Number(record.id), { remark: '后台回收' }); queryClient.invalidateQueries({ queryKey: ['userCoupons'] }); queryClient.invalidateQueries({ queryKey: ['couponIssues'] }); message.success('已回收'); }}>回收</a>] },
+    { title: '操作', valueType: 'option', width: 150, fixed: 'right', render: (_, record) => [<a key="detail" onClick={() => setDetail(record)}>详情</a>, <a key="recycle" onClick={() => confirmRecycleCoupon(record)}>回收</a>] },
   ], []);
 
   const issueColumns = useMemo<ProColumns<CouponIssueRecord>[]>(() => [
@@ -331,7 +362,7 @@ const CouponCardDetailManagement: React.FC = () => {
     { title: '发放时间', dataIndex: 'issuedAt', width: 180, render: (_, record) => formatDateTime(record.issuedAt) },
     { title: '失败原因', dataIndex: 'failReason', width: 180, renderText: (value) => value || '-' },
     { title: '操作人', dataIndex: 'operator', width: 120 },
-    { title: '操作', valueType: 'option', width: 150, fixed: 'right', render: (_, record) => [<a key="detail" onClick={() => setDetail(record)}>详情</a>, <a key="rollback" onClick={async () => { if (record.userCouponId) await api.asset.userCoupons.rollback(Number(record.userCouponId), { remark: '后台用券回滚' }); queryClient.invalidateQueries({ queryKey: ['userCoupons'] }); queryClient.invalidateQueries({ queryKey: ['couponUsages'] }); message.success('已回滚'); }}>回滚</a>] },
+    { title: '操作', valueType: 'option', width: 150, fixed: 'right', render: (_, record) => [<a key="detail" onClick={() => setDetail(record)}>详情</a>, <a key="rollback" onClick={() => confirmRollbackIssue(record)}>回滚</a>] },
   ], []);
 
   const usageColumns = useMemo<ProColumns<CouponUsageRecord>[]>(() => [

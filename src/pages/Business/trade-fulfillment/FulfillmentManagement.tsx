@@ -14,6 +14,7 @@ import {
 import PageBanner from '@/components/PageBanner';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
 import type { SelectOptionRecord, ServiceOrderRecord } from '@/services/backendService';
@@ -217,6 +218,16 @@ const FulfillmentManagement: React.FC = () => {
     },
   });
 
+  const confirmRollbackWriteOff = (record?: WriteOffRecord) => {
+    if (!record) return;
+    showBusinessConfirm({
+      title: '确认异常回滚',
+      content: `确定回滚核销记录「${record.writeoffNo || record.serviceOrderNo || record.id}」吗？回滚后会影响订单核销结果。`,
+      okText: '确认回滚',
+      onOk: () => updateWriteOffMutation.mutate({ id: record.id, status: 'ROLLED_BACK', remark: '批量异常回滚' }),
+    });
+  };
+
   const filteredWriteOffs = useMemo(() => writeoffs.filter((item) => containsKeyword(writeOffKeyword, [item.writeoffNo, item.objectType, item.objectName, item.serviceOrderNo, item.userName, item.storeName, item.result])), [writeOffKeyword, writeoffs]);
   const filteredPerforms = useMemo(() => performs.filter((item) => containsKeyword(performKeyword, [item.relationNo, item.scene, item.storeName, item.pointCode, item.deviceCode, item.commandNo, item.remark])), [performKeyword, performs]);
 
@@ -399,7 +410,7 @@ const FulfillmentManagement: React.FC = () => {
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 2160 }}
-                toolBarRender={() => [<Button key="rollback" onClick={() => updateWriteOffMutation.mutate({ id: filteredWriteOffs[0]?.id, status: 'ROLLED_BACK', remark: '批量异常回滚' })} disabled={!filteredWriteOffs.length}>异常回滚</Button>, <Button key="supplement" type="primary" onClick={() => openCreateModal('writeoff')}>后台补核销</Button>]}
+                toolBarRender={() => [<Button key="rollback" onClick={() => confirmRollbackWriteOff(filteredWriteOffs[0])} disabled={!filteredWriteOffs.length}>异常回滚</Button>, <Button key="supplement" type="primary" onClick={() => openCreateModal('writeoff')}>后台补核销</Button>]}
                 onSubmit={(values) => setWriteOffKeyword(String(values.keyword || ''))}
                 onReset={() => setWriteOffKeyword('')}
               />

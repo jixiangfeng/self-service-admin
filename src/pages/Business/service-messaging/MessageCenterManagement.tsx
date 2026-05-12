@@ -9,6 +9,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import api, { type MessageRecord, type MessageTemplateRecord } from '@/services/backendService';
 
@@ -101,6 +102,30 @@ const MessageCenterManagement: React.FC = () => {
     form.resetFields();
   };
 
+  const confirmTemplateStatus = (record: MessageTemplateRecord) => {
+    const nextEnabled = record.status !== 'ENABLED';
+    showBusinessConfirm({
+      title: `确认${nextEnabled ? '启用' : '暂停'}消息模板`,
+      content: `确定${nextEnabled ? '启用' : '暂停'}模板「${record.templateName || record.templateCode}」吗？该操作会影响后续消息触发。`,
+      okText: `确认${nextEnabled ? '启用' : '暂停'}`,
+      danger: !nextEnabled,
+      onOk: async () => {
+        await api.message.templates.edit({ ...record, status: nextEnabled ? 'ENABLED' : 'DISABLED' });
+        queryClient.invalidateQueries({ queryKey: ['messageTemplates'] });
+        message.success('模板状态已更新');
+      },
+    });
+  };
+
+  const confirmResendMessage = (record: MessageRecord) => {
+    showBusinessConfirm({
+      title: '确认重发消息',
+      content: `确定重新发送消息「${record.messageNo || record.id}」吗？用户可能会再次收到通知。`,
+      okText: '确认重发',
+      onOk: () => resendMutation.mutate(record.id),
+    });
+  };
+
   const dataSource = useMemo(
     () =>
       records.filter(
@@ -146,12 +171,7 @@ const MessageCenterManagement: React.FC = () => {
           <Button size="small" onClick={() => { setEditingRecord(record); form.setFieldsValue(record); setModalVisible(true); }}>编辑</Button>
           <Button
             size="small"
-            onClick={() => {
-              api.message.templates.edit({ ...record, status: record.status === 'ENABLED' ? 'DISABLED' : 'ENABLED' }).then(() => {
-                queryClient.invalidateQueries({ queryKey: ['messageTemplates'] });
-                message.success('模板状态已更新');
-              });
-            }}
+            onClick={() => confirmTemplateStatus(record)}
           >
             {record.status === 'ENABLED' ? '暂停' : '启用'}
           </Button>
@@ -181,7 +201,7 @@ const MessageCenterManagement: React.FC = () => {
           <Button
             size="small"
             loading={resendMutation.isPending}
-            onClick={() => resendMutation.mutate(record.id)}
+            onClick={() => confirmResendMessage(record)}
           >
             重发
           </Button>

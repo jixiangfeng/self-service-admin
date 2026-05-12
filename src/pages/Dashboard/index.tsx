@@ -49,6 +49,8 @@ const renderValue = (card: PlatformDashboardCardRecord) => (
   card.key === 'revenue' && typeof card.value === 'number' ? formatAmount(card.value) : card.value
 );
 
+const itemMeta = (item: PlatformDashboardItemRecord) => [item.category, item.owner, item.bizNo, item.occurredAt].filter(Boolean).join(' / ');
+
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [detail, setDetail] = useState<PlatformDashboardItemRecord | PlatformDashboardCardRecord | null>(null);
@@ -65,6 +67,7 @@ const Dashboard: React.FC = () => {
 
   const renderItemList = (items: PlatformDashboardItemRecord[], emptyText: string) => (
     <List
+      className="dashboard-list"
       dataSource={items}
       locale={{ emptyText }}
       renderItem={(item) => (
@@ -75,8 +78,13 @@ const Dashboard: React.FC = () => {
           ]}
         >
           <List.Item.Meta
-            title={<Space><span>{item.title}</span><Tag color={statusColor(item.status || item.priority)}>{item.status || item.priority || 'READY'}</Tag></Space>}
-            description={[item.category, item.owner, item.bizNo, item.occurredAt].filter(Boolean).join(' / ')}
+            title={(
+              <div className="dashboard-list__title">
+                <span>{item.title}</span>
+                <Tag color={statusColor(item.status || item.priority)}>{item.status || item.priority || 'READY'}</Tag>
+              </div>
+            )}
+            description={<span className="dashboard-list__meta">{itemMeta(item)}</span>}
           />
         </List.Item>
       )}
@@ -92,39 +100,39 @@ const Dashboard: React.FC = () => {
           icon={<FundProjectionScreenOutlined />}
         />
 
-        <Row gutter={[16, 16]}>
+        <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
           {cards.map((item) => (
-            <Col xs={24} sm={12} lg={8} xl={6} key={item.key}>
-              <Card hoverable onClick={() => item.route && navigate(item.route)}>
+            <Col xs={24} sm={12} lg={8} xl={6} xxl={3} key={item.key}>
+              <Card className="dashboard-stat-card" hoverable={Boolean(item.route)} onClick={() => item.route && navigate(item.route)}>
                 <Statistic title={item.title} value={renderValue(item)} suffix={item.suffix} prefix={cardIcon(item.key)} />
-                <Tag color={statusColor(item.status)} style={{ marginTop: 8 }}>{item.status || 'NORMAL'}</Tag>
+                <Tag color={statusColor(item.status)}>{item.status || 'NORMAL'}</Tag>
               </Card>
             </Col>
           ))}
         </Row>
 
-        <Row gutter={[16, 16]} style={{ marginTop: 8 }}>
+        <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
           <Col xs={24} xl={8}>
-            <Card title="统一待办" extra={<Button size="small" onClick={() => navigate('/merchant-console')}>待办中心 <RightOutlined /></Button>}>
+            <Card className="dashboard-list-card" title="统一待办" extra={<Button size="small" onClick={() => navigate('/merchant-console')}>待办中心 <RightOutlined /></Button>}>
               {renderItemList(todos, '暂无待办')}
             </Card>
           </Col>
           <Col xs={24} xl={8}>
-            <Card title="异常提醒" extra={<Button size="small" onClick={() => navigate('/operations-support')}>运营支撑 <RightOutlined /></Button>}>
+            <Card className="dashboard-list-card" title="异常提醒" extra={<Button size="small" onClick={() => navigate('/operations-support')}>运营支撑 <RightOutlined /></Button>}>
               {renderItemList(alerts, '暂无异常')}
             </Card>
           </Col>
           <Col xs={24} xl={8}>
-            <Card title="最近变更" extra={<Button size="small" onClick={() => navigate('/system/auth-audit')}>审计日志 <RightOutlined /></Button>}>
+            <Card className="dashboard-list-card" title="最近变更" extra={<Button size="small" onClick={() => navigate('/system/auth-audit')}>审计日志 <RightOutlined /></Button>}>
               {renderItemList(changes, '暂无变更')}
             </Card>
           </Col>
         </Row>
 
-        <Row gutter={[16, 16]} style={{ marginTop: 8 }}>
+        <Row gutter={[16, 16]}>
           {quickEntries.map((item) => (
             <Col xs={24} sm={12} xl={6} key={item.id}>
-              <Card>
+              <Card className="dashboard-entry-card">
                 <Space direction="vertical" size={8} style={{ width: '100%' }}>
                   <Space>
                     <SettingOutlined />

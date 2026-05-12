@@ -10,6 +10,7 @@ import {
 } from '@/constants/businessCatalog';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, containsKeyword, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
@@ -186,6 +187,14 @@ const Organization: React.FC = () => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['systemPlatformOrganizations'] }),
   });
 
+  const confirmRemoveOrg = (record: OrganizationRecord) => {
+    showBusinessConfirm({
+      title: '确认删除组织',
+      content: `确定删除组织「${record.orgName || record.orgCode}」吗？删除后相关组织配置将不可用。`,
+      onOk: () => removeOrgMutation.mutate(record.id),
+    });
+  };
+
   const filter = <T extends object>(items: T[]) =>
     items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
 
@@ -254,7 +263,7 @@ const Organization: React.FC = () => {
       <>
         <Button size="small" onClick={() => setDetail(record)}>详情</Button>
         <Button size="small" type="link" onClick={() => openOrgModal(record)}>编辑</Button>
-        <Button size="small" type="link" danger onClick={() => removeOrgMutation.mutate(record.id)}>删除</Button>
+        <Button size="small" type="link" danger onClick={() => confirmRemoveOrg(record)}>删除</Button>
       </>
     ) },
   ], []);

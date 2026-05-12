@@ -104,6 +104,17 @@ const MerchantManagement: React.FC = () => {
     },
   });
 
+  const confirmMerchantStatus = (record: MerchantRecord) => {
+    const nextStatus = record.status === 1 ? 0 : 1;
+    showBusinessConfirm({
+      title: `确认${nextStatus === 1 ? '启用' : '停用'}商户`,
+      content: `确定${nextStatus === 1 ? '启用' : '停用'}商户「${record.merchantName}」吗？该操作会影响商户及相关门店的业务状态。`,
+      okText: nextStatus === 1 ? '确认启用' : '确认停用',
+      danger: nextStatus !== 1,
+      onOk: () => statusMutation.mutate({ id: record.id, status: nextStatus }),
+    });
+  };
+
   const openCreateDrawer = () => {
     setEditingRecord(null);
     form.resetFields();
@@ -183,7 +194,7 @@ const MerchantManagement: React.FC = () => {
             </Button>
             <Button
               size="small"
-              onClick={() => statusMutation.mutate({ id: record.id, status: record.status === 1 ? 0 : 1 })}
+              onClick={() => confirmMerchantStatus(record)}
               loading={statusMutation.isPending}
             >
               {record.status === 1 ? '停用' : '启用'}

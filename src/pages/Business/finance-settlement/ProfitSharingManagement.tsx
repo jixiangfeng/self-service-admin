@@ -10,6 +10,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { buildValueEnum, containsKeyword, formatAmount, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import api, { type ProfitPartnerRelationRecord, type ProfitRatioVersionRecord, type ProfitShareDetailRecord } from '@/services/backendService';
@@ -107,6 +108,34 @@ const ProfitSharingManagement: React.FC = () => {
     },
   });
 
+  const confirmChargeback = (record: ProfitShareDetailRecord) => {
+    showBusinessConfirm({
+      title: '确认创建回冲记录',
+      content: `确定对「${record.partnerName || record.storeName || record.orderNo}」创建分润回冲记录吗？`,
+      okText: '确认回冲',
+      onOk: () => chargebackMutation.mutate(record),
+    });
+  };
+
+  const confirmExportProfitDetails = () => {
+    showBusinessConfirm({
+      title: '确认导出分润明细',
+      content: `确定创建${keyword ? `关键词「${keyword}」` : '全部'}分润明细导出任务吗？`,
+      okText: '确认导出',
+      danger: false,
+      onOk: () => exportTaskMutation.mutate({
+        taskNo: `EXP-${Date.now()}`,
+        taskType: 'EXPORT',
+        bizType: 'PROFIT_SHARE_DETAIL',
+        bizNo: keyword || 'ALL',
+        fileName: `分润明细导出-${Date.now()}.xlsx`,
+        operator: '系统管理员',
+        status: 'PENDING',
+        remark: '分润明细导出',
+      }),
+    });
+  };
+
   const relations = (relationQuery.data?.records || []) as ProfitPartnerRelationRecord[];
   const details = (detailQuery.data?.records || []) as ProfitShareDetailRecord[];
   const versions = (versionQuery.data?.records || []) as ProfitRatioVersionRecord[];
@@ -184,7 +213,7 @@ const ProfitSharingManagement: React.FC = () => {
               shareRatio: record.shareRatio ?? record.ratio,
             });
           }}>调整</Button>
-          <Button size="small" loading={chargebackMutation.isPending} onClick={() => chargebackMutation.mutate(record)}>回冲</Button>
+          <Button size="small" loading={chargebackMutation.isPending} onClick={() => confirmChargeback(record)}>回冲</Button>
         </Space>
       ),
     },
@@ -262,16 +291,7 @@ const ProfitSharingManagement: React.FC = () => {
                     key="export"
                     type="primary"
                     loading={exportTaskMutation.isPending}
-                    onClick={() => exportTaskMutation.mutate({
-                      taskNo: `EXP-${Date.now()}`,
-                      taskType: 'EXPORT',
-                      bizType: 'PROFIT_SHARE_DETAIL',
-                      bizNo: keyword || 'ALL',
-                      fileName: `分润明细导出-${Date.now()}.xlsx`,
-                      operator: '系统管理员',
-                      status: 'PENDING',
-                      remark: '分润明细导出',
-                    })}
+                    onClick={confirmExportProfitDetails}
                   >
                     导出分润明细
                   </Button>,

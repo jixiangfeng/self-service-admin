@@ -18,6 +18,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import api, {
@@ -208,6 +209,26 @@ const SettlementManagement: React.FC = () => {
     });
   };
 
+  const confirmBill = (record: SettlementRecord) => {
+    showBusinessConfirm({
+      title: '确认结算单',
+      content: `确定确认结算单「${record.billNo}」吗？确认后该结算单将进入已结算状态。`,
+      okText: '确认结算',
+      danger: false,
+      onOk: () => confirmBillMutation.mutate(record),
+    });
+  };
+
+  const confirmRetryPayout = (record?: SettlementPayoutRecord) => {
+    if (!record) return;
+    showBusinessConfirm({
+      title: '确认重试打款',
+      content: `确定重试打款流水「${record.payoutNo || record.billNo || record.id}」吗？系统会重新发起打款处理。`,
+      okText: '确认重试',
+      onOk: () => retryPayoutMutation.mutate(record),
+    });
+  };
+
   const bills = (billQuery.data?.records || []) as SettlementRecord[];
   const settlementDetails = useMemo<SettlementDetailRecord[]>(() => (billDetailQuery.data?.records || []).map((item: SettlementBillDetailRecord) => {
     const amount = Number(item.amount || 0);
@@ -266,7 +287,7 @@ const SettlementManagement: React.FC = () => {
           <Button
             size="small"
             loading={confirmBillMutation.isPending}
-            onClick={() => confirmBillMutation.mutate(record)}
+            onClick={() => confirmBill(record)}
           >
             确认
           </Button>
@@ -445,7 +466,7 @@ const SettlementManagement: React.FC = () => {
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1600 }}
                 loading={payoutQuery.isLoading}
-                toolBarRender={() => [<Button key="retry" type="primary" loading={retryPayoutMutation.isPending} onClick={() => filteredPayouts[0] && retryPayoutMutation.mutate(filteredPayouts[0])}>重试打款</Button>]}
+                toolBarRender={() => [<Button key="retry" type="primary" loading={retryPayoutMutation.isPending} onClick={() => confirmRetryPayout(filteredPayouts[0])}>重试打款</Button>]}
                 onSubmit={(values) => setPayoutKeyword(String(values.keyword || ''))}
                 onReset={() => setPayoutKeyword('')}
               />
