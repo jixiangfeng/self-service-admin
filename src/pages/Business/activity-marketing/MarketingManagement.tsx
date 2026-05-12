@@ -533,6 +533,7 @@ const MarketingManagement: React.FC = () => {
         onOk={handleSubmit}
         onCancel={closeModal}
         confirmLoading={saveMutation.isPending}
+        forceRender
         destroyOnClose
         width={1120}
         okText="保存活动配置"

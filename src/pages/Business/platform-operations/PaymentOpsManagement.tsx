@@ -10,6 +10,7 @@ import {
   publishStatusOptions,
   reconciliationStatusOptions,
   refundStatusOptions,
+  useBackendBusinessEnumOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
@@ -42,19 +43,13 @@ const publishStatusMap = buildValueEnum(publishStatusOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
 const refundStatusMap = buildValueEnum(refundStatusOptions);
 const reconciliationStatusMap = buildValueEnum(reconciliationStatusOptions);
-const callbackTypeOptions = [
-  { value: 'PAY_SUCCESS', label: '支付成功回调' },
-  { value: 'PAY_FAIL', label: '支付失败回调' },
-  { value: 'REFUND_SUCCESS', label: '退款成功回调' },
-  { value: 'REPLAY', label: '人工重放' },
-];
 const reconcileReasonOptions = [
   { value: 'CHANNEL_DELAY', label: '渠道延迟入账' },
   { value: 'REFUND_DIFF', label: '退款差异' },
   { value: 'MANUAL_REVIEW', label: '人工复核' },
 ];
 const compactJoin = (items: Array<string | undefined | false>) => items.filter(Boolean).join('；');
-const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
+const optionLabel = (options: { value: string | number; label: string }[], value?: string | number) => options.find((item) => item.value === value)?.label || value;
 
 const paymentDetailFields: Record<'order' | 'channel' | 'callback' | 'refund' | 'recon', DetailField<any>[]> = {
   order: [
@@ -110,6 +105,7 @@ const PaymentOpsManagement: React.FC = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [form] = Form.useForm<Record<string, any>>();
+  const callbackTypeOptions = useBackendBusinessEnumOptions('paymentCallbackTypeOptions');
   const paymentQuery = useQuery({
     queryKey: ['paymentOrders', keyword],
     queryFn: async () => (await api.payment.orders.page({ pageNum: 1, pageSize: 200, keyword })).data,

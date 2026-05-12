@@ -19,7 +19,7 @@ import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, formatDateTime, renderOptionTags, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import { joinCommaValues, splitCommaValues } from '@/utils/csv';
-import { DateTimeField, TimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue } from '@/utils/formControls';
+import { DateTimeField, TimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue, toDatePickerValue, toDateTimePickerValue, toTimePickerValue } from '@/utils/formControls';
 
 
 const normalizePickerValues = (values: Record<string, any>) => {
@@ -31,6 +31,20 @@ const normalizePickerValues = (values: Record<string, any>) => {
       next[key] = fromDatePickerValue(value) || value;
     } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
       next[key] = fromDateTimePickerValue(value) || value;
+    }
+  });
+  return next;
+};
+
+const normalizePickerInitialValues = (values: Record<string, any>) => {
+  const next = { ...values };
+  Object.entries(next).forEach(([key, value]) => {
+    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+      next[key] = toTimePickerValue(value) || value;
+    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
+      next[key] = toDatePickerValue(value) || value;
+    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
+      next[key] = toDateTimePickerValue(value) || value;
     }
   });
   return next;
@@ -355,7 +369,7 @@ const ServiceManagement: React.FC = () => {
               onClick={() => {
                 setEditingProduct(record);
                 productForm.setFieldsValue({
-                  ...record,
+                  ...normalizePickerInitialValues(record as unknown as Record<string, any>),
                   sellingPoints: splitCommaValues(record.sellingPoints),
                 });
                 setProductModalVisible(true);
@@ -448,7 +462,7 @@ const ServiceManagement: React.FC = () => {
               icon={<EditOutlined />}
               onClick={() => {
                 setEditingPricing(record);
-                pricingForm.setFieldsValue(record);
+                pricingForm.setFieldsValue(normalizePickerInitialValues(record as unknown as Record<string, any>));
                 setPricingModalVisible(true);
               }}
             >
@@ -657,6 +671,7 @@ const ServiceManagement: React.FC = () => {
         onOk={() => productForm.submit()}
         confirmLoading={createProductMutation.isPending || updateProductMutation.isPending}
         okText="保存商品"
+        forceRender
         destroyOnClose
       >
         <Form
@@ -763,6 +778,7 @@ const ServiceManagement: React.FC = () => {
         onOk={() => pricingForm.submit()}
         confirmLoading={createPricingMutation.isPending || updatePricingMutation.isPending}
         okText="保存规则"
+        forceRender
         destroyOnClose
       >
         <Form

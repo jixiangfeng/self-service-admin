@@ -44,6 +44,7 @@ const BusinessEditorModal: React.FC<BusinessEditorModalProps> = ({
 
   return (
     <Modal
+      forceRender
       {...modalProps}
       wrapClassName={mergedWrapClassName}
       title={(

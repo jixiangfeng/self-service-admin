@@ -257,6 +257,7 @@ const StoreManagement: React.FC = () => {
         onOk={() => form.submit()}
         confirmLoading={createMutation.isPending || updateMutation.isPending}
         okText={editingRecord ? '保存变更' : '创建门店'}
+        forceRender
         destroyOnClose
       >
         <Form

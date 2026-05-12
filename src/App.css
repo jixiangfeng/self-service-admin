@@ -85,6 +85,10 @@
   height: 100%;
 }
 
+.merchant-workbench-table .ant-table-cell {
+  white-space: nowrap;
+}
+
 .ant-modal .ant-modal-content {
   padding: 0;
   overflow: hidden;

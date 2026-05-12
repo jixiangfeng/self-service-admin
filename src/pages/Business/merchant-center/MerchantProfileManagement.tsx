@@ -444,6 +444,7 @@ const MerchantProfileManagement: React.FC = () => {
         confirmLoading={saveMutation.isPending}
         okText={editingRecord ? '保存变更' : '保存档案'}
         width={1040}
+        forceRender
         destroyOnClose
       >
         <Form form={form} layout="vertical" className="merchant-editor-form">

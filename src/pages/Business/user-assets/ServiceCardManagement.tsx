@@ -520,6 +520,7 @@ const ServiceCardManagement: React.FC = () => {
         onOk={handleSubmit}
         confirmLoading={saveMutation.isPending}
         width={860}
+        forceRender
         destroyOnClose
         okText={editingRecord ? '保存变更' : '保存卡产品'}
       >

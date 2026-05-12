@@ -287,6 +287,7 @@ const MerchantManagement: React.FC = () => {
         onOk={() => form.submit()}
         confirmLoading={createMutation.isPending || updateMutation.isPending}
         okText={editingRecord ? '保存变更' : '创建商户'}
+        forceRender
         destroyOnClose
       >
         <Form

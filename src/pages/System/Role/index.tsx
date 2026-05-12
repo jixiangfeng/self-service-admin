@@ -278,6 +278,7 @@ const RoleManagement: React.FC = () => {
         onCancel={closeModal}
         confirmLoading={createMutation.isPending || updateMutation.isPending}
         width={1040}
+        forceRender
         destroyOnClose
         okText="保存角色"
       >

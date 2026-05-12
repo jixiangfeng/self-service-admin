@@ -71,6 +71,7 @@ const Dictionary: React.FC = () => {
     onSuccess: () => {
       message.success('字典项已创建');
       queryClient.invalidateQueries({ queryKey: ['dictItems', selectedCode] });
+      queryClient.invalidateQueries({ queryKey: ['businessEnums'] });
       setItemModalVisible(false);
       setEditingItem(null);
       itemForm.resetFields();
@@ -81,6 +82,7 @@ const Dictionary: React.FC = () => {
     onSuccess: () => {
       message.success('字典项已更新');
       queryClient.invalidateQueries({ queryKey: ['dictItems', selectedCode] });
+      queryClient.invalidateQueries({ queryKey: ['businessEnums'] });
       setItemModalVisible(false);
       setEditingItem(null);
       itemForm.resetFields();
@@ -91,6 +93,7 @@ const Dictionary: React.FC = () => {
     onSuccess: () => {
       message.success('字典项已删除');
       queryClient.invalidateQueries({ queryKey: ['dictItems', selectedCode] });
+      queryClient.invalidateQueries({ queryKey: ['businessEnums'] });
     },
   });
 
@@ -201,9 +204,25 @@ const Dictionary: React.FC = () => {
 
   const handleFinish = (values: any) => {
     if (editingDict) {
-      updateMutation.mutate({ id: editingDict.id, ...values, status: Number(values.status ?? editingDict.status ?? 1) }, { onSuccess: closeModal });
+      updateMutation.mutate(
+        { id: editingDict.id, ...values, status: Number(values.status ?? editingDict.status ?? 1) },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['businessEnums'] });
+            closeModal();
+          },
+        },
+      );
     } else {
-      createMutation.mutate({ ...values, status: Number(values.status ?? 1) }, { onSuccess: closeModal });
+      createMutation.mutate(
+        { ...values, status: Number(values.status ?? 1) },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['businessEnums'] });
+            closeModal();
+          },
+        },
+      );
     }
   };
 
@@ -379,6 +398,7 @@ const Dictionary: React.FC = () => {
         onCancel={closeModal}
         confirmLoading={createMutation.isPending || updateMutation.isPending}
         width={920}
+        forceRender
         destroyOnClose
         okText="保存字典"
       >
@@ -424,6 +444,7 @@ const Dictionary: React.FC = () => {
         onCancel={closeItemModal}
         confirmLoading={createItemMutation.isPending || updateItemMutation.isPending}
         width={920}
+        forceRender
         destroyOnClose
         okText="保存字典项"
       >

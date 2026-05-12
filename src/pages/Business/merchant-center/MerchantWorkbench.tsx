@@ -17,7 +17,7 @@ import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
 import type { MerchantTodoRecord, MerchantWorkbenchStoreOverviewRecord, SelectOptionRecord } from '@/services/backendService';
 import { buildValueEnum, formatAmount, renderStatusTag } from '@/pages/Business/shared';
-import { DateTimeField } from '@/utils/formControls';
+import { DateTimeField, toDateTimePickerValue } from '@/utils/formControls';
 
 
 
@@ -167,15 +167,17 @@ const MerchantWorkbench: React.FC = () => {
       </Row>
 
       <Row gutter={[16, 16]} style={{ marginTop: 8 }}>
-        <Col xs={24} xl={11}>
+        <Col xs={24} xl={12}>
           <Card title="商户待办" extra={<Button type="primary" onClick={() => { taskForm.resetFields(); taskForm.setFieldsValue({ priority: 'MEDIUM', status: 'PENDING', category: 'ACTIVITY_CONFIG' }); setTaskModalVisible(true); }}>新建待办</Button>}>
             <Table
+              className="merchant-workbench-table"
               pagination={false}
               rowKey="id"
               dataSource={todos}
               loading={loading}
+              scroll={{ x: 1280 }}
               columns={[
-                { title: '待办', dataIndex: 'title' },
+                { title: '待办', dataIndex: 'title', width: 220, ellipsis: true },
                 { title: '分类', dataIndex: 'category', width: 120, render: (value: string) => renderStatusTag(value, todoCategoryMap) },
                 { title: '负责人', dataIndex: 'owner', width: 120 },
                 { title: '关联门店', dataIndex: 'relatedStore', width: 140 },
@@ -189,7 +191,7 @@ const MerchantWorkbench: React.FC = () => {
                   render: (_, record: MerchantTodoRecord) => (
                     <Space size="small">
                       <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-                      <Button size="small" onClick={() => { setEditingTask(record); taskForm.setFieldsValue(record); setTaskModalVisible(true); }}>编辑</Button>
+                      <Button size="small" onClick={() => { setEditingTask(record); taskForm.setFieldsValue({ ...record, deadline: toDateTimePickerValue(record.deadline) || record.deadline } as any); setTaskModalVisible(true); }}>编辑</Button>
                       <Button size="small" onClick={() => confirmTodoStatus(record)}>{record.status === 'DONE' ? '恢复' : '完成'}</Button>
                     </Space>
                   ),
@@ -198,15 +200,17 @@ const MerchantWorkbench: React.FC = () => {
             />
           </Card>
         </Col>
-        <Col xs={24} xl={13}>
+        <Col xs={24} xl={12}>
           <Card title="门店经营概览">
             <Table
+              className="merchant-workbench-table"
               pagination={false}
               rowKey="id"
               dataSource={stores}
               loading={loading}
+              scroll={{ x: 1080 }}
               columns={[
-                { title: '门店', dataIndex: 'store' },
+                { title: '门店', dataIndex: 'store', width: 180, ellipsis: true },
                 { title: '负责人', dataIndex: 'manager', width: 110 },
                 { title: '订单数', dataIndex: 'orders', width: 80 },
                 { title: '营收', dataIndex: 'revenue', width: 110, render: (value: number) => formatAmount(value) },
@@ -231,6 +235,7 @@ const MerchantWorkbench: React.FC = () => {
         onCancel={closeTaskModal}
         okText={editingTask ? '保存变更' : '创建待办'}
         width={1040}
+        forceRender
         destroyOnClose
       >
         <Form form={taskForm} layout="vertical" className="merchant-editor-form">

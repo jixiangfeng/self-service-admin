@@ -5,25 +5,16 @@ import { ApartmentOutlined, DeploymentUnitOutlined, PlusOutlined, ShopOutlined, 
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
-import { merchantGroupTypeOptions, scopeLevelOptions, templateStatusOptions } from '@/constants/businessCatalog';
+import { useBackendBusinessEnumOptions, useBusinessEnumOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
 import type { MerchantGroupRecord, MerchantGroupStoreRecord, SelectOptionRecord } from '@/services/backendService';
-import { buildValueEnum, formatDateTime, renderStatusTag, safeJsonParse } from '@/pages/Business/shared';
+import { buildValueEnum, formatDateTime, renderOptionTags, renderStatusTag, safeJsonParse } from '@/pages/Business/shared';
 import { RegionCascader } from '@/utils/formControls';
 
-const groupTypeMap = buildValueEnum(merchantGroupTypeOptions);
-const statusMap = buildValueEnum(templateStatusOptions);
-const scopeLevelMap = buildValueEnum(scopeLevelOptions);
-const groupUsageOptions = [
-  { value: '活动投放', label: '活动投放' },
-  { value: '跨店核销', label: '跨店核销' },
-  { value: '区域统计', label: '区域统计' },
-  { value: '运维巡检', label: '运维巡检' },
-];
 const writeoffScopeOptions = [
   { value: '同门店组通用', label: '同门店组通用' },
   { value: '同商户门店组通用', label: '同商户门店组通用' },
@@ -76,6 +67,13 @@ const MerchantGroupManagement: React.FC = () => {
   const [memberLoading, setMemberLoading] = useState(false);
   const { data: merchantOptions } = useQuery({ queryKey: ['merchantOptionsForMerchantGroups'], queryFn: async () => (await api.merchant.options()).data });
   const { data: storeOptions } = useQuery({ queryKey: ['storeOptionsForMerchantGroups'], queryFn: async () => (await api.store.options()).data });
+  const merchantGroupTypeOptions = useBusinessEnumOptions('merchantGroupTypeOptions');
+  const scopeLevelOptions = useBusinessEnumOptions('scopeLevelOptions');
+  const templateStatusOptions = useBusinessEnumOptions('templateStatusOptions');
+  const groupUsageOptions = useBackendBusinessEnumOptions('merchantGroupUsageOptions');
+  const groupTypeMap = useMemo(() => buildValueEnum(merchantGroupTypeOptions), [merchantGroupTypeOptions]);
+  const statusMap = useMemo(() => buildValueEnum(templateStatusOptions), [templateStatusOptions]);
+  const scopeLevelMap = useMemo(() => buildValueEnum(scopeLevelOptions), [scopeLevelOptions]);
   const merchantOptionMap = useMemo(() => new Map((merchantOptions as SelectOptionRecord[] | undefined || []).map((item) => [item.value, item.label])), [merchantOptions]);
   const storeOptionMap = useMemo(() => new Map((storeOptions as SelectOptionRecord[] | undefined || []).map((item) => [item.value, item])), [storeOptions]);
   const fetchRecords = async (params: Record<string, unknown> = {}) => {
@@ -216,7 +214,7 @@ const MerchantGroupManagement: React.FC = () => {
     },
     { title: '城市', dataIndex: 'city', width: 120, search: false },
     { title: '门店数', dataIndex: 'storeCount', width: 100, search: false },
-    { title: '用途范围', dataIndex: 'scopeUsages', width: 240, search: false, render: (_, record) => (record.scopeUsages && record.scopeUsages.length ? record.scopeUsages.join('、') : record.scope || '-') },
+    { title: '用途范围', dataIndex: 'scopeUsages', width: 240, search: false, render: (_, record) => renderOptionTags(record.scopeUsages?.length ? record.scopeUsages : record.scope, groupUsageOptions) },
     { title: '核销规则', dataIndex: 'writeoffRule', width: 220, search: false, render: (_, record) => [record.writeoffScope, record.writeoffLimit].filter(Boolean).join('、') || record.writeoffRule || '-' },
     { title: '负责人', dataIndex: 'owner', width: 140, search: false },
     {
@@ -334,6 +332,7 @@ const MerchantGroupManagement: React.FC = () => {
         onCancel={closeModal}
         okText={editingRecord ? '保存变更' : '创建门店组'}
         width={1120}
+        forceRender
         destroyOnClose
       >
         <Form form={form} layout="vertical" className="merchant-editor-form">

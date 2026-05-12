@@ -595,6 +595,7 @@ const TradeManagement: React.FC = () => {
         }}
         confirmLoading={createOrderMutation.isPending}
         width={920}
+        forceRender
         destroyOnClose
       >
         <Form form={createOrderForm} layout="vertical" className="merchant-editor-form" initialValues={{ orderType: 'SCAN', billingMode: 'TIME', payMode: 'WX', orderStatus: 'PAID', supplementSource: 'CUSTOMER_SERVICE', userConfirmed: true }}>

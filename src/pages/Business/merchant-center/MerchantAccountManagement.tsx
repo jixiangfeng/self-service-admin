@@ -267,6 +267,7 @@ const MerchantAccountManagement: React.FC = () => {
         onOk={saveAccount}
         okText={editingAccount ? '保存变更' : '创建账号'}
         width={1040}
+        forceRender
         destroyOnClose
       >
         <Form form={form} layout="vertical" className="merchant-editor-form">
@@ -333,6 +334,7 @@ const MerchantAccountManagement: React.FC = () => {
         onOk={saveGrant}
         okText="写入授权"
         width={1040}
+        forceRender
         destroyOnClose
       >
         <Form form={grantForm} layout="vertical" className="merchant-editor-form">

@@ -2141,17 +2141,20 @@ const toDictDataRecord = (item: Record<string, any>, dictCode?: string): DictDat
 } as unknown as DictDataRecord);
 
 const toDictDataPayload = async (data: Record<string, unknown>) => {
+  let dictId = data.dictId;
+  if (!dictId && data.dictCode) {
+    const dict = await httpGet<Record<string, any>>(`/dictionaries/code/${data.dictCode}`);
+    dictId = dict.data?.id;
+  }
+
   const payload: Record<string, unknown> = {
-    ...data,
+    dictId,
     label: data.label ?? data.dictLabel,
     value: data.value ?? data.dictValue,
     sort: data.sort ?? data.dictSort,
+    status: data.status,
+    remark: data.remark,
   };
-
-  if (!payload.dictId && data.dictCode) {
-    const dict = await httpGet<Record<string, any>>(`/dictionaries/code/${data.dictCode}`);
-    payload.dictId = dict.data?.id;
-  }
 
   return payload;
 };

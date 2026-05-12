@@ -462,6 +462,7 @@ const FulfillmentManagement: React.FC = () => {
           createForm.resetFields();
         }}
         width={920}
+        forceRender
         destroyOnClose
       >
         <Form form={createForm} layout="vertical" className="merchant-editor-form">

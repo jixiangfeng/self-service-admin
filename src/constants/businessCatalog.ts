@@ -517,6 +517,11 @@ export const useBusinessEnumOptions = <K extends BusinessEnumKey>(key: K): (type
   return (data?.[key] || FALLBACK_BUSINESS_ENUMS[key]) as (typeof FALLBACK_BUSINESS_ENUMS)[K];
 };
 
+export const useBackendBusinessEnumOptions = (key: string): BusinessOption[] => {
+  const { data } = useBusinessEnums();
+  return data?.[key] || [];
+};
+
 export const merchantTypeOptions = getBusinessEnumOptions('merchantTypeOptions');
 export const merchantContractStatusOptions = getBusinessEnumOptions('merchantContractStatusOptions');
 export const settlementCycleOptions = getBusinessEnumOptions('settlementCycleOptions');
