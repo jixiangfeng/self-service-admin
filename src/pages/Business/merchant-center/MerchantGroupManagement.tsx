@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Descriptions, Form, Input, Row, Select, Space, Statistic, message } from 'antd';
+import { Button, Card, Col, Descriptions, Form, Input, InputNumber, Row, Select, Space, Statistic, message } from 'antd';
 import type { CascaderProps } from 'antd';
-import { ApartmentOutlined, DeploymentUnitOutlined, PlusOutlined, ShopOutlined, TagsOutlined } from '@ant-design/icons';
+import { ApartmentOutlined, AuditOutlined, DeploymentUnitOutlined, PlusOutlined, ShopOutlined, TagsOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
@@ -24,6 +24,36 @@ const writeoffLimitOptions = [
   { value: '不支持跨商户核销', label: '不支持跨商户核销' },
   { value: '支持跨商户核销', label: '支持跨商户核销' },
 ];
+const clearingModeOptions = [
+  { value: 'NONE', label: '不启用跨商户清分' },
+  { value: 'OFFLINE_CLEARING', label: '线下清分' },
+];
+const clearingCycleOptions = [
+  { value: 'DAY', label: '日结' },
+  { value: 'WEEK', label: '周结' },
+  { value: 'MONTH', label: '月结' },
+];
+const cashHolderOptions = [
+  { value: 'RECHARGE_MERCHANT', label: '充值收款商户' },
+  { value: 'PLATFORM_PREPAID', label: '平台预收账户' },
+];
+const revenueOwnerOptions = [
+  { value: 'CONSUME_STORE', label: '消费履约门店' },
+  { value: 'RECHARGE_STORE', label: '充值来源门店' },
+  { value: 'RATIO_SPLIT', label: '按协议比例分摊' },
+];
+const clearingBaseOptions = [
+  { value: 'PRINCIPAL_ONLY', label: '仅本金消耗' },
+  { value: 'PRINCIPAL_PLUS_GIFT', label: '本金 + 赠送余额' },
+  { value: 'ORDER_PAYABLE', label: '订单应付金额' },
+  { value: 'AFTER_COUPON', label: '优惠后实收口径' },
+];
+const clearingCostBearerOptions = [
+  { value: 'RECHARGE_MERCHANT', label: '充值商户承担' },
+  { value: 'CONSUME_MERCHANT', label: '消费商户承担' },
+  { value: 'PLATFORM', label: '平台承担' },
+  { value: 'GROUP_RATIO', label: '门店组比例分摊' },
+];
 const parseGroupRules = (record: MerchantGroupRecord) => ({
   ...parseScopeConfig(record.scope, record),
   ...parseWriteoffConfig(record.writeoffRule, record),
@@ -36,6 +66,23 @@ const parseWriteoffConfig = (writeoffRule?: string, record?: MerchantGroupRecord
   writeoffScope: record?.writeoffScope || safeJsonParse<{ writeoffScope?: string }>(writeoffRule, {}).writeoffScope,
   writeoffLimit: record?.writeoffLimit || safeJsonParse<{ writeoffLimit?: string }>(writeoffRule, {}).writeoffLimit,
   writeoffRemark: record?.writeoffRemark || safeJsonParse<{ writeoffRemark?: string }>(writeoffRule, {}).writeoffRemark,
+  settlementMode: record?.settlementMode || safeJsonParse<{ settlementMode?: string }>(writeoffRule, {}).settlementMode,
+  settlementCycle: record?.settlementCycle || safeJsonParse<{ settlementCycle?: string }>(writeoffRule, {}).settlementCycle,
+  cashHolder: record?.cashHolder || safeJsonParse<{ cashHolder?: string }>(writeoffRule, {}).cashHolder,
+  revenueOwner: record?.revenueOwner || safeJsonParse<{ revenueOwner?: string }>(writeoffRule, {}).revenueOwner,
+  principalBearer: record?.principalBearer || safeJsonParse<{ principalBearer?: string }>(writeoffRule, {}).principalBearer,
+  giftCostBearer: record?.giftCostBearer || safeJsonParse<{ giftCostBearer?: string }>(writeoffRule, {}).giftCostBearer,
+  couponCostBearer: record?.couponCostBearer || safeJsonParse<{ couponCostBearer?: string }>(writeoffRule, {}).couponCostBearer,
+  paymentFeeBearer: record?.paymentFeeBearer || safeJsonParse<{ paymentFeeBearer?: string }>(writeoffRule, {}).paymentFeeBearer,
+  clearingBase: record?.clearingBase || safeJsonParse<{ clearingBase?: string }>(writeoffRule, {}).clearingBase,
+  rechargeMerchantRate: record?.rechargeMerchantRate || safeJsonParse<{ rechargeMerchantRate?: number | string }>(writeoffRule, {}).rechargeMerchantRate,
+  consumeMerchantRate: record?.consumeMerchantRate || safeJsonParse<{ consumeMerchantRate?: number | string }>(writeoffRule, {}).consumeMerchantRate,
+  platformRate: record?.platformRate || safeJsonParse<{ platformRate?: number | string }>(writeoffRule, {}).platformRate,
+  rechargeCommissionRate: record?.rechargeCommissionRate || safeJsonParse<{ rechargeCommissionRate?: number | string }>(writeoffRule, {}).rechargeCommissionRate,
+  platformFeeRate: record?.platformFeeRate || safeJsonParse<{ platformFeeRate?: number | string }>(writeoffRule, {}).platformFeeRate,
+  arrearsLimit: record?.arrearsLimit || safeJsonParse<{ arrearsLimit?: number | string }>(writeoffRule, {}).arrearsLimit,
+  overdueFreezeDays: record?.overdueFreezeDays || safeJsonParse<{ overdueFreezeDays?: number | string }>(writeoffRule, {}).overdueFreezeDays,
+  clearingRemark: record?.clearingRemark || safeJsonParse<{ clearingRemark?: string }>(writeoffRule, {}).clearingRemark,
 });
 const buildGroupScope = (values: Record<string, any>) =>
   JSON.stringify({
@@ -47,7 +94,39 @@ const buildWriteoffRule = (values: Record<string, any>) =>
     writeoffScope: values.writeoffScope || '',
     writeoffLimit: values.writeoffLimit || '',
     writeoffRemark: values.writeoffRemark || '',
+    settlementMode: values.settlementMode || 'NONE',
+    settlementCycle: values.settlementCycle || '',
+    cashHolder: values.cashHolder || '',
+    revenueOwner: values.revenueOwner || '',
+    principalBearer: values.principalBearer || '',
+    giftCostBearer: values.giftCostBearer || '',
+    couponCostBearer: values.couponCostBearer || '',
+    paymentFeeBearer: values.paymentFeeBearer || '',
+    clearingBase: values.clearingBase || '',
+    rechargeMerchantRate: values.rechargeMerchantRate ?? '',
+    consumeMerchantRate: values.consumeMerchantRate ?? '',
+    platformRate: values.platformRate ?? '',
+    rechargeCommissionRate: values.rechargeCommissionRate ?? '',
+    platformFeeRate: values.platformFeeRate ?? '',
+    arrearsLimit: values.arrearsLimit ?? '',
+    overdueFreezeDays: values.overdueFreezeDays ?? '',
+    clearingRemark: values.clearingRemark || '',
   });
+const optionLabel = (options: Array<{ value: string; label: string }>, value?: string) =>
+  options.find((item) => item.value === value)?.label || value || '-';
+const formatPercent = (value?: number | string) => (value === undefined || value === null || value === '' ? '-' : `${value}%`);
+const formatAmount = (value?: number | string) => (value === undefined || value === null || value === '' ? '-' : `￥${value}`);
+const buildRatioText = (record: MerchantGroupRecord) => {
+  if (!record.rechargeMerchantRate && !record.consumeMerchantRate && !record.platformRate) {
+    return '-';
+  }
+
+  return [
+    `充值商户留存 ${formatPercent(record.rechargeMerchantRate)}`,
+    `履约商户分得 ${formatPercent(record.consumeMerchantRate)}`,
+    `平台服务费 ${formatPercent(record.platformRate)}`,
+  ].join(' / ');
+};
 
 const MerchantGroupManagement: React.FC = () => {
   const [form] = Form.useForm<MerchantGroupRecord>();
@@ -252,11 +331,56 @@ const MerchantGroupManagement: React.FC = () => {
 
   const handleSubmit = async () => {
     const values = await form.validateFields();
-    const { scopeUsages, scopeRemark, writeoffScope, writeoffLimit, writeoffRemark, ...baseValues } = values as Record<string, any>;
+    const {
+      scopeUsages,
+      scopeRemark,
+      writeoffScope,
+      writeoffLimit,
+      writeoffRemark,
+      settlementMode,
+      settlementCycle,
+      cashHolder,
+      revenueOwner,
+      principalBearer,
+      giftCostBearer,
+      couponCostBearer,
+      paymentFeeBearer,
+      clearingBase,
+      rechargeMerchantRate,
+      consumeMerchantRate,
+      platformRate,
+      rechargeCommissionRate,
+      platformFeeRate,
+      arrearsLimit,
+      overdueFreezeDays,
+      clearingRemark,
+      ...baseValues
+    } = values as Record<string, any>;
     const payload = {
       ...baseValues,
       scope: buildGroupScope({ scopeUsages, scopeRemark }),
-      writeoffRule: buildWriteoffRule({ writeoffScope, writeoffLimit, writeoffRemark }),
+      writeoffRule: buildWriteoffRule({
+        writeoffScope,
+        writeoffLimit,
+        writeoffRemark,
+        settlementMode,
+        settlementCycle,
+        cashHolder,
+        revenueOwner,
+        principalBearer,
+        giftCostBearer,
+        couponCostBearer,
+        paymentFeeBearer,
+        clearingBase,
+        rechargeMerchantRate,
+        consumeMerchantRate,
+        platformRate,
+        rechargeCommissionRate,
+        platformFeeRate,
+        arrearsLimit,
+        overdueFreezeDays,
+        clearingRemark,
+      }),
     };
     if (editingRecord) {
       await api.merchantGroup.edit({ ...editingRecord, ...payload } as Record<string, unknown>);
@@ -313,7 +437,29 @@ const MerchantGroupManagement: React.FC = () => {
             onClick={() => {
               setEditingRecord(null);
               form.resetFields();
-              form.setFieldsValue({ groupType: 'ACTIVITY', scopeLevel: 'STORE_GROUP', status: 'DRAFT', storeCount: 0 });
+              form.setFieldsValue({
+                groupType: 'ACTIVITY',
+                scopeLevel: 'STORE_GROUP',
+                status: 'DRAFT',
+                storeCount: 0,
+                writeoffLimit: '不支持跨商户核销',
+                settlementMode: 'NONE',
+                settlementCycle: 'WEEK',
+                cashHolder: 'RECHARGE_MERCHANT',
+                revenueOwner: 'CONSUME_STORE',
+                principalBearer: 'RECHARGE_MERCHANT',
+                giftCostBearer: 'RECHARGE_MERCHANT',
+                couponCostBearer: 'PLATFORM',
+                paymentFeeBearer: 'RECHARGE_MERCHANT',
+                clearingBase: 'PRINCIPAL_PLUS_GIFT',
+                rechargeMerchantRate: 0,
+                consumeMerchantRate: 100,
+                platformRate: 0,
+                rechargeCommissionRate: 0,
+                platformFeeRate: 0,
+                arrearsLimit: 0,
+                overdueFreezeDays: 7,
+              });
               setModalVisible(true);
             }}
           >
@@ -415,6 +561,66 @@ const MerchantGroupManagement: React.FC = () => {
                 </Form.Item>
               </div>
             </BusinessEditorSection>
+
+            <BusinessEditorSection
+              icon={<AuditOutlined />}
+              title="跨商户线下清分协议"
+              desc="当加盟商使用各自微信商户号收款时，跨店消费不会自动分账，需要在这里约定资金持有方、履约收入归属、成本承担和逾期风控。"
+            >
+              <div className="merchant-editor-fields">
+                <Form.Item name="settlementMode" label="清分方式">
+                  <Select options={clearingModeOptions} placeholder="请选择清分方式" />
+                </Form.Item>
+                <Form.Item name="settlementCycle" label="清分周期">
+                  <Select options={clearingCycleOptions} placeholder="请选择清分周期" />
+                </Form.Item>
+                <Form.Item name="cashHolder" label="资金持有方">
+                  <Select options={cashHolderOptions} placeholder="请选择资金持有方" />
+                </Form.Item>
+                <Form.Item name="revenueOwner" label="收入归属">
+                  <Select options={revenueOwnerOptions} placeholder="请选择收入归属" />
+                </Form.Item>
+                <Form.Item name="principalBearer" label="本金兑付方">
+                  <Select options={clearingCostBearerOptions} placeholder="请选择本金兑付方" />
+                </Form.Item>
+                <Form.Item name="giftCostBearer" label="赠送余额成本">
+                  <Select options={clearingCostBearerOptions} placeholder="请选择赠送余额成本承担方" />
+                </Form.Item>
+                <Form.Item name="couponCostBearer" label="优惠券成本">
+                  <Select options={clearingCostBearerOptions} placeholder="请选择优惠券成本承担方" />
+                </Form.Item>
+                <Form.Item name="paymentFeeBearer" label="支付手续费">
+                  <Select options={clearingCostBearerOptions} placeholder="请选择支付手续费承担方" />
+                </Form.Item>
+                <Form.Item name="clearingBase" label="清分基数">
+                  <Select options={clearingBaseOptions} placeholder="请选择清分基数" />
+                </Form.Item>
+                <Form.Item name="rechargeMerchantRate" label="充值商户留存比例">
+                  <InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} placeholder="例如：5" />
+                </Form.Item>
+                <Form.Item name="consumeMerchantRate" label="履约商户分得比例">
+                  <InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} placeholder="例如：92" />
+                </Form.Item>
+                <Form.Item name="platformRate" label="平台服务费比例">
+                  <InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} placeholder="例如：3" />
+                </Form.Item>
+                <Form.Item name="rechargeCommissionRate" label="兼容：充值佣金">
+                  <InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} placeholder="可留空，旧规则字段" />
+                </Form.Item>
+                <Form.Item name="platformFeeRate" label="兼容：平台费率">
+                  <InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} placeholder="可留空，旧规则字段" />
+                </Form.Item>
+                <Form.Item name="arrearsLimit" label="欠款额度">
+                  <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="例如：5000" />
+                </Form.Item>
+                <Form.Item name="overdueFreezeDays" label="逾期冻结天数">
+                  <InputNumber min={0} precision={0} addonAfter="天" style={{ width: '100%' }} placeholder="例如：7" />
+                </Form.Item>
+                <Form.Item className="merchant-editor-field-span-2" name="clearingRemark" label="清分补充">
+                  <Input.TextArea rows={3} placeholder="例如：A 商户收充值款，B 门店履约后按周线下对账打款；逾期超限自动暂停跨店核销。" />
+                </Form.Item>
+              </div>
+            </BusinessEditorSection>
           </div>
         </Form>
       </BusinessEditorModal>
@@ -434,6 +640,23 @@ const MerchantGroupManagement: React.FC = () => {
             <Descriptions.Item label="核销范围">{detail.writeoffScope || '-'}</Descriptions.Item>
             <Descriptions.Item label="跨商户限制">{detail.writeoffLimit || '-'}</Descriptions.Item>
             <Descriptions.Item label="核销补充">{detail.writeoffRemark || '-'}</Descriptions.Item>
+            <Descriptions.Item label="清分方式">{optionLabel(clearingModeOptions, detail.settlementMode)}</Descriptions.Item>
+            <Descriptions.Item label="清分周期">{optionLabel(clearingCycleOptions, detail.settlementCycle)}</Descriptions.Item>
+            <Descriptions.Item label="资金持有方">{optionLabel(cashHolderOptions, detail.cashHolder)}</Descriptions.Item>
+            <Descriptions.Item label="收入归属">{optionLabel(revenueOwnerOptions, detail.revenueOwner)}</Descriptions.Item>
+            <Descriptions.Item label="本金兑付方">{optionLabel(clearingCostBearerOptions, detail.principalBearer)}</Descriptions.Item>
+            <Descriptions.Item label="赠送余额成本">{optionLabel(clearingCostBearerOptions, detail.giftCostBearer)}</Descriptions.Item>
+            <Descriptions.Item label="优惠券成本">{optionLabel(clearingCostBearerOptions, detail.couponCostBearer)}</Descriptions.Item>
+            <Descriptions.Item label="支付手续费">{optionLabel(clearingCostBearerOptions, detail.paymentFeeBearer)}</Descriptions.Item>
+            <Descriptions.Item label="清分基数">{optionLabel(clearingBaseOptions, detail.clearingBase)}</Descriptions.Item>
+            <Descriptions.Item label="协议比例">{buildRatioText(detail)}</Descriptions.Item>
+            <Descriptions.Item label="充值商户留存">{formatPercent(detail.rechargeMerchantRate)}</Descriptions.Item>
+            <Descriptions.Item label="履约商户分得">{formatPercent(detail.consumeMerchantRate)}</Descriptions.Item>
+            <Descriptions.Item label="平台服务费">{formatPercent(detail.platformRate)}</Descriptions.Item>
+            <Descriptions.Item label="兼容充值佣金">{formatPercent(detail.rechargeCommissionRate)}</Descriptions.Item>
+            <Descriptions.Item label="欠款额度">{formatAmount(detail.arrearsLimit)}</Descriptions.Item>
+            <Descriptions.Item label="逾期冻结">{detail.overdueFreezeDays ? `${detail.overdueFreezeDays} 天` : '-'}</Descriptions.Item>
+            <Descriptions.Item label="清分补充" span={2}>{detail.clearingRemark || '-'}</Descriptions.Item>
             <Descriptions.Item label="负责人">{detail.owner}</Descriptions.Item>
             <Descriptions.Item label="更新时间">{formatDateTime(detail.updatedAt)}</Descriptions.Item>
           </Descriptions>

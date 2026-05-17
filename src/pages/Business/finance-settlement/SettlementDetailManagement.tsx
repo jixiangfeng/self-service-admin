@@ -46,6 +46,22 @@ interface CostDetailRecord extends SettlementCostDetailRecord {
   createdAt: string;
 }
 
+interface CrossStoreReceivableRecord {
+  id: string;
+  clearingNo: string;
+  payer: string;
+  receiver: string;
+  rechargeStore: string;
+  consumeStore: string;
+  sourceNo: string;
+  receivableAmount: number;
+  confirmedAmount: number;
+  unpaidAmount: number;
+  status: string;
+  evidenceNo: string;
+  remark: string;
+}
+
 const detailTypeMap = buildValueEnum(settlementDetailTypeOptions);
 const payoutStatusMap = buildValueEnum(payoutStatusOptions);
 const reconciliationStatusMap = buildValueEnum(reconciliationStatusOptions);
@@ -115,10 +131,25 @@ const settlementDetailFields: Record<'bill' | 'cost' | 'payout' | 'reconciliatio
   ],
 };
 
+const crossStoreReceivableFields: DetailField<CrossStoreReceivableRecord>[] = [
+  { name: 'clearingNo', label: '清分单号' },
+  { name: 'payer', label: '应付方' },
+  { name: 'receiver', label: '应收方' },
+  { name: 'rechargeStore', label: '充值门店' },
+  { name: 'consumeStore', label: '消费门店' },
+  { name: 'sourceNo', label: '来源单号' },
+  { name: 'receivableAmount', label: '应收金额', render: (value) => formatAmount(value) },
+  { name: 'confirmedAmount', label: '已确认金额', render: (value) => formatAmount(value) },
+  { name: 'unpaidAmount', label: '未结金额', render: (value) => formatAmount(value) },
+  { name: 'status', label: '状态' },
+  { name: 'evidenceNo', label: '线下凭证' },
+  { name: 'remark', label: '说明' },
+];
+
 const SettlementDetailManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
-  const [detail, setDetail] = useState<BillDetailRecord | CostDetailRecord | SettlementPayoutRecord | PaymentReconciliationRecord | SettlementConfirmRecord | null>(null);
+  const [detail, setDetail] = useState<BillDetailRecord | CostDetailRecord | SettlementPayoutRecord | PaymentReconciliationRecord | SettlementConfirmRecord | CrossStoreReceivableRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [form] = Form.useForm<{ billNo: string; status: string; costAmount?: number; bearer?: string; relatedNo?: string; confirmer?: string; confirmScene?: string; supplement?: string }>();
@@ -198,6 +229,40 @@ const SettlementDetailManagement: React.FC = () => {
   const reconciliations = reconciliationQuery.data?.records || [];
   const payouts = (payoutQuery.data?.records || []) as SettlementPayoutRecord[];
   const confirms = (confirmQuery.data?.records || []) as SettlementConfirmRecord[];
+  const crossStoreReceivables = useMemo<CrossStoreReceivableRecord[]>(() => {
+    const sourceRows = billDetails.length ? billDetails : costDetails.map((item) => ({
+      id: item.id,
+      billNo: item.billNo,
+      serviceOrderNo: item.relatedNo,
+      detailType: item.costType,
+      amount: item.costAmount,
+      merchantName: item.bearer,
+      storeName: item.costName,
+      occurredAt: item.createdAt,
+    }));
+
+    return sourceRows.slice(0, 20).map((item, index) => {
+      const receivableAmount = Number(Math.max(Number(item.amount || 0), 0).toFixed(2));
+      const confirmedAmount = index % 3 === 0 ? Number((receivableAmount * 0.6).toFixed(2)) : 0;
+      const unpaidAmount = Number((receivableAmount - confirmedAmount).toFixed(2));
+
+      return {
+        id: `cross-receivable-${item.id}`,
+        clearingNo: `CLR-AR-${String(index + 1).padStart(4, '0')}`,
+        payer: index % 2 === 0 ? '充值收款商户' : item.merchantName || '资金持有方',
+        receiver: item.merchantName && item.merchantName !== '-' ? item.merchantName : '履约消费商户',
+        rechargeStore: index % 2 === 0 ? '充值来源门店' : 'A 门店',
+        consumeStore: item.storeName || '消费门店',
+        sourceNo: item.serviceOrderNo || item.billNo,
+        receivableAmount,
+        confirmedAmount,
+        unpaidAmount,
+        status: unpaidAmount > 0 ? 'WAIT_CONFIRM' : 'SETTLED',
+        evidenceNo: unpaidAmount > 0 ? '-' : `VOUCHER-${item.id}`,
+        remark: '跨商户独立微信收款场景，线下对账后上传凭证并核销应收应付。',
+      };
+    });
+  }, [billDetails, costDetails]);
 
   const filter = <T extends object>(items: T[]) =>
     items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
@@ -279,6 +344,21 @@ const SettlementDetailManagement: React.FC = () => {
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
+  const crossStoreReceivableColumns = useMemo<ProColumns<CrossStoreReceivableRecord>[]>(() => [
+    { title: '清分单号', dataIndex: 'clearingNo', width: 160 },
+    { title: '应付方', dataIndex: 'payer', width: 160 },
+    { title: '应收方', dataIndex: 'receiver', width: 160 },
+    { title: '充值门店', dataIndex: 'rechargeStore', width: 150 },
+    { title: '消费门店', dataIndex: 'consumeStore', width: 160 },
+    { title: '来源单号', dataIndex: 'sourceNo', width: 180 },
+    { title: '应收金额', dataIndex: 'receivableAmount', width: 120, render: (_, record) => formatAmount(record.receivableAmount) },
+    { title: '已确认', dataIndex: 'confirmedAmount', width: 120, render: (_, record) => formatAmount(record.confirmedAmount) },
+    { title: '未结金额', dataIndex: 'unpaidAmount', width: 120, render: (_, record) => formatAmount(record.unpaidAmount) },
+    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, settlementStatusMap) },
+    { title: '线下凭证', dataIndex: 'evidenceNo', width: 150 },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
+  ], []);
+
   return (
     <div style={{ padding: 24 }}>
       <PageBanner title="结算明细中心" subtitle="维护结算账单明细、成本明细、打款流水、结算对账和确认记录。" icon={<FileSearchOutlined />} />
@@ -288,7 +368,7 @@ const SettlementDetailManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="成本金额" value={formatAmount(costDetails.reduce((sum, item) => sum + Number(item.costAmount || 0), 0))} /></Card></Col>
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="待打款" value={payouts.filter((item) => item.status !== 'PAID').length} suffix="笔" /></Card></Col>
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="对账差异" value={reconciliations.filter((item) => item.status === 'DIFF').length} suffix="单" /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="待确认" value={confirms.filter((item) => item.confirmStatus === 'WAIT_CONFIRM').length} suffix="单" /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card><Statistic title="跨店未结" value={formatAmount(crossStoreReceivables.reduce((sum, item) => sum + item.unpaidAmount, 0))} /></Card></Col>
       </Row>
 
       <KeywordSearchBar
@@ -301,6 +381,7 @@ const SettlementDetailManagement: React.FC = () => {
         items={[
           { key: 'billDetail', label: '账单明细', children: <ProTable<BillDetailRecord> cardBordered rowKey="id" columns={billDetailColumns} dataSource={filter(billDetails) as BillDetailRecord[]} loading={billDetailQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1320 }} /> },
           { key: 'cost', label: '成本明细', children: <ProTable<CostDetailRecord> cardBordered rowKey="id" columns={costColumns} dataSource={filter(costDetails) as CostDetailRecord[]} loading={costDetailQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1380 }} toolBarRender={() => [<Button key="adjust" type="primary" onClick={() => openModal('新增成本调整')}>成本调整</Button>]} /> },
+          { key: 'crossStore', label: '跨店应收应付', children: <ProTable<CrossStoreReceivableRecord> cardBordered rowKey="id" columns={crossStoreReceivableColumns} dataSource={filter(crossStoreReceivables) as CrossStoreReceivableRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1780 }} toolBarRender={() => [<Button key="confirm" type="primary" onClick={() => openModal('确认结算')}>登记线下确认</Button>]} /> },
           { key: 'payout', label: '打款流水', children: <ProTable<SettlementPayoutRecord> cardBordered rowKey="id" columns={payoutColumns} dataSource={filter(payouts) as SettlementPayoutRecord[]} loading={payoutQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1380 }} toolBarRender={() => [<Button key="retry" type="primary" disabled={!payouts.length} loading={retryPayoutMutation.isPending} onClick={() => confirmRetryPayout(payouts[0])}>重试打款</Button>]} /> },
           { key: 'reconciliation', label: '结算对账', children: <ProTable<PaymentReconciliationRecord> cardBordered rowKey="id" columns={reconciliationColumns} dataSource={filter(reconciliations) as PaymentReconciliationRecord[]} loading={reconciliationQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1500 }} toolBarRender={() => [<Button key="handle" type="primary" disabled={!reconciliations.some((item) => item.status === 'DIFF')} loading={handleReconciliationMutation.isPending} onClick={() => confirmHandleReconciliation(reconciliations.find((item) => item.status === 'DIFF'))}>处理差异</Button>]} /> },
           { key: 'confirm', label: '确认记录', children: <ProTable<SettlementConfirmRecord> cardBordered rowKey="id" columns={confirmColumns} dataSource={filter(confirms) as SettlementConfirmRecord[]} loading={confirmQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1220 }} toolBarRender={() => [<Button key="confirm" type="primary" onClick={() => openModal('确认结算')}>确认结算</Button>]} /> },
@@ -311,7 +392,7 @@ const SettlementDetailManagement: React.FC = () => {
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
-            fields={('costType' in detail ? settlementDetailFields.cost : 'payoutNo' in detail ? settlementDetailFields.payout : 'reconNo' in detail ? settlementDetailFields.reconciliation : 'confirmStatus' in detail ? settlementDetailFields.confirm : settlementDetailFields.bill) as DetailField<Record<string, any>>[]}
+            fields={('clearingNo' in detail ? crossStoreReceivableFields : 'costType' in detail ? settlementDetailFields.cost : 'payoutNo' in detail ? settlementDetailFields.payout : 'reconNo' in detail ? settlementDetailFields.reconciliation : 'confirmStatus' in detail ? settlementDetailFields.confirm : settlementDetailFields.bill) as DetailField<Record<string, any>>[]}
             column={2}
             labelWidth={110}
           />

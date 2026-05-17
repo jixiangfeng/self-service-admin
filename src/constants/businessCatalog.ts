@@ -495,7 +495,37 @@ export const FALLBACK_BUSINESS_ENUMS = {
 
 export type BusinessEnumKey = keyof typeof FALLBACK_BUSINESS_ENUMS;
 
+const normalizeOption = (option: BusinessOption): BusinessOption => ({
+  value: option.value,
+  label: option.label,
+});
+
 let cachedBusinessEnums: BusinessEnumMap = FALLBACK_BUSINESS_ENUMS;
+
+const replaceOptionsInPlace = (target: BusinessOption[], source: BusinessOption[]) => {
+  target.splice(0, target.length, ...source.map(normalizeOption));
+};
+
+const mergeBusinessEnums = (enums: BusinessEnumMap = {}) => {
+  const merged: BusinessEnumMap = { ...FALLBACK_BUSINESS_ENUMS };
+
+  Object.entries(enums).forEach(([key, options]) => {
+    if (!Array.isArray(options)) {
+      return;
+    }
+
+    const fallbackOptions = FALLBACK_BUSINESS_ENUMS[key as BusinessEnumKey];
+    if (fallbackOptions) {
+      replaceOptionsInPlace(fallbackOptions, options);
+      merged[key] = fallbackOptions;
+      return;
+    }
+
+    merged[key] = options.map(normalizeOption);
+  });
+
+  return merged;
+};
 
 export const getBusinessEnumOptions = <K extends BusinessEnumKey>(key: K): (typeof FALLBACK_BUSINESS_ENUMS)[K] => {
   return (cachedBusinessEnums[key] || FALLBACK_BUSINESS_ENUMS[key]) as (typeof FALLBACK_BUSINESS_ENUMS)[K];
@@ -505,11 +535,12 @@ export const useBusinessEnums = () => useQuery({
   queryKey: ['businessEnums'],
   queryFn: async () => {
     const enums = (await api.businessEnums.list()).data;
-    cachedBusinessEnums = { ...FALLBACK_BUSINESS_ENUMS, ...enums };
-    return cachedBusinessEnums;
+    cachedBusinessEnums = mergeBusinessEnums(enums);
+    return { ...cachedBusinessEnums };
   },
   staleTime: 10 * 60 * 1000,
   initialData: FALLBACK_BUSINESS_ENUMS,
+  initialDataUpdatedAt: 0,
 });
 
 export const useBusinessEnumOptions = <K extends BusinessEnumKey>(key: K): (typeof FALLBACK_BUSINESS_ENUMS)[K] => {

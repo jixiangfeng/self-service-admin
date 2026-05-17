@@ -5,14 +5,44 @@ export const formatDateTime = (value?: string) => (value ? new Date(value).toLoc
 
 export const normalizeKeyword = (value?: string) => String(value || '').trim().toLowerCase();
 
-export const buildValueEnum = (items: Array<{ value: string | number; label: string }>) =>
-  items.reduce(
-    (acc, item) => ({
-      ...acc,
-      [item.value]: { text: item.label },
-    }),
-    {} as Record<string | number, { text: string }>
-  );
+const findOption = (
+  items: Array<{ value: string | number; label: string; color?: string }>,
+  value: string | number
+) => items.find((item) => String(item.value) === String(value));
+
+export const buildValueEnum = (items: Array<{ value: string | number; label: string; color?: string }>) =>
+  new Proxy({} as Record<string | number, { color?: string; text: string }>, {
+    get(_target, property) {
+      if (typeof property === 'symbol') {
+        return undefined;
+      }
+      const option = findOption(items, property);
+      return option ? { color: option.color, text: option.label } : undefined;
+    },
+    has(_target, property) {
+      if (typeof property === 'symbol') {
+        return false;
+      }
+      return Boolean(findOption(items, property));
+    },
+    ownKeys() {
+      return Array.from(new Set(items.map((item) => String(item.value))));
+    },
+    getOwnPropertyDescriptor(_target, property) {
+      if (typeof property === 'symbol') {
+        return undefined;
+      }
+      const option = findOption(items, property);
+      if (!option) {
+        return undefined;
+      }
+      return {
+        configurable: true,
+        enumerable: true,
+        value: { color: option.color, text: option.label },
+      };
+    },
+  });
 
 export const renderBooleanTag = (value?: number, enabledText = '开启', disabledText = '关闭') => (
   <Tag color={value === 1 ? 'success' : 'default'}>{value === 1 ? enabledText : disabledText}</Tag>

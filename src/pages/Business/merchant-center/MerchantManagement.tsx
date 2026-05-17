@@ -32,11 +32,8 @@ const merchantStatusMap = {
   0: { color: 'default', text: '停用' },
 };
 
-const merchantContractStatusMap = {
-  ACTIVE: { color: 'success', text: '履约中' },
-  PENDING: { color: 'gold', text: '待生效' },
-  EXPIRED: { color: 'default', text: '已到期' },
-};
+const merchantContractStatusMap = buildValueEnum(merchantContractStatusOptions);
+const settlementCycleMap = buildValueEnum(settlementCycleOptions);
 
 const merchantFormDefaults = {
   status: 1,
@@ -163,7 +160,7 @@ const MerchantManagement: React.FC = () => {
       { title: '联系电话', dataIndex: 'contactPhone', width: 140, search: false, render: (_, record) => record.contactPhone || '-' },
       { title: '覆盖城市', dataIndex: 'cityCoverage', width: 160, search: false, render: (_, record) => record.cityCoverage || '-' },
       { title: '门店数', dataIndex: 'storeCount', width: 100, search: false, render: (_, record) => record.storeCount ?? 0 },
-      { title: '结算周期', dataIndex: 'settlementCycle', width: 120, search: false, render: (_, record) => record.settlementCycle || '-' },
+      { title: '结算周期', dataIndex: 'settlementCycle', width: 120, search: false, render: (_, record) => renderStatusTag(record.settlementCycle, settlementCycleMap) },
       { title: '结算账户', dataIndex: 'settlementAccountName', width: 180, search: false, render: (_, record) => record.settlementAccountName || '-' },
       {
         title: '状态',

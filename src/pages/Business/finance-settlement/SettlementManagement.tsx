@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Statistic, Tabs, message } from 'antd';
-import { AccountBookOutlined, CalculatorOutlined, CalendarOutlined, DollarOutlined, TeamOutlined } from '@ant-design/icons';
+import { AccountBookOutlined, CalculatorOutlined, CalendarOutlined, DollarOutlined, SwapOutlined, TeamOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useNavigate } from 'react-router-dom';
@@ -68,11 +68,44 @@ interface SettlementDetailRecord {
   remark: string;
 }
 
+interface CrossStoreClearingRecord {
+  id: string;
+  clearingNo: string;
+  merchantGroupName: string;
+  rechargeMerchant: string;
+  consumeMerchant: string;
+  rechargeStore: string;
+  consumeStore: string;
+  sourceNo: string;
+  principalAmount: number;
+  giftAmount: number;
+  couponAmount: number;
+  clearingBase: number;
+  rechargeMerchantRate: number;
+  consumeMerchantRate: number;
+  platformRate: number;
+  rechargeMerchantAmount: number;
+  consumeMerchantAmount: number;
+  platformFee: number;
+  payableAmount: number;
+  formula: string;
+  settlementCycle: string;
+  status: string;
+  riskStatus: string;
+  remark: string;
+}
+
 const settlementStatusMap = buildValueEnum(settlementStatusOptions);
 const payoutStatusMap = buildValueEnum(payoutStatusOptions);
 const subjectTypeMap = buildValueEnum(settlementSubjectTypeOptions);
 const detailTypeMap = buildValueEnum(settlementDetailTypeOptions);
 const reconciliationStatusMap = buildValueEnum(reconciliationStatusOptions);
+const clearingStatusMap = buildValueEnum(settlementStatusOptions);
+const clearingRiskMap = buildValueEnum([
+  { value: 'NORMAL', label: '正常' },
+  { value: 'NEAR_LIMIT', label: '接近额度' },
+  { value: 'OVERDUE', label: '逾期' },
+]);
 
 const settlementBillDetailFields: DetailField<SettlementRecord>[] = [
   { name: 'billNo', label: '结算单号' },
@@ -132,6 +165,32 @@ const reconciliationDetailFields: DetailField<PaymentReconciliationRecord>[] = [
   { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
 ];
 
+const crossStoreClearingDetailFields: DetailField<CrossStoreClearingRecord>[] = [
+  { name: 'clearingNo', label: '清分单号' },
+  { name: 'merchantGroupName', label: '门店组' },
+  { name: 'rechargeMerchant', label: '资金持有商户' },
+  { name: 'consumeMerchant', label: '履约商户' },
+  { name: 'rechargeStore', label: '充值门店' },
+  { name: 'consumeStore', label: '消费门店' },
+  { name: 'sourceNo', label: '来源单号' },
+  { name: 'principalAmount', label: '本金消耗', render: (value) => formatAmount(value) },
+  { name: 'giftAmount', label: '赠送消耗', render: (value) => formatAmount(value) },
+  { name: 'couponAmount', label: '优惠抵扣', render: (value) => formatAmount(value) },
+  { name: 'clearingBase', label: '清分基数', render: (value) => formatAmount(value) },
+  { name: 'rechargeMerchantRate', label: '充值方比例', render: (value) => `${value}%` },
+  { name: 'consumeMerchantRate', label: '履约方比例', render: (value) => `${value}%` },
+  { name: 'platformRate', label: '平台比例', render: (value) => `${value}%` },
+  { name: 'rechargeMerchantAmount', label: '充值方留存', render: (value) => formatAmount(value) },
+  { name: 'consumeMerchantAmount', label: '履约方应收', render: (value) => formatAmount(value) },
+  { name: 'platformFee', label: '平台服务费', render: (value) => formatAmount(value) },
+  { name: 'payableAmount', label: '应线下清分', render: (value) => formatAmount(value) },
+  { name: 'formula', label: '计算公式' },
+  { name: 'settlementCycle', label: '账期' },
+  { name: 'status', label: '状态', render: (value) => clearingStatusMap[value as keyof typeof clearingStatusMap]?.text || value },
+  { name: 'riskStatus', label: '风控状态', render: (value) => clearingRiskMap[value as keyof typeof clearingRiskMap]?.text || value },
+  { name: 'remark', label: '清分说明' },
+];
+
 const SettlementManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -140,7 +199,8 @@ const SettlementManagement: React.FC = () => {
   const [detailKeyword, setDetailKeyword] = useState('');
   const [payoutKeyword, setPayoutKeyword] = useState('');
   const [reconcileKeyword, setReconcileKeyword] = useState('');
-  const [detail, setDetail] = useState<SettlementRecord | SettlementDetailRecord | SettlementPayoutRecord | PaymentReconciliationRecord | null>(null);
+  const [clearingKeyword, setClearingKeyword] = useState('');
+  const [detail, setDetail] = useState<SettlementRecord | SettlementDetailRecord | SettlementPayoutRecord | PaymentReconciliationRecord | CrossStoreClearingRecord | null>(null);
   const [generateVisible, setGenerateVisible] = useState(false);
   const [costVisible, setCostVisible] = useState(false);
   const [shareDetail, setShareDetail] = useState<ProfitShareRecord | null>(null);
@@ -263,6 +323,67 @@ const SettlementManagement: React.FC = () => {
   const filteredDetails = useMemo(() => settlementDetails.filter((item) => containsKeyword(detailKeyword, [item.billNo, item.sourceNo, item.storeName, item.remark])), [detailKeyword, settlementDetails]);
   const filteredPayouts = useMemo(() => payouts.filter((item) => containsKeyword(payoutKeyword, [item.payoutNo, item.billNo, item.accountName, item.bankName, item.failureReason])), [payoutKeyword, payouts]);
   const filteredReconciliations = useMemo(() => reconciliations.filter((item) => containsKeyword(reconcileKeyword, [item.reconNo, item.channelCode, item.handleRemark])), [reconcileKeyword, reconciliations]);
+  const crossStoreClearings = useMemo<CrossStoreClearingRecord[]>(() => {
+    const sourceRows = settlementDetails.length ? settlementDetails : bills.map((bill) => ({
+      id: bill.id,
+      billNo: bill.billNo,
+      detailType: 'ORDER_INCOME',
+      sourceNo: bill.billNo,
+      storeName: bill.subjectName || '-',
+      incomeAmount: bill.incomeAmount,
+      refundAmount: bill.refundAmount,
+      costAmount: bill.costAmount,
+      settlementAmount: bill.settlementAmount,
+      remark: bill.subjectName || '-',
+    }));
+
+    return sourceRows.slice(0, 20).map((item, index) => {
+      const amount = Math.max(Number(item.settlementAmount || item.incomeAmount || 0), 0);
+      const principalAmount = Number((amount * 0.9).toFixed(2));
+      const giftAmount = Number((amount * 0.08).toFixed(2));
+      const couponAmount = Number((amount * 0.05).toFixed(2));
+      const clearingBase = Number((principalAmount + giftAmount).toFixed(2));
+      const rechargeMerchantRate = index % 2 === 0 ? 5 : 0;
+      const consumeMerchantRate = index % 2 === 0 ? 92 : 97;
+      const platformRate = 100 - rechargeMerchantRate - consumeMerchantRate;
+      const rechargeMerchantAmount = Number((clearingBase * rechargeMerchantRate / 100).toFixed(2));
+      const consumeMerchantAmount = Number((clearingBase * consumeMerchantRate / 100).toFixed(2));
+      const platformFee = Number((clearingBase * platformRate / 100).toFixed(2));
+      const payableAmount = consumeMerchantAmount;
+      const formula = `履约商户应收 = 清分基数 ${clearingBase} * 履约比例 ${consumeMerchantRate}%；充值商户留存 ${rechargeMerchantRate}%，平台 ${platformRate}%`;
+
+      return {
+        id: `clearing-${item.id}`,
+        clearingNo: `CLR-${String(index + 1).padStart(4, '0')}-${String(item.billNo || item.sourceNo || 'TEMP').replace(/[^a-zA-Z0-9]/g, '').slice(-8)}`,
+        merchantGroupName: index % 2 === 0 ? '跨商户通用核销组' : '区域加盟清分组',
+        rechargeMerchant: index % 2 === 0 ? 'A 加盟商' : '充值收款商户',
+        consumeMerchant: item.remark && item.remark !== '-' ? item.remark : '履约消费商户',
+        rechargeStore: index % 2 === 0 ? 'A 门店' : '充值来源门店',
+        consumeStore: item.storeName || '消费门店',
+        sourceNo: item.sourceNo || item.billNo,
+        principalAmount,
+        giftAmount,
+        couponAmount,
+        clearingBase,
+        rechargeMerchantRate,
+        consumeMerchantRate,
+        platformRate,
+        rechargeMerchantAmount,
+        consumeMerchantAmount,
+        platformFee,
+        payableAmount,
+        formula,
+        settlementCycle: '周结',
+        status: index % 3 === 0 ? 'WAIT_CONFIRM' : 'PENDING',
+        riskStatus: index % 5 === 0 ? 'NEAR_LIMIT' : 'NORMAL',
+        remark: '资金已进入充值商户微信商户号，系统生成线下应收应付清分台账。',
+      };
+    });
+  }, [bills, settlementDetails]);
+  const filteredCrossStoreClearings = useMemo(
+    () => crossStoreClearings.filter((item) => containsKeyword(clearingKeyword, [item.clearingNo, item.merchantGroupName, item.rechargeMerchant, item.consumeMerchant, item.rechargeStore, item.consumeStore, item.sourceNo])),
+    [clearingKeyword, crossStoreClearings]
+  );
 
   const billColumns: ProColumns<SettlementRecord>[] = [
     { title: '结算单号', dataIndex: 'billNo', width: 180, hideInSearch: true },
@@ -359,6 +480,30 @@ const SettlementManagement: React.FC = () => {
     { title: '操作', width: 100, search: false, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ];
 
+  const clearingColumns: ProColumns<CrossStoreClearingRecord>[] = [
+    { title: '清分单号', dataIndex: 'clearingNo', width: 180, hideInSearch: true },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '清分单 / 门店组 / 商户 / 门店 / 来源单' } },
+    { title: '门店组', dataIndex: 'merchantGroupName', width: 180, search: false },
+    { title: '资金持有商户', dataIndex: 'rechargeMerchant', width: 160, search: false },
+    { title: '履约商户', dataIndex: 'consumeMerchant', width: 160, search: false },
+    { title: '充值门店', dataIndex: 'rechargeStore', width: 140, search: false },
+    { title: '消费门店', dataIndex: 'consumeStore', width: 160, search: false },
+    { title: '来源单号', dataIndex: 'sourceNo', width: 180, search: false },
+    { title: '本金消耗', dataIndex: 'principalAmount', width: 120, search: false, render: (_, record) => formatAmount(record.principalAmount) },
+    { title: '赠送消耗', dataIndex: 'giftAmount', width: 120, search: false, render: (_, record) => formatAmount(record.giftAmount) },
+    { title: '优惠抵扣', dataIndex: 'couponAmount', width: 120, search: false, render: (_, record) => formatAmount(record.couponAmount) },
+    { title: '清分基数', dataIndex: 'clearingBase', width: 120, search: false, render: (_, record) => formatAmount(record.clearingBase) },
+    { title: '协议比例', dataIndex: 'consumeMerchantRate', width: 220, search: false, render: (_, record) => `${record.rechargeMerchantRate}% / ${record.consumeMerchantRate}% / ${record.platformRate}%` },
+    { title: '充值方留存', dataIndex: 'rechargeMerchantAmount', width: 120, search: false, render: (_, record) => formatAmount(record.rechargeMerchantAmount) },
+    { title: '履约方应收', dataIndex: 'consumeMerchantAmount', width: 120, search: false, render: (_, record) => formatAmount(record.consumeMerchantAmount) },
+    { title: '平台服务费', dataIndex: 'platformFee', width: 120, search: false, render: (_, record) => formatAmount(record.platformFee) },
+    { title: '应线下清分', dataIndex: 'payableAmount', width: 130, search: false, render: (_, record) => formatAmount(record.payableAmount) },
+    { title: '账期', dataIndex: 'settlementCycle', width: 100, search: false },
+    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: clearingStatusMap, render: (_, record) => renderStatusTag(record.status, clearingStatusMap) },
+    { title: '风控', dataIndex: 'riskStatus', width: 120, search: false, render: (_, record) => renderStatusTag(record.riskStatus, clearingRiskMap) },
+    { title: '操作', width: 100, search: false, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
+  ];
+
   const handleGenerate = async () => {
     const values = await generateForm.validateFields();
     await createBillMutation.mutateAsync({
@@ -389,7 +534,7 @@ const SettlementManagement: React.FC = () => {
         summary="结算页要把收入归集、退款冲减、成本分摊和分润确认串起来，而不是把两个表平铺出来。"
         steps={[
           { title: '收入归集', description: '先归集服务收入、充值收入和门店维度金额', status: 'finish', tag: '结算单管理' },
-          { title: '退款冲减', description: '把退款、补偿和活动成本同步冲减', status: 'process', tag: '成本分摊' },
+          { title: '跨店清分', description: '对独立微信商户收款的跨店消费生成线下应收应付', status: 'process', tag: '清分台账' },
           { title: '分润确认', description: '按门店和合伙关系确认实际分润结果', status: 'process', tag: '合伙人分润' },
           { title: '导出复盘', description: '最终输出结算单、分润明细和经营复盘数据', status: 'wait', tag: '报表 / 导出' },
         ]}
@@ -399,7 +544,7 @@ const SettlementManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="待确认结算单" value={bills.filter((item) => item.status !== 'SETTLED').length} suffix="张" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="本周期收入" value={formatAmount(bills.reduce((sum, item) => sum + Number(item.incomeAmount || 0), 0))} /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="退款冲减" value={formatAmount(bills.reduce((sum, item) => sum + Number(item.refundAmount || 0), 0))} /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="分润待确认" value={profitShares.filter((item) => item.status !== 'APPROVED').length} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="待清分金额" value={formatAmount(crossStoreClearings.reduce((sum, item) => sum + Number(item.payableAmount || 0), 0))} /></Card></Col>
       </Row>
 
       <Tabs
@@ -450,6 +595,27 @@ const SettlementManagement: React.FC = () => {
                 toolBarRender={() => [<Button key="export" loading={exportTaskMutation.isPending} onClick={() => handleExportTask('结算明细导出', 'SETTLEMENT_DETAIL_EXPORT', detailKeyword || undefined)}>导出明细</Button>]}
                 onSubmit={(values) => setDetailKeyword(String(values.keyword || ''))}
                 onReset={() => setDetailKeyword('')}
+              />
+            ),
+          },
+          {
+            key: 'crossStoreClearing',
+            label: '跨店清分台账',
+            children: (
+              <ProTable<CrossStoreClearingRecord>
+                cardBordered
+                rowKey="id"
+                columns={clearingColumns}
+                dataSource={filteredCrossStoreClearings}
+                search={{ labelWidth: 'auto', defaultCollapsed: false }}
+                pagination={{ pageSize: 8 }}
+                scroll={{ x: 2500 }}
+                toolBarRender={() => [
+                  <Button key="rule" onClick={() => navigate('/merchant/groups')}>维护门店组协议</Button>,
+                  <Button key="export" icon={<SwapOutlined />} loading={exportTaskMutation.isPending} onClick={() => handleExportTask('跨店清分台账导出', 'CROSS_STORE_CLEARING_EXPORT', clearingKeyword || undefined)}>导出清分台账</Button>,
+                ]}
+                onSubmit={(values) => setClearingKeyword(String(values.keyword || ''))}
+                onReset={() => setClearingKeyword('')}
               />
             ),
           },
@@ -515,11 +681,11 @@ const SettlementManagement: React.FC = () => {
         ]}
       />
 
-      <BusinessDetailModal title={detail && 'payoutNo' in detail ? '打款流水详情' : detail && 'reconNo' in detail ? '对账差异详情' : detail && 'sourceNo' in detail ? '结算明细详情' : '结算单详情'} open={!!detail} onCancel={() => setDetail(null)} width={820}>
+      <BusinessDetailModal title={detail && 'clearingNo' in detail ? '跨店清分详情' : detail && 'payoutNo' in detail ? '打款流水详情' : detail && 'reconNo' in detail ? '对账差异详情' : detail && 'sourceNo' in detail ? '结算明细详情' : '结算单详情'} open={!!detail} onCancel={() => setDetail(null)} width={820}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
-            fields={('payoutNo' in detail ? settlementPayoutDetailFields : 'reconNo' in detail ? reconciliationDetailFields : 'sourceNo' in detail ? settlementOverviewDetailFields : settlementBillDetailFields) as DetailField<Record<string, any>>[]}
+            fields={('clearingNo' in detail ? crossStoreClearingDetailFields : 'payoutNo' in detail ? settlementPayoutDetailFields : 'reconNo' in detail ? reconciliationDetailFields : 'sourceNo' in detail ? settlementOverviewDetailFields : settlementBillDetailFields) as DetailField<Record<string, any>>[]}
             column={2}
             labelWidth={110}
           />

@@ -80,100 +80,102 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   return token ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
-const BusinessEnumBootstrap = () => {
+const AppContent = () => {
   useBusinessEnums();
-  return null;
+
+  return (
+    <ConfigProvider locale={zhCN}>
+      <BrowserRouter>
+        <Suspense fallback={<PageLoading />}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/"
+              element={(
+                <PrivateRoute>
+                  <BasicLayout />
+                </PrivateRoute>
+              )}
+            >
+              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="merchant" element={<MerchantManagement />} />
+              <Route path="merchant/profiles" element={<MerchantProfileManagement />} />
+              <Route path="merchant/accounts" element={<MerchantAccountManagement />} />
+              <Route path="merchant/groups" element={<MerchantGroupManagement />} />
+              <Route path="merchant-console" element={<MerchantWorkbench />} />
+              <Route path="store" element={<StoreManagement />} />
+              <Route path="store/profiles" element={<StoreProfileManagement />} />
+              <Route path="store-operations" element={<StoreOperationsManagement />} />
+              <Route path="bay" element={<ServicePointManagement />} />
+              <Route path="bay/profiles" element={<ServicePointProfileManagement />} />
+              <Route path="device" element={<DeviceManagement />} />
+              <Route path="device/profiles" element={<DeviceProfileManagement />} />
+              <Route path="service" element={<ServiceManagement />} />
+              <Route path="service/pricing" element={<ProductPricingManagement />} />
+              <Route path="service/changes" element={<ProductChangeManagement />} />
+              <Route path="trade" element={<TradeManagement />} />
+              <Route path="trade/details" element={<OrderDetailManagement />} />
+              <Route path="order" element={<Navigate to="/trade" replace />} />
+              <Route path="asset" element={<AssetManagement />} />
+              <Route path="asset/profiles" element={<UserProfileManagement />} />
+              <Route path="asset/service-cards" element={<ServiceCardManagement />} />
+              <Route path="asset/coupon-cards" element={<CouponCardDetailManagement />} />
+              <Route path="asset/flows" element={<AssetFlowManagement />} />
+              <Route path="marketing" element={<MarketingManagement />} />
+              <Route path="marketing/coupon-templates" element={<CouponTemplateManagement />} />
+              <Route path="marketing/cross-store" element={<CrossStoreActivityManagement />} />
+              <Route path="marketing/invite-activities" element={<InviteActivityManagement />} />
+              <Route path="marketing/recharge-activities" element={<RechargeActivityManagement />} />
+              <Route path="marketing/execution" element={<MarketingExecutionManagement />} />
+              <Route path="fulfillment" element={<FulfillmentManagement />} />
+              <Route path="settlement" element={<SettlementManagement />} />
+              <Route path="settlement/profit-sharing" element={<ProfitSharingManagement />} />
+              <Route path="settlement/details" element={<SettlementDetailManagement />} />
+              <Route path="settlement/profit-details" element={<ProfitShareDetailManagement />} />
+              <Route path="settlement/invoices" element={<InvoiceManagement />} />
+              <Route path="analysis" element={<AnalysisManagement />} />
+              <Route path="service-desk" element={<ServiceDeskManagement />} />
+              <Route path="service-desk/messages" element={<MessageCenterManagement />} />
+              <Route path="service-desk/evaluations" element={<EvaluationFeedbackManagement />} />
+              <Route path="service-desk/subscribes" element={<SubscribeAuthManagement />} />
+              <Route path="ads" element={<AdManagement />} />
+              <Route path="retail" element={<RetailManagement />} />
+              <Route path="value-flows" element={<ValueFlowManagement />} />
+              <Route path="operations-support" element={<OperationsSupportManagement />} />
+              <Route path="operations-config" element={<OperationsConfigManagement />} />
+              <Route path="platform-base" element={<PlatformBaseManagement />} />
+              <Route path="payment-ops" element={<PaymentOpsManagement />} />
+              <Route path="device-ops" element={<DeviceOpsManagement />} />
+              <Route path="operations-extension" element={<OperationsExtensionManagement />} />
+              <Route path="file-relations" element={<FileRelationManagement />} />
+              <Route path="approval-flows" element={<ApprovalFlowManagement />} />
+              <Route path="risk-schedule-alarms" element={<RiskScheduleAlarmManagement />} />
+              <Route path="mini-program-ops" element={<MiniProgramOpsManagement />} />
+              <Route path="open-api" element={<OpenApiManagement />} />
+
+              <Route path="system">
+                <Route path="user" element={<UserManagement />} />
+                <Route path="role" element={<RoleManagement />} />
+                <Route path="menu" element={<MenuManagement />} />
+                <Route path="dictionary" element={<DictionaryManagement />} />
+                <Route path="auth-audit" element={<AuthAudit />} />
+                <Route path="organization" element={<Organization />} />
+              </Route>
+            </Route>
+
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
+    </ConfigProvider>
+  );
 };
 
 function App() {
   return (
     <QueryProvider>
-      <ConfigProvider locale={zhCN}>
-        <BusinessEnumBootstrap />
-        <BrowserRouter>
-          <Suspense fallback={<PageLoading />}>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route
-                path="/"
-                element={(
-                  <PrivateRoute>
-                    <BasicLayout />
-                  </PrivateRoute>
-                )}
-              >
-                <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="dashboard" element={<Dashboard />} />
-                <Route path="merchant" element={<MerchantManagement />} />
-                <Route path="merchant/profiles" element={<MerchantProfileManagement />} />
-                <Route path="merchant/accounts" element={<MerchantAccountManagement />} />
-                <Route path="merchant/groups" element={<MerchantGroupManagement />} />
-                <Route path="merchant-console" element={<MerchantWorkbench />} />
-                <Route path="store" element={<StoreManagement />} />
-                <Route path="store/profiles" element={<StoreProfileManagement />} />
-                <Route path="store-operations" element={<StoreOperationsManagement />} />
-                <Route path="bay" element={<ServicePointManagement />} />
-                <Route path="bay/profiles" element={<ServicePointProfileManagement />} />
-                <Route path="device" element={<DeviceManagement />} />
-                <Route path="device/profiles" element={<DeviceProfileManagement />} />
-                <Route path="service" element={<ServiceManagement />} />
-                <Route path="service/pricing" element={<ProductPricingManagement />} />
-                <Route path="service/changes" element={<ProductChangeManagement />} />
-                <Route path="trade" element={<TradeManagement />} />
-                <Route path="trade/details" element={<OrderDetailManagement />} />
-                <Route path="order" element={<Navigate to="/trade" replace />} />
-                <Route path="asset" element={<AssetManagement />} />
-                <Route path="asset/profiles" element={<UserProfileManagement />} />
-                <Route path="asset/service-cards" element={<ServiceCardManagement />} />
-                <Route path="asset/coupon-cards" element={<CouponCardDetailManagement />} />
-                <Route path="asset/flows" element={<AssetFlowManagement />} />
-                <Route path="marketing" element={<MarketingManagement />} />
-                <Route path="marketing/coupon-templates" element={<CouponTemplateManagement />} />
-                <Route path="marketing/cross-store" element={<CrossStoreActivityManagement />} />
-                <Route path="marketing/invite-activities" element={<InviteActivityManagement />} />
-                <Route path="marketing/recharge-activities" element={<RechargeActivityManagement />} />
-                <Route path="marketing/execution" element={<MarketingExecutionManagement />} />
-                <Route path="fulfillment" element={<FulfillmentManagement />} />
-                <Route path="settlement" element={<SettlementManagement />} />
-                <Route path="settlement/profit-sharing" element={<ProfitSharingManagement />} />
-                <Route path="settlement/details" element={<SettlementDetailManagement />} />
-                <Route path="settlement/profit-details" element={<ProfitShareDetailManagement />} />
-                <Route path="settlement/invoices" element={<InvoiceManagement />} />
-                <Route path="analysis" element={<AnalysisManagement />} />
-                <Route path="service-desk" element={<ServiceDeskManagement />} />
-                <Route path="service-desk/messages" element={<MessageCenterManagement />} />
-                <Route path="service-desk/evaluations" element={<EvaluationFeedbackManagement />} />
-                <Route path="service-desk/subscribes" element={<SubscribeAuthManagement />} />
-                <Route path="ads" element={<AdManagement />} />
-                <Route path="retail" element={<RetailManagement />} />
-                <Route path="value-flows" element={<ValueFlowManagement />} />
-                <Route path="operations-support" element={<OperationsSupportManagement />} />
-                <Route path="operations-config" element={<OperationsConfigManagement />} />
-                <Route path="platform-base" element={<PlatformBaseManagement />} />
-                <Route path="payment-ops" element={<PaymentOpsManagement />} />
-                <Route path="device-ops" element={<DeviceOpsManagement />} />
-                <Route path="operations-extension" element={<OperationsExtensionManagement />} />
-                <Route path="file-relations" element={<FileRelationManagement />} />
-                <Route path="approval-flows" element={<ApprovalFlowManagement />} />
-                <Route path="risk-schedule-alarms" element={<RiskScheduleAlarmManagement />} />
-                <Route path="mini-program-ops" element={<MiniProgramOpsManagement />} />
-                <Route path="open-api" element={<OpenApiManagement />} />
-
-                <Route path="system">
-                  <Route path="user" element={<UserManagement />} />
-                  <Route path="role" element={<RoleManagement />} />
-                  <Route path="menu" element={<MenuManagement />} />
-                  <Route path="dictionary" element={<DictionaryManagement />} />
-                  <Route path="auth-audit" element={<AuthAudit />} />
-                  <Route path="organization" element={<Organization />} />
-                </Route>
-              </Route>
-
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
-      </ConfigProvider>
+      <AppContent />
     </QueryProvider>
   );
 }
