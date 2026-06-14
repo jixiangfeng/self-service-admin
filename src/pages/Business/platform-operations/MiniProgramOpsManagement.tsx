@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Col, DatePicker, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
 import { FileTextOutlined, MobileOutlined, PictureOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
@@ -21,9 +21,22 @@ type DetailRecord = MiniProgramPageConfigRecord | BannerConfigRecord | Agreement
 
 const pageCodeOptions = [
   { value: 'HOME', label: '首页' },
-  { value: 'STORE', label: '门店页' },
-  { value: 'ACTIVITY', label: '活动页' },
-  { value: 'MINE', label: '我的页' },
+  { value: 'STORE_LIST', label: '门店列表' },
+  { value: 'PROFILE', label: '我的页' },
+  { value: 'COUPON_LIST', label: '优惠券列表' },
+  { value: 'ACTIVITY_GIFT', label: '优惠活动' },
+  { value: 'RECHARGE_SUCCESS', label: '充值成功页' },
+  { value: 'STORE_DETAIL', label: '门店详情' },
+];
+
+const slotCodeOptions = [
+  { value: 'HOME_TOP_CAROUSEL', label: '首页顶部轮播' },
+  { value: 'HOME_COUPON_BANNER', label: '首页优惠券横幅' },
+  { value: 'STORE_LIST_TOP_BANNER', label: '门店列表顶部图' },
+  { value: 'PROFILE_RECHARGE_BANNER', label: '我的页充值图' },
+  { value: 'COUPON_LIST_INVITE_BANNER', label: '优惠券邀请图' },
+  { value: 'ACTIVITY_GIFT_HERO_BANNER', label: '活动页头图' },
+  { value: 'RECHARGE_SUCCESS_BANNER', label: '充值成功图' },
 ];
 
 const moduleCodeOptions = [
@@ -36,10 +49,15 @@ const moduleCodeOptions = [
 ];
 
 const jumpTypeOptions = [
+  { value: 'NONE', label: '不跳转' },
   { value: 'PAGE', label: '小程序页面' },
-  { value: 'H5', label: 'H5 链接' },
-  { value: 'ACTIVITY', label: '活动' },
+  { value: 'WEBVIEW', label: 'H5 链接' },
   { value: 'STORE', label: '门店' },
+  { value: 'COUPON', label: '优惠券' },
+  { value: 'GROUPON', label: '团购核销' },
+  { value: 'RECHARGE', label: '充值中心' },
+  { value: 'PRODUCT', label: '商品/套餐' },
+  { value: 'PHONE', label: '拨打电话' },
 ];
 
 const agreementTypeOptions = [
@@ -52,6 +70,7 @@ const agreementTypeOptions = [
 const statusMap = buildValueEnum(statusOptions);
 const pageMap = buildValueEnum(pageCodeOptions);
 const moduleMap = buildValueEnum(moduleCodeOptions);
+const slotMap = buildValueEnum(slotCodeOptions);
 const jumpTypeMap = buildValueEnum(jumpTypeOptions);
 const agreementTypeMap = buildValueEnum(agreementTypeOptions);
 const displayModeOptions = [
@@ -69,7 +88,7 @@ const parseAgreementContent = (value?: string) => {
   return value || '-';
 };
 
-const miniOpsDetailFields: Record<'page' | 'banner' | 'agreement', DetailField<any>[]> = {
+const miniOpsDetailFields: Record<'page' | 'banner' | 'agreement', DetailField<Record<string, unknown>>[]> = {
   page: [
     { name: 'pageCode', label: '页面' },
     { name: 'moduleCode', label: '模块' },
@@ -83,11 +102,16 @@ const miniOpsDetailFields: Record<'page' | 'banner' | 'agreement', DetailField<a
   banner: [
     { name: 'bannerName', label: 'Banner 名称' },
     { name: 'pageCode', label: '页面' },
+    { name: 'slotCode', label: '运营位', render: (value) => optionLabel(slotCodeOptions, value) || value || '-' },
+    { name: 'title', label: '展示标题' },
+    { name: 'subtitle', label: '展示副标题' },
+    { name: 'imageUrl', label: '图片URL' },
     { name: 'imageFileAssetId', label: '图片文件ID' },
-    { name: 'jumpType', label: '跳转类型' },
+    { name: 'jumpType', label: '跳转类型', render: (value) => optionLabel(jumpTypeOptions, value) || value || '-' },
     { name: 'jumpValue', label: '跳转值' },
     { name: 'sortNo', label: '排序' },
     { name: 'status', label: '状态' },
+    { name: 'extraJson', label: '扩展配置' },
     { name: 'startAt', label: '开始时间', render: (value) => formatDateTime(value) },
     { name: 'endAt', label: '结束时间', render: (value) => formatDateTime(value) },
   ],
@@ -128,7 +152,7 @@ const MiniProgramOpsManagement: React.FC = () => {
   const openModal = (title: string) => {
     setModalTitle(title);
     form.resetFields();
-    form.setFieldsValue({ pageCode: 'HOME', moduleCode: 'BANNER', jumpType: 'PAGE', agreementType: 'SERVICE', displayMode: 'SHOW', sortNo: 1, status: 1 });
+    form.setFieldsValue({ pageCode: 'HOME', slotCode: 'HOME_TOP_CAROUSEL', moduleCode: 'BANNER', jumpType: 'NONE', agreementType: 'SERVICE', displayMode: 'SHOW', sortNo: 1, status: 1 });
     setModalVisible(true);
   };
 
@@ -151,11 +175,18 @@ const MiniProgramOpsManagement: React.FC = () => {
       await api.miniProgramOps.banners.add({
         bannerName: values.name,
         pageCode: values.pageCode || 'HOME',
+        slotCode: values.slotCode,
+        title: values.title,
+        subtitle: values.subtitle,
         imageFileAssetId: values.imageFileAssetId,
-        jumpType: values.jumpType || 'PAGE',
+        imageUrl: values.imageUrl,
+        jumpType: values.jumpType || 'NONE',
         jumpValue: values.jumpValue,
+        startAt: values.startAt ? values.startAt.format('YYYY-MM-DD HH:mm:ss') : undefined,
+        endAt: values.endAt ? values.endAt.format('YYYY-MM-DD HH:mm:ss') : undefined,
         sortNo: Number(values.sortNo ?? 0),
         status: values.status,
+        extraJson: values.extraJson,
       });
       await queryClient.invalidateQueries({ queryKey: ['banner-configs'] });
     } else if (modalTitle === '新建协议版本') {
@@ -190,7 +221,10 @@ const MiniProgramOpsManagement: React.FC = () => {
   const bannerColumns = useMemo<ProColumns<BannerConfigRecord>[]>(() => [
     { title: 'Banner 名称', dataIndex: 'bannerName', width: 180, fixed: 'left' },
     { title: '页面', dataIndex: 'pageCode', width: 120, render: (_, record) => renderStatusTag(record.pageCode, pageMap) },
-    { title: '图片文件ID', dataIndex: 'imageFileAssetId', width: 160 },
+    { title: '运营位', dataIndex: 'slotCode', width: 180, render: (_, record) => renderStatusTag(record.slotCode, slotMap) },
+    { title: '展示标题', dataIndex: 'title', width: 160, ellipsis: true },
+    { title: '图片URL', dataIndex: 'imageUrl', width: 220, ellipsis: true },
+    { title: '图片文件ID', dataIndex: 'imageFileAssetId', width: 160, ellipsis: true },
     { title: '跳转类型', dataIndex: 'jumpType', width: 120, render: (_, record) => renderStatusTag(record.jumpType, jumpTypeMap) },
     { title: '跳转值', dataIndex: 'jumpValue', width: 220 },
     { title: '开始时间', dataIndex: 'startAt', width: 180, render: (_, record) => formatDateTime(record.startAt) },
@@ -230,7 +264,7 @@ const MiniProgramOpsManagement: React.FC = () => {
       <Tabs
         items={[
           { key: 'page', label: '页面模块', children: <ProTable<MiniProgramPageConfigRecord> cardBordered rowKey="id" columns={pageColumns} dataSource={pageConfigs} loading={pageConfigsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1300 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建页面模块')}>新建模块</Button>]} /> },
-          { key: 'banner', label: 'Banner 配置', children: <ProTable<BannerConfigRecord> cardBordered rowKey="id" columns={bannerColumns} dataSource={banners} loading={bannersQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1500 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建 Banner')}>新建 Banner</Button>]} /> },
+          { key: 'banner', label: 'Banner 配置', children: <ProTable<BannerConfigRecord> cardBordered rowKey="id" columns={bannerColumns} dataSource={banners} loading={bannersQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1900 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建 Banner')}>新建 Banner</Button>]} /> },
           { key: 'agreement', label: '协议内容', children: <ProTable<AgreementContentRecord> cardBordered rowKey="id" columns={agreementColumns} dataSource={agreements} loading={agreementsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1200 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建协议版本')}>新建协议</Button>]} /> },
         ]}
       />
@@ -238,8 +272,8 @@ const MiniProgramOpsManagement: React.FC = () => {
       <BusinessDetailModal title="小程序运营配置详情" open={!!detail} onCancel={() => setDetail(null)} width={820}>
         {detail && (
           <SchemaDetail
-            record={detail as Record<string, any>}
-            fields={('moduleCode' in detail ? miniOpsDetailFields.page : 'bannerName' in detail ? miniOpsDetailFields.banner : miniOpsDetailFields.agreement) as DetailField<Record<string, any>>[]}
+            record={detail as unknown as Record<string, unknown>}
+            fields={('moduleCode' in detail ? miniOpsDetailFields.page : 'bannerName' in detail ? miniOpsDetailFields.banner : miniOpsDetailFields.agreement) as DetailField<Record<string, unknown>>[]}
             column={2}
             labelWidth={110}
           />
@@ -279,9 +313,23 @@ const MiniProgramOpsManagement: React.FC = () => {
             {modalTitle === '新建 Banner' ? (
               <BusinessEditorSection icon={<PictureOutlined />} title="Banner 投放" desc="配置图片文件、跳转类型和跳转值。">
                 <div className="merchant-editor-fields">
-                  <Form.Item name="imageFileAssetId" label="Banner 图片"><OssImageUpload returnField="assetId" prefix="mini-program/banners" placeholder="上传 Banner 图片" /></Form.Item>
+                  <Form.Item name="slotCode" label="运营位" rules={[{ required: true, message: '请选择运营位' }]}><Select showSearch options={slotCodeOptions} placeholder="请选择运营位" /></Form.Item>
+                  <Form.Item name="title" label="展示标题"><Input placeholder="例如：自助洗车限时活动" /></Form.Item>
+                  <Form.Item name="subtitle" label="展示副标题"><Input placeholder="例如：扫码即洗，快速便捷" /></Form.Item>
+                  <Form.Item name="imageFileAssetId" label="Banner 图片">
+                    <OssImageUpload
+                      returnField="assetId"
+                      prefix="mini-program/banners"
+                      placeholder="上传 Banner 图片"
+                      onUploaded={(asset) => form.setFieldsValue({ imageFileAssetId: asset.fileAssetId, imageUrl: asset.fileUrl })}
+                    />
+                  </Form.Item>
+                  <Form.Item name="imageUrl" label="图片URL"><Input placeholder="上传图片后自动填入，也可手动填写远程 URL" /></Form.Item>
                   <Form.Item name="jumpType" label="跳转类型"><Select options={jumpTypeOptions} placeholder="请选择跳转类型" /></Form.Item>
-                  <Form.Item className="merchant-editor-field-span-all" name="jumpValue" label="跳转值"><Input placeholder="例如：/pages/activity/detail?id=1" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="jumpValue" label="跳转值"><Input placeholder="PAGE: /pages/recharge-center/index；STORE: storeId；PHONE: 手机号" /></Form.Item>
+                  <Form.Item name="startAt" label="开始时间"><DatePicker showTime style={{ width: '100%' }} /></Form.Item>
+                  <Form.Item name="endAt" label="结束时间"><DatePicker showTime style={{ width: '100%' }} /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="extraJson" label="扩展配置 JSON"><Input.TextArea rows={3} placeholder='例如：{"trackCode":"home_banner"}' /></Form.Item>
                 </div>
               </BusinessEditorSection>
             ) : null}

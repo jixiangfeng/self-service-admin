@@ -2,11 +2,12 @@ import React from 'react';
 import { Button, Image, Space, Tag, Upload, message } from 'antd';
 import type { UploadProps } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
-import api from '@/services/backendService';
+import api, { type FileAssetRecord } from '@/services/backendService';
 
 export interface OssImageUploadProps {
   value?: string;
   onChange?: (value?: string) => void;
+  onUploaded?: (asset: FileAssetRecord) => void;
   multiple?: boolean;
   prefix?: string;
   placeholder?: string;
@@ -23,6 +24,7 @@ const isImageUrl = (value: string) => /^https?:\/\//.test(value) && /\.(png|jpe?
 const OssImageUpload: React.FC<OssImageUploadProps> = ({
   value,
   onChange,
+  onUploaded,
   multiple = false,
   prefix = 'images',
   placeholder = '上传图片',
@@ -60,6 +62,7 @@ const OssImageUpload: React.FC<OssImageUploadProps> = ({
           return Upload.LIST_IGNORE;
         }
         onChange?.(multiple ? joinValues([...values, uploadedValue]) : uploadedValue);
+        onUploaded?.(result.data);
         message.success('上传成功');
       } catch {
         // request 拦截器已提示错误

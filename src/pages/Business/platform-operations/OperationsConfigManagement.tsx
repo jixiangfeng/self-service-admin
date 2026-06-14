@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Col, DatePicker, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
 import { ApiOutlined, PictureOutlined, SettingOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -29,19 +29,68 @@ const statusMap = buildValueEnum(statusOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
 const pageCodeOptions = [
   { value: 'HOME', label: '首页' },
+  { value: 'STORE_LIST', label: '门店列表' },
+  { value: 'PROFILE', label: '我的页' },
+  { value: 'COUPON_LIST', label: '优惠券列表' },
+  { value: 'ACTIVITY_GIFT', label: '优惠活动' },
+  { value: 'RECHARGE_SUCCESS', label: '充值成功页' },
   { value: 'STORE_DETAIL', label: '门店详情' },
-  { value: 'ORDER_LIST', label: '订单列表' },
-  { value: 'MINE', label: '我的页面' },
+];
+
+const slotCodeOptions = [
+  { value: 'HOME_TOP_CAROUSEL', label: '首页顶部轮播' },
+  { value: 'HOME_COUPON_BANNER', label: '首页优惠券横幅' },
+  { value: 'STORE_LIST_TOP_BANNER', label: '门店列表顶部图' },
+  { value: 'PROFILE_RECHARGE_BANNER', label: '我的页充值图' },
+  { value: 'COUPON_LIST_INVITE_BANNER', label: '优惠券邀请图' },
+  { value: 'ACTIVITY_GIFT_HERO_BANNER', label: '活动页头图' },
+  { value: 'RECHARGE_SUCCESS_BANNER', label: '充值成功图' },
+];
+
+const bannerJumpTypeOptions = [
+  { value: 'NONE', label: '不跳转' },
+  { value: 'PAGE', label: '小程序页面' },
+  { value: 'WEBVIEW', label: 'H5 链接' },
+  { value: 'STORE', label: '门店' },
+  { value: 'COUPON', label: '优惠券' },
+  { value: 'GROUPON', label: '团购核销' },
+  { value: 'RECHARGE', label: '充值中心' },
+  { value: 'PRODUCT', label: '商品/套餐' },
+  { value: 'PHONE', label: '拨打电话' },
 ];
 const moduleDisplayOptions = [
   { value: 'SHOW', label: '展示' },
   { value: 'HIDE', label: '隐藏' },
 ];
+const slotMap = buildValueEnum(slotCodeOptions);
+const bannerJumpTypeMap = buildValueEnum(bannerJumpTypeOptions);
 const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
+type DatePickerValue = { format: (template: string) => string };
+type OperationsConfigFormValues = {
+  name: string;
+  status?: string | number;
+  moduleCode?: string;
+  pageCode?: string;
+  slotCode?: string;
+  title?: string;
+  subtitle?: string;
+  displayMode?: string;
+  sortNo?: number;
+  jumpType?: string;
+  jumpValue?: string;
+  imageFileAssetId?: string;
+  imageUrl?: string;
+  startAt?: DatePickerValue;
+  endAt?: DatePickerValue;
+  extraJson?: string;
+  callbackUrl?: string;
+  clientCode?: string;
+  appKey?: string;
+};
 const parseMiniConfig = (configJson?: string) =>
   safeJsonParse<{ displayMode?: string; jumpValue?: string }>(configJson, {});
 
-const opsConfigDetailFields: Record<'mini' | 'banner' | 'evaluation' | 'invoice' | 'openapi', DetailField<any>[]> = {
+const opsConfigDetailFields: Record<'mini' | 'banner' | 'evaluation' | 'invoice' | 'openapi', DetailField<Record<string, unknown>>[]> = {
   mini: [
     { name: 'moduleCode', label: '模块编码' },
     { name: 'moduleName', label: '模块名称' },
@@ -52,12 +101,18 @@ const opsConfigDetailFields: Record<'mini' | 'banner' | 'evaluation' | 'invoice'
     { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
   ],
   banner: [
-    { name: 'bannerName', label: '标题' },
+    { name: 'bannerName', label: '后台名称' },
     { name: 'pageCode', label: '页面' },
+    { name: 'slotCode', label: '运营位', render: (value) => optionLabel(slotCodeOptions, value) || value || '-' },
+    { name: 'title', label: '展示标题' },
+    { name: 'subtitle', label: '展示副标题' },
+    { name: 'imageUrl', label: '图片URL' },
     { name: 'imageFileAssetId', label: '图片文件ID' },
-    { name: 'jumpValue', label: '跳转' },
+    { name: 'jumpType', label: '跳转类型', render: (value) => optionLabel(bannerJumpTypeOptions, value) || value || '-' },
+    { name: 'jumpValue', label: '跳转值' },
     { name: 'sortNo', label: '排序' },
     { name: 'status', label: '状态' },
+    { name: 'extraJson', label: '扩展配置' },
     { name: 'startAt', label: '开始时间', render: (value) => formatDateTime(value) },
     { name: 'endAt', label: '结束时间', render: (value) => formatDateTime(value) },
   ],
@@ -96,7 +151,7 @@ const OperationsConfigManagement: React.FC = () => {
   const [detail, setDetail] = useState<MiniProgramPageConfigRecord | BannerConfigRecord | ServiceEvaluationRecord | InvoiceApplyRecord | OpenApiClientRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
-  const [form] = Form.useForm<{ name: string; status: string | number; moduleCode?: string; pageCode?: string; displayMode?: string; sortNo?: number; jumpValue?: string; imageFileAssetId?: string; callbackUrl?: string; clientCode?: string; appKey?: string }>();
+  const [form] = Form.useForm<OperationsConfigFormValues>();
 
   const queryParams = useMemo(() => ({ keyword, current: 1, size: 50 }), [keyword]);
   const miniQuery = useQuery({ queryKey: ['ops-config-mini', queryParams], queryFn: () => api.miniProgramOps.pageConfigs.page(queryParams) });
@@ -121,7 +176,7 @@ const OperationsConfigManagement: React.FC = () => {
   const openModal = (title: string) => {
     setModalTitle(title);
     form.resetFields();
-    form.setFieldsValue({ status: 1, pageCode: 'HOME', displayMode: 'SHOW', sortNo: 1 });
+    form.setFieldsValue({ status: 1, pageCode: 'HOME', slotCode: 'HOME_TOP_CAROUSEL', jumpType: 'NONE', displayMode: 'SHOW', sortNo: 1 });
     setModalVisible(true);
   };
 
@@ -137,10 +192,14 @@ const OperationsConfigManagement: React.FC = () => {
   ], []);
 
   const bannerColumns = useMemo<ProColumns<BannerConfigRecord>[]>(() => [
-    { title: '标题', dataIndex: 'bannerName', width: 160 },
+    { title: '后台名称', dataIndex: 'bannerName', width: 160 },
     { title: '页面', dataIndex: 'pageCode', width: 120 },
-    { title: '图片文件ID', dataIndex: 'imageFileAssetId', width: 180 },
-    { title: '跳转', dataIndex: 'jumpValue', width: 220 },
+    { title: '运营位', dataIndex: 'slotCode', width: 180, render: (_, record) => renderStatusTag(record.slotCode, slotMap) },
+    { title: '展示标题', dataIndex: 'title', width: 160, ellipsis: true },
+    { title: '图片URL', dataIndex: 'imageUrl', width: 220, ellipsis: true },
+    { title: '图片文件ID', dataIndex: 'imageFileAssetId', width: 180, ellipsis: true },
+    { title: '跳转类型', dataIndex: 'jumpType', width: 120, render: (_, record) => renderStatusTag(record.jumpType, bannerJumpTypeMap) },
+    { title: '跳转值', dataIndex: 'jumpValue', width: 220, ellipsis: true },
     { title: '排序', dataIndex: 'sortNo', width: 90 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, statusMap) },
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
@@ -198,8 +257,8 @@ const OperationsConfigManagement: React.FC = () => {
 
       <Tabs
         items={[
-          { key: 'mini', label: '小程序配置', children: <ProTable<MiniProgramPageConfigRecord> cardBordered rowKey="id" columns={miniColumns} dataSource={miniConfigs} loading={miniQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建小程序配置')}>新建配置</Button>]} /> },
-          { key: 'banner', label: 'Banner 配置', children: <ProTable<BannerConfigRecord> cardBordered rowKey="id" columns={bannerColumns} dataSource={banners} loading={bannerQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建 Banner')}>新建 Banner</Button>]} /> },
+          { key: 'mini', label: '小程序配置', children: <ProTable<MiniProgramPageConfigRecord> cardBordered rowKey="id" columns={miniColumns} dataSource={miniConfigs} loading={miniQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1900 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建小程序配置')}>新建配置</Button>]} /> },
+          { key: 'banner', label: 'Banner 配置', children: <ProTable<BannerConfigRecord> cardBordered rowKey="id" columns={bannerColumns} dataSource={banners} loading={bannerQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1900 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建 Banner')}>新建 Banner</Button>]} /> },
           { key: 'evaluation', label: '评价反馈', children: <ProTable<ServiceEvaluationRecord> cardBordered rowKey="id" columns={evaluationColumns} dataSource={evaluations} loading={evaluationQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1480 }} toolBarRender={() => [<Button key="handle" type="primary" onClick={() => navigate('/service-desk/evaluations')}>处理反馈</Button>]} /> },
           { key: 'invoice', label: '发票管理', children: <ProTable<InvoiceApplyRecord> cardBordered rowKey="id" columns={invoiceColumns} dataSource={invoices} loading={invoiceQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1380 }} toolBarRender={() => [<Button key="audit" type="primary" onClick={() => navigate('/settlement/invoices')}>审核开票</Button>]} /> },
           { key: 'openapi', label: '开放接口', children: <ProTable<OpenApiClientRecord> cardBordered rowKey="id" columns={apiColumns} dataSource={openApis} loading={openApiQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1360 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建开放接口')}>新建接口</Button>]} /> },
@@ -209,8 +268,8 @@ const OperationsConfigManagement: React.FC = () => {
       <BusinessDetailModal title="运营配置详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
           <SchemaDetail
-            record={detail as Record<string, any>}
-            fields={('moduleCode' in detail ? opsConfigDetailFields.mini : 'bannerName' in detail ? opsConfigDetailFields.banner : 'serviceOrderNo' in detail ? opsConfigDetailFields.evaluation : 'applyNo' in detail ? opsConfigDetailFields.invoice : opsConfigDetailFields.openapi) as DetailField<Record<string, any>>[]}
+            record={detail as unknown as Record<string, unknown>}
+            fields={('moduleCode' in detail ? opsConfigDetailFields.mini : 'bannerName' in detail ? opsConfigDetailFields.banner : 'serviceOrderNo' in detail ? opsConfigDetailFields.evaluation : 'applyNo' in detail ? opsConfigDetailFields.invoice : opsConfigDetailFields.openapi) as DetailField<Record<string, unknown>>[]}
             column={2}
             labelWidth={110}
           />
@@ -240,7 +299,22 @@ const OperationsConfigManagement: React.FC = () => {
             });
             await queryClient.invalidateQueries({ queryKey: ['ops-config-mini'] });
           } else if (modalTitle === '新建 Banner') {
-            await api.miniProgramOps.banners.add({ bannerName: values.name, pageCode: values.pageCode || 'HOME', imageFileAssetId: values.imageFileAssetId, jumpValue: values.jumpValue, sortNo: values.sortNo, status: values.status ?? 1 });
+            await api.miniProgramOps.banners.add({
+              bannerName: values.name,
+              pageCode: values.pageCode || 'HOME',
+              slotCode: values.slotCode,
+              title: values.title,
+              subtitle: values.subtitle,
+              imageFileAssetId: values.imageFileAssetId,
+              imageUrl: values.imageUrl,
+              jumpType: values.jumpType || 'NONE',
+              jumpValue: values.jumpValue,
+              startAt: values.startAt ? values.startAt.format('YYYY-MM-DD HH:mm:ss') : undefined,
+              endAt: values.endAt ? values.endAt.format('YYYY-MM-DD HH:mm:ss') : undefined,
+              sortNo: values.sortNo,
+              status: values.status ?? 1,
+              extraJson: values.extraJson,
+            });
             await queryClient.invalidateQueries({ queryKey: ['ops-config-banner'] });
           } else if (modalTitle === '新建开放接口') {
             await api.openApi.clients.add({ clientName: values.name, clientCode: values.clientCode || values.name, appKey: values.appKey || values.name, callbackUrl: values.callbackUrl, status: values.status ?? 1 });
@@ -274,9 +348,24 @@ const OperationsConfigManagement: React.FC = () => {
             {modalTitle === '新建 Banner' ? (
               <BusinessEditorSection icon={<PictureOutlined />} title="Banner 配置" desc="配置图片文件、跳转地址和排序。">
                 <div className="merchant-editor-fields">
-                  <Form.Item name="imageFileAssetId" label="Banner 图片"><OssImageUpload returnField="assetId" prefix="mini-program/banners" placeholder="上传 Banner 图片" /></Form.Item>
-                  <Form.Item name="jumpValue" label="跳转目标"><Input placeholder="例如：/pages/activity/detail?id=1" /></Form.Item>
+                  <Form.Item name="slotCode" label="运营位" rules={[{ required: true, message: '请选择运营位' }]}><Select showSearch options={slotCodeOptions} placeholder="请选择运营位" /></Form.Item>
+                  <Form.Item name="title" label="展示标题"><Input placeholder="例如：自助洗车限时活动" /></Form.Item>
+                  <Form.Item name="subtitle" label="展示副标题"><Input placeholder="例如：扫码即洗，快速便捷" /></Form.Item>
+                  <Form.Item name="imageFileAssetId" label="Banner 图片">
+                    <OssImageUpload
+                      returnField="assetId"
+                      prefix="mini-program/banners"
+                      placeholder="上传 Banner 图片"
+                      onUploaded={(asset) => form.setFieldsValue({ imageFileAssetId: asset.fileAssetId, imageUrl: asset.fileUrl })}
+                    />
+                  </Form.Item>
+                  <Form.Item name="imageUrl" label="图片URL"><Input placeholder="上传图片后自动填入，也可手动填写远程 URL" /></Form.Item>
+                  <Form.Item name="jumpType" label="跳转类型"><Select options={bannerJumpTypeOptions} placeholder="请选择跳转类型" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="jumpValue" label="跳转值"><Input placeholder="PAGE: /pages/recharge-center/index；STORE: storeId；PHONE: 手机号" /></Form.Item>
+                  <Form.Item name="startAt" label="开始时间"><DatePicker showTime style={{ width: '100%' }} /></Form.Item>
+                  <Form.Item name="endAt" label="结束时间"><DatePicker showTime style={{ width: '100%' }} /></Form.Item>
                   <Form.Item name="sortNo" label="排序"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="1" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="extraJson" label="扩展配置 JSON"><Input.TextArea rows={3} placeholder='例如：{"trackCode":"home_banner"}' /></Form.Item>
                 </div>
               </BusinessEditorSection>
             ) : null}

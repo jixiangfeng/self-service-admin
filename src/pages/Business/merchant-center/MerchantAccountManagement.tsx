@@ -56,8 +56,14 @@ const MerchantAccountManagement: React.FC = () => {
   const [form] = Form.useForm<MerchantAccountRecord>();
   const [grantForm] = Form.useForm<UserRoleRelationRecord & { auditStatus?: string; remark?: string }>();
   const [searchForm] = Form.useForm<{ keyword?: string }>();
+  const merchantId = Form.useWatch('merchantId', form);
+  const dataScopeType = Form.useWatch('dataScopeType', form);
   const { data: merchantOptions } = useQuery({ queryKey: ['merchantOptionsForAccounts'], queryFn: async () => (await api.merchant.options()).data });
-  const { data: storeOptions } = useQuery({ queryKey: ['storeOptionsForAccounts'], queryFn: async () => (await api.store.options()).data });
+  const { data: storeOptions } = useQuery({
+    queryKey: ['storeOptionsForAccounts', merchantId],
+    queryFn: async () => (await api.store.options(merchantId)).data,
+    enabled: Boolean(merchantId),
+  });
   const { data: roleOptions = [] } = useRoleOptions();
   const merchantOptionMap = useMemo(() => new Map((merchantOptions as SelectOptionRecord[] | undefined || []).map((item) => [item.value, item.label])), [merchantOptions]);
   const storeOptionMap = useMemo(() => new Map((storeOptions as SelectOptionRecord[] | undefined || []).map((item) => [item.value, item.label])), [storeOptions]);
@@ -299,19 +305,30 @@ const MerchantAccountManagement: React.FC = () => {
                     options={merchantOptions as SelectOptionRecord[]}
                     allowClear
                     placeholder="请选择商户"
-                    onChange={(value) => form.setFieldValue('merchantName', merchantOptionMap.get(value))}
+                    onChange={(value) => {
+                      form.setFieldsValue({
+                        merchantName: merchantOptionMap.get(value),
+                        storeId: undefined,
+                        storeName: undefined,
+                      });
+                    }}
                   />
                 </Form.Item>
                 <Form.Item name="merchantName" label="商户名称" rules={[{ required: true, message: '请选择商户' }]}>
                   <Input disabled placeholder="选择商户后自动带出" />
                 </Form.Item>
-                <Form.Item name="storeId" label="门店">
+                <Form.Item
+                  name="storeId"
+                  label="门店"
+                  rules={dataScopeType === 'STORE' ? [{ required: true, message: '门店范围账号必须选择门店' }] : undefined}
+                >
                   <Select
                     showSearch
                     optionFilterProp="label"
                     options={storeOptions as SelectOptionRecord[]}
                     allowClear
-                    placeholder="请选择门店"
+                    disabled={!merchantId}
+                    placeholder={merchantId ? '请选择该商户下的门店' : '请先选择商户'}
                     onChange={(value) => form.setFieldValue('storeName', storeOptionMap.get(value))}
                   />
                 </Form.Item>

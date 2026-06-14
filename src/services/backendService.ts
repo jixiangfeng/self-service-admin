@@ -1347,13 +1347,18 @@ export interface BannerConfigRecord {
   id: number;
   bannerName: string;
   pageCode: string;
+  slotCode?: string;
+  title?: string;
+  subtitle?: string;
   imageFileAssetId?: string;
+  imageUrl?: string;
   jumpType?: string;
   jumpValue?: string;
   startAt?: string;
   endAt?: string;
   sortNo?: number;
   status?: number;
+  extraJson?: string;
   createdAt?: string;
   updatedAt?: string;
 }
