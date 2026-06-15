@@ -6,7 +6,7 @@ import { ProTable } from '@ant-design/pro-components';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import PageBanner from '@/components/PageBanner';
-import { statusOptions } from '@/constants/businessCatalog';
+import { publishStatusOptions } from '@/constants/businessCatalog';
 import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api, {
   type DeviceCallbackConfigRecord,
@@ -81,7 +81,7 @@ const callbackRequiredOptions = [
   { value: 'NO', label: '无需回调' },
 ];
 
-const statusMap = buildValueEnum(statusOptions);
+const publishStatusMap = buildValueEnum(publishStatusOptions);
 
 const DeviceAccessManagement: React.FC = () => {
   const queryClient = useQueryClient();
@@ -111,7 +111,7 @@ const DeviceAccessManagement: React.FC = () => {
   const openModal = (kind: ModalKind) => {
     setModalKind(kind);
     form.resetFields();
-    form.setFieldsValue({ status: 1, callbackRequired: 'YES' });
+    form.setFieldsValue({ status: 'PUBLISHED', callbackRequired: 'YES' });
   };
 
   const handleSubmit = async () => {
@@ -153,7 +153,7 @@ const DeviceAccessManagement: React.FC = () => {
     { title: '签名算法', dataIndex: 'signatureMethod', width: 130 , render: (value) => formatEnumText(value, 'signatureMethod', '签名算法') },
     { title: '回调要求', dataIndex: 'callbackRequired', width: 120 , render: (value) => formatEnumText(value, 'callbackRequired', '回调要求') },
     { title: '安全负责人', dataIndex: 'securityOwner', width: 140 },
-    { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
   ], []);
 
@@ -163,7 +163,7 @@ const DeviceAccessManagement: React.FC = () => {
     { title: '联系人', dataIndex: 'contactName', width: 120 },
     { title: '联系电话', dataIndex: 'contactPhone', width: 140 },
     { title: '接口地址', dataIndex: 'apiBaseUrl', width: 260, ellipsis: true },
-    { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
   ], []);
 
@@ -173,7 +173,7 @@ const DeviceAccessManagement: React.FC = () => {
     { title: '厂商', dataIndex: 'vendorName', width: 160 },
     { title: '设备类型', dataIndex: 'deviceType', width: 120 , render: (value) => formatEnumText(value, 'deviceType', '设备类型') },
     { title: '协议编码', dataIndex: 'protocolCode', width: 150 },
-    { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
   ], []);
 
@@ -184,7 +184,7 @@ const DeviceAccessManagement: React.FC = () => {
     { title: '设备类型', dataIndex: 'deviceType', width: 120 , render: (value) => formatEnumText(value, 'deviceType', '设备类型') },
     { title: '指令类型', dataIndex: 'commandType', width: 140 , render: (value) => formatEnumText(value, 'commandType', '指令类型') },
     { title: '指令内容', dataIndex: 'commandPayload', width: 320, ellipsis: true },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
   ], []);
 
@@ -196,7 +196,7 @@ const DeviceAccessManagement: React.FC = () => {
     { title: '平台状态码', dataIndex: 'platformStatusCode', width: 140 },
     { title: '状态名称', dataIndex: 'statusName', width: 160 },
     { title: '说明', dataIndex: 'description', width: 220, ellipsis: true },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
   ], []);
 
   const callbackColumns = useMemo<ProColumns<DeviceCallbackConfigRecord>[]>(() => [
@@ -208,7 +208,7 @@ const DeviceAccessManagement: React.FC = () => {
     { title: '回调地址', dataIndex: 'callbackUrl', width: 320, ellipsis: true },
     { title: '签名算法', dataIndex: 'signatureMethod', width: 130 , render: (value) => formatEnumText(value, 'signatureMethod', '签名算法') },
     { title: 'IP 白名单', dataIndex: 'ipWhitelist', width: 240, ellipsis: true },
-    { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
   ], []);
 
   const logColumns = useMemo<ProColumns<DeviceCommandLogRecord>[]>(() => [
@@ -290,7 +290,7 @@ const DeviceAccessManagement: React.FC = () => {
                   <Form.Item name="signatureMethod" label="签名算法"><Input placeholder="HMAC-SHA256" /></Form.Item>
                   <Form.Item name="callbackRequired" label="回调要求"><Select options={callbackRequiredOptions} /></Form.Item>
                   <Form.Item name="securityOwner" label="安全负责人"><Input placeholder="例如：设备接入-张三" /></Form.Item>
-                  <Form.Item name="status" label="状态"><Select options={statusOptions} /></Form.Item>
+                  <Form.Item name="status" label="状态"><Select options={publishStatusOptions} /></Form.Item>
                 </div>
               </BusinessEditorSection>
             ) : null}
@@ -303,7 +303,7 @@ const DeviceAccessManagement: React.FC = () => {
                   <Form.Item name="contactName" label="联系人"><Input placeholder="技术联系人" /></Form.Item>
                   <Form.Item name="contactPhone" label="联系电话"><Input placeholder="手机号" /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="apiBaseUrl" label="接口地址"><Input placeholder="https://vendor.example.com/api" /></Form.Item>
-                  <Form.Item name="status" label="状态"><Select options={statusOptions} /></Form.Item>
+                  <Form.Item name="status" label="状态"><Select options={publishStatusOptions} /></Form.Item>
                 </div>
               </BusinessEditorSection>
             ) : null}
@@ -315,7 +315,7 @@ const DeviceAccessManagement: React.FC = () => {
                   <Form.Item name="modelName" label="型号名称" rules={[{ required: true, message: '请输入型号名称' }]}><Input placeholder="A1 标准洗车机" /></Form.Item>
                   <Form.Item name="deviceType" label="设备类型"><Select options={deviceTypeOptions} /></Form.Item>
                   <Form.Item name="protocolCode" label="协议编码"><Input placeholder="HTTP-WASH-V1" /></Form.Item>
-                  <Form.Item name="status" label="状态"><Select options={statusOptions} /></Form.Item>
+                  <Form.Item name="status" label="状态"><Select options={publishStatusOptions} /></Form.Item>
                 </div>
               </BusinessEditorSection>
             ) : null}
@@ -328,7 +328,7 @@ const DeviceAccessManagement: React.FC = () => {
                   <Form.Item name="protocolCode" label="协议编码"><Input placeholder="HTTP-WASH-V1" /></Form.Item>
                   <Form.Item name="deviceType" label="适用设备类型"><Select options={deviceTypeOptions} /></Form.Item>
                   <Form.Item name="commandType" label="指令类型"><Select options={commandTypeOptions} /></Form.Item>
-                  <Form.Item name="status" label="状态"><Select options={statusOptions} /></Form.Item>
+                  <Form.Item name="status" label="状态"><Select options={publishStatusOptions} /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="commandPayload" label="指令模板内容"><Input.TextArea rows={4} placeholder='例如：{"action":"START_WASH","duration":600}' /></Form.Item>
                 </div>
               </BusinessEditorSection>
@@ -343,7 +343,7 @@ const DeviceAccessManagement: React.FC = () => {
                   <Form.Item name="vendorStatusCode" label="厂商状态码" rules={[{ required: true, message: '请输入厂商状态码' }]}><Input placeholder="0" /></Form.Item>
                   <Form.Item name="platformStatusCode" label="平台状态码" rules={[{ required: true, message: '请输入平台状态码' }]}><Input placeholder="ONLINE" /></Form.Item>
                   <Form.Item name="statusName" label="状态名称" rules={[{ required: true, message: '请输入状态名称' }]}><Input placeholder="在线" /></Form.Item>
-                  <Form.Item name="status" label="状态"><Select options={statusOptions} /></Form.Item>
+                  <Form.Item name="status" label="状态"><Select options={publishStatusOptions} /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="description" label="说明"><Input.TextArea rows={3} placeholder="说明状态来源和适用设备" /></Form.Item>
                 </div>
               </BusinessEditorSection>
@@ -360,7 +360,7 @@ const DeviceAccessManagement: React.FC = () => {
                   <Form.Item name="signatureMethod" label="签名算法"><Input placeholder="HMAC-SHA256" /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="callbackUrl" label="回调地址" rules={[{ required: true, message: '请输入回调地址' }]}><Input placeholder="https://admin.example.com/device/callback" /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="ipWhitelist" label="IP 白名单"><Input.TextArea rows={3} placeholder="多个 IP 用逗号或换行分隔" /></Form.Item>
-                  <Form.Item name="status" label="状态"><Select options={statusOptions} /></Form.Item>
+                  <Form.Item name="status" label="状态"><Select options={publishStatusOptions} /></Form.Item>
                 </div>
               </BusinessEditorSection>
             ) : null}
