@@ -7,7 +7,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
-import { buildValueEnum, formatAmount, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, formatAmount, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api, { type AnalysisSnapshotRecord } from '@/services/backendService';
 
 interface DerivedStoreRecord {
@@ -287,7 +287,7 @@ const AnalysisManagement: React.FC = () => {
                   dataSource={faultSnapshots}
                   columns={[
                     { title: '维度名称', dataIndex: 'dimensionName' },
-                    { title: '维度', dataIndex: 'dimension', width: 120 },
+                    { title: '维度', dataIndex: 'dimension', width: 120 , render: (value) => formatEnumText(value, 'dimension', '维度') },
                     { title: '范围ID', dataIndex: 'scopeId', width: 120 },
                     { title: '故障设备', dataIndex: 'faultDeviceCount', width: 120 },
                     { title: '活跃设备', dataIndex: 'activeDeviceCount', width: 120 },

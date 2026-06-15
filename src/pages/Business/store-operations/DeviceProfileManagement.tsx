@@ -148,7 +148,7 @@ const deviceProfileDetailFields: Record<DeviceProfileTab, DetailField<any>[]> = 
   ],
 };
 
-const DeviceProfileManagement: React.FC = () => {
+const DeviceProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
   const [activeTab, setActiveTab] = useState<DeviceProfileTab>('vendor');
@@ -296,8 +296,8 @@ const DeviceProfileManagement: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: 24 }}>
-      <PageBanner title="设备档案中心" subtitle="维护设备厂商、型号、协议和绑定日志。" icon={<ClusterOutlined />} />
+    <div style={{ padding: embedded ? 0 : 24 }}>
+      {!embedded ? <PageBanner title="设备档案中心" subtitle="维护设备厂商、型号、协议和绑定日志。" icon={<ClusterOutlined />} /> : null}
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="设备厂商" value={vendors.length} suffix="家" /></Card></Col>

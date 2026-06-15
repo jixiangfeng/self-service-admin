@@ -13,7 +13,7 @@ import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
 import type { LoginLogRecord, MerchantAccountRecord, PermissionChangeLogRecord, RoleOption, SelectOptionRecord, UserRoleRelationRecord } from '@/services/backendService';
 import { useRoleOptions } from '@/hooks/useApi';
-import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 
 const statusMap = buildValueEnum(statusOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
@@ -176,7 +176,7 @@ const MerchantAccountManagement: React.FC = () => {
   const accountColumns: ProColumns<MerchantAccountRecord>[] = [
     { title: '账号', dataIndex: 'userName', width: 140 },
     { title: '手机号', dataIndex: 'mobile', width: 140 },
-    { title: '账号类型', dataIndex: 'accountType', width: 130 },
+    { title: '账号类型', dataIndex: 'accountType', width: 130 , render: (value) => formatEnumText(value, 'accountType', '账号类型') },
     { title: '商户', dataIndex: 'merchantName', width: 180 },
     { title: '门店', dataIndex: 'storeName', width: 180 },
     { title: '数据范围', dataIndex: 'dataScopeType', width: 120, render: (_, record) => renderStatusTag(record.dataScopeType, scopeMap) },
@@ -215,7 +215,7 @@ const MerchantAccountManagement: React.FC = () => {
   const changeColumns: ProColumns<PermissionChangeLogRecord>[] = [
     { title: '变更单号', dataIndex: 'changeNo', width: 180 },
     { title: '账号', dataIndex: 'targetUser', width: 140 },
-    { title: '变更类型', dataIndex: 'changeType', width: 140 },
+    { title: '变更类型', dataIndex: 'changeType', width: 140 , render: (value) => formatEnumText(value, 'changeType', '变更类型') },
     { title: '变更前', dataIndex: 'beforeValue', width: 180 },
     { title: '变更后', dataIndex: 'afterValue', width: 180 },
     { title: '审核状态', dataIndex: 'auditStatus', width: 120, render: (_, record) => renderStatusTag(record.auditStatus, auditStatusMap) },

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { CarOutlined, DeleteOutlined, EditOutlined, PlusOutlined, QrcodeOutlined, ToolOutlined } from '@ant-design/icons';
-import { Button, Form, Input, Select, Space, message } from 'antd';
+import { Button, Form, Input, Select, Space, Tabs, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
   pointAbilityOptions,
@@ -21,6 +21,7 @@ import { buildValueEnum, formatDateTime, renderBooleanTag, renderOptionTags, ren
 import WorkflowGuide from '@/pages/Business/shared';
 import { joinCommaValues, splitCommaValues } from '@/utils/csv';
 import { DateTimeField, fromDateTimePickerValue, toDateTimePickerValue } from '@/utils/formControls';
+import ServicePointProfileManagement from './ServicePointProfileManagement';
 
 const normalizePointValues = (values: Record<string, any>) => ({
   ...values,
@@ -205,7 +206,13 @@ const ServicePointManagement: React.FC = () => {
           { key: 'device', label: '去设备管理', onClick: () => navigate('/device') },
         ]}
       />
-      <ProTable<ServicePointRecord>
+      <Tabs
+        items={[
+          {
+            key: 'point-list',
+            label: '点位列表',
+            children: (
+              <ProTable<ServicePointRecord>
         cardBordered
         rowKey="id"
         columns={columns}
@@ -256,6 +263,11 @@ const ServicePointManagement: React.FC = () => {
         onReset={() => {
           setQueryParams({ pageNum: 1, pageSize: 10, keyword: undefined, storeId: undefined, pointType: undefined, status: undefined });
         }}
+      />
+            ),
+          },
+          { key: 'point-profile', label: '档案维护', children: <ServicePointProfileManagement embedded /> },
+        ]}
       />
 
       <BusinessEditorModal

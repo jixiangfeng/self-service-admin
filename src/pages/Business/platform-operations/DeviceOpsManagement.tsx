@@ -15,7 +15,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
-import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import { DateTimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue } from '@/utils/formControls';
 import api, {
   type DeviceCommandLogRecord,
@@ -147,7 +147,7 @@ const DeviceOpsManagement: React.FC = () => {
     { title: '指令编号', dataIndex: 'commandNo', width: 180 },
     { title: '订单号', dataIndex: 'serviceOrderNo', width: 180 },
     { title: '设备编号', dataIndex: 'deviceCode', width: 150 },
-    { title: '指令类型', dataIndex: 'commandType', width: 140 },
+    { title: '指令类型', dataIndex: 'commandType', width: 140 , render: (value) => formatEnumText(value, 'commandType', '指令类型') },
     { title: '指令内容', dataIndex: 'commandPayload', width: 220 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, commandStatusMap) },
     { title: '回执时间', dataIndex: 'ackAt', width: 180, render: (_, record) => formatDateTime(record.ackAt) },
@@ -168,7 +168,7 @@ const DeviceOpsManagement: React.FC = () => {
     { title: '故障单号', dataIndex: 'faultNo', width: 180 },
     { title: '设备编号', dataIndex: 'deviceCode', width: 150 },
     { title: '门店', dataIndex: 'storeName', width: 180 },
-    { title: '故障类型', dataIndex: 'faultType', width: 130 },
+    { title: '故障类型', dataIndex: 'faultType', width: 130 , render: (value) => formatEnumText(value, 'faultType', '故障类型') },
     { title: '等级', dataIndex: 'level', width: 100, render: (_, record) => renderStatusTag(record.level, faultLevelMap) },
     { title: '关联订单', dataIndex: 'relatedOrderNo', width: 180 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, maintainStatusMap) },
@@ -188,7 +188,7 @@ const DeviceOpsManagement: React.FC = () => {
   const maintenanceColumns = useMemo<ProColumns<DeviceMaintenanceRecord>[]>(() => [
     { title: '保养单号', dataIndex: 'maintainNo', width: 180 },
     { title: '设备编号', dataIndex: 'deviceCode', width: 150 },
-    { title: '保养类型', dataIndex: 'maintainType', width: 130 },
+    { title: '保养类型', dataIndex: 'maintainType', width: 130 , render: (value) => formatEnumText(value, 'maintainType', '保养类型') },
     { title: '负责人', dataIndex: 'owner', width: 130 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, maintainStatusMap) },
     { title: '计划时间', dataIndex: 'plannedAt', width: 180, render: (_, record) => formatDateTime(record.plannedAt) },

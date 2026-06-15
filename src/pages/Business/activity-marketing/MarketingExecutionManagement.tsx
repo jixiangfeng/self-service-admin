@@ -14,7 +14,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
-import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api, { type CouponIssueRecord, type CouponUsageRecord, type MarketingBudgetRecord, type MarketingParticipationRecord, type MarketingRewardRecord, type SelectOptionRecord } from '@/services/backendService';
 
 const activityStatusMap = buildValueEnum(activityStatusOptions);
@@ -204,7 +204,7 @@ const MarketingExecutionManagement: React.FC = () => {
     { title: '活动编码', dataIndex: 'activityCode', width: 140 },
     { title: '活动名称', dataIndex: 'activityName', width: 180 },
     { title: '用户', dataIndex: 'userName', width: 120 },
-    { title: '参与场景', dataIndex: 'joinScene', width: 130 },
+    { title: '参与场景', dataIndex: 'joinScene', width: 130 , render: (value) => formatEnumText(value, 'joinScene', '参与场景') },
     { title: '达标状态', dataIndex: 'qualifyStatus', width: 120, render: (_, record) => renderStatusTag(record.qualifyStatus, activityStatusMap) },
     { title: '关联订单', dataIndex: 'relatedOrderNo', width: 170 },
     { title: '参与时间', dataIndex: 'joinedAt', width: 180, render: (_, record) => formatDateTime(record.joinedAt) },

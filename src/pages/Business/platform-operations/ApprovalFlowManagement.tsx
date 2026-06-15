@@ -13,7 +13,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
-import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type { ApprovalProcessRecord, ApprovalRecord, ApprovalSlaRecord, ApprovalTaskRecord } from '@/services/backendService';
 import { DateTimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue } from '@/utils/formControls';
@@ -126,7 +126,7 @@ const ApprovalFlowManagement: React.FC = () => {
   const processColumns = useMemo<ProColumns<ApprovalProcessRecord>[]>(() => [
     { title: '流程编号', dataIndex: 'processNo', width: 180 },
     { title: '流程名称', dataIndex: 'processName', width: 200 },
-    { title: '业务类型', dataIndex: 'bizType', width: 150 },
+    { title: '业务类型', dataIndex: 'bizType', width: 150 , render: (value) => formatEnumText(value, 'bizType', '业务类型') },
     { title: '节点配置', dataIndex: 'nodeConfig', width: 260 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
@@ -136,7 +136,7 @@ const ApprovalFlowManagement: React.FC = () => {
   const taskColumns = useMemo<ProColumns<ApprovalTaskRecord>[]>(() => [
     { title: '任务编号', dataIndex: 'taskNo', width: 180 },
     { title: '流程编号', dataIndex: 'processNo', width: 180 },
-    { title: '业务类型', dataIndex: 'bizType', width: 140 },
+    { title: '业务类型', dataIndex: 'bizType', width: 140 , render: (value) => formatEnumText(value, 'bizType', '业务类型') },
     { title: '业务单号', dataIndex: 'bizNo', width: 180 },
     { title: '当前节点', dataIndex: 'currentNode', width: 130 },
     { title: '优先级', dataIndex: 'priority', width: 120, render: (_, record) => renderStatusTag(record.priority, priorityMap) },

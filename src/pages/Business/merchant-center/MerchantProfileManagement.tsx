@@ -24,7 +24,7 @@ import type {
   MerchantQualificationRecord,
   MerchantSettlementAccountRecord,
 } from '@/services/backendService';
-import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 
 type ProfileTab = 'contact' | 'qualification' | 'contract' | 'account' | 'change';
 type EditableRecord = MerchantContactRecord | MerchantContractRecord | MerchantSettlementAccountRecord | MerchantQualificationRecord | MerchantChangeLogRecord;
@@ -168,7 +168,7 @@ const profileDetailFields: Record<ProfileTab, DetailField<any>[]> = {
   ],
 };
 
-const MerchantProfileManagement: React.FC = () => {
+const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
   const [activeTab, setActiveTab] = useState<ProfileTab>('contact');
@@ -276,7 +276,7 @@ const MerchantProfileManagement: React.FC = () => {
 
   const contactColumns: ProColumns<MerchantContactRecord>[] = [
     { title: '商户', dataIndex: 'merchantName', width: 180 },
-    { title: '联系人类型', dataIndex: 'contactType', width: 130 },
+    { title: '联系人类型', dataIndex: 'contactType', width: 130 , render: (value) => formatEnumText(value, 'contactType', '联系人类型') },
     { title: '联系人', dataIndex: 'contactName', width: 120 },
     { title: '手机号', dataIndex: 'mobile', width: 140 },
     { title: '邮箱', dataIndex: 'email', width: 190 },
@@ -346,7 +346,7 @@ const MerchantProfileManagement: React.FC = () => {
     { title: '账号', dataIndex: 'accountNo', width: 160 },
     { title: '开户行', dataIndex: 'bankName', width: 190 },
     { title: '审核状态', dataIndex: 'auditStatus', width: 120, render: (_, record) => renderStatusTag(record.auditStatus, auditStatusMap) },
-    { title: '账户状态', dataIndex: 'status', width: 120 },
+    { title: '账户状态', dataIndex: 'status', width: 120 , render: (value) => formatEnumText(value, 'status', '账户状态') },
     { title: '生效日期', dataIndex: 'effectiveAt', width: 130 },
     {
       title: '操作',
@@ -365,7 +365,7 @@ const MerchantProfileManagement: React.FC = () => {
   const changeColumns: ProColumns<MerchantChangeLogRecord>[] = [
     { title: '变更单号', dataIndex: 'changeNo', width: 180 },
     { title: '商户', dataIndex: 'merchantName', width: 180 },
-    { title: '变更类型', dataIndex: 'changeType', width: 150 },
+    { title: '变更类型', dataIndex: 'changeType', width: 150 , render: (value) => formatEnumText(value, 'changeType', '变更类型') },
     { title: '变更前', dataIndex: 'beforeValue', width: 180 },
     { title: '变更后', dataIndex: 'afterValue', width: 180 },
     { title: '操作人', dataIndex: 'operator', width: 130 },
@@ -385,8 +385,8 @@ const MerchantProfileManagement: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: 24 }}>
-      <PageBanner title="商户档案中心" subtitle="维护商户联系人、资质、合同、结算账户和变更日志。" icon={<SolutionOutlined />} />
+    <div style={{ padding: embedded ? 0 : 24 }}>
+      {!embedded ? <PageBanner title="商户档案中心" subtitle="维护商户联系人、资质、合同、结算账户和变更日志。" icon={<SolutionOutlined />} /> : null}
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="联系人" value={contacts.length} suffix="人" /></Card></Col>

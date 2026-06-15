@@ -23,7 +23,7 @@ import type {
   StoreServiceCapabilityRecord,
   StoreTempCloseRecord,
 } from '@/services/backendService';
-import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, safeJsonParse } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, safeJsonParse, formatEnumText } from '@/pages/Business/shared';
 import { DateTimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue, toDatePickerValue, toDateTimePickerValue, toTimePickerValue } from '@/utils/formControls';
 
 type StoreProfileTab = 'image' | 'business' | 'tempClose' | 'capability' | 'change';
@@ -146,7 +146,7 @@ const storeProfileDetailFields: Record<StoreProfileTab, DetailField<any>[]> = {
   ],
 };
 
-const StoreProfileManagement: React.FC = () => {
+const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
   const [activeTab, setActiveTab] = useState<StoreProfileTab>('image');
@@ -263,7 +263,7 @@ const StoreProfileManagement: React.FC = () => {
 
   const imageColumns: ProColumns<StoreImageRecord>[] = [
     { title: '门店', dataIndex: 'storeName', width: 180 },
-    { title: '图片类型', dataIndex: 'imageType', width: 130 },
+    { title: '图片类型', dataIndex: 'imageType', width: 130 , render: (value) => formatEnumText(value, 'imageType', '图片类型') },
     { title: '图片地址', dataIndex: 'imageUrl', width: 280 },
     { title: '排序', dataIndex: 'sortNo', width: 90 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
@@ -300,7 +300,7 @@ const StoreProfileManagement: React.FC = () => {
   const changeColumns: ProColumns<StoreChangeLogRecord>[] = [
     { title: '变更单号', dataIndex: 'changeNo', width: 180 },
     { title: '门店', dataIndex: 'storeName', width: 180 },
-    { title: '变更类型', dataIndex: 'changeType', width: 150 },
+    { title: '变更类型', dataIndex: 'changeType', width: 150 , render: (value) => formatEnumText(value, 'changeType', '变更类型') },
     { title: '变更前', dataIndex: 'beforeValue', width: 180 },
     { title: '变更后', dataIndex: 'afterValue', width: 180 },
     { title: '操作人', dataIndex: 'operator', width: 130 },
@@ -309,8 +309,8 @@ const StoreProfileManagement: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: 24 }}>
-      <PageBanner title="门店档案中心" subtitle="维护门店图片、营业时间、临停记录、服务能力和变更日志。" icon={<HomeOutlined />} />
+    <div style={{ padding: embedded ? 0 : 24 }}>
+      {!embedded ? <PageBanner title="门店档案中心" subtitle="维护门店图片、营业时间、临停记录、服务能力和变更日志。" icon={<HomeOutlined />} /> : null}
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="门店图片" value={images.length} suffix="张" /></Card></Col>

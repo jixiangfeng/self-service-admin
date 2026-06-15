@@ -14,7 +14,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
-import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api, {
   type BizEventRecord,
   type ContentArticleRecord,
@@ -182,7 +182,7 @@ const PlatformBaseManagement: React.FC = () => {
   const organizationColumns = useMemo<ProColumns<PlatformOrganizationRecord>[]>(() => [
     { title: '组织编码', dataIndex: 'orgCode', width: 150 },
     { title: '组织名称', dataIndex: 'orgName', width: 180 },
-    { title: '组织类型', dataIndex: 'orgType', width: 130 },
+    { title: '组织类型', dataIndex: 'orgType', width: 130 , render: (value) => formatEnumText(value, 'orgType', '组织类型') },
     { title: '上级组织', dataIndex: 'parentName', width: 160 },
     { title: '关联商户', dataIndex: 'merchantName', width: 160 },
     { title: '关联门店', dataIndex: 'storeName', width: 180 },
@@ -193,7 +193,7 @@ const PlatformBaseManagement: React.FC = () => {
   const configColumns = useMemo<ProColumns<SystemConfigRecord>[]>(() => [
     { title: '配置键', dataIndex: 'configKey', width: 180 },
     { title: '配置名称', dataIndex: 'configName', width: 180 },
-    { title: '配置类型', dataIndex: 'configType', width: 130 },
+    { title: '配置类型', dataIndex: 'configType', width: 130 , render: (value) => formatEnumText(value, 'configType', '配置类型') },
     { title: '范围', dataIndex: 'scopeType', width: 110, render: (_, record) => renderStatusTag(record.scopeType, scopeMap) },
     { title: '配置值', dataIndex: 'configValue', width: 180 },
     { title: '状态', dataIndex: 'status', width: 110, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
@@ -203,7 +203,7 @@ const PlatformBaseManagement: React.FC = () => {
 
   const sequenceColumns = useMemo<ProColumns<SequenceRuleRecord>[]>(() => [
     { title: '规则编码', dataIndex: 'ruleCode', width: 160 },
-    { title: '业务类型', dataIndex: 'bizType', width: 140 },
+    { title: '业务类型', dataIndex: 'bizType', width: 140 , render: (value) => formatEnumText(value, 'bizType', '业务类型') },
     { title: '前缀', dataIndex: 'prefix', width: 90 },
     { title: '日期格式', dataIndex: 'datePattern', width: 130 },
     { title: '流水长度', dataIndex: 'sequenceLength', width: 100 },
@@ -214,7 +214,7 @@ const PlatformBaseManagement: React.FC = () => {
 
   const eventColumns = useMemo<ProColumns<BizEventRecord>[]>(() => [
     { title: '事件编号', dataIndex: 'eventNo', width: 180 },
-    { title: '事件类型', dataIndex: 'eventType', width: 130 },
+    { title: '事件类型', dataIndex: 'eventType', width: 130 , render: (value) => formatEnumText(value, 'eventType', '事件类型') },
     { title: '业务单号', dataIndex: 'bizNo', width: 180 },
     { title: '幂等键', dataIndex: 'idempotentKey', width: 260 },
     { title: '处理状态', dataIndex: 'processStatus', width: 120, render: (_, record) => renderStatusTag(record.processStatus, ticketStatusMap) },
@@ -226,7 +226,7 @@ const PlatformBaseManagement: React.FC = () => {
   const contentColumns = useMemo<ProColumns<ContentArticleRecord>[]>(() => [
     { title: '内容编码', dataIndex: 'articleCode', width: 160 },
     { title: '标题', dataIndex: 'title', width: 220 },
-    { title: '分类', dataIndex: 'category', width: 130 },
+    { title: '分类', dataIndex: 'category', width: 130 , render: (value) => formatEnumText(value, 'category', '分类') },
     { title: '范围', dataIndex: 'scopeType', width: 110, render: (_, record) => renderStatusTag(record.scopeType, scopeMap) },
     { title: '状态', dataIndex: 'status', width: 110, render: (_, record) => renderStatusTag(record.status, auditStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },

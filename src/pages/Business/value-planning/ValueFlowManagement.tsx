@@ -14,7 +14,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
-import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api, { type AdConversionRecord, type AdEventRecord, type RetailOrderRecord, type RetailShipmentRecord, type RetailStockFlowRecord } from '@/services/backendService';
 
 const deliveryTypeMap = buildValueEnum(retailDeliveryTypeOptions);
@@ -126,7 +126,7 @@ const ValueFlowManagement: React.FC = () => {
     { title: '事件编号', dataIndex: 'eventNo', width: 180 },
     { title: '广告活动', dataIndex: 'campaignCode', width: 160 },
     { title: '广告位', dataIndex: 'slotName', width: 180 },
-    { title: '事件类型', dataIndex: 'eventType', width: 110 },
+    { title: '事件类型', dataIndex: 'eventType', width: 110 , render: (value) => formatEnumText(value, 'eventType', '事件类型') },
     { title: '门店', dataIndex: 'storeName', width: 180 },
     { title: '关联订单', dataIndex: 'orderNo', width: 180 },
     { title: '事件时间', dataIndex: 'eventTime', width: 180, render: (_, record) => formatDateTime(record.eventTime) },
@@ -149,7 +149,7 @@ const ValueFlowManagement: React.FC = () => {
     { title: '库存流水', dataIndex: 'flowNo', width: 180 },
     { title: 'SKU', dataIndex: 'skuName', width: 160 },
     { title: '库存范围', dataIndex: 'scopeName', width: 180 },
-    { title: '流水类型', dataIndex: 'flowType', width: 120 },
+    { title: '流水类型', dataIndex: 'flowType', width: 120 , render: (value) => formatEnumText(value, 'flowType', '流水类型') },
     { title: '数量', dataIndex: 'quantity', width: 90 },
     { title: '变动前', dataIndex: 'beforeQty', width: 90 },
     { title: '变动后', dataIndex: 'afterQty', width: 90 },
@@ -160,7 +160,7 @@ const ValueFlowManagement: React.FC = () => {
   const conversionColumns = useMemo<ProColumns<AdConversionRecord>[]>(() => [
     { title: '广告活动', dataIndex: 'campaignCode', width: 160 },
     { title: '用户', dataIndex: 'userName', width: 120 },
-    { title: '来源事件', dataIndex: 'sourceEvent', width: 180 },
+    { title: '来源事件', dataIndex: 'sourceEvent', width: 180 , render: (value) => formatEnumText(value, 'sourceEvent', '来源事件') },
     { title: '转化订单', dataIndex: 'orderNo', width: 180 },
     { title: '转化金额', dataIndex: 'conversionAmount', width: 120, render: (_, record) => formatAmount(record.conversionAmount) },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, adDeliveryStatusMap) },

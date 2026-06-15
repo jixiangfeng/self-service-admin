@@ -9,7 +9,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
-import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api, { type RechargeActivityRecord, type SelectOptionRecord } from '@/services/backendService';
 
 const statusMap = buildValueEnum(activityStatusOptions);
@@ -140,9 +140,9 @@ const RechargeActivityManagement: React.FC = () => {
       ),
     },
     { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '活动 / 编码 / 充值门槛 / 奖励 / 范围' } },
-    { title: '充值方式', dataIndex: 'rechargeMode', width: 160, search: false },
-    { title: '奖励方式', dataIndex: 'rewardMethod', width: 160, search: false },
-    { title: '作用范围', dataIndex: 'scope', width: 160, search: false },
+    { title: '充值方式', dataIndex: 'rechargeMode', width: 160, search: false , render: (value) => formatEnumText(value, 'rechargeMode', '充值方式') },
+    { title: '奖励方式', dataIndex: 'rewardMethod', width: 160, search: false , render: (value) => formatEnumText(value, 'rewardMethod', '奖励方式') },
+    { title: '作用范围', dataIndex: 'scope', width: 160, search: false , render: (value) => formatEnumText(value, 'scope', '作用范围') },
     { title: '成本承担', dataIndex: 'costOwner', width: 160, valueType: 'select', valueEnum: costBearerMap, render: (_, record) => renderStatusTag(record.costOwner, costBearerMap) },
     { title: '固定档位', dataIndex: 'tierAmounts', width: 160, search: false },
     { title: '最低充值', dataIndex: 'minAmount', width: 100, search: false },

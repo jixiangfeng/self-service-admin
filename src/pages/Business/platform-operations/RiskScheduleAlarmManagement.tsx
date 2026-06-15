@@ -6,7 +6,7 @@ import { ProTable } from '@ant-design/pro-components';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { messageChannelOptions, statusOptions, ticketPriorityOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
-import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
@@ -283,7 +283,7 @@ const RiskScheduleAlarmManagement: React.FC = () => {
   const riskHitColumns = useMemo<ProColumns<RiskHitRecord>[]>(() => [
     { title: '规则', dataIndex: 'ruleName', width: 180, fixed: 'left' },
     { title: '用户', dataIndex: 'appUserName', width: 110 },
-    { title: '业务类型', dataIndex: 'bizType', width: 150 },
+    { title: '业务类型', dataIndex: 'bizType', width: 150 , render: (value) => formatEnumText(value, 'bizType', '业务类型') },
     { title: '业务ID', dataIndex: 'bizId', width: 160 },
     { title: '场景', dataIndex: 'riskScene', width: 120, render: (_, record) => renderStatusTag(record.riskScene, riskSceneMap) },
     { title: '命中详情', dataIndex: 'hitDetail', width: 260, ellipsis: true },
@@ -351,7 +351,7 @@ const RiskScheduleAlarmManagement: React.FC = () => {
     { title: '规则', dataIndex: 'ruleName', width: 180, fixed: 'left' },
     { title: '场景', dataIndex: 'alarmScene', width: 120, render: (_, record) => renderStatusTag(record.alarmScene, alarmSceneMap) },
     { title: '等级', dataIndex: 'alarmLevel', width: 110, render: (_, record) => renderStatusTag(record.alarmLevel, alarmLevelMap) || renderStatusTag(record.alarmLevel, priorityMap) },
-    { title: '业务类型', dataIndex: 'bizType', width: 140 },
+    { title: '业务类型', dataIndex: 'bizType', width: 140 , render: (value) => formatEnumText(value, 'bizType', '业务类型') },
     { title: '业务ID', dataIndex: 'bizId', width: 160 },
     { title: '告警内容', dataIndex: 'alarmContent', width: 300, ellipsis: true },
     { title: '处理状态', dataIndex: 'handleStatus', width: 120, render: (_, record) => renderStatusTag(record.handleStatus, handleStatusMap) },

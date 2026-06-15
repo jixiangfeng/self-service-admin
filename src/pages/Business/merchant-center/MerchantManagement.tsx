@@ -10,7 +10,7 @@ import {
   PlusOutlined,
   WalletOutlined,
 } from '@ant-design/icons';
-import { Button, Form, Input, Select, Space, message } from 'antd';
+import { Button, Form, Input, Select, Space, Tabs, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
   merchantContractStatusOptions,
@@ -26,6 +26,7 @@ import OssImageUpload from '@/components/OssImageUpload';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
+import MerchantProfileManagement from './MerchantProfileManagement';
 
 const merchantStatusMap = {
   1: { color: 'success', text: '启用' },
@@ -235,7 +236,13 @@ const MerchantManagement: React.FC = () => {
         ]}
       />
 
-      <ProTable<MerchantRecord>
+      <Tabs
+        items={[
+          {
+            key: 'merchant-list',
+            label: '商户列表',
+            children: (
+              <ProTable<MerchantRecord>
         cardBordered
         rowKey="id"
         columns={columns}
@@ -271,6 +278,11 @@ const MerchantManagement: React.FC = () => {
         onReset={() => {
           setQueryParams({ pageNum: 1, pageSize: 10, keyword: undefined, merchantType: undefined, status: undefined });
         }}
+      />
+            ),
+          },
+          { key: 'merchant-profile', label: '档案维护', children: <MerchantProfileManagement embedded /> },
+        ]}
       />
 
       <BusinessEditorModal

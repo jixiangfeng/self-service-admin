@@ -17,7 +17,7 @@ import BusinessDetailModal from '@/components/BusinessDetailModal';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
 import type { SelectOptionRecord } from '@/services/backendService';
-import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 
 interface TradeOrderRecord {
@@ -413,7 +413,7 @@ const TradeManagement: React.FC = () => {
     { title: '退款单号', dataIndex: 'refundNo', width: 180, hideInSearch: true },
     { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '退款单号 / 订单号 / 原因 / 申请人' } },
     { title: '关联订单', dataIndex: 'orderNo', width: 180, search: false },
-    { title: '退款类型', dataIndex: 'refundType', width: 120, search: false },
+    { title: '退款类型', dataIndex: 'refundType', width: 120, search: false , render: (value) => formatEnumText(value, 'refundType', '退款类型') },
     { title: '退款金额', dataIndex: 'amount', width: 120, search: false, render: (_, record) => formatAmount(record.amount) },
     { title: '退款原因', dataIndex: 'reason', width: 220, search: false },
     { title: '申请来源', dataIndex: 'applicant', width: 140, search: false },
@@ -436,7 +436,7 @@ const TradeManagement: React.FC = () => {
     { title: '售后单号', dataIndex: 'ticketNo', width: 180, hideInSearch: true },
     { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '售后单号 / 订单号 / 内容 / 处理人' } },
     { title: '关联订单', dataIndex: 'orderNo', width: 180, search: false },
-    { title: '售后类型', dataIndex: 'ticketType', width: 120, search: false },
+    { title: '售后类型', dataIndex: 'ticketType', width: 120, search: false , render: (value) => formatEnumText(value, 'ticketType', '售后类型') },
     { title: '问题描述', dataIndex: 'content', width: 260, search: false },
     { title: '处理人', dataIndex: 'owner', width: 140, search: false },
     { title: '补偿方案', dataIndex: 'compensation', width: 160, search: false },

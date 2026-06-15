@@ -1,5 +1,6 @@
 import { Tag } from 'antd';
 import { splitCommaValues } from '@/utils/csv';
+import { inferBusinessEnumLabel } from '@/utils/businessEnumLabel';
 
 export const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleString('zh-CN') : '-');
 
@@ -54,6 +55,16 @@ export const renderStatusTag = (value?: string | number, map?: Record<string | n
     return <Tag color={matched.color || 'processing'}>{matched.text}</Tag>;
   }
   return <Tag>{String(value ?? '-')}</Tag>;
+};
+
+export const formatEnumText = (value: unknown, fieldName?: string, fieldLabel?: string) => {
+  const label = inferBusinessEnumLabel(fieldName, fieldLabel, value);
+  return label || String(value ?? '-');
+};
+
+export const renderEnumTag = (value: unknown, fieldName?: string, fieldLabel?: string) => {
+  const text = formatEnumText(value, fieldName, fieldLabel);
+  return <Tag color={text === '-' ? 'default' : 'processing'}>{text}</Tag>;
 };
 
 export const containsKeyword = (keyword: string | undefined, values: Array<string | number | undefined | null>) => {

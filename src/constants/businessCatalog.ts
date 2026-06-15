@@ -487,6 +487,207 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'PROCESSING', label: '处理中' },
   { value: 'DONE', label: '已完成' },
 ],
+  realNameStatusOptions: [
+  { value: 'UNVERIFIED', label: '未实名' },
+  { value: 'PENDING', label: '待审核' },
+  { value: 'VERIFIED', label: '已实名' },
+  { value: 'REJECTED', label: '认证失败' },
+],
+  vehicleTypeOptions: [
+  { value: 'CAR', label: '小型汽车' },
+  { value: 'SUV', label: 'SUV' },
+  { value: 'MPV', label: 'MPV' },
+  { value: 'TRUCK', label: '货车' },
+  { value: 'OTHER', label: '其他车辆' },
+],
+  riskSceneOptions: [
+  { value: 'LOGIN', label: '登录风控' },
+  { value: 'PAYMENT', label: '支付风控' },
+  { value: 'ORDER', label: '订单风控' },
+  { value: 'COUPON', label: '优惠券风控' },
+  { value: 'DEVICE', label: '设备异常' },
+  { value: 'REFUND', label: '退款风控' },
+],
+  issueChannelOptions: [
+  { value: 'AUTO', label: '自动发放' },
+  { value: 'MANUAL', label: '人工发放' },
+  { value: 'USER_CLAIM', label: '用户领取' },
+  { value: 'ACTIVITY', label: '活动发放' },
+  { value: 'SYSTEM', label: '系统发放' },
+],
+  issueAudienceOptions: [
+  { value: 'ALL', label: '全部用户' },
+  { value: 'NEW_USER', label: '新用户' },
+  { value: 'MEMBER', label: '会员用户' },
+  { value: 'VIP', label: 'VIP 用户' },
+  { value: 'TARGETED', label: '定向用户' },
+],
+  rechargeModeOptions: [
+  { value: 'FIXED', label: '固定金额' },
+  { value: 'LADDER', label: '阶梯充值' },
+  { value: 'CUSTOM', label: '自定义金额' },
+],
+  rewardMethodOptions: [
+  { value: 'BALANCE', label: '赠送余额' },
+  { value: 'COUPON', label: '赠送优惠券' },
+  { value: 'POINTS', label: '赠送积分' },
+  { value: 'CARD', label: '赠送服务卡' },
+],
+  joinSceneOptions: [
+  { value: 'REGISTER', label: '注册' },
+  { value: 'FIRST_ORDER', label: '首单' },
+  { value: 'RECHARGE', label: '充值' },
+  { value: 'INVITE', label: '邀请' },
+  { value: 'ORDER', label: '下单' },
+],
+  commandTypeOptions: [
+  { value: 'START', label: '启动' },
+  { value: 'STOP', label: '停止' },
+  { value: 'PAUSE', label: '暂停' },
+  { value: 'RESET', label: '复位' },
+  { value: 'QUERY_STATUS', label: '查询状态' },
+  { value: 'SYNC_CONFIG', label: '同步配置' },
+],
+  callbackTypeOptions: [
+  { value: 'STATUS', label: '状态回调' },
+  { value: 'ORDER', label: '订单回调' },
+  { value: 'PAYMENT', label: '支付回调' },
+  { value: 'FAULT', label: '故障回调' },
+  { value: 'HEARTBEAT', label: '心跳回调' },
+],
+  requestMethodOptions: [
+  { value: 'GET', label: 'GET' },
+  { value: 'POST', label: 'POST' },
+  { value: 'PUT', label: 'PUT' },
+  { value: 'DELETE', label: 'DELETE' },
+],
+  callStatusOptions: [
+  { value: 'SUCCESS', label: '成功' },
+  { value: 'FAILED', label: '失败' },
+  { value: 'TIMEOUT', label: '超时' },
+  { value: 'PENDING', label: '处理中' },
+],
+  authMethodOptions: [
+  { value: 'NONE', label: '无认证' },
+  { value: 'TOKEN', label: 'Token' },
+  { value: 'APP_SECRET', label: 'AppSecret' },
+  { value: 'SIGNATURE', label: '签名认证' },
+],
+  signatureMethodOptions: [
+  { value: 'NONE', label: '无签名' },
+  { value: 'MD5', label: 'MD5' },
+  { value: 'HMAC_SHA256', label: 'HMAC-SHA256' },
+  { value: 'RSA', label: 'RSA' },
+],
+  yesNoTextOptions: [
+  { value: 'YES', label: '是' },
+  { value: 'NO', label: '否' },
+  { value: 1, label: '是' },
+  { value: 0, label: '否' },
+],
+  statusGroupOptions: [
+  { value: 'DEVICE', label: '设备状态' },
+  { value: 'ORDER', label: '订单状态' },
+  { value: 'FAULT', label: '故障状态' },
+  { value: 'PAYMENT', label: '支付状态' },
+],
+  businessTypeOptions: [
+  { value: 'MERCHANT', label: '商户' },
+  { value: 'STORE', label: '门店' },
+  { value: 'DEVICE', label: '设备' },
+  { value: 'ORDER', label: '订单' },
+  { value: 'PAYMENT', label: '支付' },
+  { value: 'MARKETING', label: '营销' },
+  { value: 'ASSET', label: '资产' },
+  { value: 'SYSTEM', label: '系统' },
+],
+  fileTypeOptions: [
+  { value: 'IMAGE', label: '图片' },
+  { value: 'VIDEO', label: '视频' },
+  { value: 'DOCUMENT', label: '文档' },
+  { value: 'CERTIFICATE', label: '证照' },
+  { value: 'OTHER', label: '其他' },
+],
+  refTypeOptions: [
+  { value: 'PRIMARY', label: '主图' },
+  { value: 'DETAIL', label: '详情图' },
+  { value: 'LICENSE', label: '证照' },
+  { value: 'ATTACHMENT', label: '附件' },
+],
+  actionTypeOptions: [
+  { value: 'WARN', label: '预警' },
+  { value: 'BLOCK', label: '拦截' },
+  { value: 'FREEZE', label: '冻结' },
+  { value: 'REVIEW', label: '人工审核' },
+  { value: 'IGNORE', label: '忽略' },
+],
+  alarmSceneOptions: [
+  { value: 'DEVICE_OFFLINE', label: '设备离线' },
+  { value: 'PAYMENT_EXCEPTION', label: '支付异常' },
+  { value: 'ORDER_TIMEOUT', label: '订单超时' },
+  { value: 'RISK_HIT', label: '风控命中' },
+],
+  orgTypeOptions: [
+  { value: 'PLATFORM', label: '平台组织' },
+  { value: 'MERCHANT', label: '商户组织' },
+  { value: 'STORE', label: '门店组织' },
+  { value: 'DEPARTMENT', label: '部门' },
+],
+  configTypeOptions: [
+  { value: 'SYSTEM', label: '系统配置' },
+  { value: 'BUSINESS', label: '业务配置' },
+  { value: 'PAYMENT', label: '支付配置' },
+  { value: 'MESSAGE', label: '消息配置' },
+],
+  eventTypeOptions: [
+  { value: 'CREATE', label: '新增' },
+  { value: 'UPDATE', label: '更新' },
+  { value: 'DELETE', label: '删除' },
+  { value: 'AUDIT', label: '审核' },
+  { value: 'SYNC', label: '同步' },
+],
+  changeTypeOptions: [
+  { value: 'CREATE', label: '新增' },
+  { value: 'UPDATE', label: '修改' },
+  { value: 'ENABLE', label: '启用' },
+  { value: 'DISABLE', label: '停用' },
+  { value: 'DELETE', label: '删除' },
+],
+  operationTypeOptions: [
+  { value: 'CREATE', label: '新增' },
+  { value: 'UPDATE', label: '修改' },
+  { value: 'DELETE', label: '删除' },
+  { value: 'LOGIN', label: '登录' },
+  { value: 'LOGOUT', label: '退出' },
+  { value: 'AUDIT', label: '审核' },
+],
+  refundTypeOptions: [
+  { value: 'FULL', label: '全额退款' },
+  { value: 'PARTIAL', label: '部分退款' },
+  { value: 'MANUAL', label: '人工退款' },
+  { value: 'AUTO', label: '自动退款' },
+],
+  defaultFlagOptions: [
+  { value: 1, label: '默认' },
+  { value: 0, label: '非默认' },
+],
+  imageTypeOptions: [
+  { value: 'COVER', label: '封面图' },
+  { value: 'ENVIRONMENT', label: '环境图' },
+  { value: 'DETAIL', label: '详情图' },
+  { value: 'LICENSE', label: '证照图' },
+],
+  contactTypeOptions: [
+  { value: 'LEGAL', label: '法人' },
+  { value: 'BUSINESS', label: '业务联系人' },
+  { value: 'FINANCE', label: '财务联系人' },
+  { value: 'OPERATION', label: '运营联系人' },
+],
+  qualifyStatusOptions: [
+  { value: 'QUALIFIED', label: '已达标' },
+  { value: 'UNQUALIFIED', label: '未达标' },
+  { value: 'PENDING', label: '待判定' },
+],
   yesNoOptions: [
   { value: 1, label: '是' },
   { value: 0, label: '否' },
@@ -633,4 +834,35 @@ export const inviteRecordStatusOptions = getBusinessEnumOptions('inviteRecordSta
 export const serviceCardStatusOptions = getBusinessEnumOptions('serviceCardStatusOptions');
 export const merchantTodoCategoryOptions = getBusinessEnumOptions('merchantTodoCategoryOptions');
 export const todoStatusOptions = getBusinessEnumOptions('todoStatusOptions');
+export const realNameStatusOptions = getBusinessEnumOptions('realNameStatusOptions');
+export const vehicleTypeOptions = getBusinessEnumOptions('vehicleTypeOptions');
+export const riskSceneOptions = getBusinessEnumOptions('riskSceneOptions');
+export const issueChannelOptions = getBusinessEnumOptions('issueChannelOptions');
+export const issueAudienceOptions = getBusinessEnumOptions('issueAudienceOptions');
+export const rechargeModeOptions = getBusinessEnumOptions('rechargeModeOptions');
+export const rewardMethodOptions = getBusinessEnumOptions('rewardMethodOptions');
+export const joinSceneOptions = getBusinessEnumOptions('joinSceneOptions');
+export const commandTypeOptions = getBusinessEnumOptions('commandTypeOptions');
+export const callbackTypeOptions = getBusinessEnumOptions('callbackTypeOptions');
+export const requestMethodOptions = getBusinessEnumOptions('requestMethodOptions');
+export const callStatusOptions = getBusinessEnumOptions('callStatusOptions');
+export const authMethodOptions = getBusinessEnumOptions('authMethodOptions');
+export const signatureMethodOptions = getBusinessEnumOptions('signatureMethodOptions');
+export const yesNoTextOptions = getBusinessEnumOptions('yesNoTextOptions');
+export const statusGroupOptions = getBusinessEnumOptions('statusGroupOptions');
+export const businessTypeOptions = getBusinessEnumOptions('businessTypeOptions');
+export const fileTypeOptions = getBusinessEnumOptions('fileTypeOptions');
+export const refTypeOptions = getBusinessEnumOptions('refTypeOptions');
+export const actionTypeOptions = getBusinessEnumOptions('actionTypeOptions');
+export const alarmSceneOptions = getBusinessEnumOptions('alarmSceneOptions');
+export const orgTypeOptions = getBusinessEnumOptions('orgTypeOptions');
+export const configTypeOptions = getBusinessEnumOptions('configTypeOptions');
+export const eventTypeOptions = getBusinessEnumOptions('eventTypeOptions');
+export const changeTypeOptions = getBusinessEnumOptions('changeTypeOptions');
+export const operationTypeOptions = getBusinessEnumOptions('operationTypeOptions');
+export const refundTypeOptions = getBusinessEnumOptions('refundTypeOptions');
+export const defaultFlagOptions = getBusinessEnumOptions('defaultFlagOptions');
+export const imageTypeOptions = getBusinessEnumOptions('imageTypeOptions');
+export const contactTypeOptions = getBusinessEnumOptions('contactTypeOptions');
+export const qualifyStatusOptions = getBusinessEnumOptions('qualifyStatusOptions');
 export const yesNoOptions = getBusinessEnumOptions('yesNoOptions');

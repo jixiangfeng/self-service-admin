@@ -9,7 +9,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
-import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api, { type CouponTemplateRecord } from '@/services/backendService';
 
 const typeMap = buildValueEnum(couponTypeOptions);
@@ -153,11 +153,11 @@ const CouponTemplateManagement: React.FC = () => {
       valueEnum: typeMap,
       render: (_, record) => renderStatusTag(record.couponType, typeMap),
     },
-    { title: '适用范围', dataIndex: 'scope', width: 160, search: false },
+    { title: '适用范围', dataIndex: 'scope', width: 160, search: false , render: (value) => formatEnumText(value, 'scope', '适用范围') },
     { title: '使用门槛', dataIndex: 'thresholdType', width: 160, search: false, render: (_, record) => thresholdText(record) || '-' },
     { title: '有效期', dataIndex: 'validityType', width: 160, search: false, render: (_, record) => validityText(record) || '-' },
-    { title: '发放方式', dataIndex: 'issueChannel', width: 160, search: false },
-    { title: '领取人群', dataIndex: 'issueAudience', width: 160, search: false },
+    { title: '发放方式', dataIndex: 'issueChannel', width: 160, search: false , render: (value) => formatEnumText(value, 'issueChannel', '发放方式') },
+    { title: '领取人群', dataIndex: 'issueAudience', width: 160, search: false , render: (value) => formatEnumText(value, 'issueAudience', '领取人群') },
     { title: '叠加限制', dataIndex: 'stackLimits', width: 220, search: false },
     { title: '库存', dataIndex: 'stock', width: 100, search: false },
     {

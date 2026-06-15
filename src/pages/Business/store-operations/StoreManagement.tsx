@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { DeleteOutlined, EditOutlined, EnvironmentOutlined, FieldTimeOutlined, NotificationOutlined, PlusOutlined, ShopOutlined } from '@ant-design/icons';
-import { Button, Form, Input, Select, Space, message } from 'antd';
+import { Button, Form, Input, Select, Space, Tabs, message } from 'antd';
 import type { CascaderProps } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -22,6 +22,7 @@ import { buildValueEnum, formatDateTime, renderBooleanTag, renderOptionTags, ren
 import WorkflowGuide from '@/pages/Business/shared';
 import { joinCommaValues, splitCommaValues } from '@/utils/csv';
 import { DateTimeField, fromDateTimePickerValue, toDateTimePickerValue, RegionCascader } from '@/utils/formControls';
+import StoreProfileManagement from './StoreProfileManagement';
 
 const normalizePickerValues = (values: Record<string, any>) => ({
   ...values,
@@ -207,7 +208,13 @@ const StoreManagement: React.FC = () => {
         ]}
       />
 
-      <ProTable<StoreRecord>
+      <Tabs
+        items={[
+          {
+            key: 'store-list',
+            label: '门店列表',
+            children: (
+              <ProTable<StoreRecord>
         cardBordered
         rowKey="id"
         columns={columns}
@@ -244,6 +251,11 @@ const StoreManagement: React.FC = () => {
         onReset={() => {
           setQueryParams({ pageNum: 1, pageSize: 10, keyword: undefined, merchantId: undefined, city: undefined, status: undefined });
         }}
+      />
+            ),
+          },
+          { key: 'store-profile', label: '档案维护', children: <StoreProfileManagement embedded /> },
+        ]}
       />
 
       <BusinessEditorModal

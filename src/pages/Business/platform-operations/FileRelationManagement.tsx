@@ -13,7 +13,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
-import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type { BizFileRefRecord, FileAuditRecord, FileRetentionRecord, FileUsageRecord } from '@/services/backendService';
 import { DateField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue } from '@/utils/formControls';
@@ -111,12 +111,12 @@ const FileRelationManagement: React.FC = () => {
   };
 
   const refColumns = useMemo<ProColumns<BizFileRefRecord>[]>(() => [
-    { title: '业务类型', dataIndex: 'bizType', width: 120 },
+    { title: '业务类型', dataIndex: 'bizType', width: 120 , render: (value) => formatEnumText(value, 'bizType', '业务类型') },
     { title: '业务单号', dataIndex: 'bizNo', width: 180 },
     { title: '业务名称', dataIndex: 'bizName', width: 180 },
     { title: '文件名', dataIndex: 'fileName', width: 220 },
     { title: '文件ID', dataIndex: 'fileAssetId', width: 160 },
-    { title: '关联类型', dataIndex: 'refType', width: 120 },
+    { title: '关联类型', dataIndex: 'refType', width: 120 , render: (value) => formatEnumText(value, 'refType', '关联类型') },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
     { title: '关联时间', dataIndex: 'linkedAt', width: 180, render: (_, record) => formatDateTime(record.linkedAt) },
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
@@ -142,7 +142,7 @@ const FileRelationManagement: React.FC = () => {
 
   const retentionColumns = useMemo<ProColumns<FileRetentionRecord>[]>(() => [
     { title: '文件名', dataIndex: 'fileName', width: 240 },
-    { title: '业务类型', dataIndex: 'bizType', width: 120 },
+    { title: '业务类型', dataIndex: 'bizType', width: 120 , render: (value) => formatEnumText(value, 'bizType', '业务类型') },
     { title: '留存规则', dataIndex: 'retentionRule', width: 220 },
     { title: '到期时间', dataIndex: 'expireAt', width: 130 },
     { title: '范围', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, scopeMap) },

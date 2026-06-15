@@ -14,7 +14,7 @@ import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type {
   AppUserProfileRecord,
@@ -203,7 +203,7 @@ const UserProfileManagement: React.FC = () => {
     { title: '用户', dataIndex: 'userName', width: 120 },
     { title: '手机号', dataIndex: 'mobile', width: 150 },
     { title: '会员等级', dataIndex: 'memberLevel', width: 120, render: (_, record) => renderStatusTag(record.memberLevel, userLevelMap) },
-    { title: '实名状态', dataIndex: 'realNameStatus', width: 120 },
+    { title: '实名状态', dataIndex: 'realNameStatus', width: 120 , render: (value) => formatEnumText(value, 'realNameStatus', '实名状态') },
     { title: '风控状态', dataIndex: 'riskStatus', width: 120, render: (_, record) => renderStatusTag(record.riskStatus, riskStatusMap) },
     { title: '注册时间', dataIndex: 'registeredAt', width: 180, render: (_, record) => formatDateTime(record.registeredAt) },
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
@@ -212,10 +212,10 @@ const UserProfileManagement: React.FC = () => {
   const vehicleColumns = useMemo<ProColumns<UserVehicleRecord>[]>(() => [
     { title: '用户', dataIndex: 'userName', width: 120 },
     { title: '车牌号', dataIndex: 'plateNo', width: 130 },
-    { title: '车辆类型', dataIndex: 'vehicleType', width: 120 },
+    { title: '车辆类型', dataIndex: 'vehicleType', width: 120 , render: (value) => formatEnumText(value, 'vehicleType', '车辆类型') },
     { title: '品牌', dataIndex: 'brand', width: 120 },
     { title: '颜色', dataIndex: 'color', width: 100 },
-    { title: '默认车辆', dataIndex: 'defaultFlag', width: 110 },
+    { title: '默认车辆', dataIndex: 'defaultFlag', width: 110 , render: (value) => formatEnumText(value, 'defaultFlag', '默认车辆') },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
   ], []);
 
@@ -251,7 +251,7 @@ const UserProfileManagement: React.FC = () => {
 
   const riskColumns = useMemo<ProColumns<UserRiskRecord>[]>(() => [
     { title: '用户', dataIndex: 'userName', width: 120 },
-    { title: '风控场景', dataIndex: 'riskScene', width: 150 },
+    { title: '风控场景', dataIndex: 'riskScene', width: 150 , render: (value) => formatEnumText(value, 'riskScene', '风控场景') },
     { title: '原因', dataIndex: 'riskReason', width: 220 },
     { title: '关联单号', dataIndex: 'relatedNo', width: 160 },
     { title: '状态', dataIndex: 'riskStatus', width: 120, render: (_, record) => renderStatusTag(record.riskStatus, riskStatusMap) },

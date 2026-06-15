@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "check:menu": "node scripts/check-admin-menu-scope.js",
+    "check:enum-render": "node scripts/check-admin-enum-render.js",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -614,6 +614,9 @@ export interface DeviceSparePartRecord {
 
 export interface DeviceVendorRecord { id: number; vendorCode: string; vendorName: string; contactName?: string; contactPhone?: string; apiBaseUrl?: string; status: string; createdAt?: string; updatedAt?: string; }
 export interface DeviceModelRecord { id: number; vendorName?: string; modelCode: string; modelName: string; deviceType: string; protocolCode?: string; status: string; createdAt?: string; updatedAt?: string; }
+export interface DeviceCommandTemplateRecord { id: number; templateCode: string; templateName: string; protocolCode?: string; deviceType?: string; commandType: string; commandPayload?: string; description?: string; status: string; createdAt?: string; updatedAt?: string; }
+export interface DeviceStatusMappingRecord { id: number; mappingCode: string; protocolCode?: string; statusGroup: string; vendorStatusCode: string; platformStatusCode: string; statusName: string; description?: string; status: string; createdAt?: string; updatedAt?: string; }
+export interface DeviceCallbackConfigRecord { id: number; callbackCode: string; callbackName: string; protocolCode?: string; vendorCode?: string; callbackType: string; callbackUrl: string; appKey?: string; appSecret?: string; signatureMethod?: string; ipWhitelist?: string; status: string; createdAt?: string; updatedAt?: string; }
 export interface DeviceProtocolRecord {
   id: number;
   protocolCode: string;
@@ -2565,6 +2568,9 @@ export const deviceApi = {
 export const deviceVendorApi = crudApi<DeviceVendorRecord>('/device-vendors');
 export const deviceModelApi = crudApi<DeviceModelRecord>('/device-models');
 export const deviceProtocolApi = crudApi<DeviceProtocolRecord>('/device-protocols');
+export const deviceCommandTemplateApi = crudApi<DeviceCommandTemplateRecord>('/device-command-templates');
+export const deviceStatusMappingApi = crudApi<DeviceStatusMappingRecord>('/device-status-mappings');
+export const deviceCallbackConfigApi = crudApi<DeviceCallbackConfigRecord>('/device-callback-configs');
 export const deviceBindLogApi = crudApi<DeviceBindLogRecord>('/device-bind-logs');
 
 export const deviceOpsApi = {
@@ -3173,6 +3179,9 @@ export default {
   deviceVendor: deviceVendorApi,
   deviceModel: deviceModelApi,
   deviceProtocol: deviceProtocolApi,
+  deviceCommandTemplate: deviceCommandTemplateApi,
+  deviceStatusMapping: deviceStatusMappingApi,
+  deviceCallbackConfig: deviceCallbackConfigApi,
   deviceBindLog: deviceBindLogApi,
   deviceOps: deviceOpsApi,
   serviceProduct: serviceProductApi,

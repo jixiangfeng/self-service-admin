@@ -12,7 +12,7 @@ import {
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type { AppUserProfileRecord, BalanceFlowRecord, ServiceCardRecord, ServiceCardUsageRecord, UserRiskRecord, UserServiceCardRecord } from '@/services/backendService';
 
@@ -180,8 +180,8 @@ const AssetFlowManagement: React.FC = () => {
     { title: '用户', dataIndex: 'userName', width: 120 },
     { title: '手机号', dataIndex: 'mobile', width: 140 },
     { title: '会员等级', dataIndex: 'memberLevel', width: 120, render: (_, record) => renderStatusTag(record.memberLevel, userLevelMap) },
-    { title: '实名状态', dataIndex: 'realNameStatus', width: 120 },
-    { title: '风控状态', dataIndex: 'riskStatus', width: 120 },
+    { title: '实名状态', dataIndex: 'realNameStatus', width: 120 , render: (value) => formatEnumText(value, 'realNameStatus', '实名状态') },
+    { title: '风控状态', dataIndex: 'riskStatus', width: 120 , render: (value) => formatEnumText(value, 'riskStatus', '风控状态') },
     { title: '注册时间', dataIndex: 'registeredAt', width: 180, render: (_, record) => formatDateTime(record.registeredAt) },
     { title: '备注', dataIndex: 'remark', width: 220 },
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
@@ -190,7 +190,7 @@ const AssetFlowManagement: React.FC = () => {
   const serviceCardColumns = useMemo<ProColumns<ServiceCardRecord>[]>(() => [
     { title: '卡产品编码', dataIndex: 'cardCode', width: 160 },
     { title: '卡产品名称', dataIndex: 'cardName', width: 180 },
-    { title: '卡类型', dataIndex: 'cardType', width: 120 },
+    { title: '卡类型', dataIndex: 'cardType', width: 120 , render: (value) => formatEnumText(value, 'cardType', '卡类型') },
     { title: '适用范围', dataIndex: 'scopeMode', width: 190, render: (_, record) => formatServiceScope(record) },
     { title: '权益', dataIndex: 'rightsServiceTimes', width: 260, render: (_, record) => formatServiceRights(record) },
     { title: '售价', dataIndex: 'salePrice', width: 120, render: (_, record) => formatAmount(record.salePrice) },
@@ -208,7 +208,7 @@ const AssetFlowManagement: React.FC = () => {
     { title: '剩余/总次数', dataIndex: 'remainTimes', width: 130, renderText: (_, record) => `${record.remainTimes ?? 0}/${record.totalTimes ?? 0}` },
     { title: '有效期', dataIndex: 'validFrom', width: 230, render: (_, record) => `${formatDateTime(record.validFrom)} - ${formatDateTime(record.validTo)}` },
     { title: '来源单号', dataIndex: 'sourceBizNo', width: 180 },
-    { title: '状态', dataIndex: 'status', width: 120 },
+    { title: '状态', dataIndex: 'status', width: 120 , render: (value) => formatEnumText(value, 'status', '状态') },
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
@@ -220,7 +220,7 @@ const AssetFlowManagement: React.FC = () => {
     { title: '订单号', dataIndex: 'serviceOrderNo', width: 170 },
     { title: '门店', dataIndex: 'storeName', width: 170 },
     { title: '扣减次数', dataIndex: 'deductCount', width: 110 },
-    { title: '状态', dataIndex: 'status', width: 120 },
+    { title: '状态', dataIndex: 'status', width: 120 , render: (value) => formatEnumText(value, 'status', '状态') },
     { title: '使用时间', dataIndex: 'usedAt', width: 180, render: (_, record) => formatDateTime(record.usedAt) },
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
@@ -228,10 +228,10 @@ const AssetFlowManagement: React.FC = () => {
   const riskColumns = useMemo<ProColumns<UserRiskRecord>[]>(() => [
     { title: '用户', dataIndex: 'userName', width: 120 },
     { title: '手机号', dataIndex: 'mobile', width: 140 },
-    { title: '风控场景', dataIndex: 'riskScene', width: 150 },
+    { title: '风控场景', dataIndex: 'riskScene', width: 150 , render: (value) => formatEnumText(value, 'riskScene', '风控场景') },
     { title: '风控原因', dataIndex: 'riskReason', width: 220 },
     { title: '关联单号', dataIndex: 'relatedNo', width: 180 },
-    { title: '状态', dataIndex: 'riskStatus', width: 120 },
+    { title: '状态', dataIndex: 'riskStatus', width: 120 , render: (value) => formatEnumText(value, 'riskStatus', '状态') },
     { title: '负责人', dataIndex: 'owner', width: 120 },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },

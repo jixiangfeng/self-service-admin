@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ApiOutlined, DeleteOutlined, DeploymentUnitOutlined, EditOutlined, LinkOutlined, PlusOutlined, ToolOutlined } from '@ant-design/icons';
-import { Button, Form, Input, Select, Space, message } from 'antd';
+import { Button, Form, Input, Select, Space, Tabs, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
   deviceControlModeOptions,
@@ -21,6 +21,7 @@ import { buildValueEnum, formatDateTime, renderOptionTags, renderStatusTag } fro
 import WorkflowGuide from '@/pages/Business/shared';
 import { joinCommaValues, splitCommaValues } from '@/utils/csv';
 import { DateField, fromDatePickerValue, toDatePickerValue } from '@/utils/formControls';
+import DeviceProfileManagement from './DeviceProfileManagement';
 
 const normalizeDeviceValues = (values: Record<string, any>) => ({ ...values, installTime: fromDatePickerValue(values.installTime) || values.installTime });
 const normalizeDeviceInitialValues = (record: DeviceRecord) => ({ ...record, installTime: toDatePickerValue(record.installTime) || record.installTime }) as Record<string, unknown>;
@@ -215,7 +216,13 @@ const DeviceManagement: React.FC = () => {
           { key: 'trade', label: '去交易中心', onClick: () => navigate('/trade') },
         ]}
       />
-      <ProTable<DeviceRecord>
+      <Tabs
+        items={[
+          {
+            key: 'device-list',
+            label: '设备列表',
+            children: (
+              <ProTable<DeviceRecord>
         cardBordered
         rowKey="id"
         columns={columns}
@@ -266,6 +273,11 @@ const DeviceManagement: React.FC = () => {
         onReset={() => {
           setQueryParams({ pageNum: 1, pageSize: 10, keyword: undefined, storeId: undefined, deviceType: undefined, status: undefined });
         }}
+      />
+            ),
+          },
+          { key: 'device-profile', label: '档案维护', children: <DeviceProfileManagement embedded /> },
+        ]}
       />
 
       <BusinessEditorModal

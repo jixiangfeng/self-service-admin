@@ -13,7 +13,7 @@ import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, containsKeyword, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type { PlatformDepartmentRecord, PlatformOrganizationChangeLogRecord, PlatformOrganizationRecord, PlatformPositionRecord } from '@/services/backendService';
 import { DateTimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue, toDatePickerValue, toDateTimePickerValue, toTimePickerValue } from '@/utils/formControls';
@@ -253,7 +253,7 @@ const Organization: React.FC = () => {
   const orgColumns = useMemo<ProColumns<OrganizationRecord>[]>(() => [
     { title: '组织编码', dataIndex: 'orgCode', width: 160 },
     { title: '组织名称', dataIndex: 'orgName', width: 180 },
-    { title: '组织类型', dataIndex: 'orgType', width: 130 },
+    { title: '组织类型', dataIndex: 'orgType', width: 130 , render: (value) => formatEnumText(value, 'orgType', '组织类型') },
     { title: '上级组织', dataIndex: 'parentName', width: 160 },
     { title: '商户', dataIndex: 'merchantName', width: 160 },
     { title: '门店', dataIndex: 'storeName', width: 180 },
@@ -301,7 +301,7 @@ const Organization: React.FC = () => {
   const changeColumns = useMemo<ProColumns<OrgChangeRecord>[]>(() => [
     { title: '变更单号', dataIndex: 'changeNo', width: 180 },
     { title: '对象', dataIndex: 'objectName', width: 180 },
-    { title: '变更类型', dataIndex: 'changeType', width: 140 },
+    { title: '变更类型', dataIndex: 'changeType', width: 140 , render: (value) => formatEnumText(value, 'changeType', '变更类型') },
     { title: '变更前', dataIndex: 'beforeValue', width: 180 },
     { title: '变更后', dataIndex: 'afterValue', width: 180 },
     { title: '变更时间', dataIndex: 'changedAt', width: 180, render: (_, record) => formatDateTime(record.changedAt) },

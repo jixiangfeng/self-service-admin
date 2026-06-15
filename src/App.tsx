@@ -12,14 +12,10 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const MerchantManagement = lazy(() => import('./pages/Business/merchant-center').then((module) => ({ default: module.MerchantManagement })));
 const MerchantGroupManagement = lazy(() => import('./pages/Business/merchant-center').then((module) => ({ default: module.MerchantGroupManagement })));
 const MerchantWorkbench = lazy(() => import('./pages/Business/merchant-center').then((module) => ({ default: module.MerchantWorkbench })));
-const MerchantProfileManagement = lazy(() => import('./pages/Business/merchant-center').then((module) => ({ default: module.MerchantProfileManagement })));
 const MerchantAccountManagement = lazy(() => import('./pages/Business/merchant-center').then((module) => ({ default: module.MerchantAccountManagement })));
 const StoreManagement = lazy(() => import('./pages/Business/store-operations').then((module) => ({ default: module.StoreManagement })));
-const StoreProfileManagement = lazy(() => import('./pages/Business/store-operations').then((module) => ({ default: module.StoreProfileManagement })));
 const ServicePointManagement = lazy(() => import('./pages/Business/store-operations').then((module) => ({ default: module.ServicePointManagement })));
-const ServicePointProfileManagement = lazy(() => import('./pages/Business/store-operations').then((module) => ({ default: module.ServicePointProfileManagement })));
 const DeviceManagement = lazy(() => import('./pages/Business/store-operations').then((module) => ({ default: module.DeviceManagement })));
-const DeviceProfileManagement = lazy(() => import('./pages/Business/store-operations').then((module) => ({ default: module.DeviceProfileManagement })));
 const StoreOperationsManagement = lazy(() => import('./pages/Business/store-operations').then((module) => ({ default: module.StoreOperationsManagement })));
 const ServiceManagement = lazy(() => import('./pages/Business/product-service').then((module) => ({ default: module.ServiceManagement })));
 const ProductPricingManagement = lazy(() => import('./pages/Business/product-service').then((module) => ({ default: module.ProductPricingManagement })));
@@ -56,6 +52,7 @@ const OperationsConfigManagement = lazy(() => import('./pages/Business/platform-
 const PlatformBaseManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.PlatformBaseManagement })));
 const PaymentOpsManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.PaymentOpsManagement })));
 const DeviceOpsManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.DeviceOpsManagement })));
+const DeviceAccessManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.DeviceAccessManagement })));
 const OperationsExtensionManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.OperationsExtensionManagement })));
 const FileRelationManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.FileRelationManagement })));
 const ApprovalFlowManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.ApprovalFlowManagement })));
@@ -100,17 +97,17 @@ const AppContent = () => {
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="merchant" element={<MerchantManagement />} />
-              <Route path="merchant/profiles" element={<MerchantProfileManagement />} />
+              <Route path="merchant/profiles" element={<Navigate to="/merchant" replace />} />
               <Route path="merchant/accounts" element={<MerchantAccountManagement />} />
               <Route path="merchant/groups" element={<MerchantGroupManagement />} />
               <Route path="merchant-console" element={<MerchantWorkbench />} />
               <Route path="store" element={<StoreManagement />} />
-              <Route path="store/profiles" element={<StoreProfileManagement />} />
+              <Route path="store/profiles" element={<Navigate to="/store" replace />} />
               <Route path="store-operations" element={<StoreOperationsManagement />} />
               <Route path="bay" element={<ServicePointManagement />} />
-              <Route path="bay/profiles" element={<ServicePointProfileManagement />} />
+              <Route path="bay/profiles" element={<Navigate to="/bay" replace />} />
               <Route path="device" element={<DeviceManagement />} />
-              <Route path="device/profiles" element={<DeviceProfileManagement />} />
+              <Route path="device/profiles" element={<Navigate to="/device" replace />} />
               <Route path="service" element={<ServiceManagement />} />
               <Route path="service/pricing" element={<ProductPricingManagement />} />
               <Route path="service/changes" element={<ProductChangeManagement />} />
@@ -147,6 +144,7 @@ const AppContent = () => {
               <Route path="platform-base" element={<PlatformBaseManagement />} />
               <Route path="payment-ops" element={<PaymentOpsManagement />} />
               <Route path="device-ops" element={<DeviceOpsManagement />} />
+              <Route path="device-access" element={<DeviceAccessManagement />} />
               <Route path="operations-extension" element={<OperationsExtensionManagement />} />
               <Route path="file-relations" element={<FileRelationManagement />} />
               <Route path="approval-flows" element={<ApprovalFlowManagement />} />

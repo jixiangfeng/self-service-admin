@@ -11,7 +11,7 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
-import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import api, { type CouponTemplateRecord, type InviteActivityRecord, type MarketingBudgetRecord, type RechargeActivityRecord, type SelectOptionRecord } from '@/services/backendService';
 
@@ -324,9 +324,9 @@ const MarketingManagement: React.FC = () => {
     },
     { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '模板名称 / 编码 / 券类型 / 范围' } },
     { title: '券类型', dataIndex: 'couponType', width: 120, valueType: 'select', valueEnum: couponTypeMap, render: (_, record) => renderStatusTag(record.couponType, couponTypeMap) },
-    { title: '范围', dataIndex: 'scope', width: 180, search: false },
-    { title: '发放方式', dataIndex: 'issueChannel', width: 160, search: false },
-    { title: '领取人群', dataIndex: 'issueAudience', width: 160, search: false },
+    { title: '范围', dataIndex: 'scope', width: 180, search: false , render: (value) => formatEnumText(value, 'scope', '范围') },
+    { title: '发放方式', dataIndex: 'issueChannel', width: 160, search: false , render: (value) => formatEnumText(value, 'issueChannel', '发放方式') },
+    { title: '领取人群', dataIndex: 'issueAudience', width: 160, search: false , render: (value) => formatEnumText(value, 'issueAudience', '领取人群') },
     { title: '使用门槛', dataIndex: 'thresholdType', width: 160, search: false, render: (_, record) => couponThresholdText(record) },
     { title: '有效期', dataIndex: 'validityType', width: 160, search: false, render: (_, record) => couponValidityText(record) },
     { title: '库存', dataIndex: 'stock', width: 120, search: false },
@@ -400,12 +400,12 @@ const MarketingManagement: React.FC = () => {
       ),
     },
     { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '活动名称 / 编码 / 充值门槛 / 奖励' } },
-    { title: '充值方式', dataIndex: 'rechargeMode', width: 160, search: false },
-    { title: '奖励方式', dataIndex: 'rewardMethod', width: 160, search: false },
+    { title: '充值方式', dataIndex: 'rechargeMode', width: 160, search: false , render: (value) => formatEnumText(value, 'rechargeMode', '充值方式') },
+    { title: '奖励方式', dataIndex: 'rewardMethod', width: 160, search: false , render: (value) => formatEnumText(value, 'rewardMethod', '奖励方式') },
     { title: '固定档位', dataIndex: 'tierAmounts', width: 160, search: false },
     { title: '奖励券模板', dataIndex: 'couponTemplateId', width: 120, search: false, render: (_, record) => record.couponTemplateId ? `#${record.couponTemplateId}` : '-' },
     { title: '服务卡产品', dataIndex: 'serviceCardId', width: 120, search: false, render: (_, record) => record.serviceCardId ? `#${record.serviceCardId}` : '-' },
-    { title: '作用范围', dataIndex: 'scope', width: 140, search: false },
+    { title: '作用范围', dataIndex: 'scope', width: 140, search: false , render: (value) => formatEnumText(value, 'scope', '作用范围') },
     { title: '成本承担', dataIndex: 'costOwner', width: 160, valueType: 'select', valueEnum: costBearerMap, render: (_, record) => renderStatusTag(record.costOwner, costBearerMap) },
     { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },

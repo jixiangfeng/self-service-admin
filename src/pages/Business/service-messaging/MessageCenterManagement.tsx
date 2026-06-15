@@ -10,7 +10,7 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
-import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api, { type MessageRecord, type MessageTemplateRecord } from '@/services/backendService';
 
 const statusMap = buildValueEnum(templateStatusOptions);
@@ -155,7 +155,7 @@ const MessageCenterManagement: React.FC = () => {
       ),
     },
     { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '模板 / 编码 / 场景 / 渠道 / 触发条件' } },
-    { title: '场景', dataIndex: 'scene', width: 160, search: false },
+    { title: '场景', dataIndex: 'scene', width: 160, search: false , render: (value) => formatEnumText(value, 'scene', '场景') },
     { title: '发送渠道', dataIndex: 'channel', width: 180, valueType: 'select', valueEnum: channelMap, render: (_, record) => renderStatusTag(record.channel, channelMap) },
     { title: '触发条件', dataIndex: 'triggerCondition', width: 200, search: false },
     { title: '目标用户', dataIndex: 'targetUser', width: 120, search: false },

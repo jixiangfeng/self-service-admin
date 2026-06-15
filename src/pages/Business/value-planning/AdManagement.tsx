@@ -13,7 +13,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
-import { buildValueEnum, formatAmount, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, formatAmount, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api, { type AdCampaignRecord, type AdEventRecord, type AdSlotRecord } from '@/services/backendService';
 
 const placementMap = buildValueEnum(adSlotPlacementOptions);
@@ -160,7 +160,7 @@ const AdManagement: React.FC = () => {
             { title: '计划编码', dataIndex: 'campaignCode', width: 160 },
             { title: '计划名称', dataIndex: 'campaign' },
             { title: '广告位', dataIndex: 'slotName', width: 160 },
-            { title: '投放对象', dataIndex: 'target', width: 180 },
+            { title: '投放对象', dataIndex: 'target', width: 180 , render: (value) => formatEnumText(value, 'target', '投放对象') },
             { title: '时段', dataIndex: 'timing', width: 160 },
             { title: '预算', dataIndex: 'budget', width: 110, render: (value: number) => formatAmount(value) },
             { title: '曝光', dataIndex: 'exposure', width: 90 },
@@ -185,7 +185,7 @@ const AdManagement: React.FC = () => {
           dataSource={events}
           columns={[
             { title: '计划', dataIndex: 'campaign' },
-            { title: '事件', dataIndex: 'eventType', width: 120 },
+            { title: '事件', dataIndex: 'eventType', width: 120 , render: (value) => formatEnumText(value, 'eventType', '事件') },
             { title: '用户', dataIndex: 'userName', width: 120 },
             { title: '门店', dataIndex: 'storeName', width: 180 },
             { title: '转化订单', dataIndex: 'orderNo', width: 170 },

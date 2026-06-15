@@ -18,7 +18,7 @@ import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
 import type { SelectOptionRecord, ServiceOrderRecord } from '@/services/backendService';
-import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 
 interface WriteOffRecord {
   id: string;
@@ -284,7 +284,7 @@ const FulfillmentManagement: React.FC = () => {
     { title: '点位', dataIndex: 'pointCode', width: 100, search: false },
     { title: '设备编号', dataIndex: 'deviceCode', width: 140, search: false },
     { title: '指令号', dataIndex: 'commandNo', width: 170, search: false },
-    { title: '指令状态', dataIndex: 'commandStatus', width: 120, search: false },
+    { title: '指令状态', dataIndex: 'commandStatus', width: 120, search: false , render: (value) => formatEnumText(value, 'commandStatus', '指令状态') },
     { title: '开始时间', dataIndex: 'startAt', width: 180, search: false, render: (_, record) => formatDateTime(record.startAt) },
     { title: '结束时间', dataIndex: 'finishAt', width: 180, search: false, render: (_, record) => formatDateTime(record.finishAt) },
     { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: performStatusMap, render: (_, record) => renderStatusTag(record.status, performStatusMap) },

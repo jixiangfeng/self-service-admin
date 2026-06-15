@@ -17,7 +17,7 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
-import { buildValueEnum, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type { PaymentCallbackLogRecord, PaymentChannelRecord, PaymentOrderRecord, PaymentReconciliationRecord, RefundCallbackLogRecord } from '@/services/backendService';
 import { DateField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue } from '@/utils/formControls';
@@ -243,7 +243,7 @@ const PaymentOpsManagement: React.FC = () => {
   const callbackColumns = useMemo<ProColumns<PaymentCallbackLogRecord>[]>(() => [
     { title: '请求编号', dataIndex: 'requestId', width: 180 },
     { title: '支付单号', dataIndex: 'paymentNo', width: 180 },
-    { title: '回调类型', dataIndex: 'callbackType', width: 120 },
+    { title: '回调类型', dataIndex: 'callbackType', width: 120 , render: (value) => formatEnumText(value, 'callbackType', '回调类型') },
     { title: '处理结果', dataIndex: 'callbackStatus', width: 120, render: (_, record) => renderStatusTag(record.callbackStatus, auditStatusMap) },
     { title: '处理时间', dataIndex: 'handledAt', width: 180, render: (_, record) => formatDateTime(record.handledAt) },
     { title: '备注', dataIndex: 'remark', width: 220, ellipsis: true },

@@ -10,7 +10,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
-import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api, {
   type AlarmRecord,
   type ApprovalTaskRecord,
@@ -122,9 +122,9 @@ const OperationsSupportManagement: React.FC = () => {
 
   const fileColumns = useMemo<ProColumns<FileAssetRecord>[]>(() => [
     { title: '文件名', dataIndex: 'fileName', width: 220 },
-    { title: '业务类型', dataIndex: 'bizType', width: 140 },
+    { title: '业务类型', dataIndex: 'bizType', width: 140 , render: (value) => formatEnumText(value, 'bizType', '业务类型') },
     { title: '业务单号', dataIndex: 'bizNo', width: 160 },
-    { title: '文件类型', dataIndex: 'fileType', width: 100 },
+    { title: '文件类型', dataIndex: 'fileType', width: 100 , render: (value) => formatEnumText(value, 'fileType', '文件类型') },
     { title: '上传人', dataIndex: 'uploader', width: 120 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, auditStatusMap) },
     { title: '上传时间', dataIndex: 'uploadedAt', width: 180, render: (_, record) => formatDateTime(record.uploadedAt || record.createdAt) },
@@ -133,7 +133,7 @@ const OperationsSupportManagement: React.FC = () => {
 
   const approvalColumns = useMemo<ProColumns<ApprovalTaskRecord>[]>(() => [
     { title: '审批单号', dataIndex: 'processNo', width: 180 },
-    { title: '业务类型', dataIndex: 'bizType', width: 150 },
+    { title: '业务类型', dataIndex: 'bizType', width: 150 , render: (value) => formatEnumText(value, 'bizType', '业务类型') },
     { title: '业务单号', dataIndex: 'bizNo', width: 160 },
     { title: '申请人', dataIndex: 'applicant', width: 120 },
     { title: '当前节点', dataIndex: 'currentNode', width: 120 },
@@ -145,8 +145,8 @@ const OperationsSupportManagement: React.FC = () => {
 
   const taskColumns = useMemo<ProColumns<ImportExportTaskRecord>[]>(() => [
     { title: '任务号', dataIndex: 'taskNo', width: 180 },
-    { title: '任务类型', dataIndex: 'taskType', width: 100 },
-    { title: '业务类型', dataIndex: 'bizType', width: 140 },
+    { title: '任务类型', dataIndex: 'taskType', width: 100 , render: (value) => formatEnumText(value, 'taskType', '任务类型') },
+    { title: '业务类型', dataIndex: 'bizType', width: 140 , render: (value) => formatEnumText(value, 'bizType', '业务类型') },
     { title: '文件名', dataIndex: 'fileName', width: 180 },
     { title: '操作人', dataIndex: 'operator', width: 120 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
@@ -170,8 +170,8 @@ const OperationsSupportManagement: React.FC = () => {
   const riskColumns = useMemo<ProColumns<RiskHitRecord>[]>(() => [
     { title: '规则', dataIndex: 'ruleName', width: 180 },
     { title: '命中对象', dataIndex: 'bizId', width: 180 },
-    { title: '命中类型', dataIndex: 'riskScene', width: 140 },
-    { title: '处置动作', dataIndex: 'actionType', width: 120 },
+    { title: '命中类型', dataIndex: 'riskScene', width: 140 , render: (value) => formatEnumText(value, 'riskScene', '命中类型') },
+    { title: '处置动作', dataIndex: 'actionType', width: 120 , render: (value) => formatEnumText(value, 'actionType', '处置动作') },
     { title: '状态', dataIndex: 'handleStatus', width: 120, render: (_, record) => renderStatusTag(record.handleStatus, publishStatusMap) },
     { title: '用户', dataIndex: 'appUserName', width: 120 },
     { title: '命中时间', dataIndex: 'createdAt', width: 180, render: (_, record) => formatDateTime(record.createdAt) },
@@ -203,7 +203,7 @@ const OperationsSupportManagement: React.FC = () => {
 
   const alarmColumns = useMemo<ProColumns<AlarmRecord>[]>(() => [
     { title: '规则', dataIndex: 'ruleName', width: 180 },
-    { title: '告警类型', dataIndex: 'alarmScene', width: 140 },
+    { title: '告警类型', dataIndex: 'alarmScene', width: 140 , render: (value) => formatEnumText(value, 'alarmScene', '告警类型') },
     { title: '来源', dataIndex: 'bizId', width: 160 },
     { title: '等级', dataIndex: 'alarmLevel', width: 100, render: (_, record) => renderStatusTag(record.alarmLevel, publishStatusMap) },
     { title: '状态', dataIndex: 'handleStatus', width: 120, render: (_, record) => renderStatusTag(record.handleStatus, publishStatusMap) },

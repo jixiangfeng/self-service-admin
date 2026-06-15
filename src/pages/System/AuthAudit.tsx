@@ -13,7 +13,7 @@ import BusinessEditorModal, { BusinessEditorSection } from '@/components/Busines
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, containsKeyword, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type { DataScopeRelationRecord, LoginLogRecord, OperationLogRecord, PermissionChangeLogRecord, UserRoleRelationRecord } from '@/services/backendService';
 import { DateTimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue, toDatePickerValue, toDateTimePickerValue, toTimePickerValue } from '@/utils/formControls';
@@ -219,7 +219,7 @@ const AuthAudit: React.FC = () => {
   const operationLogColumns = useMemo<ProColumns<OperationLogRecordView>[]>(() => [
     { title: '用户', dataIndex: 'userName', width: 140 },
     { title: '模块', dataIndex: 'moduleCode', width: 180 },
-    { title: '操作', dataIndex: 'operationType', width: 140 },
+    { title: '操作', dataIndex: 'operationType', width: 140 , render: (value) => formatEnumText(value, 'operationType', '操作') },
     { title: '业务单号', dataIndex: 'bizNo', width: 180 },
     { title: '结果', dataIndex: 'result', width: 120, render: (_, record) => renderStatusTag(record.result, auditStatusMap) },
     { title: '操作时间', dataIndex: 'operatedAt', width: 180, render: (_, record) => formatDateTime(record.operatedAt) },
@@ -229,7 +229,7 @@ const AuthAudit: React.FC = () => {
   const permissionChangeColumns = useMemo<ProColumns<PermissionChangeRecord>[]>(() => [
     { title: '变更单号', dataIndex: 'changeNo', width: 180 },
     { title: '目标用户', dataIndex: 'targetUser', width: 140 },
-    { title: '变更类型', dataIndex: 'changeType', width: 140 },
+    { title: '变更类型', dataIndex: 'changeType', width: 140 , render: (value) => formatEnumText(value, 'changeType', '变更类型') },
     { title: '变更前', dataIndex: 'beforeValue', width: 180 },
     { title: '变更后', dataIndex: 'afterValue', width: 180 },
     { title: '审核状态', dataIndex: 'auditStatus', width: 120, render: (_, record) => renderStatusTag(record.auditStatus, auditStatusMap) },

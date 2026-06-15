@@ -17,7 +17,7 @@ import BusinessEditorModal, { BusinessEditorSection } from '@/components/Busines
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import api, { type AppUserProfileRecord, type BalanceFlowRecord, type CouponTemplateRecord, type RechargeOrderRecord, type UserAssetAccountRecord } from '@/services/backendService';
 
@@ -255,7 +255,7 @@ const AssetManagement: React.FC = () => {
     { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '用户 / 手机号 / 标签' } },
     { title: '手机号', dataIndex: 'mobile', width: 140, search: false },
     { title: '等级', dataIndex: 'memberLevel', width: 120, valueType: 'select', valueEnum: userLevelMap, render: (_, record) => renderStatusTag(record.memberLevel, userLevelMap) },
-    { title: '实名状态', dataIndex: 'realNameStatus', width: 120, search: false },
+    { title: '实名状态', dataIndex: 'realNameStatus', width: 120, search: false , render: (value) => formatEnumText(value, 'realNameStatus', '实名状态') },
     { title: '注册时间', dataIndex: 'registeredAt', width: 180, search: false, render: (_, record) => formatDateTime(record.registeredAt) },
     { title: '风控状态', dataIndex: 'riskStatus', width: 120, valueType: 'select', valueEnum: riskStatusMap, render: (_, record) => renderStatusTag(record.riskStatus, riskStatusMap) },
     {
@@ -327,7 +327,7 @@ const AssetManagement: React.FC = () => {
     { title: '券模板', dataIndex: 'templateName', width: 180, hideInSearch: true },
     { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '券模板 / 券类型 / 作用范围' } },
     { title: '券类型', dataIndex: 'couponType', width: 120, valueType: 'select', valueEnum: couponTypeMap, render: (_, record) => renderStatusTag(record.couponType, couponTypeMap) },
-    { title: '作用范围', dataIndex: 'scope', width: 180, search: false },
+    { title: '作用范围', dataIndex: 'scope', width: 180, search: false , render: (value) => formatEnumText(value, 'scope', '作用范围') },
     { title: '门槛', dataIndex: 'threshold', width: 140, search: false },
     { title: '有效期', dataIndex: 'validity', width: 140, search: false },
     { title: '库存', dataIndex: 'stock', width: 100, search: false },

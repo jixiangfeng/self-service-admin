@@ -22,7 +22,7 @@ import type {
   ServicePointQrRecord,
   ServicePointStatusLogRecord,
 } from '@/services/backendService';
-import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import { DateTimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue, toDatePickerValue, toDateTimePickerValue, toTimePickerValue } from '@/utils/formControls';
 
 type PointProfileTab = 'qr' | 'maintain' | 'bind' | 'status';
@@ -112,7 +112,7 @@ const pointProfileDetailFields: Record<PointProfileTab, DetailField<any>[]> = {
   ],
 };
 
-const ServicePointProfileManagement: React.FC = () => {
+const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
   const [activeTab, setActiveTab] = useState<PointProfileTab>('qr');
@@ -224,7 +224,7 @@ const ServicePointProfileManagement: React.FC = () => {
   const maintainColumns = useMemo<ProColumns<ServicePointMaintainRecord>[]>(() => [
     { title: '维护单号', dataIndex: 'maintainNo', width: 180 },
     { title: '点位编号', dataIndex: 'pointCode', width: 140 },
-    { title: '维护类型', dataIndex: 'maintainType', width: 130 },
+    { title: '维护类型', dataIndex: 'maintainType', width: 130 , render: (value) => formatEnumText(value, 'maintainType', '维护类型') },
     { title: '负责人', dataIndex: 'owner', width: 130 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, maintainStatusMap) },
     { title: '计划时间', dataIndex: 'plannedAt', width: 180, render: (_, record) => formatDateTime(record.plannedAt) },
@@ -253,8 +253,8 @@ const ServicePointProfileManagement: React.FC = () => {
   ], []);
 
   return (
-    <div style={{ padding: 24 }}>
-      <PageBanner title="点位档案中心" subtitle="维护点位二维码、维护记录、设备绑定日志和状态流转。" icon={<QrcodeOutlined />} />
+    <div style={{ padding: embedded ? 0 : 24 }}>
+      {!embedded ? <PageBanner title="点位档案中心" subtitle="维护点位二维码、维护记录、设备绑定日志和状态流转。" icon={<QrcodeOutlined />} /> : null}
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="二维码" value={qrRecords.length} suffix="个" /></Card></Col>
