@@ -38,6 +38,10 @@ const extractColumnObjects = (text) => {
   return objects;
 };
 
+const hasRawValueRenderer = (text) =>
+  /\brenderText\s*:\s*\(\s*([A-Za-z_$][\w$]*)[^)]*\)\s*=>\s*\1\s*(?:\|\||\?\?)\s*['"`]-['"`]/.test(text)
+  || /\brender\s*:\s*\(\s*([A-Za-z_$][\w$]*)[^)]*\)\s*=>\s*\1\s*(?:\|\||\?\?)\s*['"`]-['"`]/.test(text);
+
 const errors = [];
 
 for (const filePath of walk(pagesRoot)) {
@@ -51,6 +55,10 @@ for (const filePath of walk(pagesRoot)) {
     if (!enumLike) continue;
     if (allowedRawFieldPattern.test(column.dataIndex)) continue;
     const hasRenderer = /\b(render|renderText|valueEnum)\s*:/.test(column.text);
+    if (hasRawValueRenderer(column.text)) {
+      errors.push(`${rel}:${getLine(text, column.start)} ${column.title}(${column.dataIndex}) uses raw enum renderer`);
+      continue;
+    }
     if (!hasRenderer) {
       errors.push(`${rel}:${getLine(text, column.start)} ${column.title}(${column.dataIndex}) missing enum renderer`);
     }
@@ -68,4 +76,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log('Admin enum render check passed: enum-like table columns have render/valueEnum/renderText.');
+console.log('Admin enum render check passed: enum-like table columns have meaningful render/valueEnum/renderText.');

@@ -89,11 +89,37 @@ const rechargeTierOptions = [
   { label: '500 元', value: '500' },
   { label: '1000 元', value: '1000' },
 ];
-const splitMultiValue = (value?: string) => String(value || '').split(/[\\/、,，；;]/).map((item) => item.trim().replace(/元$/, '')).filter(Boolean);
+const splitMultiValue = (value?: string) => String(value || '').split(/[;；,，]/).map((item) => item.trim()).filter(Boolean);
 const joinMultiValue = (value: unknown, separator = '；') => Array.isArray(value) ? value.join(separator) : String(value || '');
 const optionLabel = (options: { label: string; value: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
 const optionLabels = (options: { label: string; value: string }[], value?: string) =>
   splitMultiValue(value).map((item) => optionLabel(options, item)).join('、') || '-';
+const tierGiftAmount = (values: Record<string, any>) => {
+  const rewardCap = Number(values.rewardCap);
+  if (Number.isFinite(rewardCap) && rewardCap > 0) return rewardCap;
+  const rewardValue = Number(values.rewardValue);
+  return Number.isFinite(rewardValue) && rewardValue > 0 ? rewardValue : 0;
+};
+const buildRechargeTierAmounts = (values: Record<string, any>) => {
+  const amounts = Array.isArray(values.tierAmounts) ? values.tierAmounts : [];
+  const gift = tierGiftAmount(values);
+  return JSON.stringify(amounts.map((amount) => ({ amount: Number(amount), gift })));
+};
+const parseRechargeTierAmounts = (value?: string) => {
+  if (!value) return [];
+  try {
+    const tiers = JSON.parse(value);
+    return Array.isArray(tiers)
+      ? tiers.map((item) => String(item?.amount ?? '')).filter(Boolean)
+      : [];
+  } catch {
+    return [];
+  }
+};
+const formatRechargeTierAmounts = (value?: string) => {
+  const amounts = parseRechargeTierAmounts(value);
+  return amounts.length ? amounts.map((amount) => `${amount} 元`).join(' / ') : '-';
+};
 const hasRewardType = (value: unknown, target: string) => Array.isArray(value)
   ? value.includes(target)
   : String(value || '').split(/[;；,，]/).map((item) => item.trim()).includes(target);
@@ -124,7 +150,7 @@ const buildModalPayload = (type: ActivityTab, values: Record<string, any>) => {
   }
   return {
     ...values,
-    tierAmounts: joinMultiValue(values.tierAmounts, '/'),
+    tierAmounts: buildRechargeTierAmounts(values),
     rewardType: joinMultiValue(values.rewardType),
   };
 };
@@ -279,7 +305,7 @@ const MarketingManagement: React.FC = () => {
         ...(type === 'coupon' ? { stackLimits: splitMultiValue((record as CouponTemplateRecord).stackLimits) } : {}),
         ...(type === 'invite' ? { fraudChecks: splitMultiValue((record as InviteActivityRecord).fraudChecks) } : {}),
         ...(type === 'recharge' ? {
-          tierAmounts: splitMultiValue((record as RechargeActivityRecord).tierAmounts),
+          tierAmounts: parseRechargeTierAmounts((record as RechargeActivityRecord).tierAmounts),
           rewardType: splitMultiValue((record as RechargeActivityRecord).rewardType),
         } : {}),
       } as any);
@@ -407,7 +433,7 @@ const MarketingManagement: React.FC = () => {
     { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '活动名称 / 编码 / 充值门槛 / 奖励' } },
     { title: '充值方式', dataIndex: 'rechargeMode', width: 160, search: false , render: (value) => formatEnumText(value, 'rechargeMode', '充值方式') },
     { title: '奖励方式', dataIndex: 'rewardMethod', width: 160, search: false , render: (value) => formatEnumText(value, 'rewardMethod', '奖励方式') },
-    { title: '固定档位', dataIndex: 'tierAmounts', width: 160, search: false },
+    { title: '固定档位', dataIndex: 'tierAmounts', width: 160, search: false, render: (value) => formatRechargeTierAmounts(value as string | undefined) },
     { title: '奖励券模板', dataIndex: 'couponTemplateId', width: 120, search: false, render: (_, record) => record.couponTemplateId ? `#${record.couponTemplateId}` : '-' },
     { title: '服务卡产品', dataIndex: 'serviceCardId', width: 120, search: false, render: (_, record) => record.serviceCardId ? `#${record.serviceCardId}` : '-' },
     { title: '作用范围', dataIndex: 'scope', width: 140, search: false , render: (value) => formatEnumText(value, 'scope', '作用范围') },

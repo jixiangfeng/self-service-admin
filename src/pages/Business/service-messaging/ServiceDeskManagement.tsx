@@ -8,6 +8,7 @@ import {
   compensationTypeOptions,
   messageChannelOptions,
   messageStatusOptions,
+  subscribeStatusOptions,
   ticketStatusOptions,
   ticketTypeOptions,
 } from '@/constants/businessCatalog';
@@ -20,6 +21,7 @@ import api, { type AfterSaleTicketRecord, type MessageRecord, type MessageTempla
 
 const messageStatusMap = buildValueEnum(messageStatusOptions);
 const messageChannelMap = buildValueEnum(messageChannelOptions);
+const subscribeStatusMap = buildValueEnum(subscribeStatusOptions);
 const ticketStatusMap = buildValueEnum(ticketStatusOptions);
 const ticketTypeMap = buildValueEnum(ticketTypeOptions);
 const compensationTypeMap = buildValueEnum(compensationTypeOptions);
@@ -127,7 +129,7 @@ const ServiceDeskManagement: React.FC = () => {
     { title: '接收人', dataIndex: 'receiver', width: 120, search: false },
     { title: '手机号', dataIndex: 'phone', width: 140, search: false },
     { title: '渠道', dataIndex: 'channel', width: 140, valueType: 'select', valueEnum: messageChannelMap, render: (_, record) => renderStatusTag(record.channel, messageChannelMap) },
-    { title: '订阅状态', dataIndex: 'subscribeStatus', width: 120, search: false, renderText: (value) => value || '-' },
+    { title: '订阅状态', dataIndex: 'subscribeStatus', width: 120, search: false, render: (_, record) => renderStatusTag(record.subscribeStatus, subscribeStatusMap) },
     { title: '发送状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: messageStatusMap, render: (_, record) => renderStatusTag(record.status, messageStatusMap) },
     { title: '失败原因', dataIndex: 'failReason', width: 180, search: false, renderText: (value) => value || '-' },
     { title: '发送时间', dataIndex: 'sentAt', width: 180, search: false, render: (_, record) => formatDateTime(record.sentAt) },

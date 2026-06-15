@@ -40,11 +40,37 @@ const rechargeTierOptions = [
   { label: '1000 元', value: '1000' },
 ];
 
-const splitMultiValue = (value?: string) => String(value || '').split(/[\\/、,，；;]/).map((item) => item.trim().replace(/元$/, '')).filter(Boolean);
+const splitMultiValue = (value?: string) => String(value || '').split(/[;；,，]/).map((item) => item.trim()).filter(Boolean);
 const joinMultiValue = (value: unknown, separator = '；') => Array.isArray(value) ? value.join(separator) : String(value || '');
+const tierGiftAmount = (values: Record<string, any>) => {
+  const rewardCap = Number(values.rewardCap);
+  if (Number.isFinite(rewardCap) && rewardCap > 0) return rewardCap;
+  const rewardValue = Number(values.rewardValue);
+  return Number.isFinite(rewardValue) && rewardValue > 0 ? rewardValue : 0;
+};
+const buildRechargeTierAmounts = (values: Record<string, any>) => {
+  const amounts = Array.isArray(values.tierAmounts) ? values.tierAmounts : [];
+  const gift = tierGiftAmount(values);
+  return JSON.stringify(amounts.map((amount) => ({ amount: Number(amount), gift })));
+};
+const parseRechargeTierAmounts = (value?: string) => {
+  if (!value) return [];
+  try {
+    const tiers = JSON.parse(value);
+    return Array.isArray(tiers)
+      ? tiers.map((item) => String(item?.amount ?? '')).filter(Boolean)
+      : [];
+  } catch {
+    return [];
+  }
+};
+const formatRechargeTierAmounts = (value?: string) => {
+  const amounts = parseRechargeTierAmounts(value);
+  return amounts.length ? amounts.map((amount) => `${amount} 元`).join(' / ') : '-';
+};
 const buildRechargePayload = (values: Record<string, any>) => ({
   ...values,
-  tierAmounts: joinMultiValue(values.tierAmounts, '/'),
+  tierAmounts: buildRechargeTierAmounts(values),
   rewardType: joinMultiValue(values.rewardType),
 });
 const hasRewardType = (value: unknown, target: string) => Array.isArray(value)
@@ -56,7 +82,7 @@ const rechargeDetailFields: DetailField<RechargeActivityRecord>[] = [
   { name: 'activityName', label: '活动名称' },
   { name: 'rechargeMode', label: '充值方式' },
   { name: 'costOwner', label: '成本承担', render: (value) => value ? costBearerMap[value as keyof typeof costBearerMap]?.text || value : '-' },
-  { name: 'tierAmounts', label: '固定档位' },
+  { name: 'tierAmounts', label: '固定档位', render: (value) => formatRechargeTierAmounts(value as string | undefined) },
   { name: 'minAmount', label: '最低充值金额' },
   { name: 'rewardMethod', label: '奖励方式' },
   { name: 'rewardValue', label: '奖励值' },
@@ -144,7 +170,7 @@ const RechargeActivityManagement: React.FC = () => {
     { title: '奖励方式', dataIndex: 'rewardMethod', width: 160, search: false , render: (value) => formatEnumText(value, 'rewardMethod', '奖励方式') },
     { title: '作用范围', dataIndex: 'scope', width: 160, search: false , render: (value) => formatEnumText(value, 'scope', '作用范围') },
     { title: '成本承担', dataIndex: 'costOwner', width: 160, valueType: 'select', valueEnum: costBearerMap, render: (_, record) => renderStatusTag(record.costOwner, costBearerMap) },
-    { title: '固定档位', dataIndex: 'tierAmounts', width: 160, search: false },
+    { title: '固定档位', dataIndex: 'tierAmounts', width: 160, search: false, render: (value) => formatRechargeTierAmounts(value as string | undefined) },
     { title: '最低充值', dataIndex: 'minAmount', width: 100, search: false },
     { title: '奖励值', dataIndex: 'rewardValue', width: 160, search: false },
     { title: '奖励券模板', dataIndex: 'couponTemplateId', width: 120, search: false, render: (_, record) => record.couponTemplateId ? `#${record.couponTemplateId}` : '-' },
@@ -160,7 +186,7 @@ const RechargeActivityManagement: React.FC = () => {
       render: (_, record) => (
         <Space>
           <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-          <Button size="small" onClick={() => { setEditingRecord(record); form.setFieldsValue({ ...record, tierAmounts: splitMultiValue(record.tierAmounts), rewardType: splitMultiValue(record.rewardType) } as any); setModalVisible(true); }}>编辑</Button>
+          <Button size="small" onClick={() => { setEditingRecord(record); form.setFieldsValue({ ...record, tierAmounts: parseRechargeTierAmounts(record.tierAmounts), rewardType: splitMultiValue(record.rewardType) } as any); setModalVisible(true); }}>编辑</Button>
           <Button
             size="small"
             onClick={() => {
@@ -191,7 +217,7 @@ const RechargeActivityManagement: React.FC = () => {
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="充值活动" value={activityQuery.data?.total ?? records.length} suffix="个" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="固定档位" value={records.reduce((sum, item) => sum + String(item.tierAmounts || '').split(/[\\/、,，]/).filter(Boolean).length, 0)} suffix="档" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="固定档位" value={records.reduce((sum, item) => sum + parseRechargeTierAmounts(item.tierAmounts).length, 0)} suffix="档" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="首充礼包" value={records.filter((item) => item.activityName.includes('首充')).length} suffix="套" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="赠送规则" value={records.filter((item) => item.rewardMethod || item.rewardValue).length} suffix="类" /></Card></Col>
       </Row>

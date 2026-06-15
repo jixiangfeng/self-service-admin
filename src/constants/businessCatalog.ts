@@ -417,6 +417,7 @@ export const FALLBACK_BUSINESS_ENUMS = {
 ],
   subscribeStatusOptions: [
   { value: 'SUBSCRIBED', label: '已订阅' },
+  { value: 'UNSUBSCRIBED', label: '未订阅' },
   { value: 'REJECTED', label: '已拒绝' },
   { value: 'CANCELLED', label: '已取消' },
   { value: 'EXPIRED', label: '授权过期' },
