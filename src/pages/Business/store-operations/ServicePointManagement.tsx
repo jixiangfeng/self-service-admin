@@ -23,6 +23,13 @@ import { joinCommaValues, splitCommaValues } from '@/utils/csv';
 import { DateTimeField, fromDateTimePickerValue, toDateTimePickerValue } from '@/utils/formControls';
 import ServicePointProfileManagement from './ServicePointProfileManagement';
 
+const qrStatusOptions = [
+  { value: 'NORMAL', label: '正常' },
+  { value: 'DISABLED', label: '停用' },
+  { value: 'EXPIRED', label: '已过期' },
+];
+const qrStatusMap = buildValueEnum(qrStatusOptions);
+
 const normalizePointValues = (values: Record<string, any>) => ({
   ...values,
   lastMaintainAt: fromDateTimePickerValue(values.lastMaintainAt) || values.lastMaintainAt,
@@ -116,7 +123,7 @@ const ServicePointManagement: React.FC = () => {
       },
       { title: '能力标签', dataIndex: 'abilityTags', width: 240, search: false, render: (_, record) => renderOptionTags(record.abilityTags, pointAbilityOptions) },
       { title: '二维码', dataIndex: 'qrCode', width: 160, search: false, render: (_, record) => record.qrCode || '-' },
-      { title: '二维码状态', dataIndex: 'qrStatus', width: 120, search: false, render: (_, record) => renderStatusTag(record.qrStatus, buildValueEnum(statusOptions) as any) },
+      { title: '二维码状态', dataIndex: 'qrStatus', width: 120, search: false, render: (_, record) => renderStatusTag(record.qrStatus, qrStatusMap) },
       { title: '设备数', dataIndex: 'deviceCount', width: 90, search: false, render: (_, record) => record.deviceCount ?? 0 },
       { title: '绑定设备', dataIndex: 'bindDeviceCodes', width: 180, search: false, render: (_, record) => record.bindDeviceCodes || '-' },
       { title: '维护状态', dataIndex: 'maintainStatus', width: 120, search: false, render: (_, record) => renderStatusTag(record.maintainStatus, buildValueEnum(maintainStatusOptions) as any) },
@@ -339,7 +346,7 @@ const ServicePointManagement: React.FC = () => {
                   <Input placeholder="例如：QR-BAY-A-01" />
                 </Form.Item>
                 <Form.Item name="qrStatus" label="二维码状态">
-                  <Select options={statusOptions} placeholder="请选择二维码状态" />
+                  <Select options={qrStatusOptions} placeholder="请选择二维码状态" />
                 </Form.Item>
                 <Form.Item name="sortNo" label="排序">
                   <Input type="number" placeholder="数字越小越靠前" />

@@ -6,8 +6,10 @@ import type { ProColumns } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import {
   balanceFlowTypeOptions,
-  rechargeOrderStatusOptions,
+  serviceCardStatusOptions,
+  templateStatusOptions,
   userLevelOptions,
+  writeOffStatusOptions,
 } from '@/constants/businessCatalog';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import PageBanner from '@/components/PageBanner';
@@ -19,7 +21,9 @@ import type { AppUserProfileRecord, BalanceFlowRecord, ServiceCardRecord, Servic
 type DetailRecord = BalanceFlowRecord | AppUserProfileRecord | UserServiceCardRecord | ServiceCardRecord | ServiceCardUsageRecord | UserRiskRecord;
 
 const balanceFlowTypeMap = buildValueEnum(balanceFlowTypeOptions);
-const rechargeStatusMap = buildValueEnum(rechargeOrderStatusOptions);
+const serviceCardProductStatusMap = buildValueEnum(templateStatusOptions);
+const userServiceCardStatusMap = buildValueEnum(serviceCardStatusOptions);
+const usageStatusMap = buildValueEnum(writeOffStatusOptions);
 const userLevelMap = buildValueEnum(userLevelOptions);
 const serviceCardScopeMap: Record<string, string> = {
   ALL_STORE: '全部门店可用',
@@ -82,7 +86,7 @@ const assetFlowDetailFields: Record<'balance' | 'profile' | 'serviceCard' | 'use
     { name: 'rightsServiceTimes', label: '权益', render: (_, record) => formatServiceRights(record) },
     { name: 'salePrice', label: '售价', render: (value) => formatAmount(value) },
     { name: 'stock', label: '库存' },
-    { name: 'status', label: '状态' },
+    { name: 'status', label: '状态', render: (value) => renderStatusTag(value, serviceCardProductStatusMap) },
     { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
   ],
   userCard: [
@@ -95,7 +99,7 @@ const assetFlowDetailFields: Record<'balance' | 'profile' | 'serviceCard' | 'use
     { name: 'validFrom', label: '有效期开始', render: (value) => formatDateTime(value) },
     { name: 'validTo', label: '有效期结束', render: (value) => formatDateTime(value) },
     { name: 'sourceBizNo', label: '来源单号' },
-    { name: 'status', label: '状态' },
+    { name: 'status', label: '状态', render: (value) => renderStatusTag(value, userServiceCardStatusMap) },
   ],
   usage: [
     { name: 'usageNo', label: '使用流水' },
@@ -105,7 +109,7 @@ const assetFlowDetailFields: Record<'balance' | 'profile' | 'serviceCard' | 'use
     { name: 'serviceOrderNo', label: '订单号' },
     { name: 'storeName', label: '门店' },
     { name: 'deductCount', label: '扣减次数' },
-    { name: 'status', label: '状态' },
+    { name: 'status', label: '状态', render: (value) => renderStatusTag(value, usageStatusMap) },
     { name: 'usedAt', label: '使用时间', render: (value) => formatDateTime(value) },
   ],
   risk: [
@@ -195,7 +199,7 @@ const AssetFlowManagement: React.FC = () => {
     { title: '权益', dataIndex: 'rightsServiceTimes', width: 260, render: (_, record) => formatServiceRights(record) },
     { title: '售价', dataIndex: 'salePrice', width: 120, render: (_, record) => formatAmount(record.salePrice) },
     { title: '库存', dataIndex: 'stock', width: 90 },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, rechargeStatusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, serviceCardProductStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
@@ -208,7 +212,7 @@ const AssetFlowManagement: React.FC = () => {
     { title: '剩余/总次数', dataIndex: 'remainTimes', width: 130, renderText: (_, record) => `${record.remainTimes ?? 0}/${record.totalTimes ?? 0}` },
     { title: '有效期', dataIndex: 'validFrom', width: 230, render: (_, record) => `${formatDateTime(record.validFrom)} - ${formatDateTime(record.validTo)}` },
     { title: '来源单号', dataIndex: 'sourceBizNo', width: 180 },
-    { title: '状态', dataIndex: 'status', width: 120 , render: (value) => formatEnumText(value, 'status', '状态') },
+    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, userServiceCardStatusMap) },
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
@@ -220,7 +224,7 @@ const AssetFlowManagement: React.FC = () => {
     { title: '订单号', dataIndex: 'serviceOrderNo', width: 170 },
     { title: '门店', dataIndex: 'storeName', width: 170 },
     { title: '扣减次数', dataIndex: 'deductCount', width: 110 },
-    { title: '状态', dataIndex: 'status', width: 120 , render: (value) => formatEnumText(value, 'status', '状态') },
+    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, usageStatusMap) },
     { title: '使用时间', dataIndex: 'usedAt', width: 180, render: (_, record) => formatDateTime(record.usedAt) },
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);

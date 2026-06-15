@@ -301,6 +301,7 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'SUCCESS', label: '核销成功' },
   { value: 'PENDING', label: '待核销' },
   { value: 'ROLLED_BACK', label: '已回滚' },
+  { value: 'ROLLBACK', label: '已回滚' },
   { value: 'EXCEPTION', label: '异常处理' },
 ],
   performSceneOptions: [

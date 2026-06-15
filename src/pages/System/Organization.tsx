@@ -5,6 +5,7 @@ import { ApartmentOutlined, AuditOutlined, BankOutlined, PartitionOutlined, User
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
+  publishStatusOptions,
   scopeTypeOptions,
   statusOptions,
 } from '@/constants/businessCatalog';
@@ -54,6 +55,7 @@ const normalizePickerInitialValues = (record: Record<string, any>) => {
   return next;
 };
 const statusMap = buildValueEnum(statusOptions);
+const orgStatusMap = buildValueEnum(publishStatusOptions);
 const scopeMap = buildValueEnum(scopeTypeOptions);
 
 const organizationDetailFields: Record<string, DetailField<Record<string, any>>[]> = {
@@ -64,7 +66,7 @@ const organizationDetailFields: Record<string, DetailField<Record<string, any>>[
     { name: 'parentName', label: '上级组织' },
     { name: 'merchantName', label: '商户' },
     { name: 'storeName', label: '门店' },
-    { name: 'status', label: '状态', render: (value) => renderStatusTag(value, statusMap) },
+    { name: 'status', label: '状态', render: (value) => renderStatusTag(value, orgStatusMap) },
     { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
   ],
   dept: [
@@ -205,7 +207,7 @@ const Organization: React.FC = () => {
     setEditingPosition(null);
     form.resetFields();
     setEditingOrg(record || null);
-    form.setFieldsValue(record ? normalizePickerInitialValues(record as unknown as Record<string, any>) : { status: 'ENABLED' });
+    form.setFieldsValue(record ? normalizePickerInitialValues(record as unknown as Record<string, any>) : { status: 'PUBLISHED' });
     setModalVisible(true);
   };
 
@@ -257,7 +259,7 @@ const Organization: React.FC = () => {
     { title: '上级组织', dataIndex: 'parentName', width: 160 },
     { title: '商户', dataIndex: 'merchantName', width: 160 },
     { title: '门店', dataIndex: 'storeName', width: 180 },
-    { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, orgStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
     { title: '操作', width: 150, render: (_, record) => (
       <>
@@ -384,7 +386,7 @@ const Organization: React.FC = () => {
                     <Form.Item name="orgName" label="组织名称" rules={[{ required: true, message: '请输入组织名称' }]}><Input placeholder="例如：上海运营中心" /></Form.Item>
                     <Form.Item name="orgType" label="组织类型"><Input placeholder="例如：平台 / 区域 / 门店" /></Form.Item>
                     <Form.Item name="parentName" label="上级组织"><Input placeholder="上级组织名称" /></Form.Item>
-                    <Form.Item name="status" label="状态"><Select options={statusOptions} placeholder="请选择状态" /></Form.Item>
+                    <Form.Item name="status" label="状态"><Select options={publishStatusOptions} placeholder="请选择状态" /></Form.Item>
                   </div>
                 </BusinessEditorSection>
                 <BusinessEditorSection icon={<BankOutlined />} title="业务归属" desc="关联商户和门店，便于数据权限和运营看板按组织聚合。">
