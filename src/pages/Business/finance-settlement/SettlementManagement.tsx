@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Statistic, Tabs, message } from 'antd';
-import { AccountBookOutlined, CalculatorOutlined, CalendarOutlined, DollarOutlined, SwapOutlined, TeamOutlined } from '@ant-design/icons';
+import { AccountBookOutlined, CalculatorOutlined, CalendarOutlined, DollarOutlined, TeamOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useNavigate } from 'react-router-dom';
@@ -248,27 +248,6 @@ const SettlementManagement: React.FC = () => {
       message.success('已发起重试打款');
     },
   });
-  const exportTaskMutation = useMutation({
-    mutationFn: (values: Record<string, unknown>) => api.file.importExportTasks.add(values),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['operationImportExportTasks'] });
-      message.success('导出任务已创建');
-      navigate('/operations-support');
-    },
-  });
-  const handleExportTask = (taskName: string, taskType: string, bizNo?: string) => {
-    exportTaskMutation.mutate({
-      taskNo: `EXP-${Date.now()}`,
-      taskType: 'EXPORT',
-      bizType: taskType,
-      bizNo,
-      fileName: `${taskName}-${Date.now()}.xlsx`,
-      operator: '系统管理员',
-      status: 'PENDING',
-      remark: taskName,
-    });
-  };
-
   const confirmBill = (record: SettlementRecord) => {
     showBusinessConfirm({
       title: '确认结算单',
@@ -412,7 +391,6 @@ const SettlementManagement: React.FC = () => {
           >
             确认
           </Button>
-          <Button size="small" loading={exportTaskMutation.isPending} onClick={() => handleExportTask('结算单导出', 'SETTLEMENT_BILL_EXPORT', record.billNo)}>导出</Button>
         </Space>
       ),
     },
@@ -592,7 +570,6 @@ const SettlementManagement: React.FC = () => {
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1700 }}
-                toolBarRender={() => [<Button key="export" loading={exportTaskMutation.isPending} onClick={() => handleExportTask('结算明细导出', 'SETTLEMENT_DETAIL_EXPORT', detailKeyword || undefined)}>导出明细</Button>]}
                 onSubmit={(values) => setDetailKeyword(String(values.keyword || ''))}
                 onReset={() => setDetailKeyword('')}
               />
@@ -612,7 +589,6 @@ const SettlementManagement: React.FC = () => {
                 scroll={{ x: 2500 }}
                 toolBarRender={() => [
                   <Button key="rule" onClick={() => navigate('/merchant/groups')}>维护门店组协议</Button>,
-                  <Button key="export" icon={<SwapOutlined />} loading={exportTaskMutation.isPending} onClick={() => handleExportTask('跨店清分台账导出', 'CROSS_STORE_CLEARING_EXPORT', clearingKeyword || undefined)}>导出清分台账</Button>,
                 ]}
                 onSubmit={(values) => setClearingKeyword(String(values.keyword || ''))}
                 onReset={() => setClearingKeyword('')}

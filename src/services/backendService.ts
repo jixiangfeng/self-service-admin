@@ -530,7 +530,7 @@ export interface PricingRuleRecord {
 }
 
 export interface ProductStatusLogRecord { id: number; productId?: number; productCode?: string; productName?: string; beforeStatus?: string; afterStatus?: string; operator?: string; changedAt?: string; createdAt?: string; updatedAt?: string; }
-export interface ProductChangeLogRecord { id: number; changeNo: string; productId?: number; productCode?: string; productName?: string; changeField: string; beforeValue?: string; afterValue?: string; auditStatus: string; remark?: string; changedAt?: string; createdAt?: string; updatedAt?: string; }
+
 export interface PricingRuleVersionRecord { id: number; pricingRuleId?: number; ruleCode?: string; versionNo: string; billingMode?: string; basePrice?: number | string; effectiveAt?: string; status: string; createdAt?: string; updatedAt?: string; }
 export interface PricingChangeLogRecord { id: number; changeNo: string; pricingRuleId?: number; ruleCode?: string; versionNo?: string; changeField: string; beforeValue?: string; afterValue?: string; auditStatus?: string; changedAt?: string; createdAt?: string; updatedAt?: string; }
 
@@ -1088,43 +1088,6 @@ export interface ProfitConfirmRecord {
   updatedAt?: string;
 }
 
-export interface InvoiceTitleRecord {
-  id: number;
-  appUserId?: number;
-  appUserName?: string;
-  merchantId?: number;
-  merchantName?: string;
-  titleType: string;
-  titleName: string;
-  taxNo?: string;
-  bankName?: string;
-  bankAccount?: string;
-  address?: string;
-  phone?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface InvoiceApplyRecord {
-  id: number;
-  applyNo: string;
-  titleName: string;
-  appUserName?: string;
-  sourceBizType: string;
-  sourceBizNo: string;
-  orderNos?: string;
-  settlementBillNo?: string;
-  amount: number | string;
-  invoiceType: string;
-  applyStatus: string;
-  fileAssetId?: string;
-  rejectReason?: string;
-  applyRemark?: string;
-  createdAt?: string;
-  issuedAt?: string;
-  updatedAt?: string;
-}
-
 export interface UserAssetAccountRecord {
   id: number;
   userId?: number;
@@ -1213,83 +1176,6 @@ export interface UserRiskRecord {
   updatedAt?: string;
 }
 
-export interface RiskRuleRecord {
-  id: number;
-  ruleName: string;
-  ruleCode: string;
-  riskScene: string;
-  ruleConfig?: string;
-  actionType: string;
-  status?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface RiskHitRecord {
-  id: number;
-  ruleName?: string;
-  appUserName?: string;
-  bizType: string;
-  bizId: string;
-  riskScene: string;
-  hitDetail?: string;
-  actionType: string;
-  handleStatus?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface BlacklistRecord {
-  id: number;
-  targetType: string;
-  targetValue: string;
-  reason?: string;
-  sourceType?: string;
-  status?: number;
-  effectiveStart?: string;
-  effectiveEnd?: string;
-  operator?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface ScheduledJobRecord {
-  id: number;
-  jobName: string;
-  jobCode: string;
-  cronExpression: string;
-  jobHandler: string;
-  jobParam?: string;
-  status?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface ScheduledJobLogRecord {
-  id: number;
-  jobCode: string;
-  triggerTime?: string;
-  startTime?: string;
-  finishTime?: string;
-  executeStatus?: string;
-  resultMessage?: string;
-  retryCount?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface AlarmRuleRecord {
-  id: number;
-  ruleName: string;
-  alarmScene: string;
-  ruleConfig?: string;
-  notifyChannel?: string;
-  receiverConfig?: string;
-  status?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
 export interface AlarmRecord {
   id: number;
   ruleName?: string;
@@ -1304,20 +1190,6 @@ export interface AlarmRecord {
   createdAt?: string;
   updatedAt?: string;
 }
-
-export interface OpenApiClientRecord {
-  id: number;
-  clientName: string;
-  clientCode: string;
-  appKey: string;
-  appSecret?: string;
-  callbackUrl?: string;
-  ipWhitelist?: string;
-  status?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
 export interface OpenApiCallLogRecord {
   id: number;
   clientName?: string;
@@ -1733,23 +1605,6 @@ export interface UserAssetOverviewRecord {
   riskWatchCount: number;
 }
 
-export interface OperationsExtensionEntryRecord {
-  title: string;
-  path: string;
-  icon: string;
-  tables: string;
-  status: string;
-  recordCount: number;
-}
-
-export interface OperationsExtensionOverviewRecord {
-  entries: OperationsExtensionEntryRecord[];
-  extensionCount: number;
-  activeCount: number;
-  duplicatedTableCount: number;
-  entryType: string;
-}
-
 export interface MessageRecord {
   id: number;
   messageNo: string;
@@ -1762,19 +1617,6 @@ export interface MessageRecord {
   failReason?: string;
   sentAt?: string;
 }
-
-export interface SubscribeRecord {
-  id: number;
-  appUserName: string;
-  mobile?: string;
-  templateCode: string;
-  templateName?: string;
-  channel?: string;
-  subscribeStatus?: string;
-  subscribedAt?: string;
-  expiredAt?: string;
-}
-
 export interface MessageTemplateRecord {
   id: number;
   templateCode: string;
@@ -1817,16 +1659,6 @@ export interface AnalysisSnapshotRecord {
   createdAt?: string;
   updatedAt?: string;
 }
-
-export interface AdSlotRecord { id: number; slotCode: string; slotName: string; placement?: string; scope?: string; contentType?: string; sizeSpec?: string; sortWeight?: number; status?: string; createdAt?: string; updatedAt?: string; }
-export interface AdCampaignRecord { id: number; campaignCode: string; campaign: string; slotName?: string; target?: string; timing?: string; budget?: number | string; exposure?: number; click?: number; conversion?: number; owner?: string; status?: string; createdAt?: string; updatedAt?: string; }
-export interface AdEventRecord { id: number; eventNo: string; campaignCode?: string; campaign?: string; slotName?: string; eventType?: string; userName?: string; storeName?: string; orderNo?: string; eventTime?: string; occurredAt?: string; status?: string; }
-export interface AdConversionRecord { id: number; campaignCode?: string; userName?: string; sourceEvent?: string; orderNo?: string; conversionAmount?: number | string; status?: string; convertedAt?: string; }
-export interface RetailProductRecord { id: number; productCode: string; name: string; category?: string; salePrice?: number | string; costPrice?: number | string; delivery?: string; status?: string; stockSummary?: string; supplier?: string; createdAt?: string; updatedAt?: string; }
-export interface RetailStockRecord { id: number; scope?: string; storeName?: string; deviceCode?: string; sku?: string; available?: number; locked?: number; warningThreshold?: number; owner?: string; status?: string; updatedAt?: string; }
-export interface RetailOrderRecord { id: number; orderNo: string; userName?: string; storeName?: string; productName?: string; deliveryType?: string; orderAmount?: number | string; status?: string; createdAt?: string; }
-export interface RetailStockFlowRecord { id: number; flowNo: string; skuName?: string; scopeName?: string; flowType?: string; quantity?: number; beforeQty?: number; afterQty?: number; status?: string; createdAt?: string; }
-export interface RetailShipmentRecord { id: number; shipNo: string; deviceCode?: string; skuName?: string; orderNo?: string; shipResult?: string; stockFlowNo?: string; status?: string; shippedAt?: string; }
 
 export interface PaymentOrderRecord {
   id: number;
@@ -1898,28 +1730,6 @@ export interface PaymentReconciliationRecord {
   createdAt?: string;
   updatedAt?: string;
 }
-
-export interface ImportExportTaskRecord {
-  id: number;
-  taskNo: string;
-  taskType: string;
-  bizType: string;
-  bizNo?: string;
-  fileName?: string;
-  fileAssetId?: string;
-  operator?: string;
-  status?: string;
-  totalCount?: number;
-  successCount?: number;
-  failCount?: number;
-  resultUrl?: string;
-  remark?: string;
-  startedAt?: string;
-  finishedAt?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
 export interface PlatformDashboardCardRecord {
   key: string;
   title: string;
@@ -1961,113 +1771,7 @@ export interface FileAssetRecord {
   uploadedAt?: string;
   createdAt?: string;
   updatedAt?: string;
-}
-
-export interface BizFileRefRecord {
-  id: number;
-  bizType: string;
-  bizNo: string;
-  bizName?: string;
-  fileName: string;
-  fileAssetId: string;
-  refType?: string;
-  status?: string;
-  linkedAt?: string;
-  remark?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface FileUsageRecord {
-  id: number;
-  fileAssetId: string;
-  fileName: string;
-  usageModule?: string;
-  usageCount?: number;
-  lastBizNo?: string;
-  lastUsedAt?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface FileAuditRecord {
-  id: number;
-  auditNo: string;
-  fileName: string;
-  fileAssetId?: string;
-  bizNo?: string;
-  auditStatus?: string;
-  auditUser?: string;
-  auditedAt?: string;
-  remark?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface FileRetentionRecord {
-  id: number;
-  fileName: string;
-  fileAssetId?: string;
-  bizType: string;
-  retentionRule: string;
-  expireAt?: string;
-  status?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface ApprovalProcessRecord {
-  id: number;
-  processNo: string;
-  processName: string;
-  bizType: string;
-  nodeConfig?: string;
-  status?: string;
-  remark?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface ApprovalTaskRecord {
-  id: number;
-  taskNo: string;
-  processNo: string;
-  bizType: string;
-  bizNo: string;
-  currentNode?: string;
-  priority?: string;
-  status?: string;
-  owner?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface ApprovalRecord {
-  id: number;
-  recordNo: string;
-  taskNo: string;
-  nodeName?: string;
-  approver?: string;
-  action?: string;
-  comment?: string;
-  approvedAt?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface ApprovalSlaRecord {
-  id: number;
-  taskNo: string;
-  bizNo: string;
-  currentNode?: string;
-  deadline?: string;
-  owner?: string;
-  status?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-const pageParams = (params: Record<string, unknown>) => ({
+}const pageParams = (params: Record<string, unknown>) => ({
   ...params,
   current: params.current ?? params.pageNum ?? 1,
   size: params.size ?? params.pageSize ?? 10,
@@ -2609,7 +2313,6 @@ export const pricingRuleApi = {
 };
 
 export const productStatusLogApi = crudApi<ProductStatusLogRecord>('/product-status-logs');
-export const productChangeLogApi = crudApi<ProductChangeLogRecord>('/product-change-logs');
 export const pricingRuleVersionApi = crudApi<PricingRuleVersionRecord>('/pricing-rule-versions');
 export const pricingChangeLogApi = crudApi<PricingChangeLogRecord>('/pricing-change-logs');
 
@@ -2762,12 +2465,6 @@ export const profitShareDetailApi = {
 };
 export const profitChargebackApi = crudApi<ProfitChargebackRecord>('/profit-chargebacks');
 export const profitConfirmApi = crudApi<ProfitConfirmRecord>('/profit-confirms');
-export const invoiceTitleApi = crudApi<InvoiceTitleRecord>('/invoice-titles');
-export const invoiceApplyApi = {
-  ...crudApi<InvoiceApplyRecord>('/invoice-applies'),
-  updateStatus: async (id: number, data: Record<string, unknown>) => httpPut<void>(`/invoice-applies/${id}`, data),
-};
-
 export const marketingApi = {
   couponTemplates: {
     page: async (params: Record<string, unknown>) => httpPage<CouponTemplateRecord>('/coupon-templates', params),
@@ -2880,7 +2577,6 @@ export const assetApi = {
     overview: async () => httpGet<UserAssetOverviewRecord>('/user-asset-operations/overview'),
     batchTags: async (data: Record<string, unknown>) => request.post<ApiEnvelope<number>>('/user-asset-operations/batch-tags', data),
     riskBlacklist: async (data: Record<string, unknown>) => request.post<ApiEnvelope<number>>('/user-asset-operations/risk-blacklist', data),
-    exportBalanceFlows: async (data: Record<string, unknown>) => request.post<ApiEnvelope<ImportExportTaskRecord>>('/user-asset-operations/balance-flow-export', data),
   },
   userOptions: async (params?: Record<string, unknown>) => httpGet<SelectOptionRecord[]>('/app-user-profiles/options', params),
 };
@@ -2909,11 +2605,6 @@ export const messageApi = {
     edit: async (data: Record<string, unknown>) => httpPut<void>(`/message-records/${data.id}`, data),
     resend: async (id: number) => request.post<ApiEnvelope<void>>(`/message-records/${id}/resend`),
   },
-  subscribes: {
-    page: async (params: Record<string, unknown>) => httpPage<SubscribeRecord>('/subscribe-records', params),
-    add: async (data: Record<string, unknown>) => httpPost<SubscribeRecord>('/subscribe-records', data),
-    edit: async (data: Record<string, unknown>) => httpPut<void>(`/subscribe-records/${data.id}`, data),
-  },
 };
 
 export const analysisApi = {
@@ -2923,35 +2614,6 @@ export const analysisApi = {
     edit: async (data: Record<string, unknown>) => httpPut<void>(`/analysis-snapshots/${data.id}`, data),
   },
 };
-
-export const valuePlanningApi = {
-  adSlots: crudApi<AdSlotRecord>('/ad-slots'),
-  adCampaigns: crudApi<AdCampaignRecord>('/ad-campaigns'),
-  adEvents: {
-    page: async (params: Record<string, unknown>) => httpPage<AdEventRecord>('/ad-events', params),
-    add: async (data: Record<string, unknown>) => httpPost<AdEventRecord>('/ad-events', data),
-  },
-  adConversions: {
-    page: async (params: Record<string, unknown>) => httpPage<AdConversionRecord>('/ad-conversions', params),
-    add: async (data: Record<string, unknown>) => httpPost<AdConversionRecord>('/ad-conversions', data),
-  },
-  retailProducts: crudApi<RetailProductRecord>('/retail-products'),
-  retailStocks: crudApi<RetailStockRecord>('/retail-stocks'),
-  retailOrders: {
-    page: async (params: Record<string, unknown>) => httpPage<RetailOrderRecord>('/retail-orders', params),
-    add: async (data: Record<string, unknown>) => httpPost<RetailOrderRecord>('/retail-orders', data),
-  },
-  retailStockFlows: {
-    page: async (params: Record<string, unknown>) => httpPage<RetailStockFlowRecord>('/retail-stock-flows', params),
-    add: async (data: Record<string, unknown>) => httpPost<RetailStockFlowRecord>('/retail-stock-flows', data),
-  },
-  retailShipments: {
-    page: async (params: Record<string, unknown>) => httpPage<RetailShipmentRecord>('/retail-shipments', params),
-    add: async (data: Record<string, unknown>) => httpPost<RetailShipmentRecord>('/retail-shipments', data),
-    edit: async (data: Record<string, unknown>) => httpPut<void>(`/retail-shipments/${data.id}`, data),
-  },
-};
-
 export const fileApi = {
   assets: {
     page: async (params: Record<string, unknown>) => httpPage<FileAssetRecord>('/file-assets', params),
@@ -2975,82 +2637,15 @@ export const fileApi = {
       });
     },
   },
-  refs: {
-    page: async (params: Record<string, unknown>) => httpPage<BizFileRefRecord>('/biz-file-refs', params),
-    add: async (data: Record<string, unknown>) => httpPost<BizFileRefRecord>('/biz-file-refs', data),
-    edit: async (data: Record<string, unknown>) => httpPut<void>(`/biz-file-refs/${data.id}`, data),
-  },
-  usages: {
-    page: async (params: Record<string, unknown>) => httpPage<FileUsageRecord>('/file-usage-stats', params),
-  },
-  audits: {
-    page: async (params: Record<string, unknown>) => httpPage<FileAuditRecord>('/file-audit-records', params),
-    add: async (data: Record<string, unknown>) => httpPost<FileAuditRecord>('/file-audit-records', data),
-    edit: async (data: Record<string, unknown>) => httpPut<void>(`/file-audit-records/${data.id}`, data),
-  },
-  retentions: {
-    page: async (params: Record<string, unknown>) => httpPage<FileRetentionRecord>('/file-retention-rules', params),
-    add: async (data: Record<string, unknown>) => httpPost<FileRetentionRecord>('/file-retention-rules', data),
-    edit: async (data: Record<string, unknown>) => httpPut<void>(`/file-retention-rules/${data.id}`, data),
-  },
-  importExportTasks: {
-    page: async (params: Record<string, unknown>) => httpPage<ImportExportTaskRecord>('/import-export-tasks', params),
-    add: async (data: Record<string, unknown>) => httpPost<ImportExportTaskRecord>('/import-export-tasks', data),
-    edit: async (data: Record<string, unknown>) => httpPut<void>(`/import-export-tasks/${data.id}`, data),
-    run: async (id: number) => request.post<ApiEnvelope<ImportExportTaskRecord>>(`/import-export-tasks/${id}/run`),
-    updateStatus: async (id: number, data: Record<string, unknown>) => httpPut<void>(`/import-export-tasks/${id}/status`, data),
-  },
-};
-
-export const approvalApi = {
-  processes: {
-    page: async (params: Record<string, unknown>) => httpPage<ApprovalProcessRecord>('/approval-processes', params),
-    add: async (data: Record<string, unknown>) => httpPost<ApprovalProcessRecord>('/approval-processes', data),
-    edit: async (data: Record<string, unknown>) => httpPut<void>(`/approval-processes/${data.id}`, data),
-  },
-  tasks: {
-    page: async (params: Record<string, unknown>) => httpPage<ApprovalTaskRecord>('/approval-tasks', params),
-    add: async (data: Record<string, unknown>) => httpPost<ApprovalTaskRecord>('/approval-tasks', data),
-    edit: async (data: Record<string, unknown>) => httpPut<void>(`/approval-tasks/${data.id}`, data),
-    handle: async (id: number, data: Record<string, unknown>) => request.post<ApiEnvelope<void>>(`/approval-tasks/${id}/handle`, data),
-  },
-  records: {
-    page: async (params: Record<string, unknown>) => httpPage<ApprovalRecord>('/approval-records', params),
-  },
-  slas: {
-    page: async (params: Record<string, unknown>) => httpPage<ApprovalSlaRecord>('/approval-slas', params),
-    add: async (data: Record<string, unknown>) => httpPost<ApprovalSlaRecord>('/approval-slas', data),
-    edit: async (data: Record<string, unknown>) => httpPut<void>(`/approval-slas/${data.id}`, data),
-  },
-};
-
-export const riskScheduleAlarmApi = {
-  riskRules: crudApi<RiskRuleRecord>('/risk-rules'),
-  riskHits: crudApi<RiskHitRecord>('/risk-hits'),
-  blacklists: crudApi<BlacklistRecord>('/risk-blacklists'),
-  jobs: {
-    ...crudApi<ScheduledJobRecord>('/scheduled-jobs'),
-    run: async (id: number) => request.post<ApiEnvelope<ScheduledJobLogRecord>>(`/scheduled-jobs/${id}/run`),
-  },
-  jobLogs: {
-    page: async (params: Record<string, unknown>) => httpPage<ScheduledJobLogRecord>('/scheduled-job-logs', params),
-    add: async (data: Record<string, unknown>) => httpPost<ScheduledJobLogRecord>('/scheduled-job-logs', data),
-  },
-  alarmRules: crudApi<AlarmRuleRecord>('/alarm-rules'),
-  alarms: crudApi<AlarmRecord>('/alarm-records'),
 };
 
 export const openApi = {
-  clients: crudApi<OpenApiClientRecord>('/open-api-clients'),
   callLogs: {
     page: async (params: Record<string, unknown>) => httpPage<OpenApiCallLogRecord>('/open-api-call-logs', params),
     add: async (data: Record<string, unknown>) => httpPost<OpenApiCallLogRecord>('/open-api-call-logs', data),
   },
 };
 
-export const operationsExtensionApi = {
-  overview: async () => httpGet<OperationsExtensionOverviewRecord>('/operations-extension/overview'),
-};
 
 export const miniProgramOpsApi = {
   pageConfigs: crudApi<MiniProgramPageConfigRecord>('/mini-program-page-configs'),
@@ -3187,7 +2782,6 @@ export default {
   serviceProduct: serviceProductApi,
   pricingRule: pricingRuleApi,
   productStatusLog: productStatusLogApi,
-  productChangeLog: productChangeLogApi,
   pricingRuleVersion: pricingRuleVersionApi,
   pricingChangeLog: pricingChangeLogApi,
   serviceOrder: serviceOrderApi,
@@ -3208,18 +2802,12 @@ export default {
   profitShareDetail: profitShareDetailApi,
   profitChargeback: profitChargebackApi,
   profitConfirm: profitConfirmApi,
-  invoiceTitle: invoiceTitleApi,
-  invoiceApply: invoiceApplyApi,
   marketing: marketingApi,
   asset: assetApi,
   message: messageApi,
   analysis: analysisApi,
-  valuePlanning: valuePlanningApi,
   file: fileApi,
-  approval: approvalApi,
-  riskScheduleAlarm: riskScheduleAlarmApi,
   openApi,
-  operationsExtension: operationsExtensionApi,
   miniProgramOps: miniProgramOpsApi,
   platformBase: platformBaseApi,
   authAudit: authAuditApi,

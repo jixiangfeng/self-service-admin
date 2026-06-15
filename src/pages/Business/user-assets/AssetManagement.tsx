@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Checkbox, Col, Form, Input, InputNumber, List, Row, Select, Space, Statistic, Tabs, message } from 'antd';
-import { AuditOutlined, DownloadOutlined, GiftOutlined, SafetyCertificateOutlined, TagsOutlined, UserOutlined, WalletOutlined } from '@ant-design/icons';
+import { AuditOutlined, GiftOutlined, SafetyCertificateOutlined, TagsOutlined, UserOutlined, WalletOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useNavigate } from 'react-router-dom';
@@ -30,7 +30,7 @@ interface BalanceRecord extends UserAssetAccountRecord {
 type CouponRecord = CouponTemplateRecord;
 
 type AssetModalType = 'tag' | 'balance' | 'freeze' | 'coupon' | 'reward' | 'refund' | null;
-type HelperType = 'batchTags' | 'riskBlacklist' | 'flowExport' | 'guide' | null;
+type HelperType = 'batchTags' | 'riskBlacklist' | 'guide' | null;
 
 const userLevelMap = buildValueEnum(userLevelOptions);
 const riskStatusMap = buildValueEnum(riskStatusOptions);
@@ -540,7 +540,6 @@ const AssetManagement: React.FC = () => {
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1680 }}
                 toolBarRender={() => [<Button key="export" onClick={() => {
-                  openHelper('flowExport', '余额流水导出', '按流水号、用户、关联单或操作人创建余额流水导出任务。');
                   helperForm.setFieldsValue({ keyword: flowKeyword || undefined, operator: '系统管理员', businessScene: '风控处置', approvalRequired: '主管已审批', notifyUser: '不通知' });
                 }}>导出余额流水</Button>]}
                 onSubmit={(values) => setFlowKeyword(String(values.keyword || ''))}
@@ -809,7 +808,7 @@ const AssetManagement: React.FC = () => {
         eyebrow="用户资产辅助操作"
         title={helperTitle || '资产辅助操作'}
         subtitle={helperDesc}
-        meta={[helperType === 'batchTags' ? '批量标签' : helperType === 'riskBlacklist' ? '风控名单' : helperType === 'flowExport' ? '流水导出' : '操作指引', '用户资产']}
+        meta={[helperType === 'batchTags' ? '批量标签' : helperType === 'riskBlacklist' ? '风控名单' : '操作指引', '用户资产']}
         open={helperVisible}
         onCancel={() => setHelperVisible(false)}
         onOk={async () => {
@@ -832,14 +831,10 @@ const AssetManagement: React.FC = () => {
             queryClient.invalidateQueries({ queryKey: ['userAssetOverview'] });
             message.success('风控名单已更新');
           }
-          if (helperType === 'flowExport') {
-            await api.asset.operations.exportBalanceFlows({ keyword: values.keyword, operator: values.operator, remark: helperPayload.remark || values.keyword });
-            message.success('余额流水导出任务已创建');
-          }
           setHelperVisible(false);
         }}
         width={960}
-        okText={helperType === 'flowExport' ? '创建导出任务' : '保存处理结果'}
+        okText="保存处理结果"
       >
         {helperType !== 'guide' ? (
           <Form form={helperForm} layout="vertical" className="merchant-editor-form">
@@ -879,23 +874,6 @@ const AssetManagement: React.FC = () => {
                       <Form.Item name="businessScene" label="业务场景" initialValue="风控处置"><Select options={sceneOptions} /></Form.Item>
                       <Form.Item name="approvalRequired" label="审批要求" initialValue="主管已审批"><Select options={approvalOptions} /></Form.Item>
                       <Form.Item name="notifyUser" label="通知用户" initialValue="客服跟进"><Select options={notifyOptions} /></Form.Item>
-                    </div>
-                  </BusinessEditorSection>
-                </>
-              ) : null}
-              {helperType === 'flowExport' ? (
-                <>
-                  <BusinessEditorSection icon={<DownloadOutlined />} title="导出范围" desc="按流水号、用户、关联单或操作人创建导出任务。">
-                    <div className="merchant-editor-fields">
-                      <Form.Item name="keyword" label="导出条件"><Input placeholder="流水号 / 用户 / 关联单 / 操作人" /></Form.Item>
-                      <Form.Item name="operator" label="操作人"><Input placeholder="例如：系统管理员" /></Form.Item>
-                    </div>
-                  </BusinessEditorSection>
-                  <BusinessEditorSection icon={<AuditOutlined />} title="任务说明" desc="补充导出原因和审批信息，方便运营支持页追踪导出任务。">
-                    <div className="merchant-editor-fields">
-                      <Form.Item name="businessScene" label="业务场景" initialValue="风控处置"><Select options={sceneOptions} /></Form.Item>
-                      <Form.Item name="approvalRequired" label="审批要求" initialValue="主管已审批"><Select options={approvalOptions} /></Form.Item>
-                      <Form.Item name="notifyUser" label="通知用户" initialValue="不通知"><Select options={notifyOptions} /></Form.Item>
                     </div>
                   </BusinessEditorSection>
                 </>

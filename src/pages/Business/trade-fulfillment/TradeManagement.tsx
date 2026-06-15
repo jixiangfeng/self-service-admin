@@ -262,27 +262,6 @@ const TradeManagement: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['tradeOrders'] });
     },
   });
-  const exportTaskMutation = useMutation({
-    mutationFn: (values: Record<string, unknown>) => api.file.importExportTasks.add(values),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['operationImportExportTasks'] });
-      message.success('订单导出任务已创建');
-      navigate('/operations-support');
-    },
-  });
-  const createExportTask = () => {
-    exportTaskMutation.mutate({
-      taskNo: `EXP-${Date.now()}`,
-      taskType: 'EXPORT',
-      bizType: 'TRADE_ORDER',
-      bizNo: orderFilters.keyword || undefined,
-      fileName: `订单导出-${Date.now()}.xlsx`,
-      operator: '系统管理员',
-      status: 'PENDING',
-      remark: '订单导出',
-    });
-  };
-
   const filteredOrders = useMemo(
     () =>
       orders.filter(
@@ -496,7 +475,6 @@ const TradeManagement: React.FC = () => {
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1820 }}
                 toolBarRender={() => [
-                  <Button key="export" loading={exportTaskMutation.isPending} onClick={createExportTask}>导出订单</Button>,
                   <Button key="new" icon={<FileAddOutlined />} onClick={() => { createOrderForm.resetFields(); setCreateOrderVisible(true); }}>人工补单</Button>,
                   <Button key="exception" type="primary" onClick={() => {
                     const target = filteredOrders.find((item) => item.status !== 'COMPLETED') || filteredOrders[0];

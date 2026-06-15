@@ -100,10 +100,40 @@ const hiddenMenuLabels = [
 const requiredRoutes = [
   'path="device-access"',
   'path="device-ops"',
-  'path="open-api"',
-  'path="operations-extension"',
   'path="mini-program-ops"',
   'path="platform-base"',
+];
+
+const removedRoutes = [
+  'path="service/changes"',
+  'path="settlement/invoices"',
+  'path="service-desk/subscribes"',
+  'path="ads"',
+  'path="retail"',
+  'path="value-flows"',
+  'path="operations-support"',
+  'path="operations-config"',
+  'path="operations-extension"',
+  'path="file-relations"',
+  'path="approval-flows"',
+  'path="risk-schedule-alarms"',
+  'path="open-api"',
+];
+
+const removedPageSymbols = [
+  'ProductChangeManagement',
+  'InvoiceManagement',
+  'SubscribeAuthManagement',
+  'AdManagement',
+  'RetailManagement',
+  'ValueFlowManagement',
+  'OperationsSupportManagement',
+  'OperationsConfigManagement',
+  'OperationsExtensionManagement',
+  'FileRelationManagement',
+  'ApprovalFlowManagement',
+  'RiskScheduleAlarmManagement',
+  'OpenApiManagement',
 ];
 
 const requiredRedirects = [
@@ -130,6 +160,18 @@ for (const label of hiddenMenuLabels) {
 for (const route of requiredRoutes) {
   if (!app.includes(route)) {
     errors.push(`missing required route: ${route}`);
+  }
+}
+
+for (const route of removedRoutes) {
+  if (app.includes(route)) {
+    errors.push(`removed hidden route is still registered: ${route}`);
+  }
+}
+
+for (const symbol of removedPageSymbols) {
+  if (app.includes(symbol)) {
+    errors.push(`removed hidden page is still lazy-loaded: ${symbol}`);
   }
 }
 

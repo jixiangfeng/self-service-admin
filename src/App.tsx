@@ -19,7 +19,6 @@ const DeviceManagement = lazy(() => import('./pages/Business/store-operations').
 const StoreOperationsManagement = lazy(() => import('./pages/Business/store-operations').then((module) => ({ default: module.StoreOperationsManagement })));
 const ServiceManagement = lazy(() => import('./pages/Business/product-service').then((module) => ({ default: module.ServiceManagement })));
 const ProductPricingManagement = lazy(() => import('./pages/Business/product-service').then((module) => ({ default: module.ProductPricingManagement })));
-const ProductChangeManagement = lazy(() => import('./pages/Business/product-service').then((module) => ({ default: module.ProductChangeManagement })));
 const TradeManagement = lazy(() => import('./pages/Business/trade-fulfillment').then((module) => ({ default: module.TradeManagement })));
 const FulfillmentManagement = lazy(() => import('./pages/Business/trade-fulfillment').then((module) => ({ default: module.FulfillmentManagement })));
 const OrderDetailManagement = lazy(() => import('./pages/Business/trade-fulfillment').then((module) => ({ default: module.OrderDetailManagement })));
@@ -38,27 +37,15 @@ const SettlementManagement = lazy(() => import('./pages/Business/finance-settlem
 const ProfitSharingManagement = lazy(() => import('./pages/Business/finance-settlement').then((module) => ({ default: module.ProfitSharingManagement })));
 const SettlementDetailManagement = lazy(() => import('./pages/Business/finance-settlement').then((module) => ({ default: module.SettlementDetailManagement })));
 const ProfitShareDetailManagement = lazy(() => import('./pages/Business/finance-settlement').then((module) => ({ default: module.ProfitShareDetailManagement })));
-const InvoiceManagement = lazy(() => import('./pages/Business/finance-settlement').then((module) => ({ default: module.InvoiceManagement })));
 const AnalysisManagement = lazy(() => import('./pages/Business/data-reports').then((module) => ({ default: module.AnalysisManagement })));
 const ServiceDeskManagement = lazy(() => import('./pages/Business/service-messaging').then((module) => ({ default: module.ServiceDeskManagement })));
 const MessageCenterManagement = lazy(() => import('./pages/Business/service-messaging').then((module) => ({ default: module.MessageCenterManagement })));
 const EvaluationFeedbackManagement = lazy(() => import('./pages/Business/service-messaging').then((module) => ({ default: module.EvaluationFeedbackManagement })));
-const SubscribeAuthManagement = lazy(() => import('./pages/Business/service-messaging').then((module) => ({ default: module.SubscribeAuthManagement })));
-const AdManagement = lazy(() => import('./pages/Business/value-planning').then((module) => ({ default: module.AdManagement })));
-const RetailManagement = lazy(() => import('./pages/Business/value-planning').then((module) => ({ default: module.RetailManagement })));
-const ValueFlowManagement = lazy(() => import('./pages/Business/value-planning').then((module) => ({ default: module.ValueFlowManagement })));
-const OperationsSupportManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.OperationsSupportManagement })));
-const OperationsConfigManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.OperationsConfigManagement })));
 const PlatformBaseManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.PlatformBaseManagement })));
 const PaymentOpsManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.PaymentOpsManagement })));
 const DeviceOpsManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.DeviceOpsManagement })));
 const DeviceAccessManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.DeviceAccessManagement })));
-const OperationsExtensionManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.OperationsExtensionManagement })));
-const FileRelationManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.FileRelationManagement })));
-const ApprovalFlowManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.ApprovalFlowManagement })));
-const RiskScheduleAlarmManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.RiskScheduleAlarmManagement })));
 const MiniProgramOpsManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.MiniProgramOpsManagement })));
-const OpenApiManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.OpenApiManagement })));
 const UserManagement = lazy(() => import('./pages/System/User'));
 const RoleManagement = lazy(() => import('./pages/System/Role'));
 const MenuManagement = lazy(() => import('./pages/System/Menu'));
@@ -110,7 +97,6 @@ const AppContent = () => {
               <Route path="device/profiles" element={<Navigate to="/device" replace />} />
               <Route path="service" element={<ServiceManagement />} />
               <Route path="service/pricing" element={<ProductPricingManagement />} />
-              <Route path="service/changes" element={<ProductChangeManagement />} />
               <Route path="trade" element={<TradeManagement />} />
               <Route path="trade/details" element={<OrderDetailManagement />} />
               <Route path="order" element={<Navigate to="/trade" replace />} />
@@ -130,27 +116,15 @@ const AppContent = () => {
               <Route path="settlement/profit-sharing" element={<ProfitSharingManagement />} />
               <Route path="settlement/details" element={<SettlementDetailManagement />} />
               <Route path="settlement/profit-details" element={<ProfitShareDetailManagement />} />
-              <Route path="settlement/invoices" element={<InvoiceManagement />} />
               <Route path="analysis" element={<AnalysisManagement />} />
               <Route path="service-desk" element={<ServiceDeskManagement />} />
               <Route path="service-desk/messages" element={<MessageCenterManagement />} />
               <Route path="service-desk/evaluations" element={<EvaluationFeedbackManagement />} />
-              <Route path="service-desk/subscribes" element={<SubscribeAuthManagement />} />
-              <Route path="ads" element={<AdManagement />} />
-              <Route path="retail" element={<RetailManagement />} />
-              <Route path="value-flows" element={<ValueFlowManagement />} />
-              <Route path="operations-support" element={<OperationsSupportManagement />} />
-              <Route path="operations-config" element={<OperationsConfigManagement />} />
               <Route path="platform-base" element={<PlatformBaseManagement />} />
               <Route path="payment-ops" element={<PaymentOpsManagement />} />
               <Route path="device-ops" element={<DeviceOpsManagement />} />
               <Route path="device-access" element={<DeviceAccessManagement />} />
-              <Route path="operations-extension" element={<OperationsExtensionManagement />} />
-              <Route path="file-relations" element={<FileRelationManagement />} />
-              <Route path="approval-flows" element={<ApprovalFlowManagement />} />
-              <Route path="risk-schedule-alarms" element={<RiskScheduleAlarmManagement />} />
               <Route path="mini-program-ops" element={<MiniProgramOpsManagement />} />
-              <Route path="open-api" element={<OpenApiManagement />} />
 
               <Route path="system">
                 <Route path="user" element={<UserManagement />} />

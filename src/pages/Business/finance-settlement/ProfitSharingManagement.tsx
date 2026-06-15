@@ -99,40 +99,12 @@ const ProfitSharingManagement: React.FC = () => {
       navigate('/settlement/profit-details');
     },
   });
-  const exportTaskMutation = useMutation({
-    mutationFn: (values: Record<string, unknown>) => api.file.importExportTasks.add(values),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['operationImportExportTasks'] });
-      message.success('分润明细导出任务已创建');
-      navigate('/operations-support');
-    },
-  });
-
   const confirmChargeback = (record: ProfitShareDetailRecord) => {
     showBusinessConfirm({
       title: '确认创建回冲记录',
       content: `确定对「${record.partnerName || record.storeName || record.orderNo}」创建分润回冲记录吗？`,
       okText: '确认回冲',
       onOk: () => chargebackMutation.mutate(record),
-    });
-  };
-
-  const confirmExportProfitDetails = () => {
-    showBusinessConfirm({
-      title: '确认导出分润明细',
-      content: `确定创建${keyword ? `关键词「${keyword}」` : '全部'}分润明细导出任务吗？`,
-      okText: '确认导出',
-      danger: false,
-      onOk: () => exportTaskMutation.mutate({
-        taskNo: `EXP-${Date.now()}`,
-        taskType: 'EXPORT',
-        bizType: 'PROFIT_SHARE_DETAIL',
-        bizNo: keyword || 'ALL',
-        fileName: `分润明细导出-${Date.now()}.xlsx`,
-        operator: '系统管理员',
-        status: 'PENDING',
-        remark: '分润明细导出',
-      }),
     });
   };
 
@@ -287,14 +259,6 @@ const ProfitSharingManagement: React.FC = () => {
                 scroll={{ x: 1380 }}
                 toolBarRender={() => [
                   <Button key="settle" onClick={() => navigate('/settlement')}>生成结算单</Button>,
-                  <Button
-                    key="export"
-                    type="primary"
-                    loading={exportTaskMutation.isPending}
-                    onClick={confirmExportProfitDetails}
-                  >
-                    导出分润明细
-                  </Button>,
                 ]}
                 onSubmit={(values) => setKeyword(String(values.keyword || ''))}
                 onReset={() => setKeyword('')}
