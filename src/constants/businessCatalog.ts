@@ -103,6 +103,8 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'MAINTENANCE', label: '维护中' },
 ],
   deviceControlModeOptions: [
+  { value: 'AUTO', label: '自动控制' },
+  { value: 'MANUAL', label: '人工控制' },
   { value: 'REMOTE', label: '远程控制' },
   { value: 'LOCAL', label: '本地控制' },
   { value: 'HYBRID', label: '混合控制' },

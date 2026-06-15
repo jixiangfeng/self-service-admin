@@ -30,9 +30,12 @@ const validityOptions = [
   { label: '长期有效', value: 'LONG_TERM' },
 ];
 const issueChannelOptions = [
-  { label: '运营手动发放', value: '运营手动发放' },
-  { label: '用户主动领取', value: '用户主动领取' },
-  { label: '活动自动发放', value: '活动自动发放' },
+  { label: '活动自动发放', value: 'ACTIVITY' },
+  { label: '运营手动发放', value: 'MANUAL' },
+  { label: '邀请达标发放', value: 'INVITE' },
+  { label: '注册送券', value: 'REGISTER' },
+  { label: '客服补偿', value: 'CUSTOMER_SERVICE' },
+  { label: '用户主动领取', value: 'USER_CLAIM' },
 ];
 const issueAudienceOptions = [
   { label: '全部用户', value: '全部用户' },
@@ -49,6 +52,8 @@ const stackLimitOptions = [
 const splitMultiValue = (value?: string) => String(value || '').split(/[;；,，]/).map((item) => item.trim()).filter(Boolean);
 const joinMultiValue = (value: unknown) => Array.isArray(value) ? value.join('；') : String(value || '');
 const optionLabel = (options: { label: string; value: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
+const optionLabels = (options: { label: string; value: string }[], value?: string) =>
+  splitMultiValue(value).map((item) => optionLabel(options, item)).join('、') || '-';
 const thresholdText = (record: CouponTemplateRecord) => record.thresholdType === 'NONE'
   ? '无门槛'
   : record.thresholdAmount ? `满 ${record.thresholdAmount} 元可用` : optionLabel(thresholdOptions, record.thresholdType);
@@ -156,7 +161,7 @@ const CouponTemplateManagement: React.FC = () => {
     { title: '适用范围', dataIndex: 'scope', width: 160, search: false , render: (value) => formatEnumText(value, 'scope', '适用范围') },
     { title: '使用门槛', dataIndex: 'thresholdType', width: 160, search: false, render: (_, record) => thresholdText(record) || '-' },
     { title: '有效期', dataIndex: 'validityType', width: 160, search: false, render: (_, record) => validityText(record) || '-' },
-    { title: '发放方式', dataIndex: 'issueChannel', width: 160, search: false , render: (value) => formatEnumText(value, 'issueChannel', '发放方式') },
+    { title: '发放方式', dataIndex: 'issueChannel', width: 180, search: false, render: (_, record) => optionLabels(issueChannelOptions, record.issueChannel) },
     { title: '领取人群', dataIndex: 'issueAudience', width: 160, search: false , render: (value) => formatEnumText(value, 'issueAudience', '领取人群') },
     { title: '叠加限制', dataIndex: 'stackLimits', width: 220, search: false },
     { title: '库存', dataIndex: 'stock', width: 100, search: false },
@@ -234,7 +239,7 @@ const CouponTemplateManagement: React.FC = () => {
           <Button key="rules" onClick={() => {
             setEditingRecord(null);
             form.resetFields();
-            form.setFieldsValue({ couponType: 'FULL_REDUCTION', status: 'ENABLED', stock: 0, scope: '全部门店', thresholdType: 'AMOUNT', validityType: 'DAYS', issueChannel: '用户主动领取', issueAudience: '全部用户', stackLimits: ['同类券不可叠加', '余额可与单张券混用'] } as any);
+            form.setFieldsValue({ couponType: 'FULL_REDUCTION', status: 'ENABLED', stock: 0, scope: '全部门店', thresholdType: 'AMOUNT', validityType: 'DAYS', issueChannel: 'USER_CLAIM', issueAudience: '全部用户', stackLimits: ['同类券不可叠加', '余额可与单张券混用'] } as any);
             setModalVisible(true);
           }}>叠加规则</Button>,
           <Button
@@ -244,7 +249,7 @@ const CouponTemplateManagement: React.FC = () => {
             onClick={() => {
               setEditingRecord(null);
               form.resetFields();
-              form.setFieldsValue({ couponType: 'FULL_REDUCTION', status: 'ENABLED', stock: 0, scope: '全部门店', thresholdType: 'AMOUNT', validityType: 'DAYS', issueChannel: '用户主动领取', issueAudience: '全部用户' } as any);
+              form.setFieldsValue({ couponType: 'FULL_REDUCTION', status: 'ENABLED', stock: 0, scope: '全部门店', thresholdType: 'AMOUNT', validityType: 'DAYS', issueChannel: 'USER_CLAIM', issueAudience: '全部用户' } as any);
               setModalVisible(true);
             }}
           >
