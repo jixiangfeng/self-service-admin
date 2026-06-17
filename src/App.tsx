@@ -1,10 +1,11 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { ConfigProvider, Spin } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { QueryProvider } from './utils/queryClient';
 import './App.css';
 import { useBusinessEnums } from './constants/businessCatalog';
+import { authApi } from './services/backendService';
 
 const BasicLayout = lazy(() => import('./layouts/BasicLayout'));
 const Login = lazy(() => import('./pages/Login'));
@@ -16,7 +17,6 @@ const MerchantAccountManagement = lazy(() => import('./pages/Business/merchant-c
 const StoreManagement = lazy(() => import('./pages/Business/store-operations').then((module) => ({ default: module.StoreManagement })));
 const ServicePointManagement = lazy(() => import('./pages/Business/store-operations').then((module) => ({ default: module.ServicePointManagement })));
 const DeviceManagement = lazy(() => import('./pages/Business/store-operations').then((module) => ({ default: module.DeviceManagement })));
-const StoreOperationsManagement = lazy(() => import('./pages/Business/store-operations').then((module) => ({ default: module.StoreOperationsManagement })));
 const ServiceManagement = lazy(() => import('./pages/Business/product-service').then((module) => ({ default: module.ServiceManagement })));
 const ProductPricingManagement = lazy(() => import('./pages/Business/product-service').then((module) => ({ default: module.ProductPricingManagement })));
 const TradeManagement = lazy(() => import('./pages/Business/trade-fulfillment').then((module) => ({ default: module.TradeManagement })));
@@ -61,7 +61,37 @@ const PageLoading = () => (
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const token = localStorage.getItem('satoken') || localStorage.getItem('token');
-  return token ? <>{children}</> : <Navigate to="/login" replace />;
+  const [checking, setChecking] = useState(Boolean(token));
+  const [authenticated, setAuthenticated] = useState(false);
+
+  useEffect(() => {
+    if (!token) {
+      setChecking(false);
+      setAuthenticated(false);
+      return;
+    }
+
+    let mounted = true;
+    setChecking(true);
+    authApi.getCurrentUser()
+      .then(() => {
+        if (mounted) setAuthenticated(true);
+      })
+      .catch(() => {
+        if (mounted) setAuthenticated(false);
+      })
+      .finally(() => {
+        if (mounted) setChecking(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [token]);
+
+  if (!token) return <Navigate to="/login" replace />;
+  if (checking) return <PageLoading />;
+  return authenticated ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
 const AppContent = () => {
@@ -90,7 +120,7 @@ const AppContent = () => {
               <Route path="merchant-console" element={<MerchantWorkbench />} />
               <Route path="store" element={<StoreManagement />} />
               <Route path="store/profiles" element={<Navigate to="/store" replace />} />
-              <Route path="store-operations" element={<StoreOperationsManagement />} />
+              <Route path="store-operations" element={<Navigate to="/store" replace />} />
               <Route path="bay" element={<ServicePointManagement />} />
               <Route path="bay/profiles" element={<Navigate to="/bay" replace />} />
               <Route path="device" element={<DeviceManagement />} />
@@ -106,6 +136,7 @@ const AppContent = () => {
               <Route path="asset/coupon-cards" element={<CouponCardDetailManagement />} />
               <Route path="asset/flows" element={<AssetFlowManagement />} />
               <Route path="marketing" element={<MarketingManagement />} />
+              <Route path="marketing/invite" element={<Navigate to="/marketing/invite-activities" replace />} />
               <Route path="marketing/coupon-templates" element={<CouponTemplateManagement />} />
               <Route path="marketing/cross-store" element={<CrossStoreActivityManagement />} />
               <Route path="marketing/invite-activities" element={<InviteActivityManagement />} />

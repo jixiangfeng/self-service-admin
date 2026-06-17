@@ -6,6 +6,7 @@ import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { couponTypeOptions, templateStatusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import OssImageUpload from '@/components/OssImageUpload';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
@@ -77,6 +78,7 @@ const couponTemplateDetailFields: DetailField<CouponTemplateRecord>[] = [
   { name: 'perUserLimit', label: '每人限领' },
   { name: 'totalBudget', label: '预算上限' },
   { name: 'stackLimits', label: '叠加限制' },
+  { name: 'bannerImageUrl', label: '活动条Banner' },
   { name: 'stock', label: '库存' },
   { name: 'status', label: '状态', render: (value) => statusMap[value as keyof typeof statusMap]?.text || value },
   { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
@@ -295,6 +297,9 @@ const CouponTemplateManagement: React.FC = () => {
                 </Form.Item>
                 <Form.Item name="status" label="状态">
                   <Select options={templateStatusOptions} placeholder="请选择状态" />
+                </Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="bannerImageUrl" label="活动条Banner图片">
+                  <OssImageUpload prefix="activity/banners" placeholder="上传活动条Banner" />
                 </Form.Item>
               </div>
             </BusinessEditorSection>

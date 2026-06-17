@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Dropdown } from 'antd';
+import { Breadcrumb, Dropdown } from 'antd';
 import { ProLayout } from '@ant-design/pro-components';
 import type { MenuDataItem } from '@ant-design/pro-components';
 import {
@@ -53,6 +53,10 @@ const BasicLayout: React.FC = () => {
   const currentUser = useMemo(() => getStoredUserAuth(), []);
 
   type PermissionMenuDataItem = MenuDataItem & { permissions?: string[] };
+  type BreadcrumbRoute = {
+    title: React.ReactNode;
+    path?: string;
+  };
 
   const filterMenuByPermission = useCallback((items: MenuDataItem[]): MenuDataItem[] =>
     items
@@ -85,7 +89,6 @@ const BasicLayout: React.FC = () => {
         { key: '/merchant/groups', path: '/merchant/groups', name: '门店组管理', icon: <PartitionOutlined /> },
         { key: '/bay', path: '/bay', name: '点位管理', icon: <CarOutlined /> },
         { key: '/device', path: '/device', name: '设备管理', icon: <DeploymentUnitOutlined /> },
-        { key: '/store-operations', path: '/store-operations', name: '门店运营台', icon: <ShopOutlined /> },
       ],
     },
     {
@@ -235,6 +238,31 @@ const BasicLayout: React.FC = () => {
 
   const filteredMenuData = useMemo(() => filterMenuByPermission(menuData), [filterMenuByPermission, menuData]);
 
+  const breadcrumbRoutes = useMemo(() => {
+    const mapping: Record<string, BreadcrumbRoute[]> = {};
+
+    const walk = (items: MenuDataItem[], parents: BreadcrumbRoute[] = []) => {
+      items.forEach((item) => {
+        const title = item.name;
+        const currentRoute = title ? { title, path: item.path } : undefined;
+        const nextParents = currentRoute ? [...parents, currentRoute] : parents;
+
+        if (item.path && title) {
+          mapping[item.path] = nextParents;
+        }
+
+        if (item.children?.length) {
+          walk(item.children, nextParents);
+        }
+      });
+    };
+
+    walk(filteredMenuData);
+    return mapping;
+  }, [filteredMenuData]);
+
+  const currentBreadcrumbItems = breadcrumbRoutes[location.pathname] || [];
+
   const userMenuItems = [
     { key: 'logout', label: '退出登录' },
   ];
@@ -299,7 +327,22 @@ const BasicLayout: React.FC = () => {
         ),
       }}
     >
-      <Outlet />
+      <div className="admin-layout-content">
+        {currentBreadcrumbItems.length > 0 && (
+          <Breadcrumb
+            className="admin-layout-breadcrumb"
+            items={currentBreadcrumbItems.map((item, index) => {
+              const isLast = index === currentBreadcrumbItems.length - 1;
+              return {
+                title: !isLast && item.path ? (
+                  <span onClick={() => navigate(item.path || '/')}>{item.title}</span>
+                ) : item.title,
+              };
+            })}
+          />
+        )}
+        <Outlet />
+      </div>
     </ProLayout>
   );
 };

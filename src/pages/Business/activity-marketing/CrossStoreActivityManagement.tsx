@@ -7,6 +7,7 @@ import type { ProColumns } from '@ant-design/pro-components';
 import { useNavigate } from 'react-router-dom';
 import { activityStatusOptions, activityTypeOptions, costBearerOptions, writeOffMethodOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import OssImageUpload from '@/components/OssImageUpload';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
@@ -58,6 +59,7 @@ const crossStoreDetailFields: DetailField<CrossStoreActivityRecord>[] = [
   { name: 'writeoffMode', label: '核销方式', render: (value) => value ? writeOffMethodMap[value as keyof typeof writeOffMethodMap]?.text || value : '-' },
   { name: 'costOwner', label: '成本承担', render: (value) => value ? costBearerMap[value as keyof typeof costBearerMap]?.text || value : '-' },
   { name: 'cycle', label: '活动周期' },
+  { name: 'bannerImageUrl', label: '活动条Banner' },
   { name: 'status', label: '状态', render: (value) => value ? statusMap[value as keyof typeof statusMap]?.text || value : '-' },
   { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
 ];
@@ -219,6 +221,7 @@ const CrossStoreActivityManagement: React.FC = () => {
                 <Form.Item name="activityName" label="活动名称" rules={[{ required: true, message: '请输入活动名称' }]}><Input placeholder="例如：同城门店通用洗车券" /></Form.Item>
                 <Form.Item name="activityType" label="活动类型" rules={[{ required: true, message: '请选择活动类型' }]}><Select options={activityTypeOptions} placeholder="请选择活动类型" /></Form.Item>
                 <Form.Item name="status" label="状态"><Select options={activityStatusOptions} placeholder="请选择状态" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="bannerImageUrl" label="活动条Banner图片"><OssImageUpload prefix="activity/banners" placeholder="上传活动条Banner" /></Form.Item>
               </div>
             </BusinessEditorSection>
             <BusinessEditorSection icon={<ShopOutlined />} title="门店与核销" desc="配置活动可用的门店组、核销方式和成本承担方。">

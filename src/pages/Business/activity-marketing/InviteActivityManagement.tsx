@@ -7,6 +7,7 @@ import type { ProColumns } from '@ant-design/pro-components';
 import { useNavigate } from 'react-router-dom';
 import { activityRewardStatusOptions, activityStatusOptions, inviteRecordStatusOptions, rewardTypeOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import OssImageUpload from '@/components/OssImageUpload';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
@@ -22,6 +23,7 @@ const qualifyConditionOptions = [
   { label: '被邀请人完成注册', value: '被邀请人完成注册' },
   { label: '被邀请人首单支付', value: '被邀请人首单支付' },
   { label: '被邀请人累计消费达标', value: '被邀请人累计消费达标' },
+  { label: '被邀请人充值达标', value: '被邀请人充值达标' },
 ];
 const fraudCheckOptions = [
   { label: '同手机号限制', value: '同手机号限制' },
@@ -75,6 +77,8 @@ const inviteDetailFields: DetailField<InviteActivityRecord>[] = [
   { name: 'inviteeCouponTemplateId', label: '被邀请人券模板' },
   { name: 'inviteeServiceCardId', label: '被邀请人服务卡' },
   { name: 'inviteeRewardAmount', label: '被邀请人金额/积分' },
+  { name: 'tierRewardRules', label: '阶梯返利规则' },
+  { name: 'bannerImageUrl', label: '活动条Banner' },
   { name: 'recordStatus', label: '记录状态', render: (value) => value ? inviteRecordStatusMap[value as keyof typeof inviteRecordStatusMap]?.text || value : '-' },
   { name: 'rewardStatus', label: '奖励状态', render: (value) => value ? rewardStatusMap[value as keyof typeof rewardStatusMap]?.text || value : '-' },
   { name: 'fraudChecks', label: '风控开关' },
@@ -160,6 +164,7 @@ const InviteActivityManagement: React.FC = () => {
     { title: '达标规则', dataIndex: 'qualifyCondition', width: 220, search: false, render: (_, record) => qualifyText(record) },
     { title: '邀请人奖励', dataIndex: 'inviterReward', width: 160, search: false },
     { title: '被邀请人奖励', dataIndex: 'inviteeReward', width: 160, search: false },
+    { title: '阶梯返利', dataIndex: 'tierRewardRules', width: 220, search: false, ellipsis: true },
     { title: '邀请人奖励配置', dataIndex: 'inviterRewardType', width: 180, search: false, render: (_, record) => rewardSummary(record.inviterRewardType, record.inviterRewardAmount, record.inviterCouponTemplateId, record.inviterServiceCardId) },
     { title: '被邀请人奖励配置', dataIndex: 'inviteeRewardType', width: 180, search: false, render: (_, record) => rewardSummary(record.inviteeRewardType, record.inviteeRewardAmount, record.inviteeCouponTemplateId, record.inviteeServiceCardId) },
     { title: '邀请数', dataIndex: 'inviteCount', width: 100, search: false },
@@ -258,6 +263,7 @@ const InviteActivityManagement: React.FC = () => {
                 <Form.Item name="activityCode" label="活动编码" rules={[{ required: true, message: '请输入活动编码' }]}><Input placeholder="例如：INVITE-202605" /></Form.Item>
                 <Form.Item name="activityName" label="活动名称" rules={[{ required: true, message: '请输入活动名称' }]}><Input placeholder="例如：老带新首洗奖励" /></Form.Item>
                 <Form.Item name="status" label="活动状态"><Select options={activityStatusOptions} placeholder="请选择活动状态" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="bannerImageUrl" label="活动条Banner图片"><OssImageUpload prefix="activity/banners" placeholder="上传活动条Banner" /></Form.Item>
               </div>
             </BusinessEditorSection>
             <BusinessEditorSection icon={<GiftOutlined />} title="达标与奖励" desc="配置被邀请人的达标门槛、双方奖励内容和奖励统计状态。">
@@ -276,6 +282,7 @@ const InviteActivityManagement: React.FC = () => {
                 {(inviteeRewardType === 'CARD' || inviteeRewardType === 'SERVICE_CARD') ? <Form.Item name="inviteeServiceCardId" label="被邀请人服务卡"><Select showSearch optionFilterProp="label" options={serviceCardOptions} placeholder="请选择服务卡产品" /></Form.Item> : null}
                 <Form.Item name="inviterReward" label="邀请人奖励说明"><Input placeholder="例如：邀请成功奖励，系统按上方配置发放" /></Form.Item>
                 <Form.Item name="inviteeReward" label="被邀请人奖励说明"><Input placeholder="例如：新客首单奖励，系统按上方配置发放" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-all" name="tierRewardRules" label="阶梯返利规则"><Input.TextArea rows={3} placeholder="例如：邀请3个新人各充值满100元返30元；邀请5个新人各充值满100元返80元" /></Form.Item>
                 <Form.Item name="inviteCount" label="邀请数"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
                 <Form.Item name="qualifiedCount" label="达标数"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
                 <Form.Item name="recordStatus" label="记录状态"><Select options={inviteRecordStatusOptions} placeholder="请选择记录状态" /></Form.Item>

@@ -5,11 +5,9 @@ import type { ProColumns } from '@ant-design/pro-components';
 import { DeleteOutlined, EditOutlined, EnvironmentOutlined, FieldTimeOutlined, NotificationOutlined, PlusOutlined, ShopOutlined } from '@ant-design/icons';
 import { Button, Form, Input, Select, Space, Tabs, message } from 'antd';
 import type { CascaderProps } from 'antd';
-import { useNavigate } from 'react-router-dom';
 import {
   marketingOptions,
   statusOptions,
-  storeServiceCapabilityOptions,
   storeStatusOptions,
 } from '@/constants/businessCatalog';
 import api from '@/services/backendService';
@@ -18,9 +16,8 @@ import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import OssImageUpload from '@/components/OssImageUpload';
 import PageBanner from '@/components/PageBanner';
-import { buildValueEnum, formatDateTime, renderBooleanTag, renderOptionTags, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, formatDateTime, renderBooleanTag, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
-import { joinCommaValues, splitCommaValues } from '@/utils/csv';
 import { DateTimeField, fromDateTimePickerValue, toDateTimePickerValue, RegionCascader } from '@/utils/formControls';
 import StoreProfileManagement from './StoreProfileManagement';
 
@@ -36,7 +33,6 @@ const normalizePickerInitialValues = (record: StoreRecord) => ({
 });
 
 const StoreManagement: React.FC = () => {
-  const navigate = useNavigate();
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
@@ -102,7 +98,6 @@ const StoreManagement: React.FC = () => {
       marketingEnabled: 1,
       status: 'OPEN',
       tempClosed: 0,
-      serviceFlags: ['SCAN', 'POINT_SELECT', 'BALANCE', 'COUPON'],
     });
     setModalVisible(true);
   };
@@ -137,7 +132,6 @@ const StoreManagement: React.FC = () => {
       { title: '营业时段', dataIndex: 'openTime', width: 150, search: false, render: (_, record) => record.openTime && record.closeTime ? `${record.openTime}-${record.closeTime}` : '-' },
       { title: '店长', dataIndex: 'managerName', width: 140, search: false, render: (_, record) => record.managerName || '-' },
       { title: '服务半径', dataIndex: 'serviceRadius', width: 110, search: false, render: (_, record) => record.serviceRadius ? `${record.serviceRadius}km` : '-' },
-      { title: '服务能力', dataIndex: 'serviceFlags', width: 280, search: false, render: (_, record) => renderOptionTags(record.serviceFlags, storeServiceCapabilityOptions) },
       { title: '营销开关', dataIndex: 'marketingEnabled', width: 120, search: false, render: (_, record) => renderBooleanTag(record.marketingEnabled) },
       { title: '临停状态', dataIndex: 'tempClosed', width: 120, search: false, render: (_, record) => renderBooleanTag(record.tempClosed, '临停中', '正常') },
       {
@@ -160,10 +154,7 @@ const StoreManagement: React.FC = () => {
               icon={<EditOutlined />}
               onClick={() => {
                 setEditingRecord(record);
-                form.setFieldsValue({
-                  ...normalizePickerInitialValues(record),
-                  serviceFlags: splitCommaValues(record.serviceFlags),
-                });
+                form.setFieldsValue(normalizePickerInitialValues(record));
                 setModalVisible(true);
               }}
             >
@@ -200,11 +191,9 @@ const StoreManagement: React.FC = () => {
           { title: '门店建档', description: '补齐地址、营业时间、公告和联系方式', status: 'finish', tag: '当前页' },
           { title: '点位设备', description: '配置点位、二维码和设备绑定', status: 'process', tag: '下一步：点位 / 设备' },
           { title: '商品活动', description: '决定商品适用范围和营销开关', status: 'wait', tag: '商品与服务 / 活动营销' },
-          { title: '门店运营', description: '切到运营台跟进班次、巡检和异常', status: 'wait', tag: '门店运营台' },
         ]}
         actions={[
           { key: 'create', label: '新建门店', type: 'primary', onClick: openCreateDrawer },
-          { key: 'ops', label: '去门店运营台', onClick: () => navigate('/store-operations') },
         ]}
       />
 
@@ -231,9 +220,6 @@ const StoreManagement: React.FC = () => {
           onChange: (page, pageSize) => setQueryParams((prev) => ({ ...prev, pageNum: page, pageSize: pageSize || prev.pageSize })),
         }}
         toolBarRender={() => [
-          <Button key="ops" onClick={() => navigate('/store-operations')}>
-            去门店运营台
-          </Button>,
           <Button key="create" type="primary" icon={<PlusOutlined />} onClick={openCreateDrawer}>
             新建门店
           </Button>,
@@ -279,10 +265,7 @@ const StoreManagement: React.FC = () => {
           preserve={false}
           onFinish={(values) => {
             const { region, ...restValues } = values;
-            const payload = {
-              ...normalizePickerValues(restValues),
-              serviceFlags: joinCommaValues(values.serviceFlags),
-            };
+            const payload = normalizePickerValues(restValues);
             if (editingRecord) {
               updateMutation.mutate({ id: editingRecord.id, ...payload });
               return;
@@ -364,8 +347,8 @@ const StoreManagement: React.FC = () => {
 
             <BusinessEditorSection
               icon={<FieldTimeOutlined />}
-              title="营业与能力"
-              desc="配置营业时段、节假日策略、营销开关、临停原因和服务能力，决定用户是否能在该店下单。"
+              title="营业设置"
+              desc="配置营业时段、节假日策略、营销开关和临停原因，决定用户是否能在该店下单。"
             >
               <div className="merchant-editor-fields">
                 <Form.Item name="businessHours" label="营业时间">
@@ -394,9 +377,6 @@ const StoreManagement: React.FC = () => {
                 </Form.Item>
                 <Form.Item name="tempClosedUntil" label="临停截止时间">
                   <DateTimeField />
-                </Form.Item>
-                <Form.Item className="merchant-editor-field-span-all" name="serviceFlags" label="服务能力">
-                  <Select mode="multiple" options={storeServiceCapabilityOptions} placeholder="选择门店支持的能力" />
                 </Form.Item>
               </div>
             </BusinessEditorSection>

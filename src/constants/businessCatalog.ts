@@ -346,24 +346,6 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'DIFF', label: '存在差异' },
   { value: 'PROCESSING', label: '处理中' },
 ],
-  storeOperationTaskTypeOptions: [
-  { value: 'INSPECTION', label: '门店巡检' },
-  { value: 'DEVICE_MAINTAIN', label: '设备保养' },
-  { value: 'NOTICE_UPDATE', label: '公告更新' },
-  { value: 'EXCEPTION_HANDLE', label: '异常处理' },
-],
-  storeOperationTaskStatusOptions: [
-  { value: 'PENDING', label: '待分派' },
-  { value: 'PROCESSING', label: '处理中' },
-  { value: 'CONFIRMING', label: '待确认' },
-  { value: 'DONE', label: '已完成' },
-],
-  storeNoticeTypeOptions: [
-  { value: 'SHIFT', label: '排班' },
-  { value: 'STORE_NOTICE', label: '门店公告' },
-  { value: 'PRICE_NOTICE', label: '价格公告' },
-  { value: 'MAINTAIN_NOTICE', label: '维护公告' },
-],
   publishStatusOptions: [
   { value: 'PENDING', label: '待发布' },
   { value: 'CONFIRMING', label: '待确认' },
@@ -814,9 +796,6 @@ export const payoutStatusOptions = getBusinessEnumOptions('payoutStatusOptions')
 export const settlementSubjectTypeOptions = getBusinessEnumOptions('settlementSubjectTypeOptions');
 export const settlementDetailTypeOptions = getBusinessEnumOptions('settlementDetailTypeOptions');
 export const reconciliationStatusOptions = getBusinessEnumOptions('reconciliationStatusOptions');
-export const storeOperationTaskTypeOptions = getBusinessEnumOptions('storeOperationTaskTypeOptions');
-export const storeOperationTaskStatusOptions = getBusinessEnumOptions('storeOperationTaskStatusOptions');
-export const storeNoticeTypeOptions = getBusinessEnumOptions('storeNoticeTypeOptions');
 export const publishStatusOptions = getBusinessEnumOptions('publishStatusOptions');
 export const retailCategoryOptions = getBusinessEnumOptions('retailCategoryOptions');
 export const retailDeliveryTypeOptions = getBusinessEnumOptions('retailDeliveryTypeOptions');

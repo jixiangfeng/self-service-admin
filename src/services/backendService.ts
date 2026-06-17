@@ -366,7 +366,6 @@ export interface StoreRecord {
   latitude?: number | string;
   businessHours?: string;
   holidayHours?: string;
-  serviceFlags?: string;
   marketingEnabled?: number;
   status: string;
   notice?: string;
@@ -405,10 +404,6 @@ export interface StoreServiceCapabilityRecord {
   updatedAt?: string;
 }
 export interface StoreChangeLogRecord { id: number; changeNo: string; storeId: number; storeName?: string; changeType: string; beforeValue?: string; afterValue?: string; operator?: string; changedAt?: string; createdAt?: string; updatedAt?: string; }
-export interface StoreOperationTaskRecord { id: number; taskNo?: string; taskType: string; task: string; storeId?: number; store?: string; deviceId?: number; relatedDevice?: string; owner?: string; deadline?: string; priority: string; status: string; result?: string; createdAt?: string; updatedAt?: string; }
-export interface StoreNoticeRecord { id: number; noticeNo?: string; noticeType: string; title: string; content: string; storeId?: number; store?: string; publisher?: string; publishAt?: string; status: string; createdAt?: string; updatedAt?: string; }
-export interface StoreOperationTaskSummaryRecord { inspectCount: number; pendingException: number; overdueCount: number; doneCount: number; }
-
 export interface ServicePointRecord {
   id: number;
   storeId: number;
@@ -650,6 +645,7 @@ export interface CouponTemplateRecord {
   perUserLimit?: number;
   totalBudget?: number | string;
   stackLimits?: string;
+  bannerImageUrl?: string;
   stock?: number;
   status: string;
   updatedAt?: string;
@@ -672,6 +668,7 @@ export interface InviteActivityRecord {
   inviteeCouponTemplateId?: number;
   inviteeServiceCardId?: number;
   inviteeRewardAmount?: number | string;
+  tierRewardRules?: string;
   inviteCount?: number;
   qualifiedCount?: number;
   rewardStatus?: string;
@@ -680,6 +677,7 @@ export interface InviteActivityRecord {
   recoveryMode?: string;
   recoveryDays?: number;
   dailyLimitCount?: number;
+  bannerImageUrl?: string;
   status: string;
   updatedAt?: string;
 }
@@ -699,6 +697,7 @@ export interface RechargeActivityRecord {
   rewardValue?: string;
   couponTemplateId?: number;
   serviceCardId?: number;
+  bannerImageUrl?: string;
   rewardStatus?: string;
   issuedCount?: number;
   status: string;
@@ -714,6 +713,7 @@ export interface CrossStoreActivityRecord {
   writeoffMode?: string;
   costOwner?: string;
   cycle?: string;
+  bannerImageUrl?: string;
   status: string;
   updatedAt?: string;
 }
@@ -2225,19 +2225,6 @@ export const storeBusinessHoursApi = crudApi<StoreBusinessHoursRecord>('/store-b
 export const storeTempCloseRecordApi = crudApi<StoreTempCloseRecord>('/store-temp-close-records');
 export const storeServiceCapabilityApi = crudApi<StoreServiceCapabilityRecord>('/store-service-capabilities');
 export const storeChangeLogApi = crudApi<StoreChangeLogRecord>('/store-change-logs');
-export const storeOperationTaskApi = {
-  ...crudApi<StoreOperationTaskRecord>('/store-operation-tasks'),
-  summary: async (params?: Record<string, unknown>) =>
-    httpGet<StoreOperationTaskSummaryRecord>('/store-operation-tasks/summary', params),
-  updateStatus: async (id: number, data: Record<string, unknown>) =>
-    httpPut<void>(`/store-operation-tasks/${id}/status`, data),
-};
-export const storeNoticeApi = {
-  ...crudApi<StoreNoticeRecord>('/store-notices'),
-  updateStatus: async (id: number, status: string) =>
-    httpPut<void>(`/store-notices/${id}/status`, { status }),
-};
-
 export const servicePointApi = {
   page: async (params: Record<string, unknown>) =>
     httpPage<ServicePointRecord>('/service-points', params),
@@ -2763,8 +2750,6 @@ export default {
   storeTempCloseRecord: storeTempCloseRecordApi,
   storeServiceCapability: storeServiceCapabilityApi,
   storeChangeLog: storeChangeLogApi,
-  storeOperationTask: storeOperationTaskApi,
-  storeNotice: storeNoticeApi,
   servicePoint: servicePointApi,
   servicePointQrRecord: servicePointQrRecordApi,
   servicePointMaintainRecord: servicePointMaintainRecordApi,

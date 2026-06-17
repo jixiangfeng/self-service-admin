@@ -7,6 +7,7 @@ import type { ProColumns } from '@ant-design/pro-components';
 import { useNavigate } from 'react-router-dom';
 import { activityStatusOptions, costBearerOptions, couponTypeOptions, rewardTypeOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
+import OssImageUpload from '@/components/OssImageUpload';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
@@ -82,43 +83,34 @@ const stackLimitOptions = [
   { label: '不可与平台促销同享', value: '不可与平台促销同享' },
   { label: '可与余额混用', value: '余额可与单张券混用' },
 ];
-const rechargeTierOptions = [
-  { label: '50 元', value: '50' },
-  { label: '100 元', value: '100' },
-  { label: '200 元', value: '200' },
-  { label: '500 元', value: '500' },
-  { label: '1000 元', value: '1000' },
-];
 const splitMultiValue = (value?: string) => String(value || '').split(/[;；,，]/).map((item) => item.trim()).filter(Boolean);
 const joinMultiValue = (value: unknown, separator = '；') => Array.isArray(value) ? value.join(separator) : String(value || '');
 const optionLabel = (options: { label: string; value: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
 const optionLabels = (options: { label: string; value: string }[], value?: string) =>
   splitMultiValue(value).map((item) => optionLabel(options, item)).join('、') || '-';
-const tierGiftAmount = (values: Record<string, any>) => {
-  const rewardCap = Number(values.rewardCap);
-  if (Number.isFinite(rewardCap) && rewardCap > 0) return rewardCap;
-  const rewardValue = Number(values.rewardValue);
-  return Number.isFinite(rewardValue) && rewardValue > 0 ? rewardValue : 0;
-};
 const buildRechargeTierAmounts = (values: Record<string, any>) => {
-  const amounts = Array.isArray(values.tierAmounts) ? values.tierAmounts : [];
-  const gift = tierGiftAmount(values);
-  return JSON.stringify(amounts.map((amount) => ({ amount: Number(amount), gift })));
+  const tiers = Array.isArray(values.tierAmounts) ? values.tierAmounts : [];
+  return JSON.stringify(tiers.map((item) => {
+    if (typeof item === 'object' && item !== null) {
+      return { amount: Number(item.amount), gift: Number(item.gift) || 0 };
+    }
+    return { amount: Number(item), gift: 0 };
+  }).filter((item) => Number.isFinite(item.amount) && item.amount > 0));
 };
 const parseRechargeTierAmounts = (value?: string) => {
   if (!value) return [];
   try {
     const tiers = JSON.parse(value);
     return Array.isArray(tiers)
-      ? tiers.map((item) => String(item?.amount ?? '')).filter(Boolean)
+      ? tiers.map((item) => ({ amount: Number(item?.amount), gift: Number(item?.gift) || 0 })).filter((item) => Number.isFinite(item.amount) && item.amount > 0)
       : [];
   } catch {
     return [];
   }
 };
 const formatRechargeTierAmounts = (value?: string) => {
-  const amounts = parseRechargeTierAmounts(value);
-  return amounts.length ? amounts.map((amount) => `${amount} 元`).join(' / ') : '-';
+  const tiers = parseRechargeTierAmounts(value);
+  return tiers.length ? tiers.map((item) => `${item.amount} 元送 ${item.gift} 元`).join(' / ') : '-';
 };
 const hasRewardType = (value: unknown, target: string) => Array.isArray(value)
   ? value.includes(target)
@@ -170,6 +162,7 @@ const marketingDetailFields: Record<ActivityTab, DetailField<any>[]> = {
     { name: 'perUserLimit', label: '每人限领' },
     { name: 'totalBudget', label: '预算上限' },
     { name: 'stackLimits', label: '叠加限制' },
+    { name: 'bannerImageUrl', label: '活动条Banner' },
     { name: 'stock', label: '库存' },
     { name: 'status', label: '状态' },
     { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
@@ -191,6 +184,7 @@ const marketingDetailFields: Record<ActivityTab, DetailField<any>[]> = {
     { name: 'inviteeCouponTemplateId', label: '被邀请人券模板' },
     { name: 'inviteeServiceCardId', label: '被邀请人服务卡' },
     { name: 'inviteeRewardAmount', label: '被邀请人金额/积分' },
+    { name: 'bannerImageUrl', label: '活动条Banner' },
     { name: 'fraudChecks', label: '风控开关' },
     { name: 'recoveryMode', label: '奖励回收' },
     { name: 'recoveryDays', label: '回收期限' },
@@ -206,6 +200,7 @@ const marketingDetailFields: Record<ActivityTab, DetailField<any>[]> = {
     { name: 'rewardValue', label: '奖励值' },
     { name: 'couponTemplateId', label: '奖励券模板' },
     { name: 'serviceCardId', label: '奖励服务卡' },
+    { name: 'bannerImageUrl', label: '活动条Banner' },
     { name: 'rewardCap', label: '单人奖励上限' },
     { name: 'scope', label: '作用范围' },
     { name: 'costOwner', label: '成本承担' },
@@ -319,7 +314,7 @@ const MarketingManagement: React.FC = () => {
       form.setFieldsValue({ status: 'DRAFT', qualifyCondition: '被邀请人首单支付', recoveryMode: 'REFUND', fraudChecks: ['同手机号限制', '同设备限制'], inviterRewardType: 'BALANCE', inviteeRewardType: 'COUPON' } as any);
       return;
     }
-    form.setFieldsValue({ status: 'DRAFT', tierAmounts: ['50', '100', '200'], rechargeMode: '固定档位充值', rewardMethod: '赠送余额', scope: '全部门店' } as any);
+    form.setFieldsValue({ status: 'DRAFT', tierAmounts: [{ amount: 50, gift: 0 }, { amount: 100, gift: 10 }, { amount: 200, gift: 30 }], rechargeMode: '固定档位充值', rewardMethod: '赠送余额', scope: '全部门店' } as any);
   };
 
   const closeModal = () => {
@@ -578,6 +573,7 @@ const MarketingManagement: React.FC = () => {
                   <Form.Item name="templateName" label="券模板名称" rules={[{ required: true, message: '请输入券模板名称' }]}><Input placeholder="例如：新客首洗优惠券" /></Form.Item>
                   <Form.Item name="couponType" label="券类型"><Select options={couponTypeOptions} placeholder="请选择券类型" /></Form.Item>
                   <Form.Item name="status" label="状态"><Select options={[...activityStatusOptions, { label: '启用', value: 'ENABLED' }]} placeholder="请选择状态" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="bannerImageUrl" label="活动条Banner图片"><OssImageUpload prefix="activity/banners" placeholder="上传活动条Banner" /></Form.Item>
                 </div>
               </BusinessEditorSection>
               <BusinessEditorSection icon={<CalendarOutlined />} title="适用与门槛" desc="配置门店范围、使用门槛和库存，避免活动上线后再靠文本解释。">
@@ -608,6 +604,7 @@ const MarketingManagement: React.FC = () => {
                   <Form.Item name="activityCode" label="活动编码" rules={[{ required: true, message: '请输入活动编码' }]}><Input placeholder="例如：INVITE-202605" /></Form.Item>
                   <Form.Item name="activityName" label="活动名称" rules={[{ required: true, message: '请输入活动名称' }]}><Input placeholder="例如：老带新首洗奖励" /></Form.Item>
                   <Form.Item name="status" label="状态"><Select options={activityStatusOptions} placeholder="请选择状态" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="bannerImageUrl" label="活动条Banner图片"><OssImageUpload prefix="activity/banners" placeholder="上传活动条Banner" /></Form.Item>
                 </div>
               </BusinessEditorSection>
               <BusinessEditorSection icon={<GiftOutlined />} title="达标与奖励" desc="配置被邀请人达标条件、邀请人和被邀请人的奖励内容。">
@@ -644,6 +641,7 @@ const MarketingManagement: React.FC = () => {
                   <Form.Item name="activityCode" label="活动编码" rules={[{ required: true, message: '请输入活动编码' }]}><Input placeholder="例如：RCG-202605" /></Form.Item>
                   <Form.Item name="activityName" label="活动名称" rules={[{ required: true, message: '请输入活动名称' }]}><Input placeholder="例如：会员充值赠送活动" /></Form.Item>
                   <Form.Item name="status" label="状态"><Select options={activityStatusOptions} placeholder="请选择状态" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="bannerImageUrl" label="活动条Banner图片"><OssImageUpload prefix="activity/banners" placeholder="上传活动条Banner" /></Form.Item>
                 </div>
               </BusinessEditorSection>
               <BusinessEditorSection icon={<CalendarOutlined />} title="充值范围" desc="配置充值方式、适用范围、成本承担和档位门槛。">
@@ -651,7 +649,26 @@ const MarketingManagement: React.FC = () => {
                   <Form.Item name="rechargeMode" label="充值方式"><Select options={rechargeModeOptions} placeholder="请选择充值方式" /></Form.Item>
                   <Form.Item name="scope" label="适用范围"><Select options={scopeOptions} placeholder="请选择适用范围" /></Form.Item>
                   <Form.Item name="costOwner" label="成本承担"><Select options={costBearerOptions} placeholder="请选择成本承担方" /></Form.Item>
-                  <Form.Item name="tierAmounts" label="固定档位"><Select mode="multiple" options={rechargeTierOptions} placeholder="请选择充值档位" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" label="固定档位">
+                    <Form.List name="tierAmounts">
+                      {(fields, { add, remove }) => (
+                        <Space direction="vertical" style={{ width: '100%' }}>
+                          {fields.map((field) => (
+                            <Space key={field.key} align="baseline" wrap>
+                              <Form.Item {...field} name={[field.name, 'amount']} rules={[{ required: true, message: '请输入充值金额' }]}>
+                                <InputNumber min={0} precision={2} addonBefore="充" addonAfter="元" placeholder="100" />
+                              </Form.Item>
+                              <Form.Item {...field} name={[field.name, 'gift']} rules={[{ required: true, message: '请输入赠送金额' }]}>
+                                <InputNumber min={0} precision={2} addonBefore="送" addonAfter="元" placeholder="10" />
+                              </Form.Item>
+                              <Button danger onClick={() => remove(field.name)}>删除</Button>
+                            </Space>
+                          ))}
+                          <Button type="dashed" onClick={() => add({ amount: 100, gift: 0 })} icon={<PlusOutlined />}>添加档位</Button>
+                        </Space>
+                      )}
+                    </Form.List>
+                  </Form.Item>
                   <Form.Item name="minAmount" label="最低充值金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
                 </div>
               </BusinessEditorSection>
