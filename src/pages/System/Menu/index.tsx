@@ -15,7 +15,7 @@ interface MenuItem {
   parentId?: number;
   permissionName?: string;
   permissionCode?: string;
-  permissionType?: number | string;
+  permissionType?: string;
   path?: string;
   component?: string;
   icon?: string;
@@ -30,13 +30,18 @@ const SEARCH_FIELD_WIDTH = 240;
 const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleString('zh-CN') : '-');
 
 const TYPE_MAP: Record<string, string> = {
-  '0': '目录',
-  '1': '菜单',
-  '2': '按钮',
   M: '目录',
   C: '菜单',
   F: '按钮',
+  MENU: '菜单',
+  BUTTON: '按钮',
 };
+
+const menuTypeOptions = [
+  { label: '目录', value: 'M' },
+  { label: '菜单', value: 'C' },
+  { label: '按钮', value: 'F' },
+];
 
 const menuDetailFields: DetailField<Record<string, any>>[] = [
   { name: 'id', label: '菜单ID' },
@@ -53,10 +58,11 @@ const menuDetailFields: DetailField<Record<string, any>>[] = [
   { name: 'updateTime', label: '更新时间', render: (value) => formatDateTime(value) },
 ];
 
-const normalizeType = (value: string | number | undefined) => {
-  if (value === 'M' || value === 0 || value === '0') return 0;
-  if (value === 'F' || value === 2 || value === '2') return 2;
-  return 1;
+const normalizeType = (value: string | undefined) => {
+  if (value === 'M' || value === 'C' || value === 'F') return value;
+  if (value === 'MENU') return 'C';
+  if (value === 'BUTTON') return 'F';
+  return 'C';
 };
 
 const MenuManagement: React.FC = () => {
@@ -96,7 +102,7 @@ const MenuManagement: React.FC = () => {
   const handleCreate = (parentId = 0) => {
     setEditingMenu(null);
     form.resetFields();
-    form.setFieldsValue({ parentId, permissionType: 1, sort: 0, visible: 1, status: 1 });
+    form.setFieldsValue({ parentId, permissionType: 'C', sort: 0, visible: 1, status: 1 });
     setIsModalOpen(true);
   };
 
@@ -228,11 +234,7 @@ const MenuManagement: React.FC = () => {
                   allowClear
                   placeholder="全部"
                   style={{ width: SEARCH_FIELD_WIDTH }}
-                  options={[
-                    { label: '目录', value: 0 },
-                    { label: '菜单', value: 1 },
-                    { label: '按钮', value: 2 },
-                  ]}
+                  options={menuTypeOptions}
                 />
               </Form.Item>
               <Form.Item name="status" label="状态" style={{ marginBottom: 0 }}>
@@ -321,11 +323,7 @@ const MenuManagement: React.FC = () => {
                 </Form.Item>
                 <Form.Item name="permissionType" label="菜单类型" rules={[{ required: true, message: '请选择菜单类型' }]}>
                   <Select
-                    options={[
-                      { label: '目录', value: 0 },
-                      { label: '菜单', value: 1 },
-                      { label: '按钮', value: 2 },
-                    ]}
+                    options={menuTypeOptions}
                     placeholder="请选择菜单类型"
                   />
                 </Form.Item>

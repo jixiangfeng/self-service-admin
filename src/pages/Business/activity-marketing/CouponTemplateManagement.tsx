@@ -4,7 +4,7 @@ import { Button, Card, Checkbox, Col, Form, Input, InputNumber, Row, Select, Spa
 import { CalendarOutlined, GiftOutlined, PlusOutlined, SafetyOutlined, TagsOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { couponTypeOptions, templateStatusOptions } from '@/constants/businessCatalog';
+import { couponTypeOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import OssImageUpload from '@/components/OssImageUpload';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
@@ -14,7 +14,12 @@ import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, forma
 import api, { type CouponTemplateRecord } from '@/services/backendService';
 
 const typeMap = buildValueEnum(couponTypeOptions);
-const statusMap = buildValueEnum(templateStatusOptions);
+const couponTemplateStatusOptions = [
+  { label: '草稿', value: 'DRAFT' },
+  { label: '启用', value: 'ENABLED' },
+  { label: '停用', value: 'DISABLED' },
+];
+const statusMap = buildValueEnum(couponTemplateStatusOptions);
 const scopeOptions = [
   { label: '全部门店', value: '全部门店' },
   { label: '指定门店组', value: '指定门店组' },
@@ -112,7 +117,7 @@ const CouponTemplateManagement: React.FC = () => {
     },
   });
   const statusMutation = useMutation({
-    mutationFn: (record: CouponTemplateRecord) => api.marketing.couponTemplates.edit({ ...record, status: record.status === 'ENABLED' ? 'PAUSED' : 'ENABLED' }),
+    mutationFn: (record: CouponTemplateRecord) => api.marketing.couponTemplates.edit({ ...record, status: record.status === 'ENABLED' ? 'DISABLED' : 'ENABLED' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['couponTemplates'] });
       message.success('券模板状态已更新');
@@ -199,7 +204,7 @@ const CouponTemplateManagement: React.FC = () => {
               statusMutation.mutate(record);
             }}
           >
-            {record.status === 'ENABLED' ? '暂停' : '启用'}
+            {record.status === 'ENABLED' ? '停用' : '启用'}
           </Button>
         </Space>
       ),
@@ -296,7 +301,7 @@ const CouponTemplateManagement: React.FC = () => {
                   <Select options={couponTypeOptions} placeholder="请选择券类型" />
                 </Form.Item>
                 <Form.Item name="status" label="状态">
-                  <Select options={templateStatusOptions} placeholder="请选择状态" />
+                  <Select options={couponTemplateStatusOptions} placeholder="请选择状态" />
                 </Form.Item>
                 <Form.Item className="merchant-editor-field-span-all" name="bannerImageUrl" label="活动条Banner图片">
                   <OssImageUpload prefix="activity/banners" placeholder="上传活动条Banner" />

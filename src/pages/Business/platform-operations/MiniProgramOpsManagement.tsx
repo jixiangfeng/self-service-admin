@@ -51,13 +51,10 @@ const moduleCodeOptions = [
 const jumpTypeOptions = [
   { value: 'NONE', label: '不跳转' },
   { value: 'PAGE', label: '小程序页面' },
-  { value: 'WEBVIEW', label: 'H5 链接' },
-  { value: 'STORE', label: '门店' },
   { value: 'COUPON', label: '优惠券' },
-  { value: 'GROUPON', label: '团购核销' },
   { value: 'RECHARGE', label: '充值中心' },
   { value: 'PRODUCT', label: '商品/套餐' },
-  { value: 'PHONE', label: '拨打电话' },
+  { value: 'URL', label: '外部链接' },
 ];
 
 const agreementTypeOptions = [
@@ -197,7 +194,8 @@ const MiniProgramOpsManagement: React.FC = () => {
           contentSummary: values.contentSummary || '',
           contentPoint: values.contentPoint || '',
         }),
-        versionNo: `V${Date.now()}`,
+        versionNo: values.versionNo,
+        effectiveAt: values.effectiveAt ? values.effectiveAt.format('YYYY-MM-DD HH:mm:ss') : undefined,
         status: values.status,
       });
       await queryClient.invalidateQueries({ queryKey: ['agreement-contents'] });
@@ -326,7 +324,7 @@ const MiniProgramOpsManagement: React.FC = () => {
                   </Form.Item>
                   <Form.Item name="imageUrl" label="图片URL"><Input placeholder="上传图片后自动填入，也可手动填写远程 URL" /></Form.Item>
                   <Form.Item name="jumpType" label="跳转类型"><Select options={jumpTypeOptions} placeholder="请选择跳转类型" /></Form.Item>
-                  <Form.Item className="merchant-editor-field-span-all" name="jumpValue" label="跳转值"><Input placeholder="PAGE: /pages/recharge-center/index；STORE: storeId；PHONE: 手机号" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="jumpValue" label="跳转值"><Input placeholder="PAGE: /pages/recharge-center/index；URL: https://example.com；COUPON/RECHARGE/PRODUCT: 业务编号" /></Form.Item>
                   <Form.Item name="startAt" label="开始时间"><DatePicker showTime style={{ width: '100%' }} /></Form.Item>
                   <Form.Item name="endAt" label="结束时间"><DatePicker showTime style={{ width: '100%' }} /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="extraJson" label="扩展配置 JSON"><Input.TextArea rows={3} placeholder='例如：{"trackCode":"home_banner"}' /></Form.Item>
@@ -337,6 +335,8 @@ const MiniProgramOpsManagement: React.FC = () => {
               <BusinessEditorSection icon={<FileTextOutlined />} title="协议内容" desc="配置协议类型、内容摘要和正文要点。">
                 <div className="merchant-editor-fields">
                   <Form.Item name="agreementType" label="协议类型"><Select options={agreementTypeOptions} placeholder="请选择协议类型" /></Form.Item>
+                  <Form.Item name="versionNo" label="版本号" rules={[{ required: true, message: '请输入协议版本号' }]}><Input placeholder="例如：V2026062801" /></Form.Item>
+                  <Form.Item name="effectiveAt" label="生效时间"><DatePicker showTime style={{ width: '100%' }} /></Form.Item>
                   <Form.Item name="contentSummary" label="内容摘要"><Input placeholder="例如：充值余额使用和退款规则" /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="contentPoint" label="正文要点"><Input placeholder="例如：充值余额不可提现，未消费部分按规则退款" /></Form.Item>
                 </div>

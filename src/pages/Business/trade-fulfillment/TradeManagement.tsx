@@ -62,6 +62,7 @@ interface AfterSaleRecord {
 }
 
 type ActionModalType = 'order' | 'refund' | 'afterSale' | null;
+type TradeDetailType = Exclude<ActionModalType, null>;
 
 const orderTypeOptions = [
   { value: 'SCAN', label: '扫码订单' },
@@ -74,6 +75,12 @@ const payModeOptions = catalogPayModeOptions;
 const orderStatusMap = buildValueEnum(orderStatusOptions);
 const refundStatusMap = buildValueEnum(refundStatusOptions);
 const afterSaleStatusMap = buildValueEnum(ticketStatusOptions);
+
+const refundAuditStatusOptions = [
+  { value: 'APPROVED', label: '审核通过' },
+  { value: 'REJECTED', label: '审核拒绝' },
+  { value: 'PROCESSING', label: '继续处理' },
+];
 
 const supplementSourceOptions = [
   { value: 'STORE', label: '门店补录' },
@@ -199,6 +206,7 @@ const TradeManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [detail, setDetail] = useState<TradeOrderRecord | RefundRecord | AfterSaleRecord | null>(null);
+  const [detailType, setDetailType] = useState<TradeDetailType | null>(null);
   const [actionModalType, setActionModalType] = useState<ActionModalType>(null);
   const [actionTargetId, setActionTargetId] = useState<string | null>(null);
   const [actionForm] = Form.useForm<Record<string, any>>();
@@ -235,21 +243,21 @@ const TradeManagement: React.FC = () => {
   const serviceProductOptionMap = useMemo(() => new Map(serviceProductOptions.map((item) => [item.value, item.label])), [serviceProductOptions]);
 
   const updateOrderMutation = useMutation({
-    mutationFn: async ({ id, status, note }: { id: string; status: string; note?: string }) => api.serviceOrder.updateStatus(Number(id), { status, remark: note }),
+    mutationFn: async ({ id, status, note }: { id: string; status: string; note?: string }) => api.serviceOrder.updateStatus(Number(id), { orderStatus: status, remark: note, operatorType: 'ADMIN', operatorName: '后台操作' }),
     onSuccess: () => {
       message.success('订单处置结果已更新');
       queryClient.invalidateQueries({ queryKey: ['tradeOrders'] });
     },
   });
   const updateRefundMutation = useMutation({
-    mutationFn: async ({ id, status, note }: { id: string; status: string; note?: string }) => api.refundOrder.updateStatus(Number(id), { status, note }),
+    mutationFn: async ({ id, status, note }: { id: string; status: string; note?: string }) => api.refundOrder.updateStatus(Number(id), { refundStatus: status, reason: note, auditNote: note }),
     onSuccess: () => {
       message.success('退款审核结果已更新');
       queryClient.invalidateQueries({ queryKey: ['refundOrders'] });
     },
   });
   const updateAfterSaleMutation = useMutation({
-    mutationFn: async ({ id, status, note, owner }: { id: string; status: string; note?: string; owner?: string }) => api.afterSaleTicket.updateStatus(Number(id), { status, note, owner }),
+    mutationFn: async ({ id, status, note, owner }: { id: string; status: string; note?: string; owner?: string }) => api.afterSaleTicket.updateStatus(Number(id), { ticketStatus: status, compensationType: 'MANUAL', compensationValue: note, result: note, owner }),
     onSuccess: () => {
       message.success('售后工单已更新');
       queryClient.invalidateQueries({ queryKey: ['afterSaleTickets'] });
@@ -294,25 +302,33 @@ const TradeManagement: React.FC = () => {
     [afterSaleFilters, afterSales]
   );
 
+  const openDetail = (type: TradeDetailType, record: TradeOrderRecord | RefundRecord | AfterSaleRecord) => {
+    setDetailType(type);
+    setDetail(record);
+  };
+
   const openActionModal = (type: ActionModalType, id: string, currentStatus: string, currentNote?: string) => {
     setActionModalType(type);
     setActionTargetId(id);
     if (type) {
-      actionForm.setFieldsValue({ status: currentStatus, actionReason: actionReasonOptions[type][0].value, responsibility: 'PLATFORM', nextStep: 'FOLLOW_UP', notifyUser: true, owner: '后台客服', actionNote: currentNote || '' });
+      actionForm.setFieldsValue({ status: type === 'refund' && (currentStatus === 'SUCCESS' || currentStatus === 'REFUNDED') ? 'APPROVED' : currentStatus, actionReason: actionReasonOptions[type][0].value, responsibility: 'PLATFORM', nextStep: 'FOLLOW_UP', notifyUser: true, owner: '后台客服', actionNote: currentNote || '' });
     }
   };
 
   const openDetailAction = () => {
-    if (!detail) return;
-    if ('refundNo' in detail) {
-      openActionModal('refund', detail.id, detail.status, detail.auditNote);
+    if (!detail || !detailType) return;
+    if (detailType === 'refund') {
+      const refund = detail as RefundRecord;
+      openActionModal('refund', refund.id, refund.status, refund.auditNote);
       return;
     }
-    if ('ticketNo' in detail) {
-      openActionModal('afterSale', detail.id, detail.status, detail.result || detail.compensation);
+    if (detailType === 'afterSale') {
+      const afterSale = detail as AfterSaleRecord;
+      openActionModal('afterSale', afterSale.id, afterSale.status, afterSale.result || afterSale.compensation);
       return;
     }
-    openActionModal('order', detail.id, detail.status, detail.note);
+    const order = detail as TradeOrderRecord;
+    openActionModal('order', order.id, order.status, order.note);
   };
 
   const closeActionModal = () => {
@@ -360,7 +376,7 @@ const TradeManagement: React.FC = () => {
       search: false,
       render: (_, record) => (
         <Space>
-          <Button size="small" onClick={() => setDetail(record)}>处置台</Button>
+          <Button size="small" onClick={() => openDetail('order', record)}>处置台</Button>
           <Button
             size="small"
             onClick={() => {
@@ -404,7 +420,7 @@ const TradeManagement: React.FC = () => {
       search: false,
       render: (_, record) => (
         <Space>
-          <Button size="small" onClick={() => setDetail(record)}>查看</Button>
+          <Button size="small" onClick={() => openDetail('refund', record)}>查看</Button>
           <Button size="small" onClick={() => openActionModal('refund', record.id, record.status, record.auditNote)}>审核</Button>
         </Space>
       ),
@@ -427,7 +443,7 @@ const TradeManagement: React.FC = () => {
       search: false,
       render: (_, record) => (
         <Space>
-          <Button size="small" onClick={() => setDetail(record)}>查看</Button>
+          <Button size="small" onClick={() => openDetail('afterSale', record)}>查看</Button>
           <Button size="small" onClick={() => openActionModal('afterSale', record.id, record.status, record.result || record.compensation)}>补偿 / 结论</Button>
         </Space>
       ),
@@ -478,7 +494,7 @@ const TradeManagement: React.FC = () => {
                   <Button key="new" icon={<FileAddOutlined />} onClick={() => { createOrderForm.resetFields(); setCreateOrderVisible(true); }}>人工补单</Button>,
                   <Button key="exception" type="primary" onClick={() => {
                     const target = filteredOrders.find((item) => item.status !== 'COMPLETED') || filteredOrders[0];
-                    if (target) setDetail(target);
+                    if (target) openDetail('order', target);
                   }} disabled={!filteredOrders.length}>异常订单处理</Button>,
                 ]}
                 onSubmit={(values) => setOrderFilters({ keyword: String(values.keyword || ''), orderType: values.orderType as string | undefined, payMode: values.payMode as string | undefined, status: values.status as string | undefined })}
@@ -629,7 +645,7 @@ const TradeManagement: React.FC = () => {
               <div className="merchant-editor-fields merchant-editor-fields--two">
                 <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}>
                   <Select
-                    options={actionModalType === 'order' ? orderStatusOptions : actionModalType === 'refund' ? refundStatusOptions : ticketStatusOptions}
+                    options={actionModalType === 'order' ? orderStatusOptions : actionModalType === 'refund' ? refundAuditStatusOptions : ticketStatusOptions}
                     placeholder="选择本次处理后的状态"
                   />
                 </Form.Item>
@@ -656,16 +672,22 @@ const TradeManagement: React.FC = () => {
       </BusinessEditorModal>
 
       <BusinessDetailModal
-        title={detail && 'orderNo' in detail ? `订单处置台 · ${String(detail.orderNo)}` : '详情查看'}
+        title={detailType === 'order' && detail && 'orderNo' in detail ? `订单处置台 · ${String(detail.orderNo)}` : '详情查看'}
         eyebrow="交易履约详情"
         subtitle="核对订单、退款或售后记录，并快速进入后续处理动作。"
-        meta={[detail && 'refundNo' in detail ? '退款单' : detail && 'ticketNo' in detail ? '售后单' : '订单记录', '可处理']}
+        meta={[detailType === 'refund' ? '退款单' : detailType === 'afterSale' ? '售后单' : '订单记录', '可处理']}
         open={!!detail}
         width={900}
-        onCancel={() => setDetail(null)}
+        onCancel={() => {
+          setDetail(null);
+          setDetailType(null);
+        }}
         footer={(
           <Space>
-            <Button onClick={() => setDetail(null)}>关闭</Button>
+            <Button onClick={() => {
+              setDetail(null);
+              setDetailType(null);
+            }}>关闭</Button>
             <Button
               type="primary"
               onClick={openDetailAction}
@@ -681,7 +703,7 @@ const TradeManagement: React.FC = () => {
             <Card title="记录概览" style={{ marginBottom: 16 }}>
               <SchemaDetail
                 record={detail as Record<string, any>}
-                fields={('refundNo' in detail ? tradeDetailFields.refund : 'ticketNo' in detail ? tradeDetailFields.afterSale : tradeDetailFields.order) as DetailField<Record<string, any>>[]}
+                fields={(detailType === 'refund' ? tradeDetailFields.refund : detailType === 'afterSale' ? tradeDetailFields.afterSale : tradeDetailFields.order) as DetailField<Record<string, any>>[]}
                 column={1}
                 labelWidth={110}
               />
@@ -693,7 +715,10 @@ const TradeManagement: React.FC = () => {
                   <Space direction="vertical" style={{ width: '100%' }}>
                     <Button block onClick={() => navigate('/fulfillment')}>查看履约日志</Button>
                     <Button block onClick={() => {
-                      if ('refundNo' in detail) openActionModal('refund', detail.id, detail.status, detail.auditNote);
+                      if (detailType === 'refund') {
+                        const refund = detail as RefundRecord;
+                        openActionModal('refund', refund.id, refund.status, refund.auditNote);
+                      }
                       else navigate('/trade');
                     }}>发起退款审核</Button>
                     <Button block onClick={() => navigate('/service-desk')}>创建售后工单</Button>

@@ -50,7 +50,7 @@ const sourceTypeOptions = [
 
 const couponStatusOptions = [
   { value: 'UNUSED', label: '未使用' },
-  { value: 'LOCKED', label: '已锁定' },
+  { value: 'INVALID', label: '已作废' },
   { value: 'USED', label: '已使用' },
   { value: 'EXPIRED', label: '已过期' },
   { value: 'RECYCLED', label: '已回收' },
@@ -206,28 +206,33 @@ const couponCardDetailFields: Record<'coupon' | 'issue' | 'usage' | 'card' | 'ca
 const CouponCardDetailManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
+  const [couponStatusFilter, setCouponStatusFilter] = useState<string>();
+  const [issueStatusFilter, setIssueStatusFilter] = useState<string>();
+  const [usageStatusFilter, setUsageStatusFilter] = useState<string>();
+  const [userCardStatusFilter, setUserCardStatusFilter] = useState<string>();
+  const [cardUsageStatusFilter, setCardUsageStatusFilter] = useState<string>();
   const [detail, setDetail] = useState<DetailRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [form] = Form.useForm();
   const couponQuery = useQuery({
-    queryKey: ['userCoupons', keyword],
-    queryFn: async () => (await api.asset.userCoupons.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+    queryKey: ['userCoupons', keyword, couponStatusFilter],
+    queryFn: async () => (await api.asset.userCoupons.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: couponStatusFilter })).data,
   });
   const issueQuery = useQuery({
-    queryKey: ['couponIssues', keyword],
-    queryFn: async () => (await api.asset.couponIssues.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+    queryKey: ['couponIssues', keyword, issueStatusFilter],
+    queryFn: async () => (await api.asset.couponIssues.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, issueStatus: issueStatusFilter })).data,
   });
   const usageQuery = useQuery({
-    queryKey: ['couponUsages', keyword],
-    queryFn: async () => (await api.asset.couponUsages.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+    queryKey: ['couponUsages', keyword, usageStatusFilter],
+    queryFn: async () => (await api.asset.couponUsages.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, usageStatus: usageStatusFilter })).data,
   });
   const cardQuery = useQuery({
-    queryKey: ['couponCardDetailUserServiceCards', keyword],
-    queryFn: async () => (await api.asset.userServiceCards.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+    queryKey: ['couponCardDetailUserServiceCards', keyword, userCardStatusFilter],
+    queryFn: async () => (await api.asset.userServiceCards.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: userCardStatusFilter })).data,
   });
   const cardUsageQuery = useQuery({
-    queryKey: ['couponCardDetailServiceCardUsages', keyword],
-    queryFn: async () => (await api.asset.serviceCardUsages.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+    queryKey: ['couponCardDetailServiceCardUsages', keyword, cardUsageStatusFilter],
+    queryFn: async () => (await api.asset.serviceCardUsages.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: cardUsageStatusFilter })).data,
   });
   const userQuery = useQuery({
     queryKey: ['couponCardGrantUsers'],
@@ -326,10 +331,13 @@ const CouponCardDetailManagement: React.FC = () => {
       content: `确定回滚发放单「${record.issueNo || record.id}」吗？回滚后关联用户券会被同步处理。`,
       okText: '确认回滚',
       onOk: async () => {
-        if (record.userCouponId) {
-          await api.asset.userCoupons.rollback(Number(record.userCouponId), { remark: '后台用券回滚' });
+        if (!record.userCouponId) {
+          message.warning('该发放记录未关联用户券，无法回滚');
+          return;
         }
+        await api.asset.userCoupons.recycle(Number(record.userCouponId), { remark: '后台发券回滚' });
         queryClient.invalidateQueries({ queryKey: ['userCoupons'] });
+        queryClient.invalidateQueries({ queryKey: ['couponIssues'] });
         queryClient.invalidateQueries({ queryKey: ['couponUsages'] });
         message.success('已回滚');
       },
@@ -431,11 +439,18 @@ const CouponCardDetailManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="扣次流水" value={cardUsageQuery.data?.total ?? cardUsages.length} suffix="条" /></Card></Col>
       </Row>
 
-      <KeywordSearchBar
-        value={keyword}
-        placeholder="用户 / 手机号 / 券码 / 卡号 / 订单"
-        onSearch={setKeyword}
-      />
+      <Space size={12} wrap>
+        <KeywordSearchBar
+          value={keyword}
+          placeholder="用户 / 手机号 / 券码 / 卡号 / 订单"
+          onSearch={setKeyword}
+        />
+        <Select allowClear placeholder="用户券状态" style={{ width: 140 }} options={couponStatusOptions} value={couponStatusFilter} onChange={setCouponStatusFilter} />
+        <Select allowClear placeholder="发券状态" style={{ width: 140 }} options={issueStatusOptions} value={issueStatusFilter} onChange={setIssueStatusFilter} />
+        <Select allowClear placeholder="用券状态" style={{ width: 140 }} options={couponUsageStatusOptions} value={usageStatusFilter} onChange={setUsageStatusFilter} />
+        <Select allowClear placeholder="用户卡状态" style={{ width: 140 }} options={serviceCardStatusOptions} value={userCardStatusFilter} onChange={setUserCardStatusFilter} />
+        <Select allowClear placeholder="扣次状态" style={{ width: 140 }} options={writeOffStatusOptions} value={cardUsageStatusFilter} onChange={setCardUsageStatusFilter} />
+      </Space>
 
       <Tabs
         items={[

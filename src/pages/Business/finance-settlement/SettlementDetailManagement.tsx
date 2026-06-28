@@ -149,30 +149,34 @@ const crossStoreReceivableFields: DetailField<CrossStoreReceivableRecord>[] = [
 const SettlementDetailManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
+  const [detailTypeFilter, setDetailTypeFilter] = useState<string>();
+  const [payoutStatusFilter, setPayoutStatusFilter] = useState<string>();
+  const [reconcileStatusFilter, setReconcileStatusFilter] = useState<string>();
+  const [confirmStatusFilter, setConfirmStatusFilter] = useState<string>();
   const [detail, setDetail] = useState<BillDetailRecord | CostDetailRecord | SettlementPayoutRecord | PaymentReconciliationRecord | SettlementConfirmRecord | CrossStoreReceivableRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [form] = Form.useForm<{ billNo: string; status: string; costAmount?: number; bearer?: string; relatedNo?: string; confirmer?: string; confirmScene?: string; supplement?: string }>();
 
   const billDetailQuery = useQuery({
-    queryKey: ['settlementBillDetailsCenter', keyword],
-    queryFn: async () => (await api.settlementBillDetail.page({ pageNum: 1, pageSize: 200, billNo: keyword || undefined })).data,
+    queryKey: ['settlementBillDetailsCenter', keyword, detailTypeFilter],
+    queryFn: async () => (await api.settlementBillDetail.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, detailType: detailTypeFilter })).data,
   });
   const costDetailQuery = useQuery({
     queryKey: ['settlementCostDetailsCenter', keyword],
     queryFn: async () => (await api.settlementCostDetail.page({ pageNum: 1, pageSize: 200, billNo: keyword || undefined })).data,
   });
   const reconciliationQuery = useQuery({
-    queryKey: ['settlementReconciliationsCenter', keyword],
-    queryFn: async () => (await api.payment.reconciliations.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+    queryKey: ['settlementReconciliationsCenter', keyword, reconcileStatusFilter],
+    queryFn: async () => (await api.payment.reconciliations.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: reconcileStatusFilter })).data,
   });
   const payoutQuery = useQuery({
-    queryKey: ['settlementPayoutsCenter', keyword],
-    queryFn: async () => (await api.settlementPayout.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+    queryKey: ['settlementPayoutsCenter', keyword, payoutStatusFilter],
+    queryFn: async () => (await api.settlementPayout.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: payoutStatusFilter })).data,
   });
   const confirmQuery = useQuery({
-    queryKey: ['settlementConfirmsCenter', keyword],
-    queryFn: async () => (await api.settlementConfirm.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+    queryKey: ['settlementConfirmsCenter', keyword, confirmStatusFilter],
+    queryFn: async () => (await api.settlementConfirm.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, confirmStatus: confirmStatusFilter })).data,
   });
   const createCostMutation = useMutation({
     mutationFn: (values: Record<string, unknown>) => api.settlementCostDetail.add(values),
@@ -371,11 +375,17 @@ const SettlementDetailManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="跨店未结" value={formatAmount(crossStoreReceivables.reduce((sum, item) => sum + item.unpaidAmount, 0))} /></Card></Col>
       </Row>
 
-      <KeywordSearchBar
-        value={keyword}
-        placeholder="输入结算单、订单、商户、门店、打款流水、对账单号"
-        onSearch={setKeyword}
-      />
+      <Space size={12} wrap style={{ marginBottom: 16 }}>
+        <KeywordSearchBar
+          value={keyword}
+          placeholder="输入结算单、订单、商户、门店、打款流水、对账单号"
+          onSearch={setKeyword}
+        />
+        <Select allowClear placeholder="明细类型" style={{ width: 140 }} options={settlementDetailTypeOptions} value={detailTypeFilter} onChange={setDetailTypeFilter} />
+        <Select allowClear placeholder="打款状态" style={{ width: 140 }} options={payoutStatusOptions} value={payoutStatusFilter} onChange={setPayoutStatusFilter} />
+        <Select allowClear placeholder="对账状态" style={{ width: 140 }} options={reconciliationStatusOptions} value={reconcileStatusFilter} onChange={setReconcileStatusFilter} />
+        <Select allowClear placeholder="确认状态" style={{ width: 140 }} options={settlementStatusOptions} value={confirmStatusFilter} onChange={setConfirmStatusFilter} />
+      </Space>
 
       <Tabs
         items={[

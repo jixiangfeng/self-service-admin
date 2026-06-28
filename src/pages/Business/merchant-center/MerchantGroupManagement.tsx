@@ -145,7 +145,11 @@ const MerchantGroupManagement: React.FC = () => {
   const [editingMember, setEditingMember] = useState<MerchantGroupStoreRecord | null>(null);
   const [memberLoading, setMemberLoading] = useState(false);
   const { data: merchantOptions } = useQuery({ queryKey: ['merchantOptionsForMerchantGroups'], queryFn: async () => (await api.merchant.options()).data });
-  const { data: storeOptions } = useQuery({ queryKey: ['storeOptionsForMerchantGroups'], queryFn: async () => (await api.store.options()).data });
+  const { data: storeOptions } = useQuery({
+    queryKey: ['storeOptionsForMerchantGroups', memberGroup?.merchantId],
+    queryFn: async () => (await api.store.options(memberGroup?.merchantId)).data,
+    enabled: Boolean(memberGroup?.merchantId),
+  });
   const merchantGroupTypeOptions = useBusinessEnumOptions('merchantGroupTypeOptions');
   const scopeLevelOptions = useBusinessEnumOptions('scopeLevelOptions');
   const templateStatusOptions = useBusinessEnumOptions('templateStatusOptions');
@@ -692,7 +696,10 @@ const MerchantGroupManagement: React.FC = () => {
                     optionFilterProp="label"
                     options={storeOptions as SelectOptionRecord[]}
                     placeholder="请选择门店"
-                    onChange={(value) => memberForm.setFieldValue('storeName', storeOptionMap.get(value))}
+                    onChange={(value) => {
+                      const store = storeOptionMap.get(value);
+                      memberForm.setFieldsValue({ storeName: store?.label, storeCode: store?.code });
+                    }}
                   />
                 </Form.Item>
                 <Form.Item name="storeCode" label="门店编码">

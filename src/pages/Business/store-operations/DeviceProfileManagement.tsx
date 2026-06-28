@@ -7,7 +7,6 @@ import type { ProColumns } from '@ant-design/pro-components';
 import {
   deviceProtocolTypeOptions,
   deviceTypeOptions,
-  publishStatusOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
@@ -26,6 +25,7 @@ import { DateTimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePi
 
 type DeviceProfileTab = 'vendor' | 'model' | 'protocol' | 'bind';
 type EditableRecord = DeviceVendorRecord | DeviceModelRecord | DeviceProtocolRecord | DeviceBindLogRecord;
+type DeviceProfileSearchValues = { keyword?: string; deviceId?: number };
 
 
 const normalizePickerValues = (values: Record<string, any>) => {
@@ -56,9 +56,15 @@ const normalizePickerInitialValues = (record: Record<string, any>) => {
   });
   return next;
 };
-const publishStatusMap = buildValueEnum(publishStatusOptions);
 const deviceTypeMap = buildValueEnum(deviceTypeOptions);
 const protocolTypeMap = buildValueEnum(deviceProtocolTypeOptions);
+const deviceProfileStatusOptions = [
+  { value: 'DRAFT', label: '草稿' },
+  { value: 'PUBLISHED', label: '已发布' },
+  { value: 'ARCHIVED', label: '已归档' },
+  { value: 'DISABLED', label: '已禁用' },
+];
+const deviceProfileStatusMap = buildValueEnum(deviceProfileStatusOptions);
 
 const deviceProfileModalTitleMap: Record<DeviceProfileTab, string> = {
   vendor: '设备厂商',
@@ -151,17 +157,19 @@ const deviceProfileDetailFields: Record<DeviceProfileTab, DetailField<any>[]> = 
 const DeviceProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
+  const [deviceId, setDeviceId] = useState<number | undefined>();
   const [activeTab, setActiveTab] = useState<DeviceProfileTab>('vendor');
   const [detail, setDetail] = useState<EditableRecord | null>(null);
+  const [detailTab, setDetailTab] = useState<DeviceProfileTab>('vendor');
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<EditableRecord | null>(null);
   const [form] = Form.useForm<Record<string, unknown>>();
-  const [searchForm] = Form.useForm<{ keyword?: string }>();
+  const [searchForm] = Form.useForm<DeviceProfileSearchValues>();
 
   const vendorQuery = useQuery({ queryKey: ['deviceVendors'], queryFn: async () => (await api.deviceVendor.page({ pageNum: 1, pageSize: 200 })).data });
   const modelQuery = useQuery({ queryKey: ['deviceModels'], queryFn: async () => (await api.deviceModel.page({ pageNum: 1, pageSize: 200 })).data });
   const protocolQuery = useQuery({ queryKey: ['deviceProtocols'], queryFn: async () => (await api.deviceProtocol.page({ pageNum: 1, pageSize: 200 })).data });
-  const bindQuery = useQuery({ queryKey: ['deviceBindLogs'], queryFn: async () => (await api.deviceBindLog.page({ pageNum: 1, pageSize: 200 })).data });
+  const bindQuery = useQuery({ queryKey: ['deviceBindLogs', deviceId], queryFn: async () => (await api.deviceBindLog.page({ current: 1, size: 200, deviceId })).data });
 
   const vendors = vendorQuery.data?.records || [];
   const models = modelQuery.data?.records || [];
@@ -238,13 +246,18 @@ const DeviceProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = 
     setModalVisible(true);
   };
 
+  const openDetail = (tab: DeviceProfileTab, record: EditableRecord) => {
+    setDetailTab(tab);
+    setDetail(record);
+  };
+
   const actionColumn = (tab: DeviceProfileTab): ProColumns<EditableRecord> => ({
     title: '操作',
     width: 170,
     fixed: 'right',
     render: (_, record) => (
       <>
-        <Button size="small" type="link" onClick={() => setDetail(record)}>详情</Button>
+        <Button size="small" type="link" onClick={() => openDetail(tab, record)}>详情</Button>
         <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openModal(tab, record)}>编辑</Button>
         <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => confirmRemove(tab, record.id)}>删除</Button>
       </>
@@ -257,7 +270,7 @@ const DeviceProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = 
     { title: '联系人', dataIndex: 'contactName', width: 120 },
     { title: '电话', dataIndex: 'contactPhone', width: 140 },
     { title: '接口地址', dataIndex: 'apiBaseUrl', width: 240 },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, deviceProfileStatusMap) },
     actionColumn('vendor') as ProColumns<DeviceVendorRecord>,
   ];
 
@@ -267,7 +280,7 @@ const DeviceProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = 
     { title: '型号名称', dataIndex: 'modelName', width: 160 },
     { title: '设备类型', dataIndex: 'deviceType', width: 160, render: (_, record) => renderStatusTag(record.deviceType, deviceTypeMap) },
     { title: '协议编码', dataIndex: 'protocolCode', width: 130 },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, deviceProfileStatusMap) },
     actionColumn('model') as ProColumns<DeviceModelRecord>,
   ];
 
@@ -280,7 +293,7 @@ const DeviceProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = 
     { title: '签名方式', dataIndex: 'signatureMethod', width: 140, render: (_, record) => optionLabel(signatureMethodOptions, record.signatureMethod) || '-' },
     { title: '回调验签', dataIndex: 'callbackRequired', width: 100, render: (_, record) => (record.callbackRequired === 'YES' ? '需要' : record.callbackRequired === 'NO' ? '不需要' : '-') },
     { title: '安全负责人', dataIndex: 'securityOwner', width: 140 },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, deviceProfileStatusMap) },
     actionColumn('protocol') as ProColumns<DeviceProtocolRecord>,
   ];
 
@@ -310,8 +323,14 @@ const DeviceProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = 
         form={searchForm}
         layout="inline"
         style={{ marginBottom: 16 }}
-        onFinish={(values) => setKeyword(String(values.keyword || ''))}
+        onFinish={(values) => {
+          setKeyword(String(values.keyword || ''));
+          setDeviceId(values.deviceId);
+        }}
       >
+        <Form.Item name="deviceId" label="设备">
+          <Select allowClear showSearch optionFilterProp="label" options={deviceOptionsQuery.data || []} placeholder="全部设备" style={{ width: 240 }} />
+        </Form.Item>
         <Form.Item name="keyword" label="关键词">
           <Input allowClear placeholder="输入厂商、型号、协议、设备、绑定单关键词" style={{ width: 360 }} />
         </Form.Item>
@@ -319,7 +338,7 @@ const DeviceProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = 
           <Button type="primary" htmlType="submit">查询</Button>
         </Form.Item>
         <Form.Item>
-          <Button onClick={() => { searchForm.resetFields(); setKeyword(''); }}>重置</Button>
+          <Button onClick={() => { searchForm.resetFields(); setKeyword(''); setDeviceId(undefined); }}>重置</Button>
         </Form.Item>
       </Form>
 
@@ -334,8 +353,8 @@ const DeviceProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = 
         ]}
       />
 
-      <BusinessDetailModal title={`${deviceProfileModalTitleMap[activeTab]}详情`} open={!!detail} onCancel={() => setDetail(null)} width={760}>
-        {detail ? <SchemaDetail record={detail as Record<string, any>} fields={deviceProfileDetailFields[activeTab]} /> : null}
+      <BusinessDetailModal title={`${deviceProfileModalTitleMap[detailTab]}详情`} open={!!detail} onCancel={() => setDetail(null)} width={760}>
+        {detail ? <SchemaDetail record={detail as Record<string, any>} fields={deviceProfileDetailFields[detailTab]} /> : null}
       </BusinessDetailModal>
 
       <BusinessEditorModal
@@ -366,7 +385,7 @@ const DeviceProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = 
                   <div className="merchant-editor-fields">
                     <Form.Item name="vendorCode" label="厂商编码" rules={[{ required: true, message: '请输入厂商编码' }]}><Input placeholder="例如：VENDOR-WASH-001" /></Form.Item>
                     <Form.Item name="vendorName" label="厂商名称" rules={[{ required: true, message: '请输入厂商名称' }]}><Input placeholder="设备供应商名称" /></Form.Item>
-                    <Form.Item name="status" label="状态"><Select options={publishStatusOptions} placeholder="请选择状态" /></Form.Item>
+                    <Form.Item name="status" label="状态"><Select options={deviceProfileStatusOptions} placeholder="请选择状态" /></Form.Item>
                   </div>
                 </BusinessEditorSection>
                 <BusinessEditorSection icon={<ApiOutlined />} title="联系人与接口" desc="沉淀厂商联系人、电话和接口地址，方便联调、故障处理和售后协作。">
@@ -385,7 +404,7 @@ const DeviceProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = 
                   <div className="merchant-editor-fields">
                     <Form.Item name="vendorId" label="所属厂商"><Select showSearch optionFilterProp="label" options={vendorOptions} placeholder="请选择厂商" /></Form.Item>
                     <Form.Item name="vendorName" label="厂商名称"><Input placeholder="可手动记录厂商名称" /></Form.Item>
-                    <Form.Item name="status" label="状态"><Select options={publishStatusOptions} placeholder="请选择状态" /></Form.Item>
+                    <Form.Item name="status" label="状态"><Select options={deviceProfileStatusOptions} placeholder="请选择状态" /></Form.Item>
                     <Form.Item name="modelCode" label="型号编码" rules={[{ required: true, message: '请输入型号编码' }]}><Input placeholder="例如：MODEL-HP-1200" /></Form.Item>
                     <Form.Item name="modelName" label="型号名称" rules={[{ required: true, message: '请输入型号名称' }]}><Input placeholder="例如：高压清洗机 1200 型" /></Form.Item>
                     <Form.Item name="deviceType" label="设备类型"><Select options={deviceTypeOptions} placeholder="请选择设备类型" /></Form.Item>
@@ -407,7 +426,7 @@ const DeviceProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = 
                     <Form.Item name="protocolName" label="协议名称" rules={[{ required: true, message: '请输入协议名称' }]}><Input placeholder="例如：洗车设备 HTTP 控制协议" /></Form.Item>
                     <Form.Item name="protocolType" label="协议类型"><Select options={deviceProtocolTypeOptions} placeholder="请选择协议类型" /></Form.Item>
                     <Form.Item name="version" label="版本"><Input placeholder="例如：v1.0" /></Form.Item>
-                    <Form.Item name="status" label="状态"><Select options={publishStatusOptions} placeholder="请选择状态" /></Form.Item>
+                    <Form.Item name="status" label="状态"><Select options={deviceProfileStatusOptions} placeholder="请选择状态" /></Form.Item>
                   </div>
                 </BusinessEditorSection>
                 <BusinessEditorSection icon={<ToolOutlined />} title="接入安全" desc="用鉴权方式、签名方式和回调验签维护接入安全，避免运营直接填写技术配置。">

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { Button, Form, Input, Select, Space, Tag } from 'antd';
+import { Button, Form, Input, Select, Space, Tag, message } from 'antd';
 import { DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined, SafetyCertificateOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
 import { useCreateUser, useDeleteUser, useResetUserPassword, useRoleOptions, useUpdateUser, useUpdateUserStatus, useUsers } from '@/hooks/useApi';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
@@ -12,6 +13,11 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
 
 const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleString('zh-CN') : '-');
+const getUserRoleCodes = (record: Record<string, any>) => {
+  const roles = Array.isArray(record.roles) ? record.roles : [];
+  const codes = roles.map((item) => item.roleCode || item.code).filter(Boolean);
+  return codes.length ? codes : record.role ? [record.role] : [];
+};
 
 const userDetailFields: DetailField<Record<string, any>>[] = [
   { name: 'id', label: '用户ID' },
@@ -19,13 +25,18 @@ const userDetailFields: DetailField<Record<string, any>>[] = [
   { name: 'nickname', label: '昵称' },
   { name: 'phone', label: '手机号' },
   { name: 'email', label: '邮箱' },
-  { name: 'role', label: '角色编码', render: (value) => (value ? <Tag color="processing">{value}</Tag> : '-') },
+  { name: 'role', label: '默认角色', render: (value) => (value ? <Tag color="processing">{value}</Tag> : '-') },
+  { name: 'roles', label: '已授角色', render: (_, record) => {
+    const codes = getUserRoleCodes(record || {});
+    return codes.length ? <Space wrap>{codes.map((code) => <Tag key={code} color="processing">{code}</Tag>)}</Space> : '-';
+  } },
   { name: 'status', label: '状态', render: (value) => <Tag color={value === 1 ? 'success' : 'default'}>{value === 1 ? '正常' : '禁用'}</Tag> },
   { name: 'createTime', label: '创建时间', render: (value) => formatDateTime(value) },
   { name: 'updateTime', label: '更新时间', render: (value) => formatDateTime(value) },
 ];
 
 const UserManagement: React.FC = () => {
+  const queryClient = useQueryClient();
   const [form] = Form.useForm();
   const [modalVisible, setModalVisible] = useState(false);
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
@@ -66,13 +77,13 @@ const UserManagement: React.FC = () => {
   const closeRoleModal = () => {
     setRoleModalVisible(false);
     setRoleUser(null);
-    form.resetFields(['relationRoleCodes', 'grantUser']);
+    form.resetFields(['relationRoleCodes', 'grantUser', 'grantReason', 'scopeRemark']);
   };
 
   const handleCreate = () => {
     setEditingUser(null);
     form.resetFields();
-    form.setFieldsValue({ status: 1, role: 'PLATFORM_OPERATOR', password: '123456' });
+    form.setFieldsValue({ status: 1, role: 'PLATFORM_OPERATOR', relationRoleCodes: ['PLATFORM_OPERATOR'], password: '123456' });
     setModalVisible(true);
   };
 
@@ -84,7 +95,8 @@ const UserManagement: React.FC = () => {
       nickname: record.nickname,
       phone: record.phone,
       email: record.email,
-      role: record.role,
+      role: record.role || getUserRoleCodes(record)[0],
+      relationRoleCodes: getUserRoleCodes(record),
       status: record.status,
     });
     setModalVisible(true);
@@ -128,6 +140,8 @@ const UserManagement: React.FC = () => {
     const values = await form.validateFields(['relationRoleCodes', 'grantUser']);
     const roleCodes = (values.relationRoleCodes || []) as string[];
     await api.user.updateRoles(roleUser.id, roleCodes, values.grantUser || '系统管理员');
+    message.success('用户角色授权已保存');
+    queryClient.invalidateQueries({ queryKey: ['users'] });
     closeRoleModal();
   };
 
@@ -167,7 +181,7 @@ const UserManagement: React.FC = () => {
       render: (_, record) => record.email || '-',
     },
     {
-      title: '角色',
+      title: '默认角色',
       dataIndex: 'role',
       width: 160,
       valueType: 'select',
@@ -176,6 +190,16 @@ const UserManagement: React.FC = () => {
         return acc;
       }, {} as Record<string, { text: string }>),
       render: (_, record) => (record.role ? <Tag color="processing">{record.role}</Tag> : '-'),
+    },
+    {
+      title: '已授角色',
+      dataIndex: 'roles',
+      width: 220,
+      search: false,
+      render: (_, record) => {
+        const codes = getUserRoleCodes(record);
+        return codes.length ? <Space wrap size={[0, 4]}>{codes.map((code) => <Tag key={code}>{code}</Tag>)}</Space> : '-';
+      },
     },
     {
       title: '状态',
@@ -225,7 +249,7 @@ const UserManagement: React.FC = () => {
           <Button size="small" icon={<KeyOutlined />} onClick={() => { setPasswordUser(record); form.setFieldValue('newPassword', '123456'); setPasswordModalVisible(true); }}>
             重置密码
           </Button>
-          <Button size="small" onClick={() => { setRoleUser(record); form.setFieldsValue({ relationRoleCodes: record.role ? [record.role] : [], grantUser: '系统管理员' }); setRoleModalVisible(true); }}>
+          <Button size="small" onClick={() => { setRoleUser(record); form.setFieldsValue({ relationRoleCodes: getUserRoleCodes(record), grantUser: '系统管理员' }); setRoleModalVisible(true); }}>
             多角色
           </Button>
           <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record)}>

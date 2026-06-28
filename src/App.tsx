@@ -99,7 +99,7 @@ const AppContent = () => {
 
   return (
     <ConfigProvider locale={zhCN}>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.VITE_ROUTER_BASENAME || undefined}>
         <Suspense fallback={<PageLoading />}>
           <Routes>
             <Route path="/login" element={<Login />} />

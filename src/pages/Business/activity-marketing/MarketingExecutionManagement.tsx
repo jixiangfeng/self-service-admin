@@ -42,6 +42,8 @@ interface ExecutionActionFormValues {
   supplement?: string;
 }
 
+type ExecutionDetailType = 'participation' | 'reward' | 'budget' | 'issue' | 'usage';
+
 const processSceneOptions = [
   { value: 'USER_APPEAL', label: '用户申诉' },
   { value: 'DATA_REPAIR', label: '数据补录' },
@@ -72,7 +74,7 @@ const compactJoin = (items: Array<string | undefined | null | false>) => items.f
 
 const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
 
-const executionDetailFields: Record<'participation' | 'reward' | 'budget' | 'issue' | 'usage', DetailField<any>[]> = {
+const executionDetailFields: Record<ExecutionDetailType, DetailField<any>[]> = {
   participation: [
     { name: 'activityCode', label: '活动编码' },
     { name: 'activityName', label: '活动名称' },
@@ -112,6 +114,7 @@ const executionDetailFields: Record<'participation' | 'reward' | 'budget' | 'iss
   ],
   usage: [
     { name: 'couponNo', label: '券码' },
+    { name: 'templateName', label: '券模板' },
     { name: 'userName', label: '用户' },
     { name: 'serviceOrderNo', label: '订单号' },
     { name: 'writeOffRecordNo', label: '核销流水' },
@@ -124,6 +127,7 @@ const MarketingExecutionManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
   const [detail, setDetail] = useState<MarketingParticipationRecord | MarketingRewardRecord | MarketingBudgetRecord | CouponIssueRecord | CouponUsageRecord | null>(null);
+  const [detailType, setDetailType] = useState<ExecutionDetailType | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [currentId, setCurrentId] = useState<number | null>(null);
@@ -159,6 +163,16 @@ const MarketingExecutionManagement: React.FC = () => {
   const couponTemplateOptions = (couponTemplateOptionsQuery.data || []) as SelectOptionRecord[];
   const serviceCardOptions = (serviceCardOptionsQuery.data || []) as SelectOptionRecord[];
   const selectedRewardType = Form.useWatch('rewardType', form);
+
+  const openDetail = (type: ExecutionDetailType, record: MarketingParticipationRecord | MarketingRewardRecord | MarketingBudgetRecord | CouponIssueRecord | CouponUsageRecord) => {
+    setDetailType(type);
+    setDetail(record);
+  };
+
+  const closeDetail = () => {
+    setDetailType(null);
+    setDetail(null);
+  };
 
   const filter = <T extends object>(items: T[]) =>
     items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
@@ -208,7 +222,7 @@ const MarketingExecutionManagement: React.FC = () => {
     { title: '达标状态', dataIndex: 'qualifyStatus', width: 120, render: (_, record) => renderStatusTag(record.qualifyStatus, activityStatusMap) },
     { title: '关联订单', dataIndex: 'relatedOrderNo', width: 170 },
     { title: '参与时间', dataIndex: 'joinedAt', width: 180, render: (_, record) => formatDateTime(record.joinedAt) },
-    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => openDetail('participation', record)}>详情</Button> },
   ], []);
 
   const rewardColumns = useMemo<ProColumns<MarketingRewardRecord>[]>(() => [
@@ -220,7 +234,7 @@ const MarketingExecutionManagement: React.FC = () => {
     { title: '成本金额', dataIndex: 'costAmount', width: 120, render: (_, record) => formatAmount(record.costAmount) },
     { title: '发放状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, rewardStatusMap) },
     { title: '发放时间', dataIndex: 'issuedAt', width: 180, render: (_, record) => formatDateTime(record.issuedAt) },
-    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => openModal('补发活动奖励', record.id, record)}>发放</Button> },
+    { title: '操作', width: 150, render: (_, record) => <><Button size="small" onClick={() => openDetail('reward', record)}>详情</Button><Button size="small" style={{ marginLeft: 8 }} onClick={() => openModal('补发活动奖励', record.id, record)}>发放</Button></> },
   ], []);
 
   const budgetColumns = useMemo<ProColumns<MarketingBudgetRecord>[]>(() => [
@@ -231,7 +245,7 @@ const MarketingExecutionManagement: React.FC = () => {
     { title: '冻结金额', dataIndex: 'frozenAmount', width: 120, render: (_, record) => formatAmount(record.frozenAmount) },
     { title: '承担方', dataIndex: 'bearer', width: 120 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, activityStatusMap) },
-    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => openModal('调整活动预算', record.id, record)}>调整</Button> },
+    { title: '操作', width: 150, render: (_, record) => <><Button size="small" onClick={() => openDetail('budget', record)}>详情</Button><Button size="small" style={{ marginLeft: 8 }} onClick={() => openModal('调整活动预算', record.id, record)}>调整</Button></> },
   ], []);
 
   const issueColumns = useMemo<ProColumns<CouponIssueRecord>[]>(() => [
@@ -242,16 +256,18 @@ const MarketingExecutionManagement: React.FC = () => {
     { title: '来源活动', dataIndex: 'activityName', width: 140 },
     { title: '状态', dataIndex: 'issueStatus', width: 120, render: (_, record) => renderStatusTag(record.issueStatus, writeOffStatusMap) },
     { title: '发放时间', dataIndex: 'issuedAt', width: 180, render: (_, record) => formatDateTime(record.issuedAt) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => openDetail('issue', record)}>详情</Button> },
   ], []);
 
   const usageColumns = useMemo<ProColumns<CouponUsageRecord>[]>(() => [
     { title: '券码', dataIndex: 'couponNo', width: 160 },
-    { title: '券模板', dataIndex: 'couponNo', width: 160 },
+    { title: '券模板', dataIndex: 'templateName', width: 160 },
     { title: '用户', dataIndex: 'userName', width: 120 },
     { title: '订单号', dataIndex: 'serviceOrderNo', width: 180 },
     { title: '核销流水', dataIndex: 'writeOffRecordNo', width: 180 },
     { title: '状态', dataIndex: 'usageStatus', width: 120, render: (_, record) => renderStatusTag(record.usageStatus, writeOffStatusMap) },
     { title: '使用时间', dataIndex: 'usedAt', width: 180, render: (_, record) => formatDateTime(record.usedAt) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => openDetail('usage', record)}>详情</Button> },
   ], []);
 
   return (
@@ -282,11 +298,11 @@ const MarketingExecutionManagement: React.FC = () => {
         ]}
       />
 
-      <BusinessDetailModal title="营销执行详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
+      <BusinessDetailModal title="营销执行详情" open={!!detail} onCancel={closeDetail} width={760}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
-            fields={('rewardNo' in detail ? executionDetailFields.reward : 'budgetName' in detail ? executionDetailFields.budget : 'issueNo' in detail ? executionDetailFields.issue : 'usageStatus' in detail ? executionDetailFields.usage : executionDetailFields.participation) as DetailField<Record<string, any>>[]}
+            fields={(detailType ? executionDetailFields[detailType] : executionDetailFields.participation) as DetailField<Record<string, any>>[]}
             column={2}
             labelWidth={110}
           />
@@ -328,8 +344,16 @@ const MarketingExecutionManagement: React.FC = () => {
                 <Form.Item name="status" label="处理后状态">
                   <Select options={modalTitle.includes('预算') ? activityStatusOptions : activityRewardStatusOptions} placeholder="请选择处理后状态" />
                 </Form.Item>
-                <Form.Item name="amount" label="调整金额">
-                  <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="仅预算调整时填写" />
+                <Form.Item
+                  name="amount"
+                  label={modalTitle.includes('预算') || selectedRewardType === 'BALANCE' ? '调整金额'
+                    : selectedRewardType === 'POINTS' ? '积分数量'
+                      : '成本金额'}
+                  rules={modalTitle.includes('预算') || selectedRewardType === 'BALANCE' || selectedRewardType === 'POINTS'
+                    ? [{ required: true, message: '请输入大于 0 的金额或数量' }]
+                    : undefined}
+                >
+                  <InputNumber min={0.01} precision={2} style={{ width: '100%' }} placeholder={modalTitle.includes('预算') ? '请输入预算调整金额' : '请输入奖励金额或数量'} />
                 </Form.Item>
               </div>
             </BusinessEditorSection>

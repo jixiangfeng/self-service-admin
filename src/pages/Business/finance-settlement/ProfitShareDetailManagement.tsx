@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Statistic, Tabs, message } from 'antd';
 import { CheckCircleOutlined, SplitCellsOutlined, TeamOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -21,6 +21,7 @@ import api, {
   type ProfitRatioVersionRecord,
   type ProfitShareDetailRecord,
 } from '@/services/backendService';
+import { DateTimeField, fromDateTimePickerValue } from '@/utils/formControls';
 
 const partnerRoleMap = buildValueEnum(partnerRoleOptions);
 const relationStatusMap = buildValueEnum(profitRelationStatusOptions);
@@ -85,10 +86,16 @@ const profitShareCenterDetailFields: Record<'relation' | 'version' | 'detail' | 
 const ProfitShareDetailManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
+  const [relationStatusFilter, setRelationStatusFilter] = useState<string>();
+  const [versionAuditStatusFilter, setVersionAuditStatusFilter] = useState<string>();
+  const [detailStatusFilter, setDetailStatusFilter] = useState<string>();
+  const [chargebackStatusFilter, setChargebackStatusFilter] = useState<string>();
+  const [confirmStatusFilter, setConfirmStatusFilter] = useState<string>();
   const [detail, setDetail] = useState<ProfitPartnerRelationRecord | ProfitRatioVersionRecord | ProfitShareDetailRecord | ProfitChargebackRecord | ProfitConfirmRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
-  const [form] = Form.useForm<{ bizNo: string; status: string; action?: string; storeName?: string; partnerName?: string; partnerRole?: string; shareRatio?: number; confirmAmount?: number; confirmer?: string; supplement?: string }>();
+  const [form] = Form.useForm<Record<string, any>>();
+  const action = Form.useWatch('action', form);
 
   const openAction = (title: string) => {
     setModalTitle(title);
@@ -97,6 +104,8 @@ const ProfitShareDetailManagement: React.FC = () => {
       action: title === '新增合伙关系' ? 'ADD_RELATION' : title === '审核比例版本' ? 'AUDIT_VERSION' : 'CONFIRM_SHARE',
       partnerRole: 'PARTNER',
       status: title === '新增合伙关系' ? 'PENDING' : 'APPROVED',
+      auditStatus: title === '审核比例版本' ? 'APPROVED' : undefined,
+      confirmStatus: title === '确认分润' ? 'APPROVED' : undefined,
     });
     setModalVisible(true);
   };
@@ -104,11 +113,11 @@ const ProfitShareDetailManagement: React.FC = () => {
   const filter = <T extends object>(items: T[]) =>
     items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
 
-  const relationQuery = useQuery({ queryKey: ['profitDetailRelations', keyword], queryFn: async () => (await api.profitPartnerRelation.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
-  const versionQuery = useQuery({ queryKey: ['profitDetailVersions', keyword], queryFn: async () => (await api.profitRatioVersion.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
-  const detailQuery = useQuery({ queryKey: ['profitDetailDetails', keyword], queryFn: async () => (await api.profitShareDetail.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
-  const chargebackQuery = useQuery({ queryKey: ['profitDetailChargebacks', keyword], queryFn: async () => (await api.profitChargeback.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
-  const confirmQuery = useQuery({ queryKey: ['profitDetailConfirms', keyword], queryFn: async () => (await api.profitConfirm.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
+  const relationQuery = useQuery({ queryKey: ['profitDetailRelations', keyword, relationStatusFilter], queryFn: async () => (await api.profitPartnerRelation.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: relationStatusFilter })).data });
+  const versionQuery = useQuery({ queryKey: ['profitDetailVersions', keyword, versionAuditStatusFilter], queryFn: async () => (await api.profitRatioVersion.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, auditStatus: versionAuditStatusFilter })).data });
+  const detailQuery = useQuery({ queryKey: ['profitDetailDetails', keyword, detailStatusFilter], queryFn: async () => (await api.profitShareDetail.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: detailStatusFilter })).data });
+  const chargebackQuery = useQuery({ queryKey: ['profitDetailChargebacks', keyword, chargebackStatusFilter], queryFn: async () => (await api.profitChargeback.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: chargebackStatusFilter })).data });
+  const confirmQuery = useQuery({ queryKey: ['profitDetailConfirms', keyword, confirmStatusFilter], queryFn: async () => (await api.profitConfirm.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, confirmStatus: confirmStatusFilter })).data });
   const actionMutation = useMutation<unknown, Error, Record<string, unknown>>({
     mutationFn: (values: Record<string, unknown>) => {
       const remark = compactJoin([
@@ -116,15 +125,16 @@ const ProfitShareDetailManagement: React.FC = () => {
         values.storeName ? `门店：${values.storeName}` : undefined,
         values.partnerName ? `合伙人：${values.partnerName}` : undefined,
         values.shareRatio ? `分润比例：${values.shareRatio}%` : undefined,
+        values.afterRatio ? `新比例：${values.afterRatio}%` : undefined,
         values.supplement ? `补充说明：${values.supplement}` : undefined,
       ]);
-      if (modalTitle === '新增合伙关系') {
-        return api.profitPartnerRelation.add({ relationNo: values.bizNo || `REL${Date.now()}`, storeName: values.storeName || '-', partnerName: values.partnerName || '-', partnerRole: values.partnerRole || 'PARTNER', shareRatio: values.shareRatio || 0, status: values.status || 'PENDING' });
+      if (values.action === 'ADD_RELATION') {
+        return api.profitPartnerRelation.add({ relationNo: values.relationNo, storeName: values.storeName, partnerName: values.partnerName, partnerRole: values.partnerRole, shareRatio: values.shareRatio, status: values.status });
       }
-      if (modalTitle === '审核比例版本') {
-        return api.profitRatioVersion.add({ versionNo: values.bizNo || `PSV${Date.now()}`, relationNo: values.bizNo, afterRatio: values.shareRatio || 0, auditStatus: values.status || 'APPROVED', remark });
+      if (values.action === 'AUDIT_VERSION') {
+        return api.profitRatioVersion.add({ versionNo: values.versionNo, relationNo: values.relationNo, beforeRatio: values.beforeRatio, afterRatio: values.afterRatio, effectiveAt: fromDateTimePickerValue(values.effectiveAt as any) || values.effectiveAt, auditStatus: values.auditStatus, remark });
       }
-      return api.profitConfirm.add({ confirmNo: values.bizNo || `PSC${Date.now()}`, settlementBillNo: values.bizNo, partnerName: values.partnerName || '-', confirmAmount: values.confirmAmount || 0, confirmer: values.confirmer || '财务管理员', confirmStatus: values.status || 'APPROVED', confirmRemark: remark });
+      return api.profitConfirm.add({ confirmNo: values.confirmNo, settlementBillNo: values.settlementBillNo, partnerName: values.partnerName, confirmAmount: values.confirmAmount, confirmer: values.confirmer, confirmStatus: values.confirmStatus, confirmRemark: remark });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profitDetailRelations'] });
@@ -204,11 +214,18 @@ const ProfitShareDetailManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="确认记录" value={confirms.length} suffix="条" /></Card></Col>
       </Row>
 
-      <KeywordSearchBar
-        value={keyword}
-        placeholder="输入门店、合伙人、订单、结算单、版本、回冲单"
-        onSearch={setKeyword}
-      />
+      <Space size={12} wrap style={{ marginBottom: 16 }}>
+        <KeywordSearchBar
+          value={keyword}
+          placeholder="输入门店、合伙人、订单、结算单、版本、回冲单"
+          onSearch={setKeyword}
+        />
+        <Select allowClear placeholder="关系状态" style={{ width: 140 }} options={profitRelationStatusOptions} value={relationStatusFilter} onChange={setRelationStatusFilter} />
+        <Select allowClear placeholder="版本审核" style={{ width: 140 }} options={auditStatusOptions} value={versionAuditStatusFilter} onChange={setVersionAuditStatusFilter} />
+        <Select allowClear placeholder="分润状态" style={{ width: 140 }} options={auditStatusOptions} value={detailStatusFilter} onChange={setDetailStatusFilter} />
+        <Select allowClear placeholder="回冲状态" style={{ width: 140 }} options={auditStatusOptions} value={chargebackStatusFilter} onChange={setChargebackStatusFilter} />
+        <Select allowClear placeholder="确认状态" style={{ width: 140 }} options={auditStatusOptions} value={confirmStatusFilter} onChange={setConfirmStatusFilter} />
+      </Space>
 
       <Tabs
         items={[
@@ -234,7 +251,7 @@ const ProfitShareDetailManagement: React.FC = () => {
       <BusinessEditorModal
         eyebrow="分润操作"
         title={modalTitle}
-        subtitle="把合伙关系、比例审核和分润确认拆成结构化字段，提交时生成后端备注。"
+        subtitle="把合伙关系、比例审核和分润确认拆成独立字段，避免单号和业务语义混用。"
         meta={[modalTitle || '分润操作', '财务结算']}
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
@@ -248,25 +265,61 @@ const ProfitShareDetailManagement: React.FC = () => {
       >
         <Form form={form} layout="vertical" className="merchant-editor-form">
           <div className="merchant-editor-shell">
-            <BusinessEditorSection icon={<SplitCellsOutlined />} title="操作对象" desc="录入关系、订单或结算单号，并选择操作状态。">
+            <BusinessEditorSection icon={<SplitCellsOutlined />} title="操作对象" desc="先选择操作类型，再填写对应的关系、版本或结算单信息。">
               <div className="merchant-editor-fields">
-                <Form.Item name="bizNo" label="关系 / 订单 / 结算单号" rules={[{ required: true, message: '请输入业务单号' }]}><Input placeholder="例如：REL-20260510-001" /></Form.Item>
-                <Form.Item name="action" label="操作类型"><Select options={profitActionOptions} placeholder="请选择操作类型" /></Form.Item>
-                <Form.Item name="status" label="状态"><Select options={auditStatusOptions} placeholder="请选择状态" /></Form.Item>
+                <Form.Item name="action" label="操作类型" rules={[{ required: true, message: '请选择操作类型' }]}><Select options={profitActionOptions} placeholder="请选择操作类型" /></Form.Item>
+                {action === 'ADD_RELATION' ? (
+                  <>
+                    <Form.Item name="relationNo" label="关系编号" rules={[{ required: true, message: '请输入关系编号' }]}><Input placeholder="例如：REL-20260510-001" /></Form.Item>
+                    <Form.Item name="status" label="关系状态" rules={[{ required: true, message: '请选择关系状态' }]}><Select options={profitRelationStatusOptions} placeholder="请选择关系状态" /></Form.Item>
+                  </>
+                ) : null}
+                {action === 'AUDIT_VERSION' ? (
+                  <>
+                    <Form.Item name="versionNo" label="版本号" rules={[{ required: true, message: '请输入比例版本号' }]}><Input placeholder="例如：PRV-20260510-001" /></Form.Item>
+                    <Form.Item name="relationNo" label="关系编号" rules={[{ required: true, message: '请输入关联关系编号' }]}><Input placeholder="例如：REL-20260510-001" /></Form.Item>
+                    <Form.Item name="auditStatus" label="审核状态" rules={[{ required: true, message: '请选择审核状态' }]}><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
+                  </>
+                ) : null}
+                {action === 'CONFIRM_SHARE' ? (
+                  <>
+                    <Form.Item name="confirmNo" label="确认单号" rules={[{ required: true, message: '请输入确认单号' }]}><Input placeholder="例如：PCF-20260510-001" /></Form.Item>
+                    <Form.Item name="settlementBillNo" label="结算单号" rules={[{ required: true, message: '请输入结算单号' }]}><Input placeholder="例如：SETTLE-20260510-001" /></Form.Item>
+                    <Form.Item name="confirmStatus" label="确认状态" rules={[{ required: true, message: '请选择确认状态' }]}><Select options={auditStatusOptions} placeholder="请选择确认状态" /></Form.Item>
+                  </>
+                ) : null}
               </div>
             </BusinessEditorSection>
-            <BusinessEditorSection icon={<TeamOutlined />} title="合伙信息" desc="维护门店、合伙人、角色和分润比例。">
+            {action === 'ADD_RELATION' ? (
+              <BusinessEditorSection icon={<TeamOutlined />} title="合伙关系" desc="新增关系时必须明确门店、合伙人、角色和当前分润比例。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="storeName" label="门店" rules={[{ required: true, message: '请输入门店名称' }]}><Input placeholder="例如：浦东旗舰店" /></Form.Item>
+                  <Form.Item name="partnerName" label="合伙人" rules={[{ required: true, message: '请输入合伙人' }]}><Input placeholder="例如：张三" /></Form.Item>
+                  <Form.Item name="partnerRole" label="角色" rules={[{ required: true, message: '请选择角色' }]}><Select options={partnerRoleOptions} placeholder="请选择角色" /></Form.Item>
+                  <Form.Item name="shareRatio" label="分润比例" rules={[{ required: true, message: '请输入分润比例' }]}><InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} placeholder="30" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+            ) : null}
+            {action === 'AUDIT_VERSION' ? (
+              <BusinessEditorSection icon={<TeamOutlined />} title="比例版本" desc="审核比例版本时只维护版本比例和生效时间，关系编号必须来自已有关系。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="beforeRatio" label="原比例"><InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                  <Form.Item name="afterRatio" label="新比例" rules={[{ required: true, message: '请输入新比例' }]}><InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} placeholder="30" /></Form.Item>
+                  <Form.Item name="effectiveAt" label="生效时间"><DateTimeField /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+            ) : null}
+            {action === 'CONFIRM_SHARE' ? (
+              <BusinessEditorSection icon={<CheckCircleOutlined />} title="确认信息" desc="分润确认必须绑定结算单，确认金额和确认人单独填写。">
+                <div className="merchant-editor-fields">
+                  <Form.Item name="partnerName" label="合伙人" rules={[{ required: true, message: '请输入合伙人' }]}><Input placeholder="例如：张三" /></Form.Item>
+                  <Form.Item name="confirmAmount" label="确认金额" rules={[{ required: true, message: '请输入确认金额' }]}><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
+                  <Form.Item name="confirmer" label="确认人" rules={[{ required: true, message: '请输入确认人' }]}><Input placeholder="例如：财务管理员" /></Form.Item>
+                </div>
+              </BusinessEditorSection>
+            ) : null}
+            <BusinessEditorSection icon={<CheckCircleOutlined />} title="备注" desc="记录本次操作说明，便于财务追溯。">
               <div className="merchant-editor-fields">
-                <Form.Item name="storeName" label="门店"><Input placeholder="例如：浦东旗舰店" /></Form.Item>
-                <Form.Item name="partnerName" label="合伙人"><Input placeholder="例如：张三" /></Form.Item>
-                <Form.Item name="partnerRole" label="角色"><Select options={partnerRoleOptions} placeholder="请选择角色" /></Form.Item>
-                <Form.Item name="shareRatio" label="分润比例"><InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} placeholder="30" /></Form.Item>
-              </div>
-            </BusinessEditorSection>
-            <BusinessEditorSection icon={<CheckCircleOutlined />} title="确认信息" desc="分润确认时维护确认金额、确认人和补充说明。">
-              <div className="merchant-editor-fields">
-                <Form.Item name="confirmAmount" label="确认金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
-                <Form.Item name="confirmer" label="确认人"><Input placeholder="例如：财务管理员" /></Form.Item>
                 <Form.Item className="merchant-editor-field-span-all" name="supplement" label="补充说明"><Input placeholder="例如：比例版本审核通过，进入本期结算" /></Form.Item>
               </div>
             </BusinessEditorSection>

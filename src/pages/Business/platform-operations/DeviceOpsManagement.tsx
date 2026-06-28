@@ -55,6 +55,16 @@ const deviceActionOptions = [
 ];
 const compactJoin = (items: Array<string | undefined | false>) => items.filter(Boolean).join('；');
 const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
+const getDefaultStatus = (title: string) => {
+  if (title === '重发设备指令') return 'SENT';
+  if (title === '新增备件') return 'PUBLISHED';
+  return 'PENDING';
+};
+const getStatusOptions = (title: string) => {
+  if (title === '重发设备指令') return deviceCommandStatusOptions;
+  if (title === '新增备件') return publishStatusOptions.filter((item) => ['PUBLISHED', 'OFFLINE'].includes(String(item.value)));
+  return maintainStatusOptions;
+};
 
 const deviceOpsDetailFields: Record<'command' | 'log' | 'fault' | 'heartbeat' | 'maintenance' | 'part', DetailField<any>[]> = {
   command: [
@@ -137,7 +147,7 @@ const DeviceOpsManagement: React.FC = () => {
     form.resetFields();
     form.setFieldsValue({
       action: title === '重发设备指令' ? 'RETRY_COMMAND' : title === '分派故障处理' ? 'ASSIGN_FAULT' : title === '新建保养任务' ? 'CREATE_MAINTAIN' : 'ADD_PART',
-      status: 'PENDING',
+      status: getDefaultStatus(title),
       faultLevel: 'MEDIUM',
     });
     setModalVisible(true);
@@ -263,16 +273,16 @@ const DeviceOpsManagement: React.FC = () => {
             values.supplement ? `补充说明：${values.supplement}` : undefined,
           ]);
           if (modalTitle === '重发设备指令') {
-            await api.deviceOps.commands.add({ commandNo: values.bizNo, deviceCode: values.deviceCode || values.bizNo, commandType: '重发指令', commandPayload: remark, status: values.status || 'SENT', remark });
+            await api.deviceOps.commands.add({ commandNo: values.bizNo, deviceCode: values.deviceCode, commandType: 'RETRY_COMMAND', commandPayload: remark, status: values.status || 'SENT', remark });
             await queryClient.invalidateQueries({ queryKey: ['device-commands'] });
           } else if (modalTitle === '分派故障处理') {
-            await api.deviceOps.faults.add({ faultNo: values.bizNo, deviceCode: values.deviceCode || values.bizNo, faultType: '人工分派', level: values.faultLevel, status: values.status || 'PROCESSING', remark });
+            await api.deviceOps.faults.add({ faultNo: values.bizNo, deviceCode: values.deviceCode, faultType: 'MANUAL_ASSIGN', level: values.faultLevel, status: values.status || 'PROCESSING', remark });
             await queryClient.invalidateQueries({ queryKey: ['device-faults'] });
           } else if (modalTitle === '新建保养任务') {
-            await api.deviceOps.maintenances.add({ maintainNo: values.bizNo, deviceCode: values.deviceCode || values.bizNo, maintainType: '人工保养', owner: values.owner, plannedAt: values.plannedAt, status: values.status || 'PENDING', remark });
+            await api.deviceOps.maintenances.add({ maintainNo: values.bizNo, deviceCode: values.deviceCode, maintainType: 'MANUAL_MAINTAIN', owner: values.owner, plannedAt: values.plannedAt, status: values.status || 'PENDING', remark });
             await queryClient.invalidateQueries({ queryKey: ['device-maintenances'] });
           } else if (modalTitle === '新增备件') {
-            await api.deviceOps.spareParts.add({ partCode: values.bizNo, partName: values.partName || values.bizNo, stockQty: values.stockQty, warningQty: values.warningQty, status: values.status || 'PENDING' });
+            await api.deviceOps.spareParts.add({ partCode: values.bizNo, partName: values.partName, stockQty: values.stockQty, warningQty: values.warningQty, status: values.status || 'PUBLISHED' });
             await queryClient.invalidateQueries({ queryKey: ['device-spare-parts'] });
           }
           setModalVisible(false);
@@ -285,9 +295,9 @@ const DeviceOpsManagement: React.FC = () => {
           <div className="merchant-editor-shell">
             <BusinessEditorSection icon={<ThunderboltOutlined />} title="处理对象" desc="录入设备、指令、故障、保养或备件编号。">
               <div className="merchant-editor-fields">
-                <Form.Item name="bizNo" label="设备编号 / 指令号 / 故障单号" rules={[{ required: true, message: '请输入设备编号、指令号或故障单号' }]}><Input placeholder="例如：DEV-001 或 CMD-001" /></Form.Item>
-                <Form.Item name="deviceCode" label="设备编号"><Input placeholder="例如：DEV-001" /></Form.Item>
-                <Form.Item name="status" label="处理状态"><Select options={maintainStatusOptions} placeholder="请选择处理状态" /></Form.Item>
+                <Form.Item name="bizNo" label={modalTitle === '重发设备指令' ? '指令编号' : modalTitle === '分派故障处理' ? '故障单号' : modalTitle === '新建保养任务' ? '保养单号' : '备件编码'} rules={[{ required: true, message: '请输入业务编号' }]}><Input placeholder="请输入业务编号" /></Form.Item>
+                {modalTitle !== '新增备件' ? <Form.Item name="deviceCode" label="设备编号" rules={[{ required: true, message: '请输入设备编号' }]}><Input placeholder="例如：DEV-001" /></Form.Item> : null}
+                <Form.Item name="status" label="状态"><Select options={getStatusOptions(modalTitle)} placeholder="请选择状态" /></Form.Item>
               </div>
             </BusinessEditorSection>
             <BusinessEditorSection icon={<ToolOutlined />} title="动作与责任" desc="配置处理动作、故障等级、负责人和计划时间。">
@@ -300,7 +310,7 @@ const DeviceOpsManagement: React.FC = () => {
             </BusinessEditorSection>
             <BusinessEditorSection icon={<SettingOutlined />} title="备件与补充" desc="新增备件时维护名称和库存，其他处理可填写补充说明。">
               <div className="merchant-editor-fields">
-                <Form.Item name="partName" label="备件名称"><Input placeholder="例如：高压水枪喷头" /></Form.Item>
+                <Form.Item name="partName" label="备件名称" rules={modalTitle === '新增备件' ? [{ required: true, message: '请输入备件名称' }] : undefined}><Input placeholder="例如：高压水枪喷头" /></Form.Item>
                 <Form.Item name="stockQty" label="库存"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
                 <Form.Item name="warningQty" label="预警库存"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
                 <Form.Item className="merchant-editor-field-span-all" name="supplement" label="补充说明"><Input placeholder="例如：设备离线后重发启动指令" /></Form.Item>

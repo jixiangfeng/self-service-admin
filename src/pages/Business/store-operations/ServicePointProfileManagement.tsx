@@ -6,7 +6,6 @@ import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
   auditStatusOptions,
-  maintainStatusOptions,
   pointStatusOptions,
   pointTypeOptions,
 } from '@/constants/businessCatalog';
@@ -27,6 +26,7 @@ import { DateTimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePi
 
 type PointProfileTab = 'qr' | 'maintain' | 'bind' | 'status';
 type EditableRecord = ServicePointQrRecord | ServicePointMaintainRecord | PointDeviceBindLogRecord | ServicePointStatusLogRecord;
+type PointProfileSearchValues = { keyword?: string; servicePointId?: number };
 
 
 const normalizePickerValues = (values: Record<string, any>) => {
@@ -58,9 +58,15 @@ const normalizePickerInitialValues = (record: Record<string, any>) => {
   return next;
 };
 const auditStatusMap = buildValueEnum(auditStatusOptions);
-const maintainStatusMap = buildValueEnum(maintainStatusOptions);
 const pointStatusMap = buildValueEnum(pointStatusOptions);
 const pointTypeMap = buildValueEnum(pointTypeOptions);
+const pointMaintainStatusOptions = [
+  { value: 'PENDING', label: '待处理' },
+  { value: 'PROCESSING', label: '处理中' },
+  { value: 'COMPLETED', label: '已完成' },
+  { value: 'CANCELLED', label: '已取消' },
+];
+const maintainStatusMap = buildValueEnum(pointMaintainStatusOptions);
 
 const pointProfileModalTitleMap: Record<PointProfileTab, string> = {
   qr: '点位二维码',
@@ -115,19 +121,22 @@ const pointProfileDetailFields: Record<PointProfileTab, DetailField<any>[]> = {
 const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
+  const [servicePointId, setServicePointId] = useState<number | undefined>();
   const [activeTab, setActiveTab] = useState<PointProfileTab>('qr');
   const [detail, setDetail] = useState<EditableRecord | null>(null);
+  const [detailTab, setDetailTab] = useState<PointProfileTab>('qr');
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<EditableRecord | null>(null);
   const [form] = Form.useForm<Record<string, unknown>>();
-  const [searchForm] = Form.useForm<{ keyword?: string }>();
+  const [searchForm] = Form.useForm<PointProfileSearchValues>();
 
   const { data: pointOptions } = useQuery({ queryKey: ['pointOptionsForProfiles'], queryFn: async () => (await api.servicePoint.options()).data });
 
-  const qrQuery = useQuery({ queryKey: ['servicePointQrRecords'], queryFn: async () => (await api.servicePointQrRecord.page({ pageNum: 1, pageSize: 200 })).data });
-  const maintainQuery = useQuery({ queryKey: ['servicePointMaintainRecords'], queryFn: async () => (await api.servicePointMaintainRecord.page({ pageNum: 1, pageSize: 200 })).data });
-  const bindQuery = useQuery({ queryKey: ['pointDeviceBindLogs'], queryFn: async () => (await api.pointDeviceBindLog.page({ pageNum: 1, pageSize: 200 })).data });
-  const statusQuery = useQuery({ queryKey: ['servicePointStatusLogs'], queryFn: async () => (await api.servicePointStatusLog.page({ pageNum: 1, pageSize: 200 })).data });
+  const pointProfileQueryParams = { current: 1, size: 200, servicePointId };
+  const qrQuery = useQuery({ queryKey: ['servicePointQrRecords', servicePointId], queryFn: async () => (await api.servicePointQrRecord.page(pointProfileQueryParams)).data });
+  const maintainQuery = useQuery({ queryKey: ['servicePointMaintainRecords', servicePointId], queryFn: async () => (await api.servicePointMaintainRecord.page(pointProfileQueryParams)).data });
+  const bindQuery = useQuery({ queryKey: ['pointDeviceBindLogs', servicePointId], queryFn: async () => (await api.pointDeviceBindLog.page(pointProfileQueryParams)).data });
+  const statusQuery = useQuery({ queryKey: ['servicePointStatusLogs', servicePointId], queryFn: async () => (await api.servicePointStatusLog.page(pointProfileQueryParams)).data });
 
   const qrRecords = qrQuery.data?.records || [];
   const maintainRecords = maintainQuery.data?.records || [];
@@ -188,15 +197,20 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
     if (record) {
       form.setFieldsValue(normalizePickerInitialValues(record as unknown as Record<string, any>));
     } else if (tab === 'qr') {
-      form.setFieldsValue({ status: 'APPROVED' });
+      form.setFieldsValue({ servicePointId, status: 'APPROVED' });
     } else if (tab === 'maintain') {
-      form.setFieldsValue({ status: 'PENDING' });
+      form.setFieldsValue({ servicePointId, status: 'PENDING' });
     } else if (tab === 'bind') {
-      form.setFieldsValue({ pointType: 'CAR_WASH_BAY' });
+      form.setFieldsValue({ servicePointId, pointType: 'CAR_WASH_BAY' });
     } else {
-      form.setFieldsValue({ afterStatus: 'IDLE' });
+      form.setFieldsValue({ servicePointId, afterStatus: 'IDLE' });
     }
     setModalVisible(true);
+  };
+
+  const openDetail = (tab: PointProfileTab, record: EditableRecord) => {
+    setDetailTab(tab);
+    setDetail(record);
   };
 
   const actionColumn = (tab: PointProfileTab): ProColumns<EditableRecord> => ({
@@ -205,7 +219,7 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
     fixed: 'right',
     render: (_, record) => (
       <>
-        <Button size="small" type="link" onClick={() => setDetail(record)}>详情</Button>
+        <Button size="small" type="link" onClick={() => openDetail(tab, record)}>详情</Button>
         <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openModal(tab, record)}>编辑</Button>
         <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => confirmRemove(tab, record.id)}>删除</Button>
       </>
@@ -267,8 +281,14 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
         form={searchForm}
         layout="inline"
         style={{ marginBottom: 16 }}
-        onFinish={(values) => setKeyword(String(values.keyword || ''))}
+        onFinish={(values) => {
+          setKeyword(String(values.keyword || ''));
+          setServicePointId(values.servicePointId);
+        }}
       >
+        <Form.Item name="servicePointId" label="所属点位">
+          <Select allowClear showSearch optionFilterProp="label" options={pointOptions || []} placeholder="全部点位" style={{ width: 240 }} />
+        </Form.Item>
         <Form.Item name="keyword" label="关键词">
           <Input allowClear placeholder="输入点位、二维码、维护单、设备关键词" style={{ width: 360 }} />
         </Form.Item>
@@ -276,7 +296,7 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
           <Button type="primary" htmlType="submit">查询</Button>
         </Form.Item>
         <Form.Item>
-          <Button onClick={() => { searchForm.resetFields(); setKeyword(''); }}>重置</Button>
+          <Button onClick={() => { searchForm.resetFields(); setKeyword(''); setServicePointId(undefined); }}>重置</Button>
         </Form.Item>
       </Form>
 
@@ -291,8 +311,8 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
         ]}
       />
 
-      <BusinessDetailModal title={`${pointProfileModalTitleMap[activeTab]}详情`} open={!!detail} onCancel={() => setDetail(null)} width={760}>
-        {detail ? <SchemaDetail record={detail as Record<string, any>} fields={pointProfileDetailFields[activeTab]} /> : null}
+      <BusinessDetailModal title={`${pointProfileModalTitleMap[detailTab]}详情`} open={!!detail} onCancel={() => setDetail(null)} width={760}>
+        {detail ? <SchemaDetail record={detail as Record<string, any>} fields={pointProfileDetailFields[detailTab]} /> : null}
       </BusinessDetailModal>
 
       <BusinessEditorModal
@@ -343,7 +363,7 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
                   <Form.Item name="maintainNo" label="维护单号" rules={[{ required: true, message: '请输入维护单号' }]}><Input placeholder="例如：MT-BAY-20260510-001" /></Form.Item>
                   <Form.Item name="maintainType" label="维护类型"><Input placeholder="例如：日常巡检 / 故障检修" /></Form.Item>
                   <Form.Item name="owner" label="负责人"><Input placeholder="现场处理人" /></Form.Item>
-                  <Form.Item name="status" label="状态"><Select options={maintainStatusOptions} placeholder="请选择状态" /></Form.Item>
+                  <Form.Item name="status" label="状态"><Select options={pointMaintainStatusOptions} placeholder="请选择状态" /></Form.Item>
                   <Form.Item name="plannedAt" label="计划时间"><DateTimeField /></Form.Item>
                 </div>
               </BusinessEditorSection>

@@ -55,7 +55,7 @@ const DeviceManagement: React.FC = () => {
   const { data: pointOptionsData } = useQuery({
     queryKey: ['devicePointOptions', selectedStoreId],
     queryFn: async () => (await api.servicePoint.options(selectedStoreId)).data,
-    enabled: !!selectedStoreId,
+    enabled: selectedStoreId !== undefined && selectedStoreId !== null,
   });
 
   const storeOptions = storeOptionsData || [];
@@ -207,6 +207,8 @@ const DeviceManagement: React.FC = () => {
                 deviceType: 'CAR_WASH_HIGH_PRESSURE',
                 controlMode: 'REMOTE',
                 faultLevel: 'LOW',
+                protocolType: 'WASH_API',
+                protocolVersion: 'v1.0',
                 signalStrength: 80,
                 abilityTags: ['START_STOP', 'HEARTBEAT'],
               });
@@ -251,6 +253,8 @@ const DeviceManagement: React.FC = () => {
                 deviceType: 'CAR_WASH_HIGH_PRESSURE',
                 controlMode: 'REMOTE',
                 faultLevel: 'LOW',
+                protocolType: 'WASH_API',
+                protocolVersion: 'v1.0',
                 signalStrength: 80,
                 abilityTags: ['START_STOP', 'HEARTBEAT'],
               });
@@ -321,8 +325,8 @@ const DeviceManagement: React.FC = () => {
                 <Form.Item name="storeId" label="所属门店" rules={[{ required: true, message: '请选择所属门店' }]}>
                   <Select showSearch optionFilterProp="label" options={storeOptions as SelectOptionRecord[]} placeholder="请选择门店" />
                 </Form.Item>
-                <Form.Item name="servicePointId" label="所属点位">
-                  <Select showSearch optionFilterProp="label" options={pointOptions as SelectOptionRecord[]} allowClear placeholder={selectedStoreId ? '请选择点位' : '请先选择门店'} />
+                <Form.Item name="servicePointId" label="所属点位" rules={[{ required: true, message: '请选择点位' }]}>
+                  <Select showSearch optionFilterProp="label" options={pointOptions as SelectOptionRecord[]} placeholder={selectedStoreId ? '请选择点位' : '请先选择门店'} />
                 </Form.Item>
                 <Form.Item name="deviceType" label="设备类型" rules={[{ required: true, message: '请选择设备类型' }]}>
                   <Select options={deviceTypeOptions} placeholder="请选择设备类型" />

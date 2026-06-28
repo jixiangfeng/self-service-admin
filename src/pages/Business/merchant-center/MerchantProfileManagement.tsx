@@ -28,6 +28,7 @@ import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, forma
 
 type ProfileTab = 'contact' | 'qualification' | 'contract' | 'account' | 'change';
 type EditableRecord = MerchantContactRecord | MerchantContractRecord | MerchantSettlementAccountRecord | MerchantQualificationRecord | MerchantChangeLogRecord;
+type ProfileSearchValues = { keyword?: string; merchantId?: number };
 
 const auditStatusMap = buildValueEnum(auditStatusOptions);
 const contractStatusMap = buildValueEnum(merchantContractStatusOptions);
@@ -119,6 +120,21 @@ const normalizeProfilePayload = (payload: Record<string, unknown>, tab: ProfileT
   return next;
 };
 
+const toDateInputValue = (value?: string) => value ? value.slice(0, 10) : undefined;
+const toDateTimeInputValue = (value?: string) => value ? value.replace(' ', 'T').slice(0, 16) : undefined;
+
+const normalizeProfileFormRecord = (record: EditableRecord, tab: ProfileTab) => {
+  const next = { ...(record as unknown as Record<string, unknown>) };
+  if (tab === 'qualification') next.expireAt = toDateInputValue(next.expireAt as string | undefined);
+  if (tab === 'contract') {
+    next.startAt = toDateInputValue(next.startAt as string | undefined);
+    next.endAt = toDateInputValue(next.endAt as string | undefined);
+  }
+  if (tab === 'account') next.effectiveAt = toDateInputValue(next.effectiveAt as string | undefined);
+  if (tab === 'change') next.changedAt = toDateTimeInputValue(next.changedAt as string | undefined);
+  return next;
+};
+
 const profileDetailFields: Record<ProfileTab, DetailField<any>[]> = {
   contact: [
     { name: 'merchantName', label: '商户' },
@@ -171,12 +187,14 @@ const profileDetailFields: Record<ProfileTab, DetailField<any>[]> = {
 const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
+  const [profileMerchantId, setProfileMerchantId] = useState<number | undefined>();
   const [activeTab, setActiveTab] = useState<ProfileTab>('contact');
   const [detail, setDetail] = useState<EditableRecord | null>(null);
+  const [detailTab, setDetailTab] = useState<ProfileTab>('contact');
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<EditableRecord | null>(null);
   const [form] = Form.useForm<Record<string, unknown>>();
-  const [searchForm] = Form.useForm<{ keyword?: string }>();
+  const [searchForm] = Form.useForm<ProfileSearchValues>();
 
   const { data: merchantOptions } = useQuery({
     queryKey: ['merchantOptionsForProfiles'],
@@ -187,11 +205,12 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
   const enrichMerchantName = <T extends { merchantId?: number; merchantName?: string }>(records: T[] | undefined): T[] =>
     (records || []).map((record) => ({ ...record, merchantName: record.merchantName || (record.merchantId ? merchantMap.get(record.merchantId) : '-') || '-' }));
 
-  const contactQuery = useQuery({ queryKey: ['merchantContacts'], queryFn: async () => (await api.merchantContact.page({ pageNum: 1, pageSize: 200 })).data as { records: MerchantContactRecord[] } });
-  const qualificationQuery = useQuery({ queryKey: ['merchantQualifications'], queryFn: async () => (await api.merchantQualification.page({ pageNum: 1, pageSize: 200 })).data as { records: MerchantQualificationRecord[] } });
-  const contractQuery = useQuery({ queryKey: ['merchantContracts'], queryFn: async () => (await api.merchantContract.page({ pageNum: 1, pageSize: 200 })).data as { records: MerchantContractRecord[] } });
-  const accountQuery = useQuery({ queryKey: ['merchantSettlementAccounts'], queryFn: async () => (await api.merchantSettlementAccount.page({ pageNum: 1, pageSize: 200 })).data as { records: MerchantSettlementAccountRecord[] } });
-  const changeQuery = useQuery({ queryKey: ['merchantChangeLogs'], queryFn: async () => (await api.merchantChangeLog.page({ pageNum: 1, pageSize: 200 })).data as { records: MerchantChangeLogRecord[] } });
+  const profileQueryParams = { current: 1, size: 200, merchantId: profileMerchantId };
+  const contactQuery = useQuery({ queryKey: ['merchantContacts', profileMerchantId], queryFn: async () => (await api.merchantContact.page(profileQueryParams)).data as { records: MerchantContactRecord[] } });
+  const qualificationQuery = useQuery({ queryKey: ['merchantQualifications', profileMerchantId], queryFn: async () => (await api.merchantQualification.page(profileQueryParams)).data as { records: MerchantQualificationRecord[] } });
+  const contractQuery = useQuery({ queryKey: ['merchantContracts', profileMerchantId], queryFn: async () => (await api.merchantContract.page(profileQueryParams)).data as { records: MerchantContractRecord[] } });
+  const accountQuery = useQuery({ queryKey: ['merchantSettlementAccounts', profileMerchantId], queryFn: async () => (await api.merchantSettlementAccount.page(profileQueryParams)).data as { records: MerchantSettlementAccountRecord[] } });
+  const changeQuery = useQuery({ queryKey: ['merchantChangeLogs', profileMerchantId], queryFn: async () => (await api.merchantChangeLog.page(profileQueryParams)).data as { records: MerchantChangeLogRecord[] } });
 
   const contacts = enrichMerchantName(contactQuery.data?.records);
   const qualifications = enrichMerchantName(qualificationQuery.data?.records);
@@ -259,19 +278,24 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
     setEditingRecord(record || null);
     form.resetFields();
     if (record) {
-      form.setFieldsValue({ ...(record as unknown as Record<string, string | number | undefined>) });
+      form.setFieldsValue(normalizeProfileFormRecord(record, tab) as Record<string, string | number | undefined>);
     } else if (tab === 'contact') {
-      form.setFieldsValue({ contactType: 'PRIMARY', primaryFlag: 0, status: 'APPROVED' });
+      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, contactType: 'PRIMARY', primaryFlag: 0, status: 'APPROVED' });
     } else if (tab === 'contract') {
-      form.setFieldsValue({ settlementCycle: 'WEEK', contractStatus: 'PENDING', status: 'PENDING' });
+      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, settlementCycle: 'WEEK', contractStatus: 'PENDING', status: 'PENDING' });
     } else if (tab === 'qualification') {
-      form.setFieldsValue({ auditStatus: 'PENDING', status: 'ACTIVE' });
+      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, auditStatus: 'PENDING', status: 'ACTIVE' });
     } else if (tab === 'account') {
-      form.setFieldsValue({ auditStatus: 'PENDING', status: 'ACTIVE' });
+      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, auditStatus: 'PENDING', status: 'ACTIVE' });
     } else {
-      form.setFieldsValue({ changeType: 'CONTACT' });
+      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, changeType: 'CONTACT' });
     }
     setModalVisible(true);
+  };
+
+  const openDetail = (tab: ProfileTab, record: EditableRecord) => {
+    setDetailTab(tab);
+    setDetail(record);
   };
 
   const contactColumns: ProColumns<MerchantContactRecord>[] = [
@@ -288,7 +312,7 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
       fixed: 'right',
       render: (_, record) => (
         <>
-          <Button size="small" type="link" onClick={() => setDetail(record)}>详情</Button>
+          <Button size="small" type="link" onClick={() => openDetail('contact', record)}>详情</Button>
           <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openModal('contact', record)}>编辑</Button>
           <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => confirmRemove('contact', record.id)}>删除</Button>
         </>
@@ -309,7 +333,7 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
       fixed: 'right',
       render: (_, record) => (
         <>
-          <Button size="small" type="link" onClick={() => setDetail(record)}>详情</Button>
+          <Button size="small" type="link" onClick={() => openDetail('qualification', record)}>详情</Button>
           <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openModal('qualification', record)}>编辑</Button>
           <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => confirmRemove('qualification', record.id)}>删除</Button>
         </>
@@ -332,7 +356,7 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
       fixed: 'right',
       render: (_, record) => (
         <>
-          <Button size="small" type="link" onClick={() => setDetail(record)}>详情</Button>
+          <Button size="small" type="link" onClick={() => openDetail('contract', record)}>详情</Button>
           <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openModal('contract', record)}>编辑</Button>
           <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => confirmRemove('contract', record.id)}>删除</Button>
         </>
@@ -354,7 +378,7 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
       fixed: 'right',
       render: (_, record) => (
         <>
-          <Button size="small" type="link" onClick={() => setDetail(record)}>详情</Button>
+          <Button size="small" type="link" onClick={() => openDetail('account', record)}>详情</Button>
           <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openModal('account', record)}>编辑</Button>
           <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => confirmRemove('account', record.id)}>删除</Button>
         </>
@@ -376,7 +400,7 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
       fixed: 'right',
       render: (_, record) => (
         <>
-          <Button size="small" type="link" onClick={() => setDetail(record)}>详情</Button>
+          <Button size="small" type="link" onClick={() => openDetail('change', record)}>详情</Button>
           <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openModal('change', record)}>编辑</Button>
           <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => confirmRemove('change', record.id)}>删除</Button>
         </>
@@ -400,8 +424,14 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
         form={searchForm}
         layout="inline"
         style={{ marginBottom: 16 }}
-        onFinish={(values) => setKeyword(String(values.keyword || ''))}
+        onFinish={(values) => {
+          setKeyword(String(values.keyword || ''));
+          setProfileMerchantId(values.merchantId);
+        }}
       >
+        <Form.Item name="merchantId" label="所属商户">
+          <Select allowClear showSearch optionFilterProp="label" options={merchantOptions || []} placeholder="全部商户" style={{ width: 240 }} />
+        </Form.Item>
         <Form.Item name="keyword" label="关键词">
           <Input allowClear placeholder="输入商户、联系人、资质、合同、账户、变更关键词" style={{ width: 360 }} />
         </Form.Item>
@@ -409,7 +439,7 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
           <Button type="primary" htmlType="submit">查询</Button>
         </Form.Item>
         <Form.Item>
-          <Button onClick={() => { searchForm.resetFields(); setKeyword(''); }}>重置</Button>
+          <Button onClick={() => { searchForm.resetFields(); setKeyword(''); setProfileMerchantId(undefined); }}>重置</Button>
         </Form.Item>
       </Form>
 
@@ -426,7 +456,7 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
       />
 
       <BusinessDetailModal title="商户档案详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
-        {detail ? <SchemaDetail record={detail as any} fields={profileDetailFields[activeTab]} /> : null}
+        {detail ? <SchemaDetail record={detail as any} fields={profileDetailFields[detailTab]} /> : null}
       </BusinessDetailModal>
 
       <BusinessEditorModal

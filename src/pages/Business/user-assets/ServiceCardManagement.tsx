@@ -4,7 +4,7 @@ import { WalletOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { serviceCardStatusOptions, serviceCardTypeOptions, templateStatusOptions } from '@/constants/businessCatalog';
+import { serviceCardStatusOptions, serviceCardTypeOptions } from '@/constants/businessCatalog';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
@@ -15,7 +15,12 @@ import api from '@/services/backendService';
 import type { AppUserProfileRecord, ServiceCardRecord, ServiceCardUsageRecord, ServiceOrderRecord, StoreRecord, UserServiceCardRecord } from '@/services/backendService';
 
 const cardTypeMap = buildValueEnum(serviceCardTypeOptions);
-const statusMap = buildValueEnum(templateStatusOptions);
+const cardProductStatusOptions = [
+  { value: 'DRAFT', label: '草稿' },
+  { value: 'ENABLED', label: '启用' },
+  { value: 'DISABLED', label: '停用' },
+];
+const statusMap = buildValueEnum(cardProductStatusOptions);
 const userCardStatusMap = buildValueEnum(serviceCardStatusOptions);
 
 const serviceScopeOptions = [
@@ -206,7 +211,7 @@ const ServiceCardManagement: React.FC = () => {
     },
   });
   const statusMutation = useMutation({
-    mutationFn: async (record: ServiceCardRecord) => api.asset.serviceCards.changeStatus(record.id, record.status === 'ENABLED' ? 'PAUSED' : 'ENABLED'),
+    mutationFn: async (record: ServiceCardRecord) => api.asset.serviceCards.changeStatus(record.id, record.status === 'ENABLED' ? 'DISABLED' : 'ENABLED'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['serviceCards'] });
       message.success('卡产品状态已更新');
@@ -214,12 +219,12 @@ const ServiceCardManagement: React.FC = () => {
   });
 
   const confirmCardStatus = (record: ServiceCardRecord) => {
-    const nextStatus = record.status === 'ENABLED' ? '暂停' : '启用';
+    const nextStatus = record.status === 'ENABLED' ? '停用' : '启用';
     showBusinessConfirm({
       title: `确认${nextStatus}卡产品`,
       content: `确定${nextStatus}「${record.cardName}」吗？该操作会影响用户购买和发放。`,
       okText: `确认${nextStatus}`,
-      danger: nextStatus === '暂停',
+      danger: nextStatus === '停用',
       onOk: () => statusMutation.mutate(record),
     });
   };
@@ -356,7 +361,7 @@ const ServiceCardManagement: React.FC = () => {
             loading={statusMutation.isPending}
             onClick={() => confirmCardStatus(record)}
           >
-            {record.status === 'ENABLED' ? '暂停' : '启用'}
+            {record.status === 'ENABLED' ? '停用' : '启用'}
           </Button>
           <Button size="small" onClick={() => openIssue(record)}>发卡</Button>
         </Space>
@@ -539,7 +544,7 @@ const ServiceCardManagement: React.FC = () => {
                   <Select options={serviceCardTypeOptions} placeholder="请选择卡类型" />
                 </Form.Item>
                 <Form.Item name="status" label="状态">
-                  <Select options={templateStatusOptions} placeholder="请选择状态" />
+                  <Select options={cardProductStatusOptions} placeholder="请选择状态" />
                 </Form.Item>
               </div>
             </BusinessEditorSection>

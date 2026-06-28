@@ -18,6 +18,7 @@ import { buildValueEnum, formatDateTime, renderStatusTag, formatEnumText } from 
 const statusMap = buildValueEnum(statusOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
 const scopeMap = buildValueEnum(scopeTypeOptions);
+const merchantScopeTypeOptions = scopeTypeOptions.filter((item) => ['MERCHANT', 'STORE'].includes(String(item.value)));
 
 const pageData = <T,>(result: any) => ('data' in result ? result.data : result) as { records: T[]; total: number };
 
@@ -54,7 +55,7 @@ const MerchantAccountManagement: React.FC = () => {
   const [grantVisible, setGrantVisible] = useState(false);
   const [editingAccount, setEditingAccount] = useState<MerchantAccountRecord | null>(null);
   const [form] = Form.useForm<MerchantAccountRecord>();
-  const [grantForm] = Form.useForm<UserRoleRelationRecord & { auditStatus?: string; remark?: string }>();
+  const [grantForm] = Form.useForm<UserRoleRelationRecord & { changeNo?: string; auditStatus?: string; remark?: string }>();
   const [searchForm] = Form.useForm<{ keyword?: string }>();
   const merchantId = Form.useWatch('merchantId', form);
   const dataScopeType = Form.useWatch('dataScopeType', form);
@@ -143,7 +144,7 @@ const MerchantAccountManagement: React.FC = () => {
       grantedAt: new Date().toISOString(),
     });
     await api.authAudit.permissionChanges.add({
-      changeNo: `MAC${Date.now()}`,
+      changeNo: values.changeNo,
       targetUser: values.userName,
       changeType: '商户角色授权',
       beforeValue: '-',
@@ -333,7 +334,7 @@ const MerchantAccountManagement: React.FC = () => {
                   />
                 </Form.Item>
                 <Form.Item name="storeName" label="门店名称"><Input disabled placeholder="选择门店后自动带出" /></Form.Item>
-                <Form.Item name="dataScopeType" label="数据范围" rules={[{ required: true, message: '请选择数据范围' }]}><Select options={scopeTypeOptions} placeholder="请选择数据范围" /></Form.Item>
+                <Form.Item name="dataScopeType" label="数据范围" rules={[{ required: true, message: '请选择数据范围' }]}><Select options={merchantScopeTypeOptions} placeholder="请选择数据范围" /></Form.Item>
                 <Form.Item className="merchant-editor-field-span-2" name="remark" label="备注"><Input.TextArea rows={3} placeholder="记录账号用途、授权边界或交接说明" /></Form.Item>
               </div>
             </BusinessEditorSection>
@@ -378,6 +379,7 @@ const MerchantAccountManagement: React.FC = () => {
                 </Form.Item>
                 <Form.Item name="roleName" label="角色名称" rules={[{ required: true, message: '请选择角色' }]}><Input disabled placeholder="选择角色后自动带出" /></Form.Item>
                 <Form.Item name="roleCode" label="角色编码" rules={[{ required: true, message: '请选择角色' }]}><Input disabled placeholder="选择角色后自动带出" /></Form.Item>
+                <Form.Item name="changeNo" label="变更单号" rules={[{ required: true, message: '请输入变更单号' }]}><Input placeholder="例如：MAC202606280001" /></Form.Item>
                 <Form.Item name="grantUser" label="授权人"><Input placeholder="例如：admin" /></Form.Item>
                 <Form.Item name="status" label="授权状态"><Select options={statusOptions} placeholder="请选择授权状态" /></Form.Item>
                 <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>

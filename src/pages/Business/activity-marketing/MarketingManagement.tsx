@@ -20,7 +20,13 @@ type ActivityStatus = 'DRAFT' | 'NOT_STARTED' | 'RUNNING' | 'PAUSED' | 'ENDED' |
 type ActivityTab = 'coupon' | 'invite' | 'recharge';
 type MarketingRecord = CouponTemplateRecord | InviteActivityRecord | RechargeActivityRecord;
 
+const couponTemplateStatusOptions = [
+  { label: '草稿', value: 'DRAFT' },
+  { label: '启用', value: 'ENABLED' },
+  { label: '停用', value: 'DISABLED' },
+];
 const statusMap = buildValueEnum([...activityStatusOptions, { label: '启用', value: 'ENABLED' }]);
+const couponTemplateStatusMap = buildValueEnum(couponTemplateStatusOptions);
 const couponTypeMap = buildValueEnum(couponTypeOptions);
 const costBearerMap = buildValueEnum(costBearerOptions);
 const closedRewardTypeOptions = rewardTypeOptions.filter((item) => item.value !== 'POINTS');
@@ -218,6 +224,7 @@ const MarketingManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActivityTab>('coupon');
   const [modalType, setModalType] = useState<ActivityTab | null>(null);
   const [detail, setDetail] = useState<MarketingRecord | null>(null);
+  const [detailType, setDetailType] = useState<ActivityTab | null>(null);
   const [editingRecord, setEditingRecord] = useState<MarketingRecord | null>(null);
   const couponQuery = useQuery({
     queryKey: ['marketingOverview', 'couponTemplates', keyword, status],
@@ -323,8 +330,18 @@ const MarketingManagement: React.FC = () => {
     form.resetFields();
   };
 
+  const openDetail = (type: ActivityTab, record: MarketingRecord) => {
+    setDetailType(type);
+    setDetail(record);
+  };
+
+  const closeDetail = () => {
+    setDetailType(null);
+    setDetail(null);
+  };
+
   const updateStatus = (type: ActivityTab, record: MarketingRecord, nextStatus: ActivityStatus) => {
-    const actionText = nextStatus === 'RUNNING' || nextStatus === 'ENABLED' ? '启动' : '暂停';
+    const actionText = nextStatus === 'RUNNING' || nextStatus === 'ENABLED' ? '启动' : nextStatus === 'DISABLED' ? '停用' : '暂停';
     const name = 'templateName' in record ? record.templateName : record.activityName;
     showBusinessConfirm({
       title: `确认${actionText}活动`,
@@ -356,7 +373,7 @@ const MarketingManagement: React.FC = () => {
     { title: '使用门槛', dataIndex: 'thresholdType', width: 160, search: false, render: (_, record) => couponThresholdText(record) },
     { title: '有效期', dataIndex: 'validityType', width: 160, search: false, render: (_, record) => couponValidityText(record) },
     { title: '库存', dataIndex: 'stock', width: 120, search: false },
-    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: couponTemplateStatusMap, render: (_, record) => renderStatusTag(record.status, couponTemplateStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
     {
       title: '操作',
@@ -364,10 +381,10 @@ const MarketingManagement: React.FC = () => {
       search: false,
       render: (_, record) => (
         <Space>
-          <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+          <Button size="small" onClick={() => openDetail('coupon', record)}>详情</Button>
           <Button size="small" onClick={() => openModal('coupon', record)}>编辑</Button>
-          <Button size="small" onClick={() => updateStatus('coupon', record, record.status === 'ENABLED' || record.status === 'RUNNING' ? 'PAUSED' : 'ENABLED')}>
-            {record.status === 'RUNNING' || record.status === 'ENABLED' ? '暂停' : '启动'}
+          <Button size="small" onClick={() => updateStatus('coupon', record, record.status === 'ENABLED' || record.status === 'RUNNING' ? 'DISABLED' : 'ENABLED')}>
+            {record.status === 'RUNNING' || record.status === 'ENABLED' ? '停用' : '启动'}
           </Button>
         </Space>
       ),
@@ -402,7 +419,7 @@ const MarketingManagement: React.FC = () => {
       search: false,
       render: (_, record) => (
         <Space>
-          <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+          <Button size="small" onClick={() => openDetail('invite', record)}>详情</Button>
           <Button size="small" onClick={() => openModal('invite', record)}>配置</Button>
           <Button size="small" onClick={() => updateStatus('invite', record, record.status === 'RUNNING' ? 'PAUSED' : 'RUNNING')}>
             {record.status === 'RUNNING' ? '暂停' : '启动'}
@@ -441,7 +458,7 @@ const MarketingManagement: React.FC = () => {
       search: false,
       render: (_, record) => (
         <Space>
-          <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+          <Button size="small" onClick={() => openDetail('recharge', record)}>详情</Button>
           <Button size="small" onClick={() => openModal('recharge', record)}>编辑</Button>
           <Button size="small" onClick={() => updateStatus('recharge', record, record.status === 'RUNNING' ? 'PAUSED' : 'RUNNING')}>
             {record.status === 'RUNNING' ? '暂停' : '启动'}
@@ -572,7 +589,7 @@ const MarketingManagement: React.FC = () => {
                   <Form.Item name="templateCode" label="券模板编码" rules={[{ required: true, message: '请输入券模板编码' }]}><Input placeholder="例如：CP-NEW-202605" /></Form.Item>
                   <Form.Item name="templateName" label="券模板名称" rules={[{ required: true, message: '请输入券模板名称' }]}><Input placeholder="例如：新客首洗优惠券" /></Form.Item>
                   <Form.Item name="couponType" label="券类型"><Select options={couponTypeOptions} placeholder="请选择券类型" /></Form.Item>
-                  <Form.Item name="status" label="状态"><Select options={[...activityStatusOptions, { label: '启用', value: 'ENABLED' }]} placeholder="请选择状态" /></Form.Item>
+                  <Form.Item name="status" label="状态"><Select options={couponTemplateStatusOptions} placeholder="请选择状态" /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="bannerImageUrl" label="活动条Banner图片"><OssImageUpload prefix="activity/banners" placeholder="上传活动条Banner" /></Form.Item>
                 </div>
               </BusinessEditorSection>
@@ -687,11 +704,11 @@ const MarketingManagement: React.FC = () => {
         </Form>
       </BusinessEditorModal>
 
-      <BusinessDetailModal title="活动详情" open={!!detail} onCancel={() => setDetail(null)} width={720}>
+      <BusinessDetailModal title="活动详情" open={!!detail} onCancel={closeDetail} width={720}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
-            fields={('templateCode' in detail ? marketingDetailFields.coupon : 'qualifyCondition' in detail ? marketingDetailFields.invite : marketingDetailFields.recharge) as DetailField<Record<string, any>>[]}
+            fields={(detailType ? marketingDetailFields[detailType] : marketingDetailFields.coupon) as DetailField<Record<string, any>>[]}
             column={1}
             labelWidth={120}
           />

@@ -5,18 +5,18 @@ import { AccountBookOutlined, CalendarOutlined, PlusOutlined, TeamOutlined } fro
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useNavigate } from 'react-router-dom';
-import { partnerRoleOptions, profitRelationStatusOptions } from '@/constants/businessCatalog';
+import { auditStatusOptions, partnerRoleOptions, profitRelationStatusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
-import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { buildValueEnum, containsKeyword, formatAmount, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import api, { type ProfitPartnerRelationRecord, type ProfitRatioVersionRecord, type ProfitShareDetailRecord } from '@/services/backendService';
 
 const roleMap = buildValueEnum(partnerRoleOptions);
 const statusMap = buildValueEnum(profitRelationStatusOptions);
+const auditStatusMap = buildValueEnum(auditStatusOptions);
 
 const profitRelationDetailFields: DetailField<ProfitPartnerRelationRecord>[] = [
   { name: 'storeName', label: '门店' },
@@ -35,12 +35,16 @@ const ProfitSharingManagement: React.FC = () => {
   const navigate = useNavigate();
   const [form] = Form.useForm<ProfitPartnerRelationRecord>();
   const [profitAdjustForm] = Form.useForm<Record<string, unknown>>();
+  const [chargebackForm] = Form.useForm<Record<string, unknown>>();
   const [keyword, setKeyword] = useState('');
+  const [relationStatusFilter, setRelationStatusFilter] = useState<string>();
+  const [detailStatusFilter, setDetailStatusFilter] = useState<string>();
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<ProfitPartnerRelationRecord | null>(null);
   const [detail, setDetail] = useState<ProfitPartnerRelationRecord | null>(null);
   const [versionVisible, setVersionVisible] = useState(false);
   const [profitDetail, setProfitDetail] = useState<ProfitShareDetailRecord | null>(null);
+  const [chargebackTarget, setChargebackTarget] = useState<ProfitShareDetailRecord | null>(null);
 
   const closeModal = () => {
     setModalVisible(false);
@@ -49,12 +53,12 @@ const ProfitSharingManagement: React.FC = () => {
   };
 
   const relationQuery = useQuery({
-    queryKey: ['profitPartnerRelations', keyword],
-    queryFn: async () => (await api.profitPartnerRelation.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+    queryKey: ['profitPartnerRelations', keyword, relationStatusFilter],
+    queryFn: async () => (await api.profitPartnerRelation.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: relationStatusFilter })).data,
   });
   const detailQuery = useQuery({
-    queryKey: ['profitShareDetails', keyword],
-    queryFn: async () => (await api.profitShareDetail.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+    queryKey: ['profitShareDetails', keyword, detailStatusFilter],
+    queryFn: async () => (await api.profitShareDetail.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: detailStatusFilter })).data,
   });
   const versionQuery = useQuery({
     queryKey: ['profitRatioVersions', keyword],
@@ -66,7 +70,7 @@ const ProfitSharingManagement: React.FC = () => {
         ...values,
         partnerRole: values.partnerRole || values.role,
         shareRatio: Number(String(values.shareRatio ?? values.ratio ?? '0').replace('%', '')),
-        relationNo: values.relationNo || `REL${Date.now()}`,
+        relationNo: values.relationNo,
       };
       return editingRecord ? api.profitPartnerRelation.edit({ ...payload, id: editingRecord.id }) : api.profitPartnerRelation.add(payload);
     },
@@ -83,16 +87,7 @@ const ProfitSharingManagement: React.FC = () => {
     },
   });
   const chargebackMutation = useMutation({
-    mutationFn: (record: ProfitShareDetailRecord) => api.profitChargeback.add({
-      chargebackNo: `CB-${Date.now()}`,
-      orderNo: record.orderNo || record.serviceOrderNo,
-      serviceOrderNo: record.serviceOrderNo || record.orderNo,
-      storeName: record.storeName,
-      partnerName: record.partnerName,
-      chargebackAmount: record.actualAmount ?? record.shareAmount,
-      status: 'PENDING',
-      createdAt: new Date().toISOString(),
-    }),
+    mutationFn: (values: Record<string, unknown>) => api.profitChargeback.add(values),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['profitChargebacks'] });
       message.success('回冲记录已创建');
@@ -100,11 +95,12 @@ const ProfitSharingManagement: React.FC = () => {
     },
   });
   const confirmChargeback = (record: ProfitShareDetailRecord) => {
-    showBusinessConfirm({
-      title: '确认创建回冲记录',
-      content: `确定对「${record.partnerName || record.storeName || record.orderNo}」创建分润回冲记录吗？`,
-      okText: '确认回冲',
-      onOk: () => chargebackMutation.mutate(record),
+    setChargebackTarget(record);
+    chargebackForm.setFieldsValue({
+      detailNo: record.detailNo,
+      partnerName: record.partnerName,
+      chargebackAmount: record.actualAmount ?? record.shareAmount,
+      status: 'PENDING',
     });
   };
 
@@ -129,7 +125,7 @@ const ProfitSharingManagement: React.FC = () => {
     { title: '比例', dataIndex: 'ratio', width: 100, search: false },
     { title: '结算账户', dataIndex: 'settleAccount', width: 180, search: false },
     { title: '生效周期', dataIndex: 'period', width: 220, search: false },
-    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
+    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: auditStatusMap, render: (_, record) => renderStatusTag(record.status, auditStatusMap) },
     {
       title: '操作',
       width: 220,
@@ -150,7 +146,7 @@ const ProfitSharingManagement: React.FC = () => {
           <Button
             size="small"
             onClick={() => {
-              api.profitPartnerRelation.edit({ ...(record as unknown as Record<string, unknown>), status: record.status === 'EFFECTIVE' ? 'ENDED' : 'EFFECTIVE' }).then(() => {
+              api.profitPartnerRelation.edit({ ...(record as unknown as Record<string, unknown>), status: record.status === 'EFFECTIVE' ? 'CLOSED' : 'EFFECTIVE' }).then(() => {
                 queryClient.invalidateQueries({ queryKey: ['profitPartnerRelations'] });
                 message.success('合伙关系状态已更新');
               });
@@ -239,8 +235,8 @@ const ProfitSharingManagement: React.FC = () => {
                     新建合伙关系
                   </Button>,
                 ]}
-                onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-                onReset={() => setKeyword('')}
+                onSubmit={(values) => { setKeyword(String(values.keyword || '')); setRelationStatusFilter(values.status ? String(values.status) : undefined); }}
+                onReset={() => { setKeyword(''); setRelationStatusFilter(undefined); }}
               />
             ),
           },
@@ -260,8 +256,8 @@ const ProfitSharingManagement: React.FC = () => {
                 toolBarRender={() => [
                   <Button key="settle" onClick={() => navigate('/settlement')}>生成结算单</Button>,
                 ]}
-                onSubmit={(values) => setKeyword(String(values.keyword || ''))}
-                onReset={() => setKeyword('')}
+                onSubmit={(values) => { setKeyword(String(values.keyword || '')); setDetailStatusFilter(values.status ? String(values.status) : undefined); }}
+                onReset={() => { setKeyword(''); setDetailStatusFilter(undefined); }}
               />
             ),
           },
@@ -285,6 +281,7 @@ const ProfitSharingManagement: React.FC = () => {
             <BusinessEditorSection icon={<TeamOutlined />} title="关系基础" desc="定义门店、合伙人和合伙人角色。">
               <div className="merchant-editor-fields">
                 <Form.Item name="storeName" label="门店" rules={[{ required: true, message: '请输入门店' }]}><Input placeholder="例如：浦东旗舰店" /></Form.Item>
+                <Form.Item name="relationNo" label="关系编号" rules={[{ required: true, message: '请输入关系编号' }]}><Input placeholder="例如：REL-20260628-001" /></Form.Item>
                 <Form.Item name="partnerName" label="合伙人" rules={[{ required: true, message: '请输入合伙人' }]}><Input placeholder="例如：张三" /></Form.Item>
                 <Form.Item name="partnerRole" label="角色" rules={[{ required: true, message: '请选择角色' }]}><Select options={partnerRoleOptions} placeholder="请选择角色" /></Form.Item>
                 <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={profitRelationStatusOptions} placeholder="请选择状态" /></Form.Item>
@@ -372,11 +369,54 @@ const ProfitSharingManagement: React.FC = () => {
             </BusinessEditorSection>
             <BusinessEditorSection icon={<CalendarOutlined />} title="处理闭环" desc="记录确认状态、确认人和调整说明。">
               <div className="merchant-editor-fields">
-                <Form.Item name="status" label="处理状态" rules={[{ required: true, message: '请选择处理状态' }]}><Select options={profitRelationStatusOptions} placeholder="请选择状态" /></Form.Item>
+                <Form.Item name="status" label="处理状态" rules={[{ required: true, message: '请选择处理状态' }]}><Select options={auditStatusOptions} placeholder="请选择状态" /></Form.Item>
                 <Form.Item name="confirmer" label="确认人"><Input placeholder="例如：财务专员" /></Form.Item>
                 <Form.Item name="confirmNo" label="确认单号"><Input placeholder="例如：CONF-20260510-001" /></Form.Item>
                 <Form.Item name="confirmedAt" label="确认时间"><Input placeholder="2026-05-10 10:00:00" /></Form.Item>
                 <Form.Item className="merchant-editor-field-span-all" name="confirmRemark" label="确认说明"><Input.TextArea rows={3} placeholder="填写比例调整、异常回冲或结算备注" /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+          </div>
+        </Form>
+      </BusinessEditorModal>
+
+      <BusinessEditorModal
+        eyebrow="分润回冲"
+        title={chargebackTarget ? `创建回冲 · ${chargebackTarget.partnerName || chargebackTarget.storeName || chargebackTarget.detailNo}` : '创建回冲'}
+        subtitle="录入回冲单号、退款单号和回冲金额，后台不再自动生成业务编号。"
+        meta={[chargebackTarget?.detailNo || '分润明细', chargebackTarget?.partnerName || '合伙人']}
+        open={!!chargebackTarget}
+        onCancel={() => {
+          setChargebackTarget(null);
+          chargebackForm.resetFields();
+        }}
+        onOk={async () => {
+          if (!chargebackTarget) return;
+          const values = await chargebackForm.validateFields();
+          await chargebackMutation.mutateAsync({
+            ...values,
+            detailNo: values.detailNo || chargebackTarget.detailNo,
+            partnerName: values.partnerName || chargebackTarget.partnerName,
+            chargebackAmount: Number(values.chargebackAmount || 0),
+            status: values.status || 'PENDING',
+          });
+          setChargebackTarget(null);
+          chargebackForm.resetFields();
+        }}
+        confirmLoading={chargebackMutation.isPending}
+        width={860}
+        okText="创建回冲"
+      >
+        <Form form={chargebackForm} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<AccountBookOutlined />} title="回冲信息" desc="回冲单号由业务显式录入，避免系统自动生成。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="chargebackNo" label="回冲单号" rules={[{ required: true, message: '请输入回冲单号' }]}><Input placeholder="例如：PCB-20260628-001" /></Form.Item>
+                <Form.Item name="detailNo" label="分润明细"><Input disabled placeholder="分润明细号" /></Form.Item>
+                <Form.Item name="refundNo" label="退款单号"><Input placeholder="关联退款单号" /></Form.Item>
+                <Form.Item name="partnerName" label="合伙人"><Input disabled placeholder="合伙人" /></Form.Item>
+                <Form.Item name="chargebackAmount" label="回冲金额" rules={[{ required: true, message: '请输入回冲金额' }]}><InputNumber min={0} precision={2} style={{ width: '100%' }} /></Form.Item>
+                <Form.Item name="status" label="回冲状态" rules={[{ required: true, message: '请选择回冲状态' }]}><Select options={auditStatusOptions} /></Form.Item>
               </div>
             </BusinessEditorSection>
           </div>

@@ -1,13 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Row, Statistic, Tabs } from 'antd';
+import { Button, Card, Col, Row, Select, Space, Statistic, Tabs } from 'antd';
 import { TransactionOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import {
   balanceFlowTypeOptions,
+  riskStatusOptions,
   serviceCardStatusOptions,
-  templateStatusOptions,
   userLevelOptions,
   writeOffStatusOptions,
 } from '@/constants/businessCatalog';
@@ -20,8 +20,14 @@ import type { AppUserProfileRecord, BalanceFlowRecord, ServiceCardRecord, Servic
 
 type DetailRecord = BalanceFlowRecord | AppUserProfileRecord | UserServiceCardRecord | ServiceCardRecord | ServiceCardUsageRecord | UserRiskRecord;
 
+const serviceCardProductStatusOptions = [
+  { value: 'DRAFT', label: '草稿' },
+  { value: 'ENABLED', label: '启用' },
+  { value: 'DISABLED', label: '停用' },
+];
+
 const balanceFlowTypeMap = buildValueEnum(balanceFlowTypeOptions);
-const serviceCardProductStatusMap = buildValueEnum(templateStatusOptions);
+const serviceCardProductStatusMap = buildValueEnum(serviceCardProductStatusOptions);
 const userServiceCardStatusMap = buildValueEnum(serviceCardStatusOptions);
 const usageStatusMap = buildValueEnum(writeOffStatusOptions);
 const userLevelMap = buildValueEnum(userLevelOptions);
@@ -136,30 +142,36 @@ const resolveAssetFlowDetailTitle = (detail: DetailRecord | null) => {
 
 const AssetFlowManagement: React.FC = () => {
   const [keyword, setKeyword] = useState('');
+  const [flowTypeFilter, setFlowTypeFilter] = useState<string>();
+  const [profileRiskStatusFilter, setProfileRiskStatusFilter] = useState<string>();
+  const [serviceCardStatusFilter, setServiceCardStatusFilter] = useState<string>();
+  const [userCardStatusFilter, setUserCardStatusFilter] = useState<string>();
+  const [usageStatusFilter, setUsageStatusFilter] = useState<string>();
+  const [riskStatusFilter, setRiskStatusFilter] = useState<string>();
   const [detail, setDetail] = useState<DetailRecord | null>(null);
   const balanceFlowQuery = useQuery({
-    queryKey: ['assetFlowBalanceFlows', keyword],
-    queryFn: async () => (await api.asset.balanceFlows.page({ pageNum: 1, pageSize: 200, keyword })).data,
+    queryKey: ['assetFlowBalanceFlows', keyword, flowTypeFilter],
+    queryFn: async () => (await api.asset.balanceFlows.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, flowType: flowTypeFilter })).data,
   });
   const profileQuery = useQuery({
-    queryKey: ['assetFlowProfiles', keyword],
-    queryFn: async () => (await api.asset.profiles.page({ pageNum: 1, pageSize: 200, keyword })).data,
+    queryKey: ['assetFlowProfiles', keyword, profileRiskStatusFilter],
+    queryFn: async () => (await api.asset.profiles.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, riskStatus: profileRiskStatusFilter })).data,
   });
   const serviceCardQuery = useQuery({
-    queryKey: ['assetFlowServiceCards', keyword],
-    queryFn: async () => (await api.asset.serviceCards.page({ pageNum: 1, pageSize: 200, keyword })).data,
+    queryKey: ['assetFlowServiceCards', keyword, serviceCardStatusFilter],
+    queryFn: async () => (await api.asset.serviceCards.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: serviceCardStatusFilter })).data,
   });
   const userServiceCardQuery = useQuery({
-    queryKey: ['assetFlowUserServiceCards', keyword],
-    queryFn: async () => (await api.asset.userServiceCards.page({ pageNum: 1, pageSize: 200, keyword })).data,
+    queryKey: ['assetFlowUserServiceCards', keyword, userCardStatusFilter],
+    queryFn: async () => (await api.asset.userServiceCards.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: userCardStatusFilter })).data,
   });
   const serviceCardUsageQuery = useQuery({
-    queryKey: ['assetFlowServiceCardUsages', keyword],
-    queryFn: async () => (await api.asset.serviceCardUsages.page({ pageNum: 1, pageSize: 200, keyword })).data,
+    queryKey: ['assetFlowServiceCardUsages', keyword, usageStatusFilter],
+    queryFn: async () => (await api.asset.serviceCardUsages.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: usageStatusFilter })).data,
   });
   const riskQuery = useQuery({
-    queryKey: ['assetFlowRiskRecords', keyword],
-    queryFn: async () => (await api.asset.riskRecords.page({ pageNum: 1, pageSize: 200, keyword })).data,
+    queryKey: ['assetFlowRiskRecords', keyword, riskStatusFilter],
+    queryFn: async () => (await api.asset.riskRecords.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, riskStatus: riskStatusFilter })).data,
   });
   const balanceFlows = balanceFlowQuery.data?.records || [];
   const profiles = profileQuery.data?.records || [];
@@ -254,11 +266,19 @@ const AssetFlowManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="风控记录" value={riskQuery.data?.total ?? riskRecords.length} suffix="条" /></Card></Col>
       </Row>
 
-      <KeywordSearchBar
-        value={keyword}
-        placeholder="输入用户、流水、充值单、标签、等级关键词"
-        onSearch={setKeyword}
-      />
+      <Space size={12} wrap style={{ marginBottom: 16 }}>
+        <KeywordSearchBar
+          value={keyword}
+          placeholder="输入用户、流水、卡号、风控关键词"
+          onSearch={setKeyword}
+        />
+        <Select allowClear placeholder="流水类型" style={{ width: 140 }} options={balanceFlowTypeOptions} value={flowTypeFilter} onChange={setFlowTypeFilter} />
+        <Select allowClear placeholder="档案风控" style={{ width: 140 }} options={riskStatusOptions} value={profileRiskStatusFilter} onChange={setProfileRiskStatusFilter} />
+        <Select allowClear placeholder="卡产品状态" style={{ width: 140 }} options={serviceCardProductStatusOptions} value={serviceCardStatusFilter} onChange={setServiceCardStatusFilter} />
+        <Select allowClear placeholder="用户卡状态" style={{ width: 140 }} options={serviceCardStatusOptions} value={userCardStatusFilter} onChange={setUserCardStatusFilter} />
+        <Select allowClear placeholder="扣次状态" style={{ width: 140 }} options={writeOffStatusOptions} value={usageStatusFilter} onChange={setUsageStatusFilter} />
+        <Select allowClear placeholder="风控状态" style={{ width: 140 }} options={riskStatusOptions} value={riskStatusFilter} onChange={setRiskStatusFilter} />
+      </Space>
 
       <Tabs
         items={[

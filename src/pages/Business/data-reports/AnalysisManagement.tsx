@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Table, Tabs, message } from 'antd';
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Table, Tabs, message } from 'antd';
 import { BarChartOutlined, DashboardOutlined, LineChartOutlined, TeamOutlined } from '@ant-design/icons';
 import { analysisSnapshotTypeOptions, reportDimensionOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
@@ -98,11 +98,21 @@ const AnalysisManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const [detail, setDetail] = useState<AnalysisSnapshotRecord | DerivedStoreRecord | DerivedMarketingRecord | null>(null);
   const [metricVisible, setMetricVisible] = useState(false);
+  const [keywordInput, setKeywordInput] = useState('');
+  const [keyword, setKeyword] = useState('');
+  const [snapshotTypeFilter, setSnapshotTypeFilter] = useState<string>();
+  const [dimensionFilter, setDimensionFilter] = useState<string>();
   const [metricForm] = Form.useForm<AnalysisSnapshotRecord & { owner?: string; metricScene?: string; compareBasis?: string; supplement?: string }>();
 
   const snapshotQuery = useQuery({
-    queryKey: ['analysisSnapshots'],
-    queryFn: async () => (await api.analysis.snapshots.page({ pageNum: 1, pageSize: 200 })).data,
+    queryKey: ['analysisSnapshots', keyword, snapshotTypeFilter, dimensionFilter],
+    queryFn: async () => (await api.analysis.snapshots.page({
+      pageNum: 1,
+      pageSize: 200,
+      keyword: keyword || undefined,
+      snapshotType: snapshotTypeFilter,
+      dimension: dimensionFilter,
+    })).data,
   });
   const saveMetricMutation = useMutation({
     mutationFn: (values: Record<string, unknown>) => api.analysis.snapshots.add({
@@ -202,6 +212,33 @@ const AnalysisManagement: React.FC = () => {
             label: '经营快照',
             children: (
               <Card extra={<Button onClick={() => setMetricVisible(true)}>指标口径</Button>}>
+                <Space wrap style={{ marginBottom: 16 }}>
+                  <Input.Search
+                    allowClear
+                    placeholder="维度名称 / 指标编码 / 负责人"
+                    value={keywordInput}
+                    onChange={(event) => setKeywordInput(event.target.value)}
+                    onSearch={(value) => setKeyword(value.trim())}
+                    style={{ width: 260 }}
+                  />
+                  <Select
+                    allowClear
+                    placeholder="快照类型"
+                    options={analysisSnapshotTypeOptions}
+                    value={snapshotTypeFilter}
+                    onChange={setSnapshotTypeFilter}
+                    style={{ width: 180 }}
+                  />
+                  <Select
+                    allowClear
+                    placeholder="分析维度"
+                    options={reportDimensionOptions}
+                    value={dimensionFilter}
+                    onChange={setDimensionFilter}
+                    style={{ width: 160 }}
+                  />
+                  <Button onClick={() => { setKeywordInput(''); setKeyword(''); setSnapshotTypeFilter(undefined); setDimensionFilter(undefined); }}>重置</Button>
+                </Space>
                 <Table<AnalysisSnapshotRecord>
                   loading={snapshotQuery.isLoading}
                   pagination={{ pageSize: 8 }}

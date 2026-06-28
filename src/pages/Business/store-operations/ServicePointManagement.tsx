@@ -9,7 +9,6 @@ import {
   pointAbilityOptions,
   pointStatusOptions,
   pointTypeOptions,
-  maintainStatusOptions,
   statusOptions,
 } from '@/constants/businessCatalog';
 import api from '@/services/backendService';
@@ -29,6 +28,13 @@ const qrStatusOptions = [
   { value: 'EXPIRED', label: '已过期' },
 ];
 const qrStatusMap = buildValueEnum(qrStatusOptions);
+const pointMaintainStatusOptions = [
+  { value: 'PENDING', label: '待处理' },
+  { value: 'PROCESSING', label: '处理中' },
+  { value: 'COMPLETED', label: '已完成' },
+  { value: 'CANCELLED', label: '已取消' },
+];
+const pointMaintainStatusMap = buildValueEnum(pointMaintainStatusOptions);
 
 const normalizePointValues = (values: Record<string, any>) => ({
   ...values,
@@ -126,7 +132,7 @@ const ServicePointManagement: React.FC = () => {
       { title: '二维码状态', dataIndex: 'qrStatus', width: 120, search: false, render: (_, record) => renderStatusTag(record.qrStatus, qrStatusMap) },
       { title: '设备数', dataIndex: 'deviceCount', width: 90, search: false, render: (_, record) => record.deviceCount ?? 0 },
       { title: '绑定设备', dataIndex: 'bindDeviceCodes', width: 180, search: false, render: (_, record) => record.bindDeviceCodes || '-' },
-      { title: '维护状态', dataIndex: 'maintainStatus', width: 120, search: false, render: (_, record) => renderStatusTag(record.maintainStatus, buildValueEnum(maintainStatusOptions) as any) },
+      { title: '维护状态', dataIndex: 'maintainStatus', width: 120, search: false, render: (_, record) => renderStatusTag(record.maintainStatus, pointMaintainStatusMap) },
       { title: '排队提示', dataIndex: 'queueEnabled', width: 100, search: false, render: (_, record) => renderBooleanTag(record.queueEnabled, '开启', '关闭') },
       { title: '排序', dataIndex: 'sortNo', width: 100, search: false, render: (_, record) => record.sortNo ?? 0 },
       {
@@ -321,7 +327,7 @@ const ServicePointManagement: React.FC = () => {
                 <Form.Item name="pointCode" label="点位编号" rules={[{ required: true, message: '请输入点位编号' }]}>
                   <Input placeholder="例如：BAY-A-01" />
                 </Form.Item>
-                <Form.Item name="pointName" label="点位名称">
+                <Form.Item name="pointName" label="点位名称" rules={[{ required: true, message: '请输入点位名称' }]}>
                   <Input placeholder="例如：A 区 1 号洗车位" />
                 </Form.Item>
                 <Form.Item name="pointType" label="点位类型" rules={[{ required: true, message: '请选择点位类型' }]}>
@@ -367,7 +373,7 @@ const ServicePointManagement: React.FC = () => {
                   <Input placeholder="多个设备编号可用逗号分隔，例如 DEV-HP-001, DEV-FOAM-002" />
                 </Form.Item>
                 <Form.Item name="maintainStatus" label="维护状态">
-                  <Select options={maintainStatusOptions} placeholder="请选择维护状态" />
+                  <Select options={pointMaintainStatusOptions} placeholder="请选择维护状态" />
                 </Form.Item>
                 <Form.Item name="lastMaintainAt" label="最近维护时间">
                   <DateTimeField />

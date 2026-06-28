@@ -31,6 +31,7 @@ type CouponRecord = CouponTemplateRecord;
 
 type AssetModalType = 'tag' | 'balance' | 'freeze' | 'coupon' | 'reward' | 'refund' | null;
 type HelperType = 'batchTags' | 'riskBlacklist' | 'guide' | null;
+type AssetDetailType = keyof typeof assetDetailFields;
 
 const userLevelMap = buildValueEnum(userLevelOptions);
 const riskStatusMap = buildValueEnum(riskStatusOptions);
@@ -149,6 +150,13 @@ const assetDetailFields: Record<'profile' | 'balance' | 'coupon' | 'recharge' | 
     { name: 'rechargeNo', label: '充值单号' },
     { name: 'userName', label: '用户' },
     { name: 'phone', label: '手机号' },
+    { name: 'storeName', label: '充值门店' },
+    { name: 'scopeType', label: '可用范围' },
+    { name: 'merchantGroupName', label: '门店组' },
+    { name: 'settlementMode', label: '结算模式' },
+    { name: 'settlementRule', label: '结算规则' },
+    { name: 'settlementStatus', label: '结算状态' },
+    { name: 'settlementRuleSnapshot', label: '规则快照' },
     { name: 'activityName', label: '活动' },
     { name: 'payAmount', label: '实付金额', render: (value) => formatAmount(value) },
     { name: 'giftAmount', label: '赠送金额', render: (value) => formatAmount(value) },
@@ -172,9 +180,11 @@ const AssetManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [detail, setDetail] = useState<UserAssetRecord | BalanceRecord | CouponRecord | RechargeOrderRecord | BalanceFlowRecord | null>(null);
+  const [detailType, setDetailType] = useState<AssetDetailType>('profile');
   const [modalType, setModalType] = useState<AssetModalType>(null);
   const [currentId, setCurrentId] = useState<string | number | null>(null);
   const [assetKeyword, setAssetKeyword] = useState('');
+  const [assetRiskStatus, setAssetRiskStatus] = useState<string | undefined>();
   const [balanceKeyword, setBalanceKeyword] = useState('');
   const [couponKeyword, setCouponKeyword] = useState('');
   const [rechargeKeyword, setRechargeKeyword] = useState('');
@@ -195,8 +205,8 @@ const AssetManagement: React.FC = () => {
     queryFn: async () => (await api.asset.balanceFlows.page({ pageNum: 1, pageSize: 200, keyword: flowKeyword || undefined })).data,
   });
   const profileQuery = useQuery({
-    queryKey: ['assetProfilesOverview', assetKeyword],
-    queryFn: async () => (await api.asset.profiles.page({ pageNum: 1, pageSize: 200, keyword: assetKeyword || undefined })).data,
+    queryKey: ['assetProfilesOverview', assetKeyword, assetRiskStatus],
+    queryFn: async () => (await api.asset.profiles.page({ pageNum: 1, pageSize: 200, keyword: assetKeyword || undefined, riskStatus: assetRiskStatus })).data,
   });
   const couponQuery = useQuery({
     queryKey: ['assetCouponTemplatesOverview', couponKeyword],
@@ -244,6 +254,11 @@ const AssetManagement: React.FC = () => {
     setHelperVisible(true);
   };
 
+  const openDetail = (record: UserAssetRecord | BalanceRecord | CouponRecord | RechargeOrderRecord | BalanceFlowRecord, type: AssetDetailType) => {
+    setDetail(record);
+    setDetailType(type);
+  };
+
   const filteredUsers = useMemo(() => users.filter((item) => containsKeyword(assetKeyword, [item.userName, item.mobile, item.memberLevel, item.riskStatus, item.remark])), [assetKeyword, users]);
   const filteredBalances = useMemo(() => balances.filter((item) => containsKeyword(balanceKeyword, [item.accountNo, item.userName, item.phone, item.latestChange])), [balanceKeyword, balances]);
   const filteredCoupons = useMemo(() => coupons.filter((item) => containsKeyword(couponKeyword, [item.templateCode, item.templateName, item.couponType, item.scope])), [couponKeyword, coupons]);
@@ -264,7 +279,7 @@ const AssetManagement: React.FC = () => {
       search: false,
       render: (_, record) => (
         <Space>
-          <Button size="small" onClick={() => setDetail(record)}>查看画像</Button>
+          <Button size="small" onClick={() => openDetail(record, 'profile')}>查看画像</Button>
           <Button
             size="small"
             onClick={() => {
@@ -297,7 +312,7 @@ const AssetManagement: React.FC = () => {
       search: false,
       render: (_, record) => (
         <Space>
-          <Button size="small" onClick={() => setDetail(record)}>查看</Button>
+          <Button size="small" onClick={() => openDetail(record, 'balance')}>查看</Button>
           <Button
             size="small"
             onClick={() => {
@@ -338,7 +353,7 @@ const AssetManagement: React.FC = () => {
       search: false,
       render: (_, record) => (
         <Space>
-          <Button size="small" onClick={() => setDetail(record)}>查看</Button>
+          <Button size="small" onClick={() => openDetail(record, 'coupon')}>查看</Button>
           <Button
             size="small"
             onClick={() => {
@@ -360,6 +375,11 @@ const AssetManagement: React.FC = () => {
     { title: '用户', dataIndex: 'userName', width: 120, search: false },
     { title: '手机号', dataIndex: 'phone', width: 140, search: false },
     { title: '活动', dataIndex: 'activityName', width: 180, search: false },
+    { title: '充值门店', dataIndex: 'storeName', width: 160, search: false, renderText: (value) => value || '-' },
+    { title: '门店组', dataIndex: 'merchantGroupName', width: 180, search: false, renderText: (value) => value || '-' },
+    { title: '可用范围', dataIndex: 'scopeType', width: 120, search: false, renderText: (value) => value || '-' },
+    { title: '结算规则', dataIndex: 'settlementRule', width: 160, search: false, renderText: (value, record) => [record.settlementMode, value].filter(Boolean).join(' / ') || '-' },
+    { title: '结算状态', dataIndex: 'settlementStatus', width: 120, search: false, renderText: (value) => value || '-' },
     { title: '实付金额', dataIndex: 'payAmount', width: 120, search: false, render: (_, record) => formatAmount(record.payAmount) },
     { title: '赠送金额', dataIndex: 'giftAmount', width: 120, search: false, render: (_, record) => formatAmount(record.giftAmount) },
     { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: rechargeStatusMap, render: (_, record) => renderStatusTag(record.status, rechargeStatusMap) },
@@ -370,7 +390,7 @@ const AssetManagement: React.FC = () => {
       search: false,
       render: (_, record) => (
         <Space>
-          <Button size="small" onClick={() => setDetail(record)}>查看</Button>
+          <Button size="small" onClick={() => openDetail(record, 'recharge')}>查看</Button>
           <Button size="small" onClick={() => { setModalType('reward'); setCurrentId(record.id); form.setFieldsValue({ rewardAmount: record.giftAmount, rewardType: 'BALANCE', businessScene: '充值异常', handleMethod: '补发', affectedAssets: ['赠送余额'], notifyUser: '短信通知', approvalRequired: '主管已审批' }); }}>补发奖励</Button>
           <Button size="small" onClick={() => { setModalType('refund'); setCurrentId(record.id); form.setFieldsValue({ refundAmount: record.payAmount, businessScene: '退款售后', handleMethod: '扣回', affectedAssets: ['本金余额', '赠送余额'], notifyUser: '客服跟进', approvalRequired: '财务已审批' }); }}>退款回收</Button>
         </Space>
@@ -389,7 +409,7 @@ const AssetManagement: React.FC = () => {
     { title: '操作人', dataIndex: 'operator', width: 120, search: false },
     { title: '说明', dataIndex: 'remark', width: 220, search: false },
     { title: '创建时间', dataIndex: 'createdAt', width: 180, search: false, render: (_, record) => formatDateTime(record.createdAt) },
-    { title: '操作', width: 100, search: false, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>查看</Button> },
+    { title: '操作', width: 100, search: false, render: (_, record) => <Button size="small" onClick={() => openDetail(record, 'flow')}>查看</Button> },
   ];
 
   const handleModalSubmit = async () => {
@@ -493,8 +513,14 @@ const AssetManagement: React.FC = () => {
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1500 }}
                 toolBarRender={() => [<Button key="tag" onClick={() => openHelper('batchTags', '批量打标签', '按手机号或用户名批量更新用户标签、会员等级和风控状态。')}>批量打标签</Button>, <Button key="blacklist" type="primary" onClick={() => openHelper('riskBlacklist', '风控名单管理', '按手机号或用户名加入资产风控名单，并同步更新用户风控状态。')}>风控名单管理</Button>]}
-                onSubmit={(values) => setAssetKeyword(String(values.keyword || ''))}
-                onReset={() => setAssetKeyword('')}
+                onSubmit={(values) => {
+                  setAssetKeyword(String(values.keyword || ''));
+                  setAssetRiskStatus(values.riskStatus as string | undefined);
+                }}
+                onReset={() => {
+                  setAssetKeyword('');
+                  setAssetRiskStatus(undefined);
+                }}
               />
             ),
           },
@@ -789,7 +815,7 @@ const AssetManagement: React.FC = () => {
             <Card title="资产概览" style={{ marginBottom: 16 }}>
               <SchemaDetail
                 record={detail as Record<string, any>}
-                fields={('flowNo' in detail ? assetDetailFields.flow : 'rechargeNo' in detail ? assetDetailFields.recharge : 'templateName' in detail ? assetDetailFields.coupon : 'balance' in detail ? assetDetailFields.balance : assetDetailFields.profile) as DetailField<Record<string, any>>[]}
+                fields={assetDetailFields[detailType] as DetailField<Record<string, any>>[]}
                 column={1}
                 labelWidth={110}
               />

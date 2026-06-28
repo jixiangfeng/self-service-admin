@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   riskStatusOptions,
   userLevelOptions,
+  yesNoTextOptions,
   writeOffStatusOptions,
 } from '@/constants/businessCatalog';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
@@ -28,6 +29,8 @@ import type {
 const userLevelMap = buildValueEnum(userLevelOptions);
 const riskStatusMap = buildValueEnum(riskStatusOptions);
 const writeOffStatusMap = buildValueEnum(writeOffStatusOptions);
+const defaultFlagFormOptions = yesNoTextOptions.filter((item) => ['YES', 'NO'].includes(String(item.value)));
+const defaultFlagMap = buildValueEnum(defaultFlagFormOptions);
 
 const profileSceneOptions = [
   { value: '资料补全', label: '资料补全' },
@@ -215,7 +218,7 @@ const UserProfileManagement: React.FC = () => {
     { title: '车辆类型', dataIndex: 'vehicleType', width: 120 , render: (value) => formatEnumText(value, 'vehicleType', '车辆类型') },
     { title: '品牌', dataIndex: 'brand', width: 120 },
     { title: '颜色', dataIndex: 'color', width: 100 },
-    { title: '默认车辆', dataIndex: 'defaultFlag', width: 110 , render: (value) => formatEnumText(value, 'defaultFlag', '默认车辆') },
+    { title: '默认车辆', dataIndex: 'defaultFlag', width: 110 , render: (_, record) => renderStatusTag(record.defaultFlag, defaultFlagMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
   ], []);
 
@@ -351,7 +354,7 @@ const UserProfileManagement: React.FC = () => {
                   <Form.Item name="vehicleType" label="车辆类型"><Select options={vehicleTypeOptions} placeholder="请选择车辆类型" /></Form.Item>
                   <Form.Item name="brand" label="品牌"><Input placeholder="填写品牌名称" /></Form.Item>
                   <Form.Item name="color" label="颜色"><Select options={colorOptions} placeholder="请选择车身颜色" /></Form.Item>
-                  <Form.Item name="defaultFlag" label="默认车辆" initialValue="否"><Select options={[{ value: '是', label: '是' }, { value: '否', label: '否' }]} /></Form.Item>
+                  <Form.Item name="defaultFlag" label="默认车辆" initialValue="NO"><Select options={defaultFlagFormOptions} /></Form.Item>
                 </div>
               </BusinessEditorSection>
             ) : null}

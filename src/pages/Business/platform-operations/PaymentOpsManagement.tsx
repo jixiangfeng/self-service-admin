@@ -48,6 +48,15 @@ const reconcileReasonOptions = [
   { value: 'REFUND_DIFF', label: '退款差异' },
   { value: 'MANUAL_REVIEW', label: '人工复核' },
 ];
+const paymentChannelStatusOptions = publishStatusOptions.filter((item) => ['DRAFT', 'PUBLISHED', 'OFFLINE'].includes(String(item.value)));
+const paymentReconciliationStatusOptions = [
+  { value: 'PENDING', label: '待对账' },
+  { value: 'MATCHED', label: '已平账' },
+  { value: 'DIFF', label: '存在差异' },
+  { value: 'HANDLING', label: '处理中' },
+  { value: 'RESOLVED', label: '已处理' },
+  { value: 'IGNORED', label: '已忽略' },
+];
 const compactJoin = (items: Array<string | undefined | false>) => items.filter(Boolean).join('；');
 const optionLabel = (options: { value: string | number; label: string }[], value?: string | number) => options.find((item) => item.value === value)?.label || value;
 
@@ -187,8 +196,15 @@ const PaymentOpsManagement: React.FC = () => {
   const openModal = (title: string) => {
     setModalTitle(title);
     form.resetFields();
+    const status = title.includes('支付渠道')
+      ? 'PUBLISHED'
+      : title.includes('退款')
+        ? 'PROCESSING'
+        : title.includes('对账')
+          ? 'PENDING'
+          : 'PENDING';
     form.setFieldsValue({
-      status: 'PENDING',
+      status,
       callbackType: title.includes('退款') ? 'REFUND_SUCCESS' : 'PAY_SUCCESS',
       reconcileReason: 'MANUAL_REVIEW',
     });
@@ -330,7 +346,7 @@ const PaymentOpsManagement: React.FC = () => {
             values.owner ? `处理人：${values.owner}` : undefined,
           ]);
           if (modalTitle.includes('支付渠道')) {
-            await api.payment.channels.add(values);
+            await api.payment.channels.add({ ...values, status: values.status || 'PUBLISHED' });
             queryClient.invalidateQueries({ queryKey: ['paymentChannels'] });
             message.success('支付渠道已创建');
           } else if (modalTitle.includes('支付回调')) {
@@ -342,7 +358,7 @@ const PaymentOpsManagement: React.FC = () => {
             queryClient.invalidateQueries({ queryKey: ['refundCallbackLogs'] });
             message.success('退款回调已登记');
           } else if (modalTitle.includes('对账')) {
-            await api.payment.reconciliations.add({ ...values, handleRemark: payloadSummary });
+            await api.payment.reconciliations.add({ ...values, status: values.status || 'PENDING', handleRemark: payloadSummary });
             queryClient.invalidateQueries({ queryKey: ['paymentReconciliations'] });
             message.success('对账记录已保存');
           }
@@ -392,7 +408,7 @@ const PaymentOpsManagement: React.FC = () => {
             ) : null}
             <BusinessEditorSection icon={<SafetyOutlined />} title="处理状态" desc="选择处理状态和处理人，系统生成回调报文摘要或对账处理说明。">
               <div className="merchant-editor-fields">
-                <Form.Item name="status" label="状态"><Select options={auditStatusOptions} placeholder="请选择状态" /></Form.Item>
+                <Form.Item name="status" label="状态"><Select options={modalTitle.includes('支付渠道') ? paymentChannelStatusOptions : modalTitle.includes('退款') ? refundStatusOptions : modalTitle.includes('对账') ? paymentReconciliationStatusOptions : auditStatusOptions} placeholder="请选择状态" /></Form.Item>
                 <Form.Item name="owner" label="处理人"><Input placeholder="例如：支付运营-王敏" /></Form.Item>
               </div>
             </BusinessEditorSection>

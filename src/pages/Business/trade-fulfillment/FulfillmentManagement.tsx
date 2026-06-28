@@ -51,6 +51,8 @@ interface PerformRecord {
   remark: string;
 }
 
+type FulfillmentDetailType = 'writeoff' | 'perform';
+
 const writeOffStatusMap = buildValueEnum(writeOffStatusOptions);
 const writeOffObjectTypeMap = buildValueEnum(writeOffObjectTypeOptions);
 const writeOffMethodMap = buildValueEnum(writeOffMethodOptions);
@@ -159,7 +161,10 @@ const FulfillmentManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const [writeOffKeyword, setWriteOffKeyword] = useState('');
   const [performKeyword, setPerformKeyword] = useState('');
+  const [writeOffFilters, setWriteOffFilters] = useState<Record<string, string | undefined>>({});
+  const [performFilters, setPerformFilters] = useState<Record<string, string | undefined>>({});
   const [detail, setDetail] = useState<WriteOffRecord | PerformRecord | null>(null);
+  const [detailType, setDetailType] = useState<FulfillmentDetailType | null>(null);
   const [actionModalVisible, setActionModalVisible] = useState(false);
   const [actionType, setActionType] = useState<'writeoff' | 'perform'>('writeoff');
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -167,12 +172,24 @@ const FulfillmentManagement: React.FC = () => {
   const [createType, setCreateType] = useState<'writeoff' | 'perform' | null>(null);
   const [createForm] = Form.useForm();
   const writeOffQuery = useQuery({
-    queryKey: ['writeOffRecords', writeOffKeyword],
-    queryFn: async () => (await api.writeOffRecord.page({ pageNum: 1, pageSize: 200, keyword: writeOffKeyword || undefined })).data,
+    queryKey: ['writeOffRecords', writeOffKeyword, writeOffFilters.status, writeOffFilters.objectType],
+    queryFn: async () => (await api.writeOffRecord.page({
+      pageNum: 1,
+      pageSize: 200,
+      keyword: writeOffKeyword || undefined,
+      status: writeOffFilters.status,
+      objectType: writeOffFilters.objectType,
+    })).data,
   });
   const performQuery = useQuery({
-    queryKey: ['performRecords', performKeyword],
-    queryFn: async () => (await api.performRecord.page({ pageNum: 1, pageSize: 200, keyword: performKeyword || undefined })).data,
+    queryKey: ['performRecords', performKeyword, performFilters.status, performFilters.scene],
+    queryFn: async () => (await api.performRecord.page({
+      pageNum: 1,
+      pageSize: 200,
+      keyword: performKeyword || undefined,
+      status: performFilters.status,
+      scene: performFilters.scene,
+    })).data,
   });
   const writeoffs = ((writeOffQuery.data as any)?.records || []) as WriteOffRecord[];
   const performs = ((performQuery.data as any)?.records || []) as PerformRecord[];
@@ -228,7 +245,20 @@ const FulfillmentManagement: React.FC = () => {
     });
   };
 
-  const filteredWriteOffs = useMemo(() => writeoffs.filter((item) => containsKeyword(writeOffKeyword, [item.writeoffNo, item.objectType, item.objectName, item.serviceOrderNo, item.userName, item.storeName, item.result])), [writeOffKeyword, writeoffs]);
+  const openDetail = (type: FulfillmentDetailType, record: WriteOffRecord | PerformRecord) => {
+    setDetailType(type);
+    setDetail(record);
+  };
+
+  const closeDetail = () => {
+    setDetail(null);
+    setDetailType(null);
+  };
+
+  const filteredWriteOffs = useMemo(() => writeoffs.filter((item) => (
+    containsKeyword(writeOffKeyword, [item.writeoffNo, item.objectType, item.objectName, item.serviceOrderNo, item.userName, item.storeName, item.result])
+    && (!writeOffFilters.method || item.method === writeOffFilters.method)
+  )), [writeOffKeyword, writeOffFilters.method, writeoffs]);
   const filteredPerforms = useMemo(() => performs.filter((item) => containsKeyword(performKeyword, [item.relationNo, item.scene, item.storeName, item.pointCode, item.deviceCode, item.commandNo, item.remark])), [performKeyword, performs]);
 
   const writeOffColumns: ProColumns<WriteOffRecord>[] = [
@@ -251,7 +281,7 @@ const FulfillmentManagement: React.FC = () => {
       search: false,
       render: (_, record) => (
         <Space>
-          <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+          <Button size="small" onClick={() => openDetail('writeoff', record)}>详情</Button>
           <Button
             size="small"
             onClick={() => {
@@ -295,7 +325,7 @@ const FulfillmentManagement: React.FC = () => {
       search: false,
       render: (_, record) => (
         <Space>
-          <Button size="small" onClick={() => setDetail(record)}>日志</Button>
+          <Button size="small" onClick={() => openDetail('perform', record)}>日志</Button>
           <Button
             size="small"
             onClick={() => {
@@ -411,8 +441,18 @@ const FulfillmentManagement: React.FC = () => {
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 2160 }}
                 toolBarRender={() => [<Button key="rollback" onClick={() => confirmRollbackWriteOff(filteredWriteOffs[0])} disabled={!filteredWriteOffs.length}>异常回滚</Button>, <Button key="supplement" type="primary" onClick={() => openCreateModal('writeoff')}>后台补核销</Button>]}
-                onSubmit={(values) => setWriteOffKeyword(String(values.keyword || ''))}
-                onReset={() => setWriteOffKeyword('')}
+                onSubmit={(values) => {
+                  setWriteOffKeyword(String(values.keyword || ''));
+                  setWriteOffFilters({
+                    status: values.status ? String(values.status) : undefined,
+                    objectType: values.objectType ? String(values.objectType) : undefined,
+                    method: values.method ? String(values.method) : undefined,
+                  });
+                }}
+                onReset={() => {
+                  setWriteOffKeyword('');
+                  setWriteOffFilters({});
+                }}
               />
             ),
           },
@@ -430,19 +470,28 @@ const FulfillmentManagement: React.FC = () => {
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 2080 }}
                 toolBarRender={() => [<Button key="refresh" onClick={() => performQuery.refetch()}>刷新状态</Button>, <Button key="manual" type="primary" onClick={() => openCreateModal('perform')}>人工履约纠偏</Button>]}
-                onSubmit={(values) => setPerformKeyword(String(values.keyword || ''))}
-                onReset={() => setPerformKeyword('')}
+                onSubmit={(values) => {
+                  setPerformKeyword(String(values.keyword || ''));
+                  setPerformFilters({
+                    status: values.status ? String(values.status) : undefined,
+                    scene: values.scene ? String(values.scene) : undefined,
+                  });
+                }}
+                onReset={() => {
+                  setPerformKeyword('');
+                  setPerformFilters({});
+                }}
               />
             ),
           },
         ]}
       />
 
-      <BusinessDetailModal title="记录详情" open={!!detail} onCancel={() => setDetail(null)} width={720}>
+      <BusinessDetailModal title="记录详情" open={!!detail} onCancel={closeDetail} width={720}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
-            fields={('writeoffNo' in detail ? fulfillmentDetailFields.writeoff : fulfillmentDetailFields.perform) as DetailField<Record<string, any>>[]}
+            fields={(detailType === 'writeoff' ? fulfillmentDetailFields.writeoff : fulfillmentDetailFields.perform) as DetailField<Record<string, any>>[]}
             column={1}
             labelWidth={120}
           />
