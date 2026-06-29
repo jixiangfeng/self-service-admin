@@ -21,6 +21,7 @@ import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
+import { DateField, fromDatePickerValue } from '@/utils/formControls';
 import api, {
   type PaymentReconciliationRecord,
   type ProfitShareDetailRecord,
@@ -474,7 +475,12 @@ const SettlementManagement: React.FC = () => {
     { title: '成本', dataIndex: 'costAmount', width: 110, search: false, render: (_, record) => formatAmount(record.costAmount) },
     { title: '应结', dataIndex: 'settlementAmount', width: 110, search: false, render: (_, record) => formatAmount(record.settlementAmount) },
     { title: '备注', dataIndex: 'remark', width: 240, search: false },
-    { title: '操作', width: 100, search: false, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
+    {
+      title: '操作',
+      width: 100,
+      search: false,
+      render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button>,
+    },
   ];
 
   const payoutColumns: ProColumns<SettlementPayoutRecord>[] = [
@@ -487,7 +493,25 @@ const SettlementManagement: React.FC = () => {
     { title: '打款状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: payoutStatusMap, render: (_, record) => renderStatusTag(record.status, payoutStatusMap) },
     { title: '打款时间', dataIndex: 'paidAt', width: 180, search: false, render: (_, record) => formatDateTime(record.paidAt) },
     { title: '失败原因', dataIndex: 'failureReason', width: 180, search: false },
-    { title: '操作', width: 100, search: false, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
+    {
+      title: '操作',
+      width: 160,
+      search: false,
+      render: (_, record) => (
+        <Space>
+          <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+          <Button
+            size="small"
+            loading={retryPayoutMutation.isPending}
+            disabled={record.status !== 'FAILED'}
+            title={record.status !== 'FAILED' ? '仅失败打款流水可重试' : undefined}
+            onClick={() => confirmRetryPayout(record)}
+          >
+            重试
+          </Button>
+        </Space>
+      ),
+    },
   ];
 
   const reconciliationColumns: ProColumns<PaymentReconciliationRecord>[] = [
@@ -532,6 +556,8 @@ const SettlementManagement: React.FC = () => {
     await createBillMutation.mutateAsync({
       ...values,
       subjectId: Number(values.subjectId),
+      periodStart: fromDatePickerValue(values.periodStart as any) || values.periodStart,
+      periodEnd: fromDatePickerValue(values.periodEnd as any) || values.periodEnd,
       incomeAmount: Number(values.incomeAmount || 0),
       refundAmount: Number(values.refundAmount || 0),
       costAmount: Number(values.costAmount || 0),
@@ -651,10 +677,9 @@ const SettlementManagement: React.FC = () => {
                 dataSource={filteredPayouts}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
-                scroll={{ x: 1600 }}
-                loading={payoutQuery.isLoading}
-                toolBarRender={() => [<Button key="retry" type="primary" loading={retryPayoutMutation.isPending} onClick={() => confirmRetryPayout(filteredPayouts[0])}>重试打款</Button>]}
-                onSubmit={(values) => { setPayoutKeyword(String(values.keyword || '')); setPayoutStatusFilter(values.status ? String(values.status) : undefined); }}
+                        scroll={{ x: 1600 }}
+                        loading={payoutQuery.isLoading}
+                        onSubmit={(values) => { setPayoutKeyword(String(values.keyword || '')); setPayoutStatusFilter(values.status ? String(values.status) : undefined); }}
                 onReset={() => { setPayoutKeyword(''); setPayoutStatusFilter(undefined); }}
               />
             ),
@@ -789,10 +814,10 @@ const SettlementManagement: React.FC = () => {
                   <Select options={settlementCycleOptions} placeholder="请选择周期类型" />
                 </Form.Item>
                 <Form.Item name="periodStart" label="周期开始" rules={[{ required: true, message: '请输入周期开始' }]}>
-                  <Input placeholder="2026-05-01" />
+                  <DateField />
                 </Form.Item>
                 <Form.Item name="periodEnd" label="周期结束" rules={[{ required: true, message: '请输入周期结束' }]}>
-                  <Input placeholder="2026-05-07" />
+                  <DateField />
                 </Form.Item>
               </div>
             </BusinessEditorSection>

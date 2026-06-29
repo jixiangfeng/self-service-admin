@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Row, Select, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
 import { DeleteOutlined, EditOutlined, FieldTimeOutlined, HomeOutlined, NotificationOutlined, PlusOutlined, ToolOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -22,7 +22,7 @@ import type {
   StoreTempCloseRecord,
 } from '@/services/backendService';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, safeJsonParse, formatEnumText } from '@/pages/Business/shared';
-import { DateTimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue, toDatePickerValue, toDateTimePickerValue, toTimePickerValue } from '@/utils/formControls';
+import { DateTimeField, TimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue, toDatePickerValue, toDateTimePickerValue, toTimePickerValue } from '@/utils/formControls';
 
 type StoreProfileTab = 'image' | 'business' | 'tempClose' | 'capability' | 'change';
 type EditableRecord = StoreImageRecord | StoreBusinessHoursRecord | StoreTempCloseRecord | StoreServiceCapabilityRecord | StoreChangeLogRecord;
@@ -61,6 +61,12 @@ const capabilityMap = buildValueEnum(storeServiceCapabilityOptions);
 const storeProfilePublishStatusOptions = [
   { value: 'PUBLISHED', label: '已发布' },
   { value: 'DISABLED', label: '已禁用' },
+];
+const storeImageTypeOptions = [
+  { value: 'COVER', label: '封面图' },
+  { value: 'ENVIRONMENT', label: '环境图' },
+  { value: 'EQUIPMENT', label: '设备图' },
+  { value: 'OTHER', label: '其他' },
 ];
 const tempCloseStatusOptions = [
   { value: 'PENDING', label: '待开始' },
@@ -334,7 +340,7 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="门店图片" value={images.length} suffix="张" /></Card></Col>
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="营业时间" value={businessHours.length} suffix="条" /></Card></Col>
-        <Col xs={24} sm={12} xl={5}><Card><Statistic title="临停中" value={tempCloses.filter((item) => item.status === 'PAUSED').length} suffix="家" /></Card></Col>
+        <Col xs={24} sm={12} xl={5}><Card><Statistic title="临停中" value={tempCloses.filter((item) => item.status === 'PROCESSING').length} suffix="家" /></Card></Col>
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="服务能力" value={capabilities.length} suffix="项" /></Card></Col>
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="变更日志" value={changes.length} suffix="条" /></Card></Col>
       </Row>
@@ -409,7 +415,7 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
                 <Form.Item name="storeId" label="所属门店" rules={[{ required: true, message: '请选择门店' }]}>
                   <Select showSearch optionFilterProp="label" options={storeOptions || []} placeholder="请选择门店" />
                 </Form.Item>
-                {activeTab === 'image' ? <Form.Item name="imageType" label="图片类型" rules={[{ required: true, message: '请输入图片类型' }]}><Input placeholder="例如：COVER / ENVIRONMENT" /></Form.Item> : null}
+                {activeTab === 'image' ? <Form.Item name="imageType" label="图片类型" rules={[{ required: true, message: '请选择图片类型' }]}><Select options={storeImageTypeOptions} placeholder="请选择图片类型" /></Form.Item> : null}
                 {activeTab === 'business' ? <Form.Item name="weekday" label="星期" rules={[{ required: true, message: '请输入星期' }]}><Input placeholder="例如：周一至周日" /></Form.Item> : null}
                 {activeTab === 'capability' ? <Form.Item name="capabilityCode" label="能力" rules={[{ required: true, message: '请选择能力' }]}><Select options={storeServiceCapabilityOptions} placeholder="请选择服务能力" /></Form.Item> : null}
                 {activeTab === 'change' ? <Form.Item name="changeNo" label="变更单号" rules={[{ required: true, message: '请输入变更单号' }]}><Input placeholder="例如：CHG-STORE-20260510-001" /></Form.Item> : null}
@@ -420,7 +426,7 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
               <BusinessEditorSection icon={<NotificationOutlined />} title="图片展示" desc="配置图片地址、排序和发布状态，支撑门店详情页展示。">
                 <div className="merchant-editor-fields">
                   <Form.Item className="merchant-editor-field-span-all" name="imageUrl" label="图片" rules={[{ required: true, message: '请上传图片' }]}><OssImageUpload prefix="store/images" placeholder="上传图片" /></Form.Item>
-                  <Form.Item name="sortNo" label="排序"><Input placeholder="数字越小越靠前" /></Form.Item>
+                  <Form.Item name="sortNo" label="排序"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="数字越小越靠前" /></Form.Item>
                   <Form.Item name="status" label="状态"><Select options={storeProfilePublishStatusOptions} placeholder="请选择状态" /></Form.Item>
                 </div>
               </BusinessEditorSection>
@@ -429,8 +435,8 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
             {activeTab === 'business' ? (
               <BusinessEditorSection icon={<FieldTimeOutlined />} title="营业时段" desc="配置开门、闭店时间和状态，影响门店是否可下单。">
                 <div className="merchant-editor-fields">
-                  <Form.Item name="openTime" label="开门时间" rules={[{ required: true, message: '请输入开门时间' }]}><Input placeholder="08:00" /></Form.Item>
-                  <Form.Item name="closeTime" label="闭店时间" rules={[{ required: true, message: '请输入闭店时间' }]}><Input placeholder="23:00" /></Form.Item>
+                  <Form.Item name="openTime" label="开门时间" rules={[{ required: true, message: '请选择开门时间' }]}><TimeField /></Form.Item>
+                  <Form.Item name="closeTime" label="闭店时间" rules={[{ required: true, message: '请选择闭店时间' }]}><TimeField /></Form.Item>
                   <Form.Item name="status" label="状态"><Select options={storeProfilePublishStatusOptions} placeholder="请选择状态" /></Form.Item>
                 </div>
               </BusinessEditorSection>

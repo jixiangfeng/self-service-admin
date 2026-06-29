@@ -10,9 +10,11 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { buildValueEnum, containsKeyword, formatAmount, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import api, { type ProfitPartnerRelationRecord, type ProfitRatioVersionRecord, type ProfitShareDetailRecord } from '@/services/backendService';
+import { DateField, DateTimeField, fromDatePickerValue, fromDateTimePickerValue, toDatePickerValue, toDateTimePickerValue } from '@/utils/formControls';
 
 const roleMap = buildValueEnum(partnerRoleOptions);
 const statusMap = buildValueEnum(profitRelationStatusOptions);
@@ -79,6 +81,16 @@ const ProfitSharingManagement: React.FC = () => {
       message.success('合伙关系已保存');
     },
   });
+  const relationStatusMutation = useMutation({
+    mutationFn: (record: ProfitPartnerRelationRecord) => api.profitPartnerRelation.edit({
+      ...(record as unknown as Record<string, unknown>),
+      status: record.status === 'EFFECTIVE' ? 'CLOSED' : 'EFFECTIVE',
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profitPartnerRelations'] });
+      message.success('合伙关系状态已更新');
+    },
+  });
   const saveDetailMutation = useMutation({
     mutationFn: (record: ProfitShareDetailRecord) => api.profitShareDetail.edit({ ...record, status: 'APPROVED' }),
     onSuccess: () => {
@@ -101,6 +113,17 @@ const ProfitSharingManagement: React.FC = () => {
       partnerName: record.partnerName,
       chargebackAmount: record.actualAmount ?? record.shareAmount,
       status: 'PENDING',
+    });
+  };
+  const confirmRelationStatus = (record: ProfitPartnerRelationRecord) => {
+    const nextStatus = record.status === 'EFFECTIVE' ? 'CLOSED' : 'EFFECTIVE';
+    const actionName = nextStatus === 'EFFECTIVE' ? '生效' : '结束';
+    showBusinessConfirm({
+      title: `确认${actionName}合伙关系`,
+      content: `确定${actionName}「${record.storeName || record.relationNo} / ${record.partnerName}」的合伙关系吗？该操作会影响后续分润结算口径。`,
+      okText: `确认${actionName}`,
+      danger: nextStatus !== 'EFFECTIVE',
+      onOk: () => relationStatusMutation.mutate(record),
     });
   };
 
@@ -137,7 +160,11 @@ const ProfitSharingManagement: React.FC = () => {
             size="small"
             onClick={() => {
               setEditingRecord(record);
-              form.setFieldsValue(record);
+              form.setFieldsValue({
+                ...record,
+                effectiveStart: toDatePickerValue(record.effectiveStart) || record.effectiveStart,
+                effectiveEnd: toDatePickerValue(record.effectiveEnd) || record.effectiveEnd,
+              } as any);
               setModalVisible(true);
             }}
           >
@@ -145,12 +172,8 @@ const ProfitSharingManagement: React.FC = () => {
           </Button>
           <Button
             size="small"
-            onClick={() => {
-              api.profitPartnerRelation.edit({ ...(record as unknown as Record<string, unknown>), status: record.status === 'EFFECTIVE' ? 'CLOSED' : 'EFFECTIVE' }).then(() => {
-                queryClient.invalidateQueries({ queryKey: ['profitPartnerRelations'] });
-                message.success('合伙关系状态已更新');
-              });
-            }}
+            loading={relationStatusMutation.isPending}
+            onClick={() => confirmRelationStatus(record)}
           >
             {record.status === 'EFFECTIVE' ? '结束' : '生效'}
           </Button>
@@ -179,6 +202,7 @@ const ProfitSharingManagement: React.FC = () => {
               ...record,
               actualAmount: record.actualAmount ?? record.shareAmount,
               shareRatio: record.shareRatio ?? record.ratio,
+              confirmedAt: toDateTimePickerValue((record as any).confirmedAt) || (record as any).confirmedAt,
             });
           }}>调整</Button>
           <Button size="small" loading={chargebackMutation.isPending} onClick={() => confirmChargeback(record)}>回冲</Button>
@@ -189,7 +213,11 @@ const ProfitSharingManagement: React.FC = () => {
 
   const handleSubmit = async () => {
     const values = await form.validateFields();
-    await saveRelationMutation.mutateAsync(values as unknown as Record<string, unknown>);
+    await saveRelationMutation.mutateAsync({
+      ...values,
+      effectiveStart: fromDatePickerValue(values.effectiveStart as any) || values.effectiveStart,
+      effectiveEnd: fromDatePickerValue(values.effectiveEnd as any) || values.effectiveEnd,
+    } as unknown as Record<string, unknown>);
     closeModal();
   };
 
@@ -295,8 +323,8 @@ const ProfitSharingManagement: React.FC = () => {
             </BusinessEditorSection>
             <BusinessEditorSection icon={<CalendarOutlined />} title="生效周期" desc="配置关系生效开始和结束时间。">
               <div className="merchant-editor-fields">
-                <Form.Item name="effectiveStart" label="生效开始"><Input placeholder="2026-04-01" /></Form.Item>
-                <Form.Item name="effectiveEnd" label="生效结束"><Input placeholder="2026-12-31" /></Form.Item>
+                <Form.Item name="effectiveStart" label="生效开始"><DateField /></Form.Item>
+                <Form.Item name="effectiveEnd" label="生效结束"><DateField /></Form.Item>
               </div>
             </BusinessEditorSection>
           </div>
@@ -340,6 +368,7 @@ const ProfitSharingManagement: React.FC = () => {
             ...profitDetail,
             ...values,
             actualAmount: Number(values.actualAmount ?? profitDetail.actualAmount ?? profitDetail.shareAmount),
+            confirmedAt: fromDateTimePickerValue(values.confirmedAt as any) || values.confirmedAt,
             status: String(values.status || 'APPROVED'),
           } as ProfitShareDetailRecord);
           setProfitDetail(null);
@@ -372,7 +401,7 @@ const ProfitSharingManagement: React.FC = () => {
                 <Form.Item name="status" label="处理状态" rules={[{ required: true, message: '请选择处理状态' }]}><Select options={auditStatusOptions} placeholder="请选择状态" /></Form.Item>
                 <Form.Item name="confirmer" label="确认人"><Input placeholder="例如：财务专员" /></Form.Item>
                 <Form.Item name="confirmNo" label="确认单号"><Input placeholder="例如：CONF-20260510-001" /></Form.Item>
-                <Form.Item name="confirmedAt" label="确认时间"><Input placeholder="2026-05-10 10:00:00" /></Form.Item>
+                <Form.Item name="confirmedAt" label="确认时间"><DateTimeField /></Form.Item>
                 <Form.Item className="merchant-editor-field-span-all" name="confirmRemark" label="确认说明"><Input.TextArea rows={3} placeholder="填写比例调整、异常回冲或结算备注" /></Form.Item>
               </div>
             </BusinessEditorSection>

@@ -164,11 +164,14 @@ const Dictionary: React.FC = () => {
     }, 0);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (record: any) => {
     showBusinessConfirm({
-      title: '确认删除',
-      content: '确定要删除该字典吗？',
-      onOk: () => deleteMutation.mutate(id),
+      title: '确认删除字典',
+      content: `确定删除字典「${record.dictName || record.dictCode || record.id}」吗？删除后依赖该编码的业务下拉和状态展示可能不可用。`,
+      okText: '确认删除',
+      onOk: async () => {
+        await deleteMutation.mutateAsync(record.id);
+      },
     });
   };
 
@@ -185,11 +188,14 @@ const Dictionary: React.FC = () => {
     setItemModalVisible(true);
   };
 
-  const handleDeleteItem = (id: number) => {
+  const handleDeleteItem = (record: any) => {
     showBusinessConfirm({
       title: '确认删除字典项',
-      content: '确定要删除该字典项吗？',
-      onOk: () => deleteItemMutation.mutate(id),
+      content: `确定删除字典项「${record.dictLabel || record.dictValue || record.id}」吗？删除后已存量数据可能只能显示原始编码。`,
+      okText: '确认删除',
+      onOk: async () => {
+        await deleteItemMutation.mutateAsync(record.id);
+      },
     });
   };
 
@@ -247,7 +253,7 @@ const Dictionary: React.FC = () => {
           <Button size="small" onClick={() => { setDetailRecord(record); setDetailType('dict'); }}>详情</Button>
           <Button size="small" onClick={() => setSelectedCode(record.dictCode)}>查看项</Button>
           <Button size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)}>编辑</Button>
-          <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)}>删除</Button>
+          <Button size="small" danger icon={<DeleteOutlined />} loading={deleteMutation.isPending} onClick={() => handleDelete(record)}>删除</Button>
         </Space>
       ),
     },
@@ -272,7 +278,7 @@ const Dictionary: React.FC = () => {
         <Space>
           <Button size="small" onClick={() => { setDetailRecord(record); setDetailType('item'); }}>详情</Button>
           <Button size="small" onClick={() => handleEditItem(record)}>编辑</Button>
-          <Button size="small" danger onClick={() => handleDeleteItem(record.id)}>删除</Button>
+          <Button size="small" danger loading={deleteItemMutation.isPending} onClick={() => handleDeleteItem(record)}>删除</Button>
         </Space>
       ),
     },

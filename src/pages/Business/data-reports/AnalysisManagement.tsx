@@ -9,6 +9,7 @@ import BusinessEditorModal, { BusinessEditorSection } from '@/components/Busines
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, formatAmount, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api, { type AnalysisSnapshotRecord } from '@/services/backendService';
+import { DateField, fromDatePickerValue } from '@/utils/formControls';
 
 interface DerivedStoreRecord {
   key: string;
@@ -183,7 +184,10 @@ const AnalysisManagement: React.FC = () => {
 
   const handleMetricSubmit = async () => {
     const values = await metricForm.validateFields();
-    await saveMetricMutation.mutateAsync(values as unknown as Record<string, unknown>);
+    await saveMetricMutation.mutateAsync({
+      ...values,
+      snapshotDate: fromDatePickerValue(values.snapshotDate as any) || values.snapshotDate,
+    } as unknown as Record<string, unknown>);
     setMetricVisible(false);
     metricForm.resetFields();
   };
@@ -354,7 +358,7 @@ const AnalysisManagement: React.FC = () => {
           <div className="merchant-editor-shell">
             <BusinessEditorSection icon={<DashboardOutlined />} title="快照基础" desc="定义快照日期、类型、维度和指标编码。">
               <div className="merchant-editor-fields">
-                <Form.Item name="snapshotDate" label="快照日期" rules={[{ required: true, message: '请输入快照日期' }]}><Input placeholder="2026-05-09" /></Form.Item>
+                <Form.Item name="snapshotDate" label="快照日期" rules={[{ required: true, message: '请选择快照日期' }]}><DateField /></Form.Item>
                 <Form.Item name="snapshotType" label="快照类型"><Select options={analysisSnapshotTypeOptions} placeholder="请选择快照类型" /></Form.Item>
                 <Form.Item name="dimension" label="指标维度"><Select options={reportDimensionOptions} placeholder="请选择指标维度" /></Form.Item>
                 <Form.Item name="scopeId" label="范围ID"><Input placeholder="例如：0 或门店ID" /></Form.Item>

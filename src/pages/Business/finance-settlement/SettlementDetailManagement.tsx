@@ -315,10 +315,19 @@ const SettlementDetailManagement: React.FC = () => {
     { title: '操作', width: 150, render: (_, record) => (
       <Space>
         <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-        <Button size="small" type="link" loading={retryPayoutMutation.isPending} onClick={() => confirmRetryPayout(record)}>重试</Button>
+        <Button
+          size="small"
+          type="link"
+          loading={retryPayoutMutation.isPending}
+          disabled={record.status !== 'FAILED'}
+          title={record.status !== 'FAILED' ? '仅失败打款流水可重试' : undefined}
+          onClick={() => confirmRetryPayout(record)}
+        >
+          重试
+        </Button>
       </Space>
     ) },
-  ], []);
+  ], [retryPayoutMutation]);
 
   const reconciliationColumns = useMemo<ProColumns<PaymentReconciliationRecord>[]>(() => [
     { title: '对账单号', dataIndex: 'reconNo', width: 180 },
@@ -392,8 +401,8 @@ const SettlementDetailManagement: React.FC = () => {
           { key: 'billDetail', label: '账单明细', children: <ProTable<BillDetailRecord> cardBordered rowKey="id" columns={billDetailColumns} dataSource={filter(billDetails) as BillDetailRecord[]} loading={billDetailQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1320 }} /> },
           { key: 'cost', label: '成本明细', children: <ProTable<CostDetailRecord> cardBordered rowKey="id" columns={costColumns} dataSource={filter(costDetails) as CostDetailRecord[]} loading={costDetailQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1380 }} toolBarRender={() => [<Button key="adjust" type="primary" onClick={() => openModal('新增成本调整')}>成本调整</Button>]} /> },
           { key: 'crossStore', label: '跨店应收应付', children: <ProTable<CrossStoreReceivableRecord> cardBordered rowKey="id" columns={crossStoreReceivableColumns} dataSource={filter(crossStoreReceivables) as CrossStoreReceivableRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1780 }} toolBarRender={() => [<Button key="confirm" type="primary" onClick={() => openModal('确认结算')}>登记线下确认</Button>]} /> },
-          { key: 'payout', label: '打款流水', children: <ProTable<SettlementPayoutRecord> cardBordered rowKey="id" columns={payoutColumns} dataSource={filter(payouts) as SettlementPayoutRecord[]} loading={payoutQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1380 }} toolBarRender={() => [<Button key="retry" type="primary" disabled={!payouts.length} loading={retryPayoutMutation.isPending} onClick={() => confirmRetryPayout(payouts[0])}>重试打款</Button>]} /> },
-          { key: 'reconciliation', label: '结算对账', children: <ProTable<PaymentReconciliationRecord> cardBordered rowKey="id" columns={reconciliationColumns} dataSource={filter(reconciliations) as PaymentReconciliationRecord[]} loading={reconciliationQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1500 }} toolBarRender={() => [<Button key="handle" type="primary" disabled={!reconciliations.some((item) => item.status === 'DIFF')} loading={handleReconciliationMutation.isPending} onClick={() => confirmHandleReconciliation(reconciliations.find((item) => item.status === 'DIFF'))}>处理差异</Button>]} /> },
+          { key: 'payout', label: '打款流水', children: <ProTable<SettlementPayoutRecord> cardBordered rowKey="id" columns={payoutColumns} dataSource={filter(payouts) as SettlementPayoutRecord[]} loading={payoutQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1380 }} toolBarRender={() => []} /> },
+          { key: 'reconciliation', label: '结算对账', children: <ProTable<PaymentReconciliationRecord> cardBordered rowKey="id" columns={reconciliationColumns} dataSource={filter(reconciliations) as PaymentReconciliationRecord[]} loading={reconciliationQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1500 }} toolBarRender={() => []} /> },
           { key: 'confirm', label: '确认记录', children: <ProTable<SettlementConfirmRecord> cardBordered rowKey="id" columns={confirmColumns} dataSource={filter(confirms) as SettlementConfirmRecord[]} loading={confirmQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1220 }} toolBarRender={() => [<Button key="confirm" type="primary" onClick={() => openModal('确认结算')}>确认结算</Button>]} /> },
         ]}
       />

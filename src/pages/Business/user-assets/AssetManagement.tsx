@@ -17,6 +17,7 @@ import BusinessEditorModal, { BusinessEditorSection } from '@/components/Busines
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import api, { type AppUserProfileRecord, type BalanceFlowRecord, type CouponTemplateRecord, type RechargeOrderRecord, type UserAssetAccountRecord } from '@/services/backendService';
@@ -67,6 +68,14 @@ const notifyOptions = [
   { value: '客服跟进', label: '客服跟进' },
 ];
 const affectedAssetOptions = ['本金余额', '赠送余额', '优惠券', '会员等级', '风控状态'];
+const assetOperationNameMap: Record<Exclude<AssetModalType, null>, string> = {
+  tag: '用户标签 / 风控处理',
+  balance: '余额调账',
+  freeze: '冻结 / 解冻',
+  coupon: '手动补券',
+  reward: '充值奖励补发',
+  refund: '充值退款回收',
+};
 
 const buildOperationSummary = (values: Record<string, any>) => [
   values.businessScene ? `业务场景：${values.businessScene}` : '',
@@ -190,6 +199,7 @@ const AssetManagement: React.FC = () => {
   const [rechargeKeyword, setRechargeKeyword] = useState('');
   const [flowKeyword, setFlowKeyword] = useState('');
   const [form] = Form.useForm();
+  const [modalSubmitting, setModalSubmitting] = useState(false);
   const [helperVisible, setHelperVisible] = useState(false);
   const [helperType, setHelperType] = useState<HelperType>(null);
   const [helperTitle, setHelperTitle] = useState('');
@@ -412,68 +422,87 @@ const AssetManagement: React.FC = () => {
     { title: '操作', width: 100, search: false, render: (_, record) => <Button size="small" onClick={() => openDetail(record, 'flow')}>查看</Button> },
   ];
 
+  const submitAssetOperation = async (operationType: Exclude<AssetModalType, null>, targetId: string | number, values: Record<string, any>) => {
+    const operationSummary = buildOperationSummary(values);
+
+    try {
+      setModalSubmitting(true);
+
+      if (operationType === 'tag') {
+        await api.asset.profiles.edit({ id: targetId, memberLevel: values.tag, riskStatus: values.blacklist, remark: operationSummary });
+        queryClient.invalidateQueries({ queryKey: ['assetProfilesOverview'] });
+        message.success('用户标签/风控状态已更新');
+      }
+
+      if (operationType === 'balance') {
+        await api.asset.userAccounts.adjust(Number(targetId), { amount: values.amount, reason: operationSummary });
+        queryClient.invalidateQueries({ queryKey: ['userAssetAccounts'] });
+        queryClient.invalidateQueries({ queryKey: ['balanceFlows'] });
+        message.success('余额调账已完成');
+      }
+
+      if (operationType === 'freeze') {
+        const action = values.action === 'unfreeze' ? api.asset.userAccounts.unfreeze : api.asset.userAccounts.freeze;
+        await action(Number(targetId), { amount: values.amount, reason: operationSummary });
+        queryClient.invalidateQueries({ queryKey: ['userAssetAccounts'] });
+        queryClient.invalidateQueries({ queryKey: ['balanceFlows'] });
+        message.success(values.action === 'unfreeze' ? '余额解冻已完成' : '余额冻结已完成');
+      }
+
+      if (operationType === 'coupon') {
+        await api.asset.userCoupons.add({
+          templateId: targetId,
+          templateName: values.couponName,
+          couponType: values.couponType,
+          userId: values.userId,
+          userName: values.userName,
+          mobile: values.mobile,
+          discountAmount: values.discountAmount || 0,
+          sourceType: 'BACKEND',
+          remark: operationSummary,
+        });
+        queryClient.invalidateQueries({ queryKey: ['userCoupons'] });
+        message.success('用户补券已完成');
+      }
+
+      if (operationType === 'reward') {
+        await api.asset.rechargeOrders.reward(Number(targetId), { ...values, couponTemplateId: values.couponTemplateId, couponTemplateName: values.couponTemplateName, remark: operationSummary });
+        queryClient.invalidateQueries({ queryKey: ['assetRechargeOrders'] });
+        queryClient.invalidateQueries({ queryKey: ['balanceFlows'] });
+        queryClient.invalidateQueries({ queryKey: ['userCoupons'] });
+        queryClient.invalidateQueries({ queryKey: ['couponIssues'] });
+        message.success('充值奖励已补发');
+      }
+
+      if (operationType === 'refund') {
+        await api.asset.rechargeOrders.refund(Number(targetId), { ...values, remark: operationSummary });
+        queryClient.invalidateQueries({ queryKey: ['assetRechargeOrders'] });
+        queryClient.invalidateQueries({ queryKey: ['balanceFlows'] });
+        message.success('充值退款回收已完成');
+      }
+
+      closeModal();
+    } finally {
+      setModalSubmitting(false);
+    }
+  };
+
   const handleModalSubmit = async () => {
     const values = await form.validateFields();
     if (!currentId || !modalType) {
       return;
     }
 
-    const operationSummary = buildOperationSummary(values);
-
-    if (modalType === 'tag') {
-      await api.asset.profiles.edit({ id: currentId, memberLevel: values.tag, riskStatus: values.blacklist, remark: operationSummary });
-      queryClient.invalidateQueries({ queryKey: ['assetProfilesOverview'] });
-      message.success('用户标签/风控状态已更新');
-    }
-
-    if (modalType === 'balance') {
-      await api.asset.userAccounts.adjust(Number(currentId), { amount: values.amount, reason: operationSummary });
-      queryClient.invalidateQueries({ queryKey: ['userAssetAccounts'] });
-      queryClient.invalidateQueries({ queryKey: ['balanceFlows'] });
-      message.success('余额调账已完成');
-    }
-
-    if (modalType === 'freeze') {
-      const action = values.action === 'unfreeze' ? api.asset.userAccounts.unfreeze : api.asset.userAccounts.freeze;
-      await action(Number(currentId), { amount: values.amount, reason: operationSummary });
-      queryClient.invalidateQueries({ queryKey: ['userAssetAccounts'] });
-      queryClient.invalidateQueries({ queryKey: ['balanceFlows'] });
-      message.success(values.action === 'unfreeze' ? '余额解冻已完成' : '余额冻结已完成');
-    }
-
-    if (modalType === 'coupon') {
-      await api.asset.userCoupons.add({
-        templateId: currentId,
-        templateName: values.couponName,
-        couponType: values.couponType,
-        userId: values.userId,
-        userName: values.userName,
-        mobile: values.mobile,
-        discountAmount: values.discountAmount || 0,
-        sourceType: 'BACKEND',
-        remark: operationSummary,
-      });
-      queryClient.invalidateQueries({ queryKey: ['userCoupons'] });
-      message.success('用户补券已完成');
-    }
-
-    if (modalType === 'reward') {
-      await api.asset.rechargeOrders.reward(Number(currentId), { ...values, couponTemplateId: values.couponTemplateId, couponTemplateName: values.couponTemplateName, remark: operationSummary });
-      queryClient.invalidateQueries({ queryKey: ['assetRechargeOrders'] });
-      queryClient.invalidateQueries({ queryKey: ['balanceFlows'] });
-      queryClient.invalidateQueries({ queryKey: ['userCoupons'] });
-      queryClient.invalidateQueries({ queryKey: ['couponIssues'] });
-      message.success('充值奖励已补发');
-    }
-
-    if (modalType === 'refund') {
-      await api.asset.rechargeOrders.refund(Number(currentId), { ...values, remark: operationSummary });
-      queryClient.invalidateQueries({ queryKey: ['assetRechargeOrders'] });
-      queryClient.invalidateQueries({ queryKey: ['balanceFlows'] });
-      message.success('充值退款回收已完成');
-    }
-
-    closeModal();
+    const operationType = modalType;
+    const targetId = currentId;
+    const operationName = assetOperationNameMap[operationType];
+    showBusinessConfirm({
+      title: `确认${operationName}`,
+      content: `确定对「${values.userName || values.couponName || targetId}」执行${operationName}吗？提交后会写入资产或权益记录。`,
+      okText: '确认提交',
+      danger: operationType !== 'tag',
+      onOk: () => submitAssetOperation(operationType, targetId, values),
+    });
   };
 
   return (
@@ -535,18 +564,9 @@ const AssetManagement: React.FC = () => {
                 dataSource={filteredRechargeOrders}
                 loading={rechargeQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
-                pagination={{ pageSize: 8 }}
-                scroll={{ x: 1540 }}
-                toolBarRender={() => [<Button key="new" type="primary" onClick={() => {
-                  const target = filteredRechargeOrders[0];
-                  if (target) {
-                    setModalType('reward');
-                    setCurrentId(target.id);
-                    form.setFieldsValue({ rewardAmount: target.giftAmount, rewardType: 'BALANCE', businessScene: '充值异常', handleMethod: '补发', affectedAssets: ['赠送余额'], notifyUser: '短信通知', approvalRequired: '主管已审批' });
-                  } else {
-                    navigate('/marketing/recharge-activities');
-                  }
-                }}>奖励补发</Button>]}
+                        pagination={{ pageSize: 8 }}
+                        scroll={{ x: 1540 }}
+                        toolBarRender={() => [<Button key="config" type="primary" onClick={() => navigate('/marketing/recharge-activities')}>维护充值活动</Button>]}
                 onSubmit={(values) => setRechargeKeyword(String(values.keyword || ''))}
                 onReset={() => setRechargeKeyword('')}
               />
@@ -584,24 +604,9 @@ const AssetManagement: React.FC = () => {
                 dataSource={filteredBalances}
                 loading={accountQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
-                pagination={{ pageSize: 8 }}
-                scroll={{ x: 1460 }}
-                toolBarRender={() => [
-                  <Button key="freeze" onClick={() => {
-                    const target = filteredBalances[0];
-                    if (!target) return;
-                    setModalType('freeze');
-                    setCurrentId(target.id);
-                    form.setFieldsValue({ userName: target.userName, amount: undefined, action: 'freeze', businessScene: '风控处置', handleMethod: '冻结', affectedAssets: ['本金余额'], notifyUser: '不通知', approvalRequired: '风控已审批' });
-                  }}>冻结 / 解冻</Button>,
-                  <Button key="adjust" type="primary" onClick={() => {
-                    const target = filteredBalances[0];
-                    if (!target) return;
-                    setModalType('balance');
-                    setCurrentId(target.id);
-                    form.setFieldsValue({ userName: target.userName, amount: undefined, businessScene: '客服安抚', handleMethod: '补发', affectedAssets: ['本金余额'], notifyUser: '客服跟进', approvalRequired: '主管已审批' });
-                  }}>人工调账</Button>,
-                ]}
+                        pagination={{ pageSize: 8 }}
+                        scroll={{ x: 1460 }}
+                        toolBarRender={() => []}
                 onSubmit={(values) => setBalanceKeyword(String(values.keyword || ''))}
                 onReset={() => setBalanceKeyword('')}
               />
@@ -620,16 +625,9 @@ const AssetManagement: React.FC = () => {
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1420 }}
-                toolBarRender={() => [
-                  <Button key="template" onClick={() => navigate('/marketing/coupon-templates')}>新建券模板</Button>,
-                  <Button key="grant" type="primary" onClick={() => {
-                    const target = filteredCoupons[0];
-                    if (!target) return;
-                    setModalType('coupon');
-                    setCurrentId(target.id);
-                    form.setFieldsValue({ couponName: target.templateName, couponType: target.couponType, amount: 1, businessScene: '客服安抚', handleMethod: '补发', affectedAssets: ['优惠券'], notifyUser: '短信通知', approvalRequired: '主管已审批' });
-                  }}>手动补券</Button>,
-                ]}
+                        toolBarRender={() => [
+                          <Button key="template" onClick={() => navigate('/marketing/coupon-templates')}>新建券模板</Button>,
+                        ]}
                 onSubmit={(values) => setCouponKeyword(String(values.keyword || ''))}
                 onReset={() => setCouponKeyword('')}
               />
@@ -644,10 +642,11 @@ const AssetManagement: React.FC = () => {
         subtitle="把标签、余额、券、奖励和退款放到同一条资产处理链路里。"
         meta={[modalType || '处理动作']}
         open={!!modalType}
-        onCancel={closeModal}
-        onOk={handleModalSubmit}
-        width={820}
-      >
+                onCancel={closeModal}
+                onOk={handleModalSubmit}
+                confirmLoading={modalSubmitting}
+                width={820}
+              >
         <Form form={form} layout="vertical" className="merchant-editor-form">
           <div className="merchant-editor-shell">
             {modalType === 'tag' ? (

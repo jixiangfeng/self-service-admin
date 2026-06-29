@@ -126,11 +126,14 @@ const MenuManagement: React.FC = () => {
     }, 0);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (record: MenuItem) => {
     showBusinessConfirm({
-      title: '确认删除',
-      content: '确定要删除该菜单吗？',
-      onOk: () => deleteMutation.mutate(id),
+      title: '确认删除菜单',
+      content: `确定删除菜单「${record.permissionName || record.permissionCode || record.id}」吗？${record.children?.length ? '该节点包含下级菜单，请先确认影响范围。' : '删除后相关菜单或按钮权限将不可用。'}`,
+      okText: '确认删除',
+      onOk: async () => {
+        await deleteMutation.mutateAsync(record.id);
+      },
     });
   };
 
@@ -181,7 +184,7 @@ const MenuManagement: React.FC = () => {
           <Button size="small" onClick={() => setDetailMenu(record)}>详情</Button>
           <Button size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)}>编辑</Button>
           <Button size="small" icon={<PlusCircleOutlined />} onClick={() => handleCreate(record.id)}>新增下级</Button>
-          <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)}>删除</Button>
+          <Button size="small" danger icon={<DeleteOutlined />} loading={deleteMutation.isPending} onClick={() => handleDelete(record)}>删除</Button>
         </Space>
       ),
     },

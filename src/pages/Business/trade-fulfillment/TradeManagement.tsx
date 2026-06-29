@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, List, Radio, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Checkbox, Col, Form, Input, InputNumber, List, Radio, Row, Select, Space, Statistic, Tabs, message } from 'antd';
 import { AuditOutlined, FieldTimeOutlined, FileAddOutlined, ProfileOutlined, ReloadOutlined, SolutionOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -15,10 +15,12 @@ import PageBanner from '@/components/PageBanner';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
 import type { SelectOptionRecord } from '@/services/backendService';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
+import { DateTimeField } from '@/utils/formControls';
 
 interface TradeOrderRecord {
   id: string;
@@ -343,19 +345,30 @@ const TradeManagement: React.FC = () => {
       return;
     }
 
-    if (actionModalType === 'order') {
-      await updateOrderMutation.mutateAsync({ id: actionTargetId, status: values.status, note: buildActionNote(actionModalType, values) });
-    }
+    const actionType = actionModalType;
+    const targetId = actionTargetId;
+    const actionName = actionType === 'order' ? '订单处置' : actionType === 'refund' ? '退款审核' : '售后处理';
+    showBusinessConfirm({
+      title: `确认提交${actionName}`,
+      content: `确定将该记录更新为「${values.status}」吗？处理结果会回写到对应业务单据。`,
+      okText: '确认提交',
+      danger: actionType === 'refund',
+      onOk: async () => {
+        if (actionType === 'order') {
+          await updateOrderMutation.mutateAsync({ id: targetId, status: values.status, note: buildActionNote(actionType, values) });
+        }
 
-    if (actionModalType === 'refund') {
-      await updateRefundMutation.mutateAsync({ id: actionTargetId, status: values.status, note: buildActionNote(actionModalType, values) });
-    }
+        if (actionType === 'refund') {
+          await updateRefundMutation.mutateAsync({ id: targetId, status: values.status, note: buildActionNote(actionType, values) });
+        }
 
-    if (actionModalType === 'afterSale') {
-      await updateAfterSaleMutation.mutateAsync({ id: actionTargetId, status: values.status, owner: values.owner, note: buildActionNote(actionModalType, values) });
-    }
+        if (actionType === 'afterSale') {
+          await updateAfterSaleMutation.mutateAsync({ id: targetId, status: values.status, owner: values.owner, note: buildActionNote(actionType, values) });
+        }
 
-    closeActionModal();
+        closeActionModal();
+      },
+    });
   };
 
   const orderColumns: ProColumns<TradeOrderRecord>[] = [
@@ -489,14 +502,10 @@ const TradeManagement: React.FC = () => {
                 loading={orderQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
-                scroll={{ x: 1820 }}
-                toolBarRender={() => [
-                  <Button key="new" icon={<FileAddOutlined />} onClick={() => { createOrderForm.resetFields(); setCreateOrderVisible(true); }}>人工补单</Button>,
-                  <Button key="exception" type="primary" onClick={() => {
-                    const target = filteredOrders.find((item) => item.status !== 'COMPLETED') || filteredOrders[0];
-                    if (target) openDetail('order', target);
-                  }} disabled={!filteredOrders.length}>异常订单处理</Button>,
-                ]}
+                        scroll={{ x: 1820 }}
+                        toolBarRender={() => [
+                          <Button key="new" icon={<FileAddOutlined />} onClick={() => { createOrderForm.resetFields(); setCreateOrderVisible(true); }}>人工补单</Button>,
+                        ]}
                 onSubmit={(values) => setOrderFilters({ keyword: String(values.keyword || ''), orderType: values.orderType as string | undefined, payMode: values.payMode as string | undefined, status: values.status as string | undefined })}
                 onReset={() => setOrderFilters({ keyword: '', orderType: undefined, payMode: undefined, status: undefined })}
               />
@@ -511,14 +520,11 @@ const TradeManagement: React.FC = () => {
                 rowKey="id"
                 columns={refundColumns}
                 dataSource={filteredRefunds}
-                loading={refundQuery.isLoading}
-                search={{ labelWidth: 'auto', defaultCollapsed: false }}
-                pagination={{ pageSize: 8 }}
-                scroll={{ x: 1600 }}
-                toolBarRender={() => [<Button key="audit" type="primary" onClick={() => {
-                  const target = filteredRefunds.find((item) => item.status !== 'APPROVED' && item.status !== 'REJECTED') || filteredRefunds[0];
-                  if (target) openActionModal('refund', target.id, target.status, target.auditNote);
-                }} disabled={!filteredRefunds.length}>批量审核</Button>]}
+                        loading={refundQuery.isLoading}
+                        search={{ labelWidth: 'auto', defaultCollapsed: false }}
+                        pagination={{ pageSize: 8 }}
+                        scroll={{ x: 1600 }}
+                        toolBarRender={() => []}
                 onSubmit={(values) => setRefundFilters({ keyword: String(values.keyword || ''), status: values.status as string | undefined })}
                 onReset={() => setRefundFilters({ keyword: '', status: undefined })}
               />
@@ -536,14 +542,10 @@ const TradeManagement: React.FC = () => {
                 loading={afterSaleQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
-                scroll={{ x: 1680 }}
-                toolBarRender={() => [
-                  <Button key="assign" onClick={() => {
-                    const target = filteredAfterSales.find((item) => item.status !== 'CLOSED') || filteredAfterSales[0];
-                    if (target) openActionModal('afterSale', target.id, target.status, target.result || target.compensation);
-                  }} disabled={!filteredAfterSales.length}>批量分派</Button>,
-                  <Button key="new" type="primary" onClick={() => navigate('/service-desk')}>创建售后工单</Button>,
-                ]}
+                        scroll={{ x: 1680 }}
+                        toolBarRender={() => [
+                          <Button key="new" type="primary" onClick={() => navigate('/service-desk')}>创建售后工单</Button>,
+                        ]}
                 onSubmit={(values) => setAfterSaleFilters({ keyword: String(values.keyword || ''), status: values.status as string | undefined })}
                 onReset={() => setAfterSaleFilters({ keyword: '', status: undefined })}
               />
@@ -619,8 +621,8 @@ const TradeManagement: React.FC = () => {
               <div className="merchant-editor-fields merchant-editor-fields--two">
                 <Form.Item name="userName" label="用户"><Input placeholder="用户昵称、手机号或会员标识" /></Form.Item>
                 <Form.Item name="supplementSource" label="补单来源" rules={[{ required: true, message: '请选择补单来源' }]}><Select options={supplementSourceOptions} placeholder="选择补单来源" /></Form.Item>
-                <Form.Item name="startedAt" label="开始时间"><DatePicker showTime style={{ width: '100%' }} placeholder="选择开始时间" /></Form.Item>
-                <Form.Item name="finishedAt" label="结束时间"><DatePicker showTime style={{ width: '100%' }} placeholder="选择结束时间" /></Form.Item>
+                <Form.Item name="startedAt" label="开始时间"><DateTimeField placeholder="选择开始时间" /></Form.Item>
+                <Form.Item name="finishedAt" label="结束时间"><DateTimeField placeholder="选择结束时间" /></Form.Item>
                 <Form.Item name="userConfirmed" label="用户确认" valuePropName="checked"><Checkbox>已完成用户或门店确认</Checkbox></Form.Item>
                 <Form.Item className="merchant-editor-field-span-2" name="supplementNote" label="补充说明"><Input placeholder="例如：支付成功但订单未生成，已按支付凭证补录" /></Form.Item>
               </div>
@@ -635,10 +637,11 @@ const TradeManagement: React.FC = () => {
         subtitle="更新业务状态并记录处理意见，结果会回写到对应订单、退款单或售后工单。"
         meta={[actionModalType === 'order' ? '订单状态' : actionModalType === 'refund' ? '退款审核' : '售后结论', actionTargetId ? `ID ${actionTargetId}` : '待选择']}
         open={!!actionModalType}
-        onOk={handleActionSubmit}
-        onCancel={closeActionModal}
-        width={760}
-      >
+                onOk={handleActionSubmit}
+                onCancel={closeActionModal}
+                confirmLoading={updateOrderMutation.isPending || updateRefundMutation.isPending || updateAfterSaleMutation.isPending}
+                width={760}
+              >
         <Form form={actionForm} layout="vertical" className="merchant-editor-form">
           <div className="merchant-editor-shell">
             <BusinessEditorSection icon={<SolutionOutlined />} title="处理结果" desc="选择最终状态并沉淀可追溯的处置说明。">

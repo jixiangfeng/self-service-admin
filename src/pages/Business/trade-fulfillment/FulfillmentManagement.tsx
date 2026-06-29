@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, Radio, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Checkbox, Col, Form, Input, InputNumber, Radio, Row, Select, Space, Statistic, Tabs, message } from 'antd';
 import { AuditOutlined, CheckCircleOutlined, FieldTimeOutlined, PartitionOutlined, ToolOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -19,6 +19,7 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
 import type { SelectOptionRecord, ServiceOrderRecord } from '@/services/backendService';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
+import { DateTimeField } from '@/utils/formControls';
 
 interface WriteOffRecord {
   id: string;
@@ -241,7 +242,16 @@ const FulfillmentManagement: React.FC = () => {
       title: '确认异常回滚',
       content: `确定回滚核销记录「${record.writeoffNo || record.serviceOrderNo || record.id}」吗？回滚后会影响订单核销结果。`,
       okText: '确认回滚',
-      onOk: () => updateWriteOffMutation.mutate({ id: record.id, status: 'ROLLED_BACK', remark: '批量异常回滚' }),
+      onOk: () => updateWriteOffMutation.mutate({ id: record.id, status: 'ROLLED_BACK', remark: '已执行人工回滚' }),
+    });
+  };
+
+  const confirmFinishPerform = (record: PerformRecord) => {
+    showBusinessConfirm({
+      title: '确认履约纠偏完成',
+      content: `确定将履约记录「${record.relationNo || record.commandNo || record.id}」标记为已完成吗？`,
+      okText: '确认完成',
+      onOk: () => updatePerformMutation.mutate({ id: record.id, status: 'FINISHED', remark: '已人工纠偏完成履约' }),
     });
   };
 
@@ -295,9 +305,10 @@ const FulfillmentManagement: React.FC = () => {
           </Button>
           <Button
             size="small"
-            onClick={() => {
-              updateWriteOffMutation.mutate({ id: record.id, status: 'ROLLED_BACK', remark: '已执行人工回滚' });
-            }}
+            loading={updateWriteOffMutation.isPending}
+            disabled={record.status === 'ROLLED_BACK'}
+            title={record.status === 'ROLLED_BACK' ? '该核销记录已回滚' : undefined}
+            onClick={() => confirmRollbackWriteOff(record)}
           >
             回滚
           </Button>
@@ -339,9 +350,10 @@ const FulfillmentManagement: React.FC = () => {
           </Button>
           <Button
             size="small"
-            onClick={() => {
-              updatePerformMutation.mutate({ id: record.id, status: 'FINISHED', remark: '已人工纠偏完成履约' });
-            }}
+            loading={updatePerformMutation.isPending}
+            disabled={record.status === 'FINISHED'}
+            title={record.status === 'FINISHED' ? '该履约记录已完成' : undefined}
+            onClick={() => confirmFinishPerform(record)}
           >
             纠偏完成
           </Button>
@@ -440,7 +452,7 @@ const FulfillmentManagement: React.FC = () => {
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 2160 }}
-                toolBarRender={() => [<Button key="rollback" onClick={() => confirmRollbackWriteOff(filteredWriteOffs[0])} disabled={!filteredWriteOffs.length}>异常回滚</Button>, <Button key="supplement" type="primary" onClick={() => openCreateModal('writeoff')}>后台补核销</Button>]}
+                toolBarRender={() => [<Button key="supplement" type="primary" onClick={() => openCreateModal('writeoff')}>后台补核销</Button>]}
                 onSubmit={(values) => {
                   setWriteOffKeyword(String(values.keyword || ''));
                   setWriteOffFilters({
@@ -572,8 +584,8 @@ const FulfillmentManagement: React.FC = () => {
 
               <BusinessEditorSection icon={<FieldTimeOutlined />} title="时间与结论" desc="记录服务起止时间和纠偏说明，作为客服回访和异常复盘依据。">
                 <div className="merchant-editor-fields merchant-editor-fields--two">
-                  <Form.Item name="startAt" label="开始时间"><DatePicker showTime style={{ width: '100%' }} placeholder="选择开始时间" /></Form.Item>
-                  <Form.Item name="finishAt" label="结束时间"><DatePicker showTime style={{ width: '100%' }} placeholder="选择结束时间" /></Form.Item>
+                  <Form.Item name="startAt" label="开始时间"><DateTimeField placeholder="选择开始时间" /></Form.Item>
+                  <Form.Item name="finishAt" label="结束时间"><DateTimeField placeholder="选择结束时间" /></Form.Item>
                   <Form.Item name="issueType" label="异常类型" rules={[{ required: true, message: '请选择异常类型' }]}><Select options={performIssueOptions} placeholder="选择异常类型" /></Form.Item>
                   <Form.Item name="correctionAction" label="处理动作" rules={[{ required: true, message: '请选择处理动作' }]}><Select options={correctionActionOptions} placeholder="选择处理动作" /></Form.Item>
                   <Form.Item name="followUp" label="后续跟进"><Select options={followUpOptions} placeholder="选择后续跟进" /></Form.Item>

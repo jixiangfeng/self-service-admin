@@ -14,6 +14,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api, { type CouponIssueRecord, type CouponUsageRecord, type MarketingBudgetRecord, type MarketingParticipationRecord, type MarketingRewardRecord, type SelectOptionRecord } from '@/services/backendService';
 
@@ -214,6 +215,26 @@ const MarketingExecutionManagement: React.FC = () => {
     };
   };
 
+  const handleExecutionSubmit = async () => {
+    const values = await form.validateFields();
+    const isBudget = modalTitle.includes('预算');
+    showBusinessConfirm({
+      title: `确认提交${isBudget ? '预算处理' : '奖励处理'}`,
+      content: `确定处理「${values.bizNo}」吗？提交后会更新营销执行记录，并可能影响用户资产或活动预算。`,
+      okText: '确认提交',
+      danger: !isBudget,
+      onOk: async () => {
+        const payload = buildActionPayload(values);
+        if (isBudget) {
+          await adjustBudgetMutation.mutateAsync(payload);
+        } else {
+          await issueRewardMutation.mutateAsync(payload);
+        }
+        setModalVisible(false);
+      },
+    });
+  };
+
   const participationColumns = useMemo<ProColumns<MarketingParticipationRecord>[]>(() => [
     { title: '活动编码', dataIndex: 'activityCode', width: 140 },
     { title: '活动名称', dataIndex: 'activityName', width: 180 },
@@ -234,7 +255,7 @@ const MarketingExecutionManagement: React.FC = () => {
     { title: '成本金额', dataIndex: 'costAmount', width: 120, render: (_, record) => formatAmount(record.costAmount) },
     { title: '发放状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, rewardStatusMap) },
     { title: '发放时间', dataIndex: 'issuedAt', width: 180, render: (_, record) => formatDateTime(record.issuedAt) },
-    { title: '操作', width: 150, render: (_, record) => <><Button size="small" onClick={() => openDetail('reward', record)}>详情</Button><Button size="small" style={{ marginLeft: 8 }} onClick={() => openModal('补发活动奖励', record.id, record)}>发放</Button></> },
+    { title: '操作', width: 150, render: (_, record) => <><Button size="small" onClick={() => openDetail('reward', record)}>详情</Button><Button size="small" style={{ marginLeft: 8 }} disabled={record.status === 'ISSUED' || record.status === 'RECOVERED'} title={record.status === 'ISSUED' || record.status === 'RECOVERED' ? '该奖励已完成处理' : undefined} onClick={() => openModal('补发活动奖励', record.id, record)}>发放</Button></> },
   ], []);
 
   const budgetColumns = useMemo<ProColumns<MarketingBudgetRecord>[]>(() => [
@@ -316,16 +337,7 @@ const MarketingExecutionManagement: React.FC = () => {
         meta={[modalTitle.includes('预算') ? '预算闭环' : '奖励闭环', currentId ? `ID ${currentId}` : '待选择']}
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
-        onOk={async () => {
-          const values = await form.validateFields();
-          const payload = buildActionPayload(values);
-          if (modalTitle.includes('预算')) {
-            await adjustBudgetMutation.mutateAsync(payload);
-          } else {
-            await issueRewardMutation.mutateAsync(payload);
-          }
-          setModalVisible(false);
-        }}
+                onOk={handleExecutionSubmit}
         width={980}
         okText={modalTitle.includes('预算') ? '提交预算处理' : '提交奖励处理'}
         confirmLoading={adjustBudgetMutation.isPending || issueRewardMutation.isPending}

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { CarOutlined, DeleteOutlined, EditOutlined, PlusOutlined, QrcodeOutlined, ToolOutlined } from '@ant-design/icons';
-import { Button, Form, Input, Select, Space, Tabs, message } from 'antd';
+import { Button, Form, Input, InputNumber, Select, Space, Tabs, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
   pointAbilityOptions,
@@ -337,7 +337,7 @@ const ServicePointManagement: React.FC = () => {
                   <Input placeholder="例如：B 区 03 号工位，靠近出口" />
                 </Form.Item>
                 <Form.Item name="capacity" label="可同时服务车辆数">
-                  <Input type="number" placeholder="例如：1" />
+                  <InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder="例如：1" />
                 </Form.Item>
               </div>
             </BusinessEditorSection>
@@ -355,7 +355,7 @@ const ServicePointManagement: React.FC = () => {
                   <Select options={qrStatusOptions} placeholder="请选择二维码状态" />
                 </Form.Item>
                 <Form.Item name="sortNo" label="排序">
-                  <Input type="number" placeholder="数字越小越靠前" />
+                  <InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="数字越小越靠前" />
                 </Form.Item>
                 <Form.Item className="merchant-editor-field-span-all" name="abilityTags" label="能力标签">
                   <Select mode="multiple" options={pointAbilityOptions} placeholder="选择点位能力" />

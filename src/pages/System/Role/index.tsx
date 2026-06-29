@@ -92,11 +92,14 @@ const RoleManagement: React.FC = () => {
     }, 0);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (record: any) => {
     showBusinessConfirm({
-      title: '确认删除',
-      content: '确定要删除该角色吗？',
-      onOk: () => deleteMutation.mutate(id),
+      title: '确认删除角色',
+      content: `确定删除角色「${record.roleName || record.roleCode || record.id}」吗？删除后已授权用户会失去该角色权限。`,
+      okText: '确认删除',
+      onOk: async () => {
+        await deleteMutation.mutateAsync(record.id);
+      },
     });
   };
 
@@ -198,7 +201,7 @@ const RoleManagement: React.FC = () => {
           <Button size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)}>
             编辑
           </Button>
-          <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)}>
+          <Button size="small" danger icon={<DeleteOutlined />} loading={deleteMutation.isPending} onClick={() => handleDelete(record)}>
             删除
           </Button>
         </Space>

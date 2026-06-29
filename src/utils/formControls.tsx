@@ -17,10 +17,31 @@ const toDayjs = (value: unknown, format: string): Dayjs | null => {
 export const toDateTimePickerValue = (value: unknown) => toDayjs(value, DATE_TIME_FORMAT);
 export const toDatePickerValue = (value: unknown) => toDayjs(value, DATE_FORMAT);
 export const toTimePickerValue = (value: unknown) => toDayjs(value, TIME_FORMAT);
+export const toDateRangePickerValue = (value: unknown) => {
+  if (!value) return null;
+  if (Array.isArray(value)) {
+    const [start, end] = value;
+    const startValue = toDayjs(start, DATE_FORMAT);
+    const endValue = toDayjs(end, DATE_FORMAT);
+    return startValue && endValue ? [startValue, endValue] : null;
+  }
+  const match = String(value).match(/(\d{4}-\d{2}-\d{2}).*?(\d{4}-\d{2}-\d{2})/);
+  if (!match) return null;
+  const startValue = toDayjs(match[1], DATE_FORMAT);
+  const endValue = toDayjs(match[2], DATE_FORMAT);
+  return startValue && endValue ? [startValue, endValue] : null;
+};
 
 export const fromDateTimePickerValue = (value: Dayjs | null) => value?.format(DATE_TIME_FORMAT);
 export const fromDatePickerValue = (value: Dayjs | null) => value?.format(DATE_FORMAT);
 export const fromTimePickerValue = (value: Dayjs | null) => value?.format(TIME_FORMAT);
+export const fromDateRangePickerValue = (value: unknown) => {
+  if (!Array.isArray(value)) return undefined;
+  const [start, end] = value;
+  const startValue = dayjs.isDayjs(start) ? start.format(DATE_FORMAT) : undefined;
+  const endValue = dayjs.isDayjs(end) ? end.format(DATE_FORMAT) : undefined;
+  return startValue && endValue ? `${startValue} 至 ${endValue}` : undefined;
+};
 
 export const DateTimeField: React.FC<{ placeholder?: string }> = ({ placeholder = '请选择日期时间' }) => (
   <DatePicker showTime format={DATE_TIME_FORMAT} placeholder={placeholder} style={{ width: '100%' }} />
@@ -28,6 +49,10 @@ export const DateTimeField: React.FC<{ placeholder?: string }> = ({ placeholder 
 
 export const DateField: React.FC<{ placeholder?: string }> = ({ placeholder = '请选择日期' }) => (
   <DatePicker format={DATE_FORMAT} placeholder={placeholder} style={{ width: '100%' }} />
+);
+
+export const DateRangeField: React.FC = () => (
+  <DatePicker.RangePicker format={DATE_FORMAT} style={{ width: '100%' }} />
 );
 
 export const TimeField: React.FC<{ placeholder?: string }> = ({ placeholder = '请选择时间' }) => (

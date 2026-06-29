@@ -2,13 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { ApiOutlined, DeleteOutlined, DeploymentUnitOutlined, EditOutlined, LinkOutlined, PlusOutlined, ToolOutlined } from '@ant-design/icons';
-import { Button, Form, Input, Select, Space, Tabs, message } from 'antd';
+import { DeleteOutlined, DeploymentUnitOutlined, EditOutlined, LinkOutlined, PlusOutlined, ToolOutlined } from '@ant-design/icons';
+import { Button, Form, Input, InputNumber, Select, Space, Tabs, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
-  deviceControlModeOptions,
   deviceFaultLevelOptions,
-  deviceProtocolTypeOptions,
   deviceStatusOptions,
   deviceTypeOptions,
 } from '@/constants/businessCatalog';
@@ -17,9 +15,8 @@ import type { DeviceRecord, SelectOptionRecord } from '@/services/backendService
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import PageBanner from '@/components/PageBanner';
-import { buildValueEnum, formatDateTime, renderOptionTags, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
-import { joinCommaValues, splitCommaValues } from '@/utils/csv';
 import { DateField, fromDatePickerValue, toDatePickerValue } from '@/utils/formControls';
 import DeviceProfileManagement from './DeviceProfileManagement';
 
@@ -52,14 +49,16 @@ const DeviceManagement: React.FC = () => {
     queryFn: async () => (await api.store.options()).data,
   });
 
-  const { data: pointOptionsData } = useQuery({
+  const pointOptionsQuery = useQuery({
     queryKey: ['devicePointOptions', selectedStoreId],
     queryFn: async () => (await api.servicePoint.options(selectedStoreId)).data,
     enabled: selectedStoreId !== undefined && selectedStoreId !== null,
   });
 
   const storeOptions = storeOptionsData || [];
-  const pointOptions = pointOptionsData || [];
+  const pointOptions = pointOptionsQuery.data || [];
+  const storeOptionMap = useMemo(() => new Map(storeOptions.map((item) => [item.value, item])), [storeOptions]);
+  const pointOptionMap = useMemo(() => new Map(pointOptions.map((item) => [item.value, item])), [pointOptions]);
 
   const closeDrawer = () => {
     setModalVisible(false);
@@ -93,6 +92,18 @@ const DeviceManagement: React.FC = () => {
     },
   });
 
+  const openCreateDrawer = () => {
+    setEditingRecord(null);
+    form.resetFields();
+    form.setFieldsValue({
+      status: 'OFFLINE',
+      deviceType: 'CAR_WASH_HIGH_PRESSURE',
+      faultLevel: 'LOW',
+      signalStrength: 80,
+    });
+    setModalVisible(true);
+  };
+
   const columns = useMemo<ProColumns<DeviceRecord>[]>(
     () => [
       {
@@ -103,7 +114,7 @@ const DeviceManagement: React.FC = () => {
         render: (_, record) => (
           <div>
             <div>{record.deviceName}</div>
-            <div style={{ color: 'rgba(0, 0, 0, 0.45)', fontSize: 12 }}>{record.protocolType || '未配置协议'} / {record.protocolVersion || 'v1.0'}</div>
+            <div style={{ color: 'rgba(0, 0, 0, 0.45)', fontSize: 12 }}>{record.vendorName || '未配置厂商'}</div>
           </div>
         ),
       },
@@ -126,10 +137,6 @@ const DeviceManagement: React.FC = () => {
         valueEnum: buildValueEnum(deviceTypeOptions),
         render: (_, record) => renderStatusTag(record.deviceType, buildValueEnum(deviceTypeOptions) as any),
       },
-      { title: '厂商', dataIndex: 'vendorName', width: 120, search: false, render: (_, record) => record.vendorName || '-' },
-      { title: '协议', dataIndex: 'protocolType', width: 120, search: false, render: (_, record) => renderStatusTag(record.protocolType, buildValueEnum(deviceProtocolTypeOptions) as any) },
-      { title: '控制方式', dataIndex: 'controlMode', width: 120, search: false, render: (_, record) => renderStatusTag(record.controlMode, buildValueEnum(deviceControlModeOptions) as any) },
-      { title: '能力标签', dataIndex: 'abilityTags', width: 220, search: false, render: (_, record) => renderOptionTags(record.abilityTags) },
       { title: '故障级别', dataIndex: 'faultLevel', width: 120, search: false, render: (_, record) => renderStatusTag(record.faultLevel, buildValueEnum(deviceFaultLevelOptions) as any) },
       { title: '信号强度', dataIndex: 'signalStrength', width: 100, search: false, render: (_, record) => (record.signalStrength != null ? `${record.signalStrength}%` : '-') },
       { title: '最近心跳', dataIndex: 'lastHeartbeatAt', width: 180, search: false, render: (_, record) => formatDateTime(record.lastHeartbeatAt) },
@@ -152,10 +159,7 @@ const DeviceManagement: React.FC = () => {
               icon={<EditOutlined />}
               onClick={() => {
                 setEditingRecord(record);
-                form.setFieldsValue({
-                  ...normalizeDeviceInitialValues(record),
-                  abilityTags: splitCommaValues(record.abilityTags),
-                });
+                form.setFieldsValue(normalizeDeviceInitialValues(record));
                 setModalVisible(true);
               }}
             >
@@ -184,14 +188,14 @@ const DeviceManagement: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="设备管理" subtitle="管理设备台账、接入参数、门店点位绑定和运行状态。" icon={<DeploymentUnitOutlined />} />
+      <PageBanner title="设备管理" subtitle="维护设备台账、门店点位绑定和运行状态。" icon={<DeploymentUnitOutlined />} />
       <WorkflowGuide
-        title="设备接入闭环"
-        summary="设备页要承接设备台账、点位绑定、协议参数和运行状态，最终回到交易与履约验证设备是否真正可用。"
+        title="设备运维闭环"
+        summary="主设备页只处理设备资产、门店点位绑定和运行状态；厂商、型号和协议放在接入档案中维护。"
         steps={[
-          { title: '设备建档', description: '录设备名称、编号、类型和厂商协议', status: 'finish', tag: '当前页' },
+          { title: '设备建档', description: '录设备名称、编号、类型和厂商', status: 'finish', tag: '当前页' },
           { title: '绑定门店点位', description: '决定设备服务于哪个门店和点位', status: 'process', tag: '门店 / 点位' },
-          { title: '能力投放', description: '配置能力标签、在线状态和维护策略', status: 'process', tag: '运行状态' },
+          { title: '接入档案', description: '由实施人员维护厂商、型号和协议', status: 'wait', tag: '接入档案' },
           { title: '履约验证', description: '去交易和履约页看设备启动、回执和异常表现', status: 'wait', tag: '交易 / 核销履约' },
         ]}
         actions={[
@@ -199,21 +203,7 @@ const DeviceManagement: React.FC = () => {
             key: 'create',
             label: '新建设备',
             type: 'primary',
-            onClick: () => {
-              setEditingRecord(null);
-              form.resetFields();
-              form.setFieldsValue({
-                status: 'OFFLINE',
-                deviceType: 'CAR_WASH_HIGH_PRESSURE',
-                controlMode: 'REMOTE',
-                faultLevel: 'LOW',
-                protocolType: 'WASH_API',
-                protocolVersion: 'v1.0',
-                signalStrength: 80,
-                abilityTags: ['START_STOP', 'HEARTBEAT'],
-              });
-              setModalVisible(true);
-            },
+            onClick: openCreateDrawer,
           },
           { key: 'trade', label: '去交易中心', onClick: () => navigate('/trade') },
         ]}
@@ -231,7 +221,7 @@ const DeviceManagement: React.FC = () => {
         dataSource={data?.records || []}
         loading={isLoading}
         search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        scroll={{ x: 2100 }}
+        scroll={{ x: 1500 }}
         pagination={{
           current: data?.current || queryParams.pageNum,
           pageSize: data?.size || queryParams.pageSize,
@@ -245,21 +235,7 @@ const DeviceManagement: React.FC = () => {
             key="create"
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => {
-              setEditingRecord(null);
-              form.resetFields();
-              form.setFieldsValue({
-                status: 'OFFLINE',
-                deviceType: 'CAR_WASH_HIGH_PRESSURE',
-                controlMode: 'REMOTE',
-                faultLevel: 'LOW',
-                protocolType: 'WASH_API',
-                protocolVersion: 'v1.0',
-                signalStrength: 80,
-                abilityTags: ['START_STOP', 'HEARTBEAT'],
-              });
-              setModalVisible(true);
-            }}
+            onClick={openCreateDrawer}
           >
             新建设备
           </Button>,
@@ -280,15 +256,15 @@ const DeviceManagement: React.FC = () => {
       />
             ),
           },
-          { key: 'device-profile', label: '档案维护', children: <DeviceProfileManagement embedded /> },
+          { key: 'device-profile', label: '接入档案', children: <DeviceProfileManagement embedded /> },
         ]}
       />
 
       <BusinessEditorModal
-        eyebrow={editingRecord ? '设备台账维护' : '设备接入配置'}
+        eyebrow={editingRecord ? '设备台账维护' : '设备台账建档'}
         title={editingRecord ? `编辑设备 · ${editingRecord.deviceName}` : '新建设备'}
-        subtitle="设备台账需要同时闭环门店点位绑定、厂商协议、控制方式和运行状态，避免设备建档后无法履约。"
-        meta={['设备闭环', editingRecord ? '编辑模式' : '新建模式']}
+        subtitle="主表单只维护设备资产、绑定关系和当前运行状态；协议、鉴权和能力模板在接入档案中维护。"
+        meta={['设备台账', editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
         width={1180}
         onCancel={closeDrawer}
@@ -304,10 +280,7 @@ const DeviceManagement: React.FC = () => {
           className="merchant-editor-form"
           preserve={false}
           onFinish={(values) => {
-            const payload = {
-              ...normalizeDeviceValues(values),
-              abilityTags: joinCommaValues(values.abilityTags),
-            };
+            const payload = normalizeDeviceValues(values);
             if (editingRecord) {
               updateMutation.mutate({ id: editingRecord.id, ...payload });
               return;
@@ -323,11 +296,33 @@ const DeviceManagement: React.FC = () => {
             >
               <div className="merchant-editor-fields">
                 <Form.Item name="storeId" label="所属门店" rules={[{ required: true, message: '请选择所属门店' }]}>
-                  <Select showSearch optionFilterProp="label" options={storeOptions as SelectOptionRecord[]} placeholder="请选择门店" />
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    options={storeOptions as SelectOptionRecord[]}
+                    placeholder="请选择门店"
+                    onChange={(value) => {
+                      const store = storeOptionMap.get(value);
+                      form.setFieldsValue({ storeName: store?.label, servicePointId: undefined, pointCode: undefined });
+                    }}
+                  />
                 </Form.Item>
                 <Form.Item name="servicePointId" label="所属点位" rules={[{ required: true, message: '请选择点位' }]}>
-                  <Select showSearch optionFilterProp="label" options={pointOptions as SelectOptionRecord[]} placeholder={selectedStoreId ? '请选择点位' : '请先选择门店'} />
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    disabled={!selectedStoreId}
+                    loading={pointOptionsQuery.isLoading}
+                    options={pointOptions as SelectOptionRecord[]}
+                    placeholder={selectedStoreId ? '请选择点位' : '请先选择门店'}
+                    onChange={(value) => {
+                      const point = pointOptionMap.get(value);
+                      form.setFieldValue('pointCode', point?.label);
+                    }}
+                  />
                 </Form.Item>
+                <Form.Item name="storeName" hidden><Input /></Form.Item>
+                <Form.Item name="pointCode" hidden><Input /></Form.Item>
                 <Form.Item name="deviceType" label="设备类型" rules={[{ required: true, message: '请选择设备类型' }]}>
                   <Select options={deviceTypeOptions} placeholder="请选择设备类型" />
                 </Form.Item>
@@ -356,27 +351,6 @@ const DeviceManagement: React.FC = () => {
             </BusinessEditorSection>
 
             <BusinessEditorSection
-              icon={<ApiOutlined />}
-              title="协议与能力"
-              desc="配置协议类型、版本、控制方式和设备能力标签，决定平台如何向设备下发启动、停止和状态查询指令。"
-            >
-              <div className="merchant-editor-fields">
-                <Form.Item name="protocolType" label="协议类型">
-                  <Select options={deviceProtocolTypeOptions} allowClear placeholder="请选择协议类型" />
-                </Form.Item>
-                <Form.Item name="protocolVersion" label="协议版本">
-                  <Input placeholder="例如：v1.0" />
-                </Form.Item>
-                <Form.Item name="controlMode" label="控制方式">
-                  <Select options={deviceControlModeOptions} placeholder="请选择控制方式" />
-                </Form.Item>
-                <Form.Item className="merchant-editor-field-span-all" name="abilityTags" label="能力标签">
-                  <Select mode="tags" placeholder="输入 START_STOP / HEARTBEAT / FOAM 等能力标签" />
-                </Form.Item>
-              </div>
-            </BusinessEditorSection>
-
-            <BusinessEditorSection
               icon={<ToolOutlined />}
               title="运行与告警"
               desc="维护在线状态、信号强度和故障级别，支撑运营台巡检、设备告警和履约异常处理。"
@@ -386,7 +360,7 @@ const DeviceManagement: React.FC = () => {
                   <Select options={deviceFaultLevelOptions} placeholder="请选择故障级别" />
                 </Form.Item>
                 <Form.Item name="signalStrength" label="信号强度（%）">
-                  <Input type="number" placeholder="例如：80" />
+                  <InputNumber min={0} max={100} precision={0} addonAfter="%" style={{ width: '100%' }} placeholder="例如：80" />
                 </Form.Item>
                 <Form.Item name="status" label="设备状态">
                   <Select options={deviceStatusOptions} placeholder="请选择设备状态" />

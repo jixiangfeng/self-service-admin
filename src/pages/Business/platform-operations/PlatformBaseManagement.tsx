@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
-import { ControlOutlined, FileTextOutlined, NodeIndexOutlined, SafetyOutlined, SettingOutlined, TeamOutlined } from '@ant-design/icons';
+import { ControlOutlined, FileTextOutlined, NodeIndexOutlined, SettingOutlined, TeamOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   auditStatusOptions,
   publishStatusOptions,
@@ -14,6 +14,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api, {
   type BizEventRecord,
@@ -47,11 +48,6 @@ const contentCategoryOptions = [
   { value: 'HELP', label: '帮助说明' },
   { value: 'NOTICE', label: '运营公告' },
   { value: 'AGREEMENT', label: '协议内容' },
-];
-const eventActionOptions = [
-  { value: 'RETRY', label: '立即重试' },
-  { value: 'CLOSE', label: '标记关闭' },
-  { value: 'WATCH', label: '加入观察' },
 ];
 const compactJoin = (items: Array<string | undefined | false>) => items.filter(Boolean).join('；');
 
@@ -128,7 +124,6 @@ const PlatformBaseManagement: React.FC = () => {
     datePattern?: string;
     sequenceLength?: number;
     currentValue?: number;
-    eventAction?: string;
     category?: string;
     contentSummary?: string;
   }>();
@@ -154,7 +149,6 @@ const PlatformBaseManagement: React.FC = () => {
       status: 'PUBLISHED',
       orgType: 'PLATFORM',
       configType: 'SWITCH',
-      eventAction: 'RETRY',
       category: 'HELP',
       datePattern: 'yyyyMMdd',
       sequenceLength: 6,
@@ -164,6 +158,22 @@ const PlatformBaseManagement: React.FC = () => {
   };
 
   const configType = Form.useWatch('configType', form);
+  const retryEventMutation = useMutation({
+    mutationFn: (id: number) => api.platformBase.events.retry(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['biz-events'] });
+      message.success('业务事件已发起重试');
+    },
+  });
+
+  const confirmRetryEvent = (record: BizEventRecord) => {
+    showBusinessConfirm({
+      title: '确认重试业务事件',
+      content: `确定重试事件「${record.eventNo || record.bizNo || record.id}」吗？系统会重新触发该事件处理。`,
+      okText: '确认重试',
+      onOk: () => retryEventMutation.mutate(record.id),
+    });
+  };
 
   const buildConfigValue = (values: {
     configType?: string;
@@ -220,8 +230,26 @@ const PlatformBaseManagement: React.FC = () => {
     { title: '处理状态', dataIndex: 'processStatus', width: 120, render: (_, record) => renderStatusTag(record.processStatus, ticketStatusMap) },
     { title: '重试次数', dataIndex: 'retryCount', width: 100 },
     { title: '创建时间', dataIndex: 'createdAt', width: 180, render: (_, record) => formatDateTime(record.createdAt) },
-    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
-  ], []);
+    {
+      title: '操作',
+      width: 160,
+      render: (_, record) => (
+        <>
+          <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+          <Button
+            size="small"
+            type="link"
+            loading={retryEventMutation.isPending}
+            disabled={record.processStatus === 'CLOSED'}
+            title={record.processStatus === 'CLOSED' ? '已关闭事件不可重试' : undefined}
+            onClick={() => confirmRetryEvent(record)}
+          >
+            重试
+          </Button>
+        </>
+      ),
+    },
+  ], [retryEventMutation]);
 
   const contentColumns = useMemo<ProColumns<ContentArticleRecord>[]>(() => [
     { title: '内容编码', dataIndex: 'articleCode', width: 160 },
@@ -256,7 +284,7 @@ const PlatformBaseManagement: React.FC = () => {
           { key: 'org', label: '组织租户', children: <ProTable<PlatformOrganizationRecord> cardBordered rowKey="id" columns={organizationColumns} dataSource={organizations} loading={orgQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建组织')}>新建组织</Button>]} /> },
           { key: 'config', label: '配置中心', children: <ProTable<SystemConfigRecord> cardBordered rowKey="id" columns={configColumns} dataSource={configs} loading={configQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建配置项')}>新建配置</Button>]} /> },
           { key: 'sequence', label: '编号规则', children: <ProTable<SequenceRuleRecord> cardBordered rowKey="id" columns={sequenceColumns} dataSource={sequenceRules} loading={sequenceQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建编号规则')}>新建规则</Button>]} /> },
-          { key: 'event', label: '幂等事件', children: <ProTable<BizEventRecord> cardBordered rowKey="id" columns={eventColumns} dataSource={events} loading={eventQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1360 }} toolBarRender={() => [<Button key="retry" type="primary" disabled={!events.length} onClick={() => openModal('重试业务事件')}>事件重试</Button>]} /> },
+          { key: 'event', label: '幂等事件', children: <ProTable<BizEventRecord> cardBordered rowKey="id" columns={eventColumns} dataSource={events} loading={eventQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1420 }} toolBarRender={() => []} /> },
           { key: 'content', label: '内容帮助', children: <ProTable<ContentArticleRecord> cardBordered rowKey="id" columns={contentColumns} dataSource={contents} loading={contentQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建内容')}>新建内容</Button>]} /> },
         ]}
       />
@@ -290,13 +318,6 @@ const PlatformBaseManagement: React.FC = () => {
           } else if (modalTitle === '新建编号规则') {
             await api.platformBase.sequenceRules.add({ ruleCode: values.code, bizType: values.bizType || values.name, prefix: values.prefix || values.code, datePattern: values.datePattern, sequenceLength: values.sequenceLength || 6, currentValue: values.currentValue || 0, status: values.status || 'PUBLISHED' });
             await queryClient.invalidateQueries({ queryKey: ['sequence-rules'] });
-          } else if (modalTitle === '重试业务事件') {
-            const firstEvent = events.find((item) => item.processStatus !== 'CLOSED') || events[0];
-            if (!firstEvent) {
-              return;
-            }
-            await api.platformBase.events.retry(firstEvent.id);
-            await queryClient.invalidateQueries({ queryKey: ['biz-events'] });
           } else if (modalTitle === '新建内容') {
             await api.platformBase.contents.add({
               articleCode: values.code,
@@ -356,13 +377,6 @@ const PlatformBaseManagement: React.FC = () => {
                   <Form.Item name="datePattern" label="日期格式"><Input placeholder="yyyyMMdd" /></Form.Item>
                   <Form.Item name="sequenceLength" label="流水长度"><InputNumber min={1} max={12} precision={0} style={{ width: '100%' }} /></Form.Item>
                   <Form.Item name="currentValue" label="当前值"><InputNumber min={0} precision={0} style={{ width: '100%' }} /></Form.Item>
-                </div>
-              </BusinessEditorSection>
-            ) : null}
-            {modalTitle === '重试业务事件' ? (
-              <BusinessEditorSection icon={<SafetyOutlined />} title="事件处理" desc="选择事件处理动作，系统会对待处理事件执行对应动作。">
-                <div className="merchant-editor-fields">
-                  <Form.Item name="eventAction" label="处理动作"><Select options={eventActionOptions} placeholder="请选择处理动作" /></Form.Item>
                 </div>
               </BusinessEditorSection>
             ) : null}

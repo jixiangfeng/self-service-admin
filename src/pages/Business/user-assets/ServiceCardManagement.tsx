@@ -130,6 +130,21 @@ const buildDeductPayload = (values: Record<string, any>) => {
   };
 };
 
+const buildCardDefaults = (cardType: string) => ({
+  cardType,
+  status: 'ENABLED',
+  stock: 0,
+  salePrice: 0,
+  scopeMode: 'ALL_STORE',
+  validityMode: 'DAYS',
+  validityDays: cardType === 'MONTH_CARD' ? 31 : 365,
+  rightsServiceTimes: cardType === 'SERVICE_CARD' ? 1 : 10,
+  rightsServices: ['CAR_WASH'],
+  issueChannels: cardType === 'SERVICE_CARD' ? ['BACKEND'] : ['BACKEND', 'PURCHASE'],
+  issueNeedApproval: false,
+  issueAutoNotify: true,
+});
+
 const serviceCardDetailFields: DetailField<ServiceCardRecord>[] = [
   { name: 'cardCode', label: '编码' },
   { name: 'cardName', label: '名称' },
@@ -293,6 +308,13 @@ const ServiceCardManagement: React.FC = () => {
     setIssueVisible(true);
   };
 
+  const openCreateCard = (cardType: string) => {
+    setEditingRecord(null);
+    form.resetFields();
+    form.setFieldsValue(buildCardDefaults(cardType));
+    setModalVisible(true);
+  };
+
   const openDeduct = (record: UserServiceCardRecord) => {
     setCurrentUserCard(record);
     deductForm.resetFields();
@@ -363,7 +385,14 @@ const ServiceCardManagement: React.FC = () => {
           >
             {record.status === 'ENABLED' ? '停用' : '启用'}
           </Button>
-          <Button size="small" onClick={() => openIssue(record)}>发卡</Button>
+          <Button
+            size="small"
+            disabled={record.status !== 'ENABLED' || Number(record.stock || 0) <= 0}
+            title={record.status !== 'ENABLED' ? '卡产品启用后才能发卡' : Number(record.stock || 0) <= 0 ? '库存大于 0 后才能发卡' : undefined}
+            onClick={() => openIssue(record)}
+          >
+            发卡
+          </Button>
         </Space>
       ),
     },
@@ -383,7 +412,14 @@ const ServiceCardManagement: React.FC = () => {
     { title: '操作', width: 150, search: false, render: (_, record) => (
       <Space>
         <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-        <Button size="small" onClick={() => openDeduct(record)}>扣次</Button>
+        <Button
+          size="small"
+          disabled={record.status !== 'USING' || Number(record.remainTimes || 0) <= 0}
+          title={record.status !== 'USING' ? '使用中的服务卡才能扣次' : Number(record.remainTimes || 0) <= 0 ? '剩余次数不足，不能扣次' : undefined}
+          onClick={() => openDeduct(record)}
+        >
+          扣次
+        </Button>
       </Space>
     ) },
   ];
@@ -437,34 +473,14 @@ const ServiceCardManagement: React.FC = () => {
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1780 }}
                 toolBarRender={() => [
-                  <Button key="issue" onClick={() => {
-                    if (cards[0]) openIssue(cards[0]);
-                  }}>批量发卡</Button>,
+                  <Button key="count" onClick={() => openCreateCard('COUNT_CARD')}>新建次卡</Button>,
                   <Button
                     key="new"
                     type="primary"
                     icon={<PlusOutlined />}
-                    onClick={() => {
-                      setEditingRecord(null);
-                      form.resetFields();
-                      form.setFieldsValue({
-                        cardType: 'SERVICE_CARD',
-                        status: 'ENABLED',
-                        stock: 0,
-                        salePrice: 0,
-                        scopeMode: 'ALL_STORE',
-                        validityMode: 'DAYS',
-                        validityDays: 365,
-                        rightsServiceTimes: 1,
-                        rightsServices: ['CAR_WASH'],
-                        issueChannels: ['BACKEND'],
-                        issueNeedApproval: false,
-                        issueAutoNotify: true,
-                      });
-                      setModalVisible(true);
-                    }}
+                    onClick={() => openCreateCard('SERVICE_CARD')}
                   >
-                    新建卡产品
+                    新建服务卡
                   </Button>,
                 ]}
                 onSubmit={(values) => {
@@ -641,6 +657,7 @@ const ServiceCardManagement: React.FC = () => {
           await issueMutation.mutateAsync(buildIssuePayload(values));
           setIssueVisible(false);
         }}
+        confirmLoading={issueMutation.isPending}
         width={760}
       >
         <Form form={issueForm} layout="vertical" className="merchant-editor-form">
@@ -691,6 +708,7 @@ const ServiceCardManagement: React.FC = () => {
           await deductMutation.mutateAsync(buildDeductPayload(values));
           setDeductVisible(false);
         }}
+        confirmLoading={deductMutation.isPending}
         width={760}
       >
         <Form form={deductForm} layout="vertical" className="merchant-editor-form">
@@ -716,7 +734,7 @@ const ServiceCardManagement: React.FC = () => {
             </BusinessEditorSection>
             <BusinessEditorSection icon={<WalletOutlined />} title="扣次信息" desc="记录扣减次数、门店和备注，支撑服务卡核销闭环。">
               <div className="merchant-editor-fields">
-                <Form.Item name="deductCount" label="扣减次数" rules={[{ required: true, message: '请输入扣减次数' }]}><InputNumber style={{ width: '100%' }} min={1} precision={0} addonAfter="次" placeholder="请输入扣减次数" /></Form.Item>
+                <Form.Item name="deductCount" label="扣减次数" rules={[{ required: true, message: '请输入扣减次数' }]}><InputNumber style={{ width: '100%' }} min={1} max={currentUserCard?.remainTimes && currentUserCard.remainTimes > 0 ? currentUserCard.remainTimes : undefined} precision={0} addonAfter="次" placeholder="请输入扣减次数" /></Form.Item>
                 <Form.Item name="storeId" label="门店">
                   <Select
                     allowClear

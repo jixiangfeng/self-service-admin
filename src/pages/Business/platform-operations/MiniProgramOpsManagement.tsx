@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, DatePicker, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
 import { FileTextOutlined, MobileOutlined, PictureOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
@@ -16,6 +16,7 @@ import api, {
   type BannerConfigRecord,
   type MiniProgramPageConfigRecord,
 } from '@/services/backendService';
+import { DateTimeField, fromDateTimePickerValue } from '@/utils/formControls';
 
 type DetailRecord = MiniProgramPageConfigRecord | BannerConfigRecord | AgreementContentRecord;
 
@@ -179,8 +180,8 @@ const MiniProgramOpsManagement: React.FC = () => {
         imageUrl: values.imageUrl,
         jumpType: values.jumpType || 'NONE',
         jumpValue: values.jumpValue,
-        startAt: values.startAt ? values.startAt.format('YYYY-MM-DD HH:mm:ss') : undefined,
-        endAt: values.endAt ? values.endAt.format('YYYY-MM-DD HH:mm:ss') : undefined,
+        startAt: fromDateTimePickerValue(values.startAt) || values.startAt,
+        endAt: fromDateTimePickerValue(values.endAt) || values.endAt,
         sortNo: Number(values.sortNo ?? 0),
         status: values.status,
         extraJson: values.extraJson,
@@ -195,7 +196,7 @@ const MiniProgramOpsManagement: React.FC = () => {
           contentPoint: values.contentPoint || '',
         }),
         versionNo: values.versionNo,
-        effectiveAt: values.effectiveAt ? values.effectiveAt.format('YYYY-MM-DD HH:mm:ss') : undefined,
+        effectiveAt: fromDateTimePickerValue(values.effectiveAt) || values.effectiveAt,
         status: values.status,
       });
       await queryClient.invalidateQueries({ queryKey: ['agreement-contents'] });
@@ -325,8 +326,8 @@ const MiniProgramOpsManagement: React.FC = () => {
                   <Form.Item name="imageUrl" label="图片URL"><Input placeholder="上传图片后自动填入，也可手动填写远程 URL" /></Form.Item>
                   <Form.Item name="jumpType" label="跳转类型"><Select options={jumpTypeOptions} placeholder="请选择跳转类型" /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="jumpValue" label="跳转值"><Input placeholder="PAGE: /pages/recharge-center/index；URL: https://example.com；COUPON/RECHARGE/PRODUCT: 业务编号" /></Form.Item>
-                  <Form.Item name="startAt" label="开始时间"><DatePicker showTime style={{ width: '100%' }} /></Form.Item>
-                  <Form.Item name="endAt" label="结束时间"><DatePicker showTime style={{ width: '100%' }} /></Form.Item>
+                  <Form.Item name="startAt" label="开始时间"><DateTimeField /></Form.Item>
+                  <Form.Item name="endAt" label="结束时间"><DateTimeField /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="extraJson" label="扩展配置 JSON"><Input.TextArea rows={3} placeholder='例如：{"trackCode":"home_banner"}' /></Form.Item>
                 </div>
               </BusinessEditorSection>
@@ -336,7 +337,7 @@ const MiniProgramOpsManagement: React.FC = () => {
                 <div className="merchant-editor-fields">
                   <Form.Item name="agreementType" label="协议类型"><Select options={agreementTypeOptions} placeholder="请选择协议类型" /></Form.Item>
                   <Form.Item name="versionNo" label="版本号" rules={[{ required: true, message: '请输入协议版本号' }]}><Input placeholder="例如：V2026062801" /></Form.Item>
-                  <Form.Item name="effectiveAt" label="生效时间"><DatePicker showTime style={{ width: '100%' }} /></Form.Item>
+                  <Form.Item name="effectiveAt" label="生效时间"><DateTimeField /></Form.Item>
                   <Form.Item name="contentSummary" label="内容摘要"><Input placeholder="例如：充值余额使用和退款规则" /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="contentPoint" label="正文要点"><Input placeholder="例如：充值余额不可提现，未消费部分按规则退款" /></Form.Item>
                 </div>

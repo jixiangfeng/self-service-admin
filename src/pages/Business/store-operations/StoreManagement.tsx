@@ -3,34 +3,28 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { DeleteOutlined, EditOutlined, EnvironmentOutlined, FieldTimeOutlined, NotificationOutlined, PlusOutlined, ShopOutlined } from '@ant-design/icons';
-import { Button, Form, Input, Select, Space, Tabs, message } from 'antd';
+import { Button, Form, Input, InputNumber, Select, Space, Tabs, message } from 'antd';
 import type { CascaderProps } from 'antd';
 import {
   marketingOptions,
-  statusOptions,
   storeStatusOptions,
 } from '@/constants/businessCatalog';
 import api from '@/services/backendService';
 import type { SelectOptionRecord, StoreRecord } from '@/services/backendService';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
-import OssImageUpload from '@/components/OssImageUpload';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, formatDateTime, renderBooleanTag, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
-import { DateTimeField, fromDateTimePickerValue, toDateTimePickerValue, RegionCascader } from '@/utils/formControls';
+import { RegionCascader } from '@/utils/formControls';
 import StoreProfileManagement from './StoreProfileManagement';
-
-const normalizePickerValues = (values: Record<string, any>) => ({
-  ...values,
-  tempClosedUntil: fromDateTimePickerValue(values.tempClosedUntil) || values.tempClosedUntil,
-});
 
 const normalizePickerInitialValues = (record: StoreRecord) => ({
   ...record,
-  tempClosedUntil: toDateTimePickerValue(record.tempClosedUntil) || record.tempClosedUntil,
   region: [record.province, record.city, record.district].filter(Boolean),
 });
+
+const storeStatusMap = buildValueEnum(storeStatusOptions);
 
 const StoreManagement: React.FC = () => {
   const [form] = Form.useForm();
@@ -91,13 +85,32 @@ const StoreManagement: React.FC = () => {
     },
   });
 
+  const statusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: string }) => api.store.changeStatus(id, status),
+    onSuccess: () => {
+      message.success('门店状态更新成功');
+      queryClient.invalidateQueries({ queryKey: ['stores'] });
+    },
+  });
+
+  const confirmStoreStatus = (record: StoreRecord) => {
+    const nextStatus = record.status === 'OPEN' ? 'PAUSED' : 'OPEN';
+    const actionName = nextStatus === 'OPEN' ? '开业' : '暂停';
+    showBusinessConfirm({
+      title: `确认${actionName}门店`,
+      content: `确定将门店「${record.storeName}」调整为${actionName}状态吗？该操作会影响用户端可见性和履约接单。`,
+      okText: `确认${actionName}`,
+      danger: nextStatus !== 'OPEN',
+      onOk: () => statusMutation.mutate({ id: record.id, status: nextStatus }),
+    });
+  };
+
   const openCreateDrawer = () => {
     setEditingRecord(null);
     form.resetFields();
     form.setFieldsValue({
       marketingEnabled: 1,
       status: 'OPEN',
-      tempClosed: 0,
     });
     setModalVisible(true);
   };
@@ -128,24 +141,21 @@ const StoreManagement: React.FC = () => {
       { title: '门店编号', dataIndex: 'storeCode', width: 140, search: false },
       { title: '城市', dataIndex: 'city', width: 140, render: (_, record) => record.city || '-', hideInSearch: true },
       { title: '城市筛选', dataIndex: 'cityKeyword', hideInTable: true, fieldProps: { placeholder: '输入城市，例如上海' } },
-      { title: '营业时间', dataIndex: 'businessHours', width: 160, search: false, render: (_, record) => record.businessHours || '-' },
-      { title: '营业时段', dataIndex: 'openTime', width: 150, search: false, render: (_, record) => record.openTime && record.closeTime ? `${record.openTime}-${record.closeTime}` : '-' },
       { title: '店长', dataIndex: 'managerName', width: 140, search: false, render: (_, record) => record.managerName || '-' },
       { title: '服务半径', dataIndex: 'serviceRadius', width: 110, search: false, render: (_, record) => record.serviceRadius ? `${record.serviceRadius}km` : '-' },
       { title: '营销开关', dataIndex: 'marketingEnabled', width: 120, search: false, render: (_, record) => renderBooleanTag(record.marketingEnabled) },
-      { title: '临停状态', dataIndex: 'tempClosed', width: 120, search: false, render: (_, record) => renderBooleanTag(record.tempClosed, '临停中', '正常') },
       {
         title: '门店状态',
         dataIndex: 'status',
         width: 120,
         valueType: 'select',
-        valueEnum: buildValueEnum(storeStatusOptions),
-        render: (_, record) => renderStatusTag(record.status, buildValueEnum(storeStatusOptions) as any),
+        valueEnum: storeStatusMap,
+        render: (_, record) => renderStatusTag(record.status, storeStatusMap as any),
       },
       { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt || record.updateTime) },
       {
         title: '操作',
-        width: 160,
+        width: 220,
         search: false,
         render: (_, record) => (
           <Space>
@@ -159,6 +169,9 @@ const StoreManagement: React.FC = () => {
               }}
             >
               编辑
+            </Button>
+            <Button size="small" loading={statusMutation.isPending} onClick={() => confirmStoreStatus(record)}>
+              {record.status === 'OPEN' ? '暂停' : '开业'}
             </Button>
             <Button
               size="small"
@@ -178,12 +191,12 @@ const StoreManagement: React.FC = () => {
         ),
       },
     ],
-    [deleteMutation, form, merchantOptions]
+    [deleteMutation, form, merchantOptions, statusMutation]
   );
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="门店管理" subtitle="维护门店档案、营业配置、营销开关和服务能力。" icon={<ShopOutlined />} />
+      <PageBanner title="门店管理" subtitle="维护门店基础信息、位置、当前营业状态和公告。" icon={<ShopOutlined />} />
       <WorkflowGuide
         title="门店经营闭环"
         summary="门店不是地址条目，而是点位、设备、商品、活动和门店运营的统一承载主体。"
@@ -247,7 +260,7 @@ const StoreManagement: React.FC = () => {
       <BusinessEditorModal
         eyebrow={editingRecord ? '门店档案维护' : '门店建档配置'}
         title={editingRecord ? `编辑门店 · ${editingRecord.storeName}` : '新建门店'}
-        subtitle="门店是点位、设备、商品、活动和运营任务的承载主体，建档时同步补齐地址、营业、服务能力和公告信息。"
+        subtitle="主表单只维护门店基础建档和当前经营状态；图片、营业时间明细、临停记录和服务能力在档案维护中配置。"
         meta={['门店闭环', editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
         width={1220}
@@ -264,8 +277,7 @@ const StoreManagement: React.FC = () => {
           className="merchant-editor-form"
           preserve={false}
           onFinish={(values) => {
-            const { region, ...restValues } = values;
-            const payload = normalizePickerValues(restValues);
+            const { region, ...payload } = values;
             if (editingRecord) {
               updateMutation.mutate({ id: editingRecord.id, ...payload });
               return;
@@ -277,7 +289,7 @@ const StoreManagement: React.FC = () => {
             <BusinessEditorSection
               icon={<ShopOutlined />}
               title="基础归属"
-              desc="明确门店属于哪个商户，并沉淀门店名称、编号、封面和负责人，后续点位、设备和交易都会引用这里。"
+              desc="明确门店属于哪个商户，并沉淀门店名称、编号和负责人。"
             >
               <div className="merchant-editor-fields">
                 <Form.Item name="merchantId" label="所属商户" rules={[{ required: true, message: '请选择所属商户' }]}>
@@ -307,9 +319,6 @@ const StoreManagement: React.FC = () => {
                 <Form.Item name="managerPhone" label="负责人电话">
                   <Input placeholder="异常、巡检和售后通知手机号" />
                 </Form.Item>
-                <Form.Item className="merchant-editor-field-span-2" name="coverUrl" label="门店封面">
-                  <OssImageUpload prefix="store/covers" placeholder="上传门店封面" />
-                </Form.Item>
               </div>
             </BusinessEditorSection>
 
@@ -334,13 +343,13 @@ const StoreManagement: React.FC = () => {
                   <Input placeholder="精确到园区、停车场、楼栋或入口" />
                 </Form.Item>
                 <Form.Item name="longitude" label="经度">
-                  <Input placeholder="例如：121.473701" />
+                  <InputNumber min={-180} max={180} precision={6} step={0.000001} style={{ width: '100%' }} placeholder="例如：121.473701" />
                 </Form.Item>
                 <Form.Item name="latitude" label="纬度">
-                  <Input placeholder="例如：31.230416" />
+                  <InputNumber min={-90} max={90} precision={6} step={0.000001} style={{ width: '100%' }} placeholder="例如：31.230416" />
                 </Form.Item>
                 <Form.Item name="serviceRadius" label="服务半径 km">
-                  <Input placeholder="例如：3" />
+                  <InputNumber min={0} precision={2} step={0.1} style={{ width: '100%' }} placeholder="例如：3" />
                 </Form.Item>
               </div>
             </BusinessEditorSection>
@@ -348,35 +357,14 @@ const StoreManagement: React.FC = () => {
             <BusinessEditorSection
               icon={<FieldTimeOutlined />}
               title="营业设置"
-              desc="配置营业时段、节假日策略、营销开关和临停原因，决定用户是否能在该店下单。"
+              desc="维护营销开关和门店启停状态；营业时段和临停记录在档案维护中维护。"
             >
               <div className="merchant-editor-fields">
-                <Form.Item name="businessHours" label="营业时间">
-                  <Input placeholder="例如：08:00-22:00" />
-                </Form.Item>
-                <Form.Item name="openTime" label="开门时间">
-                  <Input placeholder="例如：08:00" />
-                </Form.Item>
-                <Form.Item name="closeTime" label="关门时间">
-                  <Input placeholder="例如：22:00" />
-                </Form.Item>
-                <Form.Item name="holidayHours" label="节假日营业时间">
-                  <Input placeholder="例如：节假日 09:00-21:00" />
-                </Form.Item>
                 <Form.Item name="marketingEnabled" label="营销开关">
                   <Select options={marketingOptions} placeholder="是否参与营销活动" />
                 </Form.Item>
                 <Form.Item name="status" label="门店状态">
                   <Select options={storeStatusOptions} placeholder="请选择门店状态" />
-                </Form.Item>
-                <Form.Item name="tempClosed" label="是否临时停业">
-                  <Select options={statusOptions.map((item) => ({ value: item.value, label: item.value === 1 ? '是' : '否' }))} placeholder="请选择临停状态" />
-                </Form.Item>
-                <Form.Item name="tempClosedReason" label="临停原因">
-                  <Input placeholder="例如：设备检修 / 场地施工" />
-                </Form.Item>
-                <Form.Item name="tempClosedUntil" label="临停截止时间">
-                  <DateTimeField />
                 </Form.Item>
               </div>
             </BusinessEditorSection>
@@ -384,12 +372,9 @@ const StoreManagement: React.FC = () => {
             <BusinessEditorSection
               icon={<NotificationOutlined />}
               title="展示与公告"
-              desc="维护门店图片、公告和介绍，让小程序展示、活动落地页和运营交接信息保持一致。"
+              desc="维护门店公告和介绍；门店图片在档案维护中统一管理。"
             >
               <div className="merchant-editor-fields merchant-editor-fields--two">
-                <Form.Item className="merchant-editor-field-span-2" name="imageUrls" label="门店图片">
-                  <OssImageUpload multiple prefix="store/images" placeholder="上传门店图片" />
-                </Form.Item>
                 <Form.Item name="notice" label="门店公告">
                   <Input.TextArea rows={3} placeholder="例如：夜间洗车请按现场引导停车" />
                 </Form.Item>

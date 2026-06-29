@@ -16,6 +16,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import api, { type AfterSaleTicketRecord, type MessageRecord, type MessageTemplateRecord } from '@/services/backendService';
 
@@ -113,6 +114,13 @@ const ServiceDeskManagement: React.FC = () => {
       message.success('消息已发送');
     },
   });
+  const updateTicketMutation = useMutation({
+    mutationFn: ({ id, values }: { id: number; values: Record<string, unknown> }) => api.afterSaleTicket.updateStatus(id, values),
+    onSuccess: () => {
+      message.success('工单处理结果已更新');
+      queryClient.invalidateQueries({ queryKey: ['afterSaleTickets'] });
+    },
+  });
 
   const filteredMessages = useMemo(() => messages.filter((item) => containsKeyword(messageKeyword, [item.messageNo, item.templateCode, item.receiver, item.phone, item.failReason])), [messageKeyword, messages]);
   const filteredTickets = useMemo(() => tickets.filter((item) => containsKeyword(ticketKeyword, [item.ticketNo, item.ticketType, item.content, item.owner, item.orderNo])), [ticketKeyword, tickets]);
@@ -194,17 +202,27 @@ const ServiceDeskManagement: React.FC = () => {
       values.compensationAmount ? `补偿金额：${values.compensationAmount}元` : undefined,
       values.supplement ? `补充说明：${values.supplement}` : undefined,
     ]);
-    await api.afterSaleTicket.updateStatus(editingTicket.id, {
-      ticketStatus: values.status,
-      compensationType: values.compensationType,
-      compensationValue: result,
-      result,
+    const ticket = editingTicket;
+    showBusinessConfirm({
+      title: '确认提交工单处理结果',
+      content: `确定更新工单「${ticket.ticketNo || ticket.id}」吗？处理结果会同步影响售后进度。`,
+      okText: '确认提交',
+      danger: values.status === 'CLOSED',
+      onOk: async () => {
+        await updateTicketMutation.mutateAsync({
+          id: ticket.id,
+          values: {
+            ticketStatus: values.status,
+            compensationType: values.compensationType,
+            compensationValue: result,
+            result,
+          },
+        });
+        setTicketModalVisible(false);
+        setEditingTicket(null);
+        ticketForm.resetFields();
+      },
     });
-    message.success('工单处理结果已更新');
-    queryClient.invalidateQueries({ queryKey: ['afterSaleTickets'] });
-    setTicketModalVisible(false);
-    setEditingTicket(null);
-    ticketForm.resetFields();
   };
 
   return (
@@ -250,18 +268,9 @@ const ServiceDeskManagement: React.FC = () => {
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1740 }}
-                toolBarRender={() => [
-                  <Button key="assign" onClick={() => {
-                    const first = tickets[0];
-                    if (first) {
-                      api.afterSaleTicket.updateStatus(first.id, { ticketStatus: first.status || 'PROCESSING', compensationType: first.compensationType, compensationValue: first.result || '已分派客服处理' }).then(() => {
-                        queryClient.invalidateQueries({ queryKey: ['afterSaleTickets'] });
-                        message.success('已分派首个待处理工单');
-                      });
-                    }
-                  }}>批量分派</Button>,
-                  <Button key="new" type="primary" onClick={() => { setEditingTicket(null); ticketForm.resetFields(); setTicketModalVisible(true); }}>新建工单</Button>,
-                ]}
+                        toolBarRender={() => [
+                          <Button key="new" type="primary" onClick={() => { setEditingTicket(null); ticketForm.resetFields(); setTicketModalVisible(true); }}>新建工单</Button>,
+                        ]}
                 onSubmit={(values) => setTicketKeyword(String(values.keyword || ''))}
                 onReset={() => setTicketKeyword('')}
               />
@@ -289,8 +298,8 @@ const ServiceDeskManagement: React.FC = () => {
         setTicketModalVisible(false);
         ticketForm.resetFields();
       }}
-        confirmLoading={createTicketMutation.isPending}
-        onCancel={() => setTicketModalVisible(false)}
+                confirmLoading={editingTicket ? updateTicketMutation.isPending : createTicketMutation.isPending}
+                onCancel={() => { setTicketModalVisible(false); setEditingTicket(null); ticketForm.resetFields(); }}
         width={1080}
         okText={editingTicket ? '提交处理' : '创建工单'}
       >

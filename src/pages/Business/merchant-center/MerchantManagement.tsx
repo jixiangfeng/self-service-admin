@@ -15,14 +15,12 @@ import { useNavigate } from 'react-router-dom';
 import {
   merchantContractStatusOptions,
   merchantTypeOptions,
-  settlementCycleOptions,
   statusOptions,
 } from '@/constants/businessCatalog';
 import api from '@/services/backendService';
 import type { MerchantRecord } from '@/services/backendService';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import BusinessEditorModal from '@/components/BusinessEditorModal';
-import OssImageUpload from '@/components/OssImageUpload';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
@@ -34,13 +32,11 @@ const merchantStatusMap = {
 };
 
 const merchantContractStatusMap = buildValueEnum(merchantContractStatusOptions);
-const settlementCycleMap = buildValueEnum(settlementCycleOptions);
 
 const merchantFormDefaults = {
   status: 1,
   merchantType: 'DIRECT',
   contractStatus: 'ACTIVE',
-  settlementCycle: 'WEEK',
 };
 
 const MerchantManagement: React.FC = () => {
@@ -161,8 +157,6 @@ const MerchantManagement: React.FC = () => {
       { title: '联系电话', dataIndex: 'contactPhone', width: 140, search: false, render: (_, record) => record.contactPhone || '-' },
       { title: '覆盖城市', dataIndex: 'cityCoverage', width: 160, search: false, render: (_, record) => record.cityCoverage || '-' },
       { title: '门店数', dataIndex: 'storeCount', width: 100, search: false, render: (_, record) => record.storeCount ?? 0 },
-      { title: '结算周期', dataIndex: 'settlementCycle', width: 120, search: false, render: (_, record) => renderStatusTag(record.settlementCycle, settlementCycleMap) },
-      { title: '结算账户', dataIndex: 'settlementAccountName', width: 180, search: false, render: (_, record) => record.settlementAccountName || '-' },
       {
         title: '状态',
         dataIndex: 'status',
@@ -220,12 +214,12 @@ const MerchantManagement: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="商户管理" subtitle="维护商户主体、联系人、结算账户和启停状态。" icon={<ApartmentOutlined />} />
+      <PageBanner title="商户管理" subtitle="维护商户主体、主联系人快照和启停状态。" icon={<ApartmentOutlined />} />
       <WorkflowGuide
         title="商户开店闭环"
         summary="商户建档只是第一步。录完主体后，应继续开门店、分配门店组、配置商品活动，最终再进入商户后台看经营情况。"
         steps={[
-          { title: '主体建档', description: '录入主体、联系人和结算账户', status: 'finish', tag: '当前页' },
+          { title: '主体建档', description: '录入主体和主联系人快照', status: 'finish', tag: '当前页' },
           { title: '门店开设', description: '为商户创建门店并配置营业策略', status: 'process', tag: '下一步：门店管理' },
           { title: '门店组范围', description: '分配活动、核销、统计门店组', status: 'wait', tag: '门店组管理' },
           { title: '经营后台', description: '切换到商户视角跟进待办和经营数据', status: 'wait', tag: '商户后台' },
@@ -288,7 +282,7 @@ const MerchantManagement: React.FC = () => {
       <BusinessEditorModal
         eyebrow={editingRecord ? '商户档案维护' : '商户入驻建档'}
         title={modalTitle}
-        subtitle="先建主体，再继续配置门店、门店组、商品活动和商户后台视角。"
+        subtitle="主表单只维护商户建档必需信息；联系人明细、资质、合同和结算账户在档案维护中补齐。"
         meta={['主体建档', editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
         width={1220}
@@ -321,7 +315,7 @@ const MerchantManagement: React.FC = () => {
                   </div>
                   <div>
                     <div className="merchant-editor-section__title">主体基础信息</div>
-                    <div className="merchant-editor-section__desc">明确经营主体、合同状态和资质归档方式，保证商户建档可追溯。</div>
+                    <div className="merchant-editor-section__desc">明确经营主体和合同状态，资质文件在档案维护中统一归档。</div>
                   </div>
                 </div>
                 <div className="merchant-editor-fields">
@@ -342,9 +336,6 @@ const MerchantManagement: React.FC = () => {
                   </Form.Item>
                   <Form.Item name="creditCode" label="统一信用代码">
                     <Input placeholder="用于对接资质、发票与风控核验" />
-                  </Form.Item>
-                  <Form.Item className="merchant-editor-field-span-2" name="licenseUrl" label="营业资质图片">
-                    <OssImageUpload prefix="merchant/licenses" placeholder="上传营业资质" />
                   </Form.Item>
                 </div>
               </section>
@@ -375,20 +366,11 @@ const MerchantManagement: React.FC = () => {
                     <WalletOutlined />
                   </div>
                   <div>
-                    <div className="merchant-editor-section__title">结算与档案备注</div>
-                    <div className="merchant-editor-section__desc">配置结算方式和账户信息，补充内部协作备注，支撑财务对账。</div>
+                    <div className="merchant-editor-section__title">状态与备注</div>
+                    <div className="merchant-editor-section__desc">只维护商户启停状态和内部备注，合同与结算信息在档案维护中管理。</div>
                   </div>
                 </div>
                 <div className="merchant-editor-fields">
-                  <Form.Item name="settlementAccountName" label="结算账户名称">
-                    <Input placeholder="例如：上海鲸洗汽车服务有限公司" />
-                  </Form.Item>
-                  <Form.Item name="settlementAccountNo" label="结算账号">
-                    <Input placeholder="用于账单结算与打款" />
-                  </Form.Item>
-                  <Form.Item name="settlementCycle" label="结算周期" rules={[{ required: true, message: '请选择结算周期' }]}>
-                    <Select placeholder="请选择结算周期" options={settlementCycleOptions} />
-                  </Form.Item>
                   <Form.Item name="status" label="状态" initialValue={merchantFormDefaults.status}>
                     <Select options={statusOptions} placeholder="请选择状态" />
                   </Form.Item>

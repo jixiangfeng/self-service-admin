@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, Radio, Row, Select, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Checkbox, Col, Form, Input, InputNumber, Radio, Row, Select, Statistic, Tabs, message } from 'antd';
 import { CalculatorOutlined, FieldTimeOutlined, FileTextOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -18,6 +18,7 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
 import type { ServiceOrderRecord } from '@/services/backendService';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import { DateTimeField } from '@/utils/formControls';
 
 interface OrderItemRecord {
   id: string;
@@ -375,8 +376,8 @@ const OrderDetailManagement: React.FC = () => {
 
             <BusinessEditorSection icon={<FieldTimeOutlined />} title="计费区间与依据" desc="选择计费时间、适用规则和重算原因，系统会生成可追溯的计费说明。">
               <div className="merchant-editor-fields">
-                <Form.Item name="startAt" label="开始时间"><DatePicker showTime style={{ width: '100%' }} placeholder="选择开始时间" /></Form.Item>
-                <Form.Item name="endAt" label="结束时间"><DatePicker showTime style={{ width: '100%' }} placeholder="选择结束时间" /></Form.Item>
+                <Form.Item name="startAt" label="开始时间"><DateTimeField placeholder="选择开始时间" /></Form.Item>
+                <Form.Item name="endAt" label="结束时间"><DateTimeField placeholder="选择结束时间" /></Form.Item>
                 <Form.Item name="billingRule" label="适用规则" rules={[{ required: true, message: '请选择适用规则' }]}><Select options={billingRuleOptions} placeholder="选择计费规则" /></Form.Item>
                 <Form.Item name="recalcReason" label="重算原因" rules={[{ required: true, message: '请选择重算原因' }]}><Select options={recalcReasonOptions} placeholder="选择重算原因" /></Form.Item>
                 <Form.Item name="discountApplied" label="优惠处理"><Radio.Group options={[{ value: 'YES', label: '已抵扣优惠' }, { value: 'NO', label: '不抵扣优惠' }]} optionType="button" /></Form.Item>

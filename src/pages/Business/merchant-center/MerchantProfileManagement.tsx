@@ -25,6 +25,7 @@ import type {
   MerchantSettlementAccountRecord,
 } from '@/services/backendService';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
+import { DateField, DateTimeField, fromDatePickerValue, fromDateTimePickerValue, toDatePickerValue, toDateTimePickerValue } from '@/utils/formControls';
 
 type ProfileTab = 'contact' | 'qualification' | 'contract' | 'account' | 'change';
 type EditableRecord = MerchantContactRecord | MerchantContractRecord | MerchantSettlementAccountRecord | MerchantQualificationRecord | MerchantChangeLogRecord;
@@ -114,24 +115,31 @@ const profileTabMeta: Record<ProfileTab, { eyebrow: string; createTitle: string;
 
 const normalizeProfilePayload = (payload: Record<string, unknown>, tab: ProfileTab) => {
   const next = { ...payload };
-  if (tab === 'change' && typeof next.changedAt === 'string' && next.changedAt) {
-    next.changedAt = String(next.changedAt).replace('T', ' ');
+  if (tab === 'qualification') {
+    next.expireAt = fromDatePickerValue(next.expireAt as any) || next.expireAt;
+  }
+  if (tab === 'contract') {
+    next.startAt = fromDatePickerValue(next.startAt as any) || next.startAt;
+    next.endAt = fromDatePickerValue(next.endAt as any) || next.endAt;
+  }
+  if (tab === 'account') {
+    next.effectiveAt = fromDatePickerValue(next.effectiveAt as any) || next.effectiveAt;
+  }
+  if (tab === 'change') {
+    next.changedAt = fromDateTimePickerValue(next.changedAt as any) || next.changedAt;
   }
   return next;
 };
 
-const toDateInputValue = (value?: string) => value ? value.slice(0, 10) : undefined;
-const toDateTimeInputValue = (value?: string) => value ? value.replace(' ', 'T').slice(0, 16) : undefined;
-
 const normalizeProfileFormRecord = (record: EditableRecord, tab: ProfileTab) => {
   const next = { ...(record as unknown as Record<string, unknown>) };
-  if (tab === 'qualification') next.expireAt = toDateInputValue(next.expireAt as string | undefined);
+  if (tab === 'qualification') next.expireAt = toDatePickerValue(next.expireAt) || next.expireAt;
   if (tab === 'contract') {
-    next.startAt = toDateInputValue(next.startAt as string | undefined);
-    next.endAt = toDateInputValue(next.endAt as string | undefined);
+    next.startAt = toDatePickerValue(next.startAt) || next.startAt;
+    next.endAt = toDatePickerValue(next.endAt) || next.endAt;
   }
-  if (tab === 'account') next.effectiveAt = toDateInputValue(next.effectiveAt as string | undefined);
-  if (tab === 'change') next.changedAt = toDateTimeInputValue(next.changedAt as string | undefined);
+  if (tab === 'account') next.effectiveAt = toDatePickerValue(next.effectiveAt) || next.effectiveAt;
+  if (tab === 'change') next.changedAt = toDateTimePickerValue(next.changedAt) || next.changedAt;
   return next;
 };
 
@@ -510,7 +518,7 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
                 <Form.Item name="fileUrl" label="资质文件"><OssImageUpload fileKind="file" prefix="merchant/qualifications" placeholder="上传资质文件" /></Form.Item>
                 <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
                 <Form.Item name="status" label="状态"><Select options={accountStatusOptions} placeholder="请选择状态" /></Form.Item>
-                <Form.Item name="expireAt" label="到期日"><Input type="date" /></Form.Item>
+                <Form.Item name="expireAt" label="到期日"><DateField /></Form.Item>
               </>
             ) : null}
             {activeTab === 'contract' ? (
@@ -521,8 +529,8 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
                 <Form.Item name="contractStatus" label="合同状态"><Select options={merchantContractStatusOptions} placeholder="请选择合同状态" /></Form.Item>
                 <Form.Item name="status" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
                 <Form.Item name="fileUrl" label="合同文件"><OssImageUpload fileKind="file" prefix="merchant/contracts" placeholder="上传合同文件" /></Form.Item>
-                <Form.Item name="startAt" label="开始日期"><Input type="date" /></Form.Item>
-                <Form.Item name="endAt" label="结束日期"><Input type="date" /></Form.Item>
+                <Form.Item name="startAt" label="开始日期"><DateField /></Form.Item>
+                <Form.Item name="endAt" label="结束日期"><DateField /></Form.Item>
               </>
             ) : null}
             {activeTab === 'account' ? (
@@ -532,7 +540,7 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
                 <Form.Item name="bankName" label="开户行"><Input placeholder="例如：招商银行上海分行" /></Form.Item>
                 <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
                 <Form.Item name="status" label="账户状态"><Select options={accountStatusOptions} placeholder="请选择账户状态" /></Form.Item>
-                <Form.Item name="effectiveAt" label="生效日期"><Input type="date" /></Form.Item>
+                <Form.Item name="effectiveAt" label="生效日期"><DateField /></Form.Item>
               </>
             ) : null}
             {activeTab === 'change' ? (
@@ -540,7 +548,7 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
                 <Form.Item name="changeNo" label="变更单号" rules={[{ required: true, message: '请输入变更单号' }]}><Input placeholder="例如：MCG202605100001" /></Form.Item>
                 <Form.Item name="changeType" label="变更类型"><Select options={changeTypeOptions} placeholder="请选择变更类型" /></Form.Item>
                 <Form.Item name="operator" label="操作人"><Input placeholder="例如：平台运营" /></Form.Item>
-                <Form.Item name="changedAt" label="变更时间"><Input type="datetime-local" /></Form.Item>
+                <Form.Item name="changedAt" label="变更时间"><DateTimeField /></Form.Item>
                 <Form.Item className="merchant-editor-field-span-2" name="beforeValue" label="变更前"><Input.TextArea rows={3} placeholder="记录变更前的关键字段和值" /></Form.Item>
                 <Form.Item className="merchant-editor-field-span-2" name="afterValue" label="变更后"><Input.TextArea rows={3} placeholder="记录变更后的关键字段和值" /></Form.Item>
               </>

@@ -71,7 +71,7 @@ const UserManagement: React.FC = () => {
   const closePasswordModal = () => {
     setPasswordModalVisible(false);
     setPasswordUser(null);
-    form.resetFields(['newPassword']);
+    form.resetFields(['newPassword', 'resetOperator', 'resetReason']);
   };
 
   const closeRoleModal = () => {
@@ -115,8 +115,11 @@ const UserManagement: React.FC = () => {
   const handleDelete = (record: any) => {
     showBusinessConfirm({
       title: '确认删除用户',
-      content: `确定要删除用户 ${record.username} 吗？`,
-      onOk: () => deleteMutation.mutate(record.id),
+      content: `确定删除用户「${record.username || record.nickname || record.id}」吗？删除后该账号将不能登录后台。`,
+      okText: '确认删除',
+      onOk: async () => {
+        await deleteMutation.mutateAsync(record.id);
+      },
     });
   };
 
@@ -132,8 +135,20 @@ const UserManagement: React.FC = () => {
   };
 
   const handleResetPassword = async () => {
-    const values = await form.validateFields(['newPassword']);
-    resetPasswordMutation.mutate({ id: passwordUser.id, newPassword: values.newPassword }, { onSuccess: closePasswordModal });
+    if (!passwordUser) {
+      return;
+    }
+    const values = await form.validateFields(['newPassword', 'resetOperator', 'resetReason']);
+    showBusinessConfirm({
+      title: '确认重置密码',
+      content: `确定重置用户「${passwordUser.username || passwordUser.nickname || passwordUser.id}」的登录密码吗？${values.resetReason ? `原因：${values.resetReason}` : '请确认已通过安全渠道同步给使用人。'}`,
+      okText: '确认重置',
+      danger: false,
+      onOk: async () => {
+        await resetPasswordMutation.mutateAsync({ id: passwordUser.id, newPassword: values.newPassword });
+        closePasswordModal();
+      },
+    });
   };
 
   const handleSaveUserRoles = async () => {
@@ -246,13 +261,13 @@ const UserManagement: React.FC = () => {
           >
             {record.status === 1 ? '禁用' : '启用'}
           </Button>
-          <Button size="small" icon={<KeyOutlined />} onClick={() => { setPasswordUser(record); form.setFieldValue('newPassword', '123456'); setPasswordModalVisible(true); }}>
+          <Button size="small" icon={<KeyOutlined />} onClick={() => { setPasswordUser(record); form.setFieldsValue({ newPassword: '123456', resetOperator: '系统管理员', resetReason: undefined }); setPasswordModalVisible(true); }}>
             重置密码
           </Button>
           <Button size="small" onClick={() => { setRoleUser(record); form.setFieldsValue({ relationRoleCodes: getUserRoleCodes(record), grantUser: '系统管理员' }); setRoleModalVisible(true); }}>
             多角色
           </Button>
-          <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record)}>
+          <Button size="small" danger icon={<DeleteOutlined />} loading={deleteMutation.isPending} onClick={() => handleDelete(record)}>
             删除
           </Button>
         </Space>

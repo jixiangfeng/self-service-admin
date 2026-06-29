@@ -10,6 +10,7 @@ import OssImageUpload from '@/components/OssImageUpload';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api, { type RechargeActivityRecord, type SelectOptionRecord } from '@/services/backendService';
 
@@ -31,10 +32,19 @@ const scopeOptions = [
 const rewardMethodOptions = [
   { label: '赠送余额', value: '赠送余额' },
   { label: '赠送优惠券', value: '赠送优惠券' },
-  { label: '赠送积分', value: '赠送积分' },
+  { label: '赠送服务卡', value: '赠送服务卡' },
 ];
+const rewardMethodTypeMap: Record<string, string[]> = {
+  赠送余额: ['BALANCE'],
+  赠送优惠券: ['COUPON'],
+  赠送服务卡: ['CARD'],
+};
 const splitMultiValue = (value?: string) => String(value || '').split(/[;；,，]/).map((item) => item.trim()).filter(Boolean);
 const joinMultiValue = (value: unknown, separator = '；') => Array.isArray(value) ? value.join(separator) : String(value || '');
+const formatOptionLabel = (options: SelectOptionRecord[], value?: unknown) => {
+  if (value === undefined || value === null || value === '') return '-';
+  return options.find((item) => item.value === Number(value))?.label || `#${value}`;
+};
 const buildRechargeTierAmounts = (values: Record<string, any>) => {
   const tiers = Array.isArray(values.tierAmounts) ? values.tierAmounts : [];
   return JSON.stringify(tiers
@@ -42,7 +52,8 @@ const buildRechargeTierAmounts = (values: Record<string, any>) => {
       amount: Number(typeof tier === 'object' ? tier.amount : tier),
       gift: Number(typeof tier === 'object' ? tier.gift : 0),
     }))
-    .filter((tier) => Number.isFinite(tier.amount) && tier.amount > 0));
+    .filter((tier) => Number.isFinite(tier.amount) && tier.amount > 0)
+    .sort((a, b) => a.amount - b.amount));
 };
 const parseRechargeTierAmounts = (value?: string) => {
   if (!value) return [];
@@ -68,7 +79,7 @@ const hasRewardType = (value: unknown, target: string) => Array.isArray(value)
   ? value.includes(target)
   : String(value || '').split(/[;；,，]/).map((item) => item.trim()).includes(target);
 
-const rechargeDetailFields: DetailField<RechargeActivityRecord>[] = [
+const buildRechargeDetailFields = (couponTemplateOptions: SelectOptionRecord[], serviceCardOptions: SelectOptionRecord[]): DetailField<RechargeActivityRecord>[] => [
   { name: 'activityCode', label: '活动编码' },
   { name: 'activityName', label: '活动名称' },
   { name: 'rechargeMode', label: '充值方式' },
@@ -77,8 +88,8 @@ const rechargeDetailFields: DetailField<RechargeActivityRecord>[] = [
   { name: 'minAmount', label: '最低充值金额' },
   { name: 'rewardMethod', label: '奖励方式' },
   { name: 'rewardValue', label: '奖励值' },
-  { name: 'couponTemplateId', label: '奖励券模板' },
-  { name: 'serviceCardId', label: '奖励服务卡' },
+  { name: 'couponTemplateId', label: '奖励券模板', render: (value) => formatOptionLabel(couponTemplateOptions, value) },
+  { name: 'serviceCardId', label: '奖励服务卡', render: (value) => formatOptionLabel(serviceCardOptions, value) },
   { name: 'bannerImageUrl', label: '活动条Banner' },
   { name: 'rewardCap', label: '单人奖励上限' },
   { name: 'rewardStatus', label: '发放状态', render: (value) => value ? rewardStatusMap[value as keyof typeof rewardStatusMap]?.text || value : '-' },
@@ -89,7 +100,7 @@ const rechargeDetailFields: DetailField<RechargeActivityRecord>[] = [
 
 const RechargeActivityManagement: React.FC = () => {
   const queryClient = useQueryClient();
-  const [form] = Form.useForm<RechargeActivityRecord>();
+  const [form] = Form.useForm<Record<string, any>>();
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [modalVisible, setModalVisible] = useState(false);
@@ -127,6 +138,10 @@ const RechargeActivityManagement: React.FC = () => {
   const couponTemplateOptions = (couponTemplateOptionsQuery.data || []) as SelectOptionRecord[];
   const serviceCardOptions = (serviceCardOptionsQuery.data || []) as SelectOptionRecord[];
   const selectedRewardType = Form.useWatch('rewardType', form);
+  const detailFields = useMemo(
+    () => buildRechargeDetailFields(couponTemplateOptions, serviceCardOptions),
+    [couponTemplateOptions, serviceCardOptions]
+  );
 
   const closeModal = () => {
     setModalVisible(false);
@@ -143,6 +158,17 @@ const RechargeActivityManagement: React.FC = () => {
       ),
     [keyword, records, statusFilter]
   );
+
+  const confirmRechargeStatus = (record: RechargeActivityRecord) => {
+    const nextStatus = record.status === 'RUNNING' ? '暂停' : '启动';
+    showBusinessConfirm({
+      title: `确认${nextStatus}充值活动`,
+      content: `确定${nextStatus}「${record.activityName}」吗？该操作会影响用户端活动展示和充值奖励发放。`,
+      okText: `确认${nextStatus}`,
+      danger: nextStatus === '暂停',
+      onOk: () => statusMutation.mutate(record),
+    });
+  };
 
   const columns: ProColumns<RechargeActivityRecord>[] = [
     {
@@ -165,8 +191,8 @@ const RechargeActivityManagement: React.FC = () => {
     { title: '固定档位', dataIndex: 'tierAmounts', width: 160, search: false, render: (value) => formatRechargeTierAmounts(value as string | undefined) },
     { title: '最低充值', dataIndex: 'minAmount', width: 100, search: false },
     { title: '奖励值', dataIndex: 'rewardValue', width: 160, search: false },
-    { title: '奖励券模板', dataIndex: 'couponTemplateId', width: 120, search: false, render: (_, record) => record.couponTemplateId ? `#${record.couponTemplateId}` : '-' },
-    { title: '服务卡产品', dataIndex: 'serviceCardId', width: 120, search: false, render: (_, record) => record.serviceCardId ? `#${record.serviceCardId}` : '-' },
+    { title: '奖励券模板', dataIndex: 'couponTemplateId', width: 160, search: false, render: (_, record) => formatOptionLabel(couponTemplateOptions, record.couponTemplateId) },
+    { title: '服务卡产品', dataIndex: 'serviceCardId', width: 160, search: false, render: (_, record) => formatOptionLabel(serviceCardOptions, record.serviceCardId) },
     { title: '发放状态', dataIndex: 'rewardStatus', width: 120, valueType: 'select', valueEnum: rewardStatusMap, render: (_, record) => renderStatusTag(record.rewardStatus, rewardStatusMap) },
     { title: '发放数', dataIndex: 'issuedCount', width: 100, search: false },
     { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
@@ -178,12 +204,11 @@ const RechargeActivityManagement: React.FC = () => {
       render: (_, record) => (
         <Space>
           <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-          <Button size="small" onClick={() => { setEditingRecord(record); form.setFieldsValue({ ...record, tierAmounts: parseRechargeTierAmounts(record.tierAmounts), rewardType: splitMultiValue(record.rewardType) } as any); setModalVisible(true); }}>编辑</Button>
+          <Button size="small" onClick={() => { setEditingRecord(record); form.setFieldsValue({ ...record, tierAmounts: parseRechargeTierAmounts(record.tierAmounts), rewardType: splitMultiValue(record.rewardType).length ? splitMultiValue(record.rewardType) : rewardMethodTypeMap[record.rewardMethod || ''] } as any); setModalVisible(true); }}>编辑</Button>
           <Button
             size="small"
-            onClick={() => {
-              statusMutation.mutate(record);
-            }}
+            loading={statusMutation.isPending}
+            onClick={() => confirmRechargeStatus(record)}
           >
             {record.status === 'RUNNING' ? '暂停' : '启动'}
           </Button>
@@ -227,10 +252,10 @@ const RechargeActivityManagement: React.FC = () => {
           <Button key="tiers" onClick={() => {
             setEditingRecord(null);
             form.resetFields();
-            form.setFieldsValue({ status: 'DRAFT', tierAmounts: [{ amount: 50, gift: 0 }, { amount: 100, gift: 10 }, { amount: 200, gift: 30 }, { amount: 500, gift: 100 }], rechargeMode: '固定档位充值', rewardMethod: '赠送余额', rewardStatus: 'PENDING', scope: '全部门店' } as any);
+            form.setFieldsValue({ status: 'DRAFT', tierAmounts: [{ amount: 50, gift: 0 }, { amount: 100, gift: 10 }, { amount: 200, gift: 30 }, { amount: 500, gift: 100 }], rechargeMode: '固定档位充值', rewardMethod: '赠送余额', rewardType: ['BALANCE'], rewardStatus: 'PENDING', scope: '全部门店' } as any);
             setModalVisible(true);
           }}>固定档位</Button>,
-          <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => { setEditingRecord(null); form.resetFields(); form.setFieldsValue({ status: 'DRAFT', tierAmounts: [{ amount: 50, gift: 0 }, { amount: 100, gift: 10 }, { amount: 200, gift: 30 }], rechargeMode: '固定档位充值', rewardMethod: '赠送余额', rewardStatus: 'PENDING', scope: '全部门店' } as any); setModalVisible(true); }}>
+          <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => { setEditingRecord(null); form.resetFields(); form.setFieldsValue({ status: 'DRAFT', tierAmounts: [{ amount: 50, gift: 0 }, { amount: 100, gift: 10 }, { amount: 200, gift: 30 }], rechargeMode: '固定档位充值', rewardMethod: '赠送余额', rewardType: ['BALANCE'], rewardStatus: 'PENDING', scope: '全部门店' } as any); setModalVisible(true); }}>
             新建充值活动
           </Button>,
         ]}
@@ -296,7 +321,13 @@ const RechargeActivityManagement: React.FC = () => {
             </BusinessEditorSection>
             <BusinessEditorSection icon={<GiftOutlined />} title="奖励发放" desc="配置奖励方式、奖励类型、奖励值、发放数量和单人上限。">
               <div className="merchant-editor-fields">
-                <Form.Item name="rewardMethod" label="奖励方式"><Select options={rewardMethodOptions} placeholder="请选择奖励方式" /></Form.Item>
+                <Form.Item name="rewardMethod" label="奖励方式">
+                  <Select
+                    options={rewardMethodOptions}
+                    placeholder="请选择奖励方式"
+                    onChange={(value) => form.setFieldsValue({ rewardType: rewardMethodTypeMap[value] || [], couponTemplateId: undefined, serviceCardId: undefined })}
+                  />
+                </Form.Item>
                 <Form.Item name="rewardValue" label="奖励值"><InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="例如：20" /></Form.Item>
                 <Form.Item name="rewardStatus" label="发放状态"><Select options={activityRewardStatusOptions} placeholder="请选择发放状态" /></Form.Item>
                 <Form.Item name="issuedCount" label="发放数量"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
@@ -316,7 +347,7 @@ const RechargeActivityManagement: React.FC = () => {
 
       <BusinessDetailModal title="充值活动详情" open={!!detail} onCancel={() => setDetail(null)} width={820}>
         {detail ? (
-          <SchemaDetail record={detail} fields={rechargeDetailFields} column={2} labelWidth={110} />
+          <SchemaDetail record={detail} fields={detailFields} column={2} labelWidth={110} />
         ) : null}
       </BusinessDetailModal>
 

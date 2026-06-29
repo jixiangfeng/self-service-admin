@@ -18,7 +18,7 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import api from '@/services/backendService';
 import type { PricingRuleRecord, PricingRuleVersionRecord, SelectOptionRecord, ServiceProductRecord } from '@/services/backendService';
 import { buildValueEnum, containsKeyword, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
-import { DateTimeField, TimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue, toDatePickerValue, toDateTimePickerValue, toTimePickerValue } from '@/utils/formControls';
+import { DateRangeField, DateTimeField, TimeField, fromDatePickerValue, fromDateRangePickerValue, fromDateTimePickerValue, fromTimePickerValue, toDatePickerValue, toDateRangePickerValue, toDateTimePickerValue, toTimePickerValue } from '@/utils/formControls';
 
 type PricingTab = 'category' | 'scope' | 'version' | 'segment' | 'holiday' | 'change';
 type EditableRecord = ServiceProductRecord | PricingRuleRecord | PricingRuleVersionRecord;
@@ -27,7 +27,9 @@ type EditableRecord = ServiceProductRecord | PricingRuleRecord | PricingRuleVers
 const normalizePickerValues = (values: Record<string, any>) => {
   const next = { ...values };
   Object.entries(next).forEach(([key, value]) => {
-    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+    if (key === 'holidayDates') {
+      next[key] = fromDateRangePickerValue(value) || value;
+    } else if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
       next[key] = fromTimePickerValue(value) || value;
     } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
       next[key] = fromDatePickerValue(value) || value;
@@ -42,7 +44,9 @@ const normalizePickerInitialValues = (record: Record<string, any>) => {
   const next = { ...record };
   Object.entries(next).forEach(([key, value]) => {
     if (!value) return;
-    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
+    if (key === 'holidayDates') {
+      next[key] = toDateRangePickerValue(value) || value;
+    } else if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
       next[key] = toTimePickerValue(value) || value;
     } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
       next[key] = toDatePickerValue(value) || value;
@@ -601,7 +605,7 @@ const ProductPricingManagement: React.FC = () => {
                     <Form.Item name="nightPriceDesc" label="夜间价格描述"><Input placeholder="例如：夜间每分钟 +0.2 元" /></Form.Item>
                     <Form.Item name="holidayPriceMode" label="节假日计价"><Select options={holidayPriceModeOptions} placeholder="请选择节假日计价" /></Form.Item>
                     <Form.Item name="holidayPriceValue" label="节假日数值"><Input placeholder="例如：39 元 / 加价 5 元 / 8 折" /></Form.Item>
-                    <Form.Item name="holidayDates" label="适用日期"><Input placeholder="例如：2026-05-01 至 2026-05-05" /></Form.Item>
+                    <Form.Item name="holidayDates" label="适用日期"><DateRangeField /></Form.Item>
                     <Form.Item name="holidayStackPolicy" label="夜间价叠加"><Select options={stackPolicyOptions} placeholder="请选择叠加方式" /></Form.Item>
                     <Form.Item name="holidayPriceDesc" label="节假日价格描述"><Input placeholder="例如：法定节假日起步价 39 元" /></Form.Item>
                   </div>
