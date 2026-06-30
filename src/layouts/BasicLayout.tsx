@@ -14,7 +14,6 @@ import {
   BookOutlined,
   CarOutlined,
   CommentOutlined,
-  ControlOutlined,
   ContactsOutlined,
   CustomerServiceOutlined,
   DashboardOutlined,
@@ -27,7 +26,6 @@ import {
   MenuOutlined,
   MobileOutlined,
   PartitionOutlined,
-  PayCircleOutlined,
   PercentageOutlined,
   ProfileOutlined,
   SafetyOutlined,
@@ -36,7 +34,6 @@ import {
   SplitCellsOutlined,
   TagsOutlined,
   TeamOutlined,
-  ThunderboltOutlined,
   TransactionOutlined,
   UnorderedListOutlined,
   UserOutlined,
@@ -86,6 +83,7 @@ const BasicLayout: React.FC = () => {
       icon: <ShopOutlined />,
       children: [
         { key: '/store', path: '/store', name: '门店管理', icon: <ShopOutlined /> },
+        { key: '/store/pricing', path: '/store/pricing', name: '门店计费规则', icon: <TagsOutlined /> },
         { key: '/merchant/groups', path: '/merchant/groups', name: '门店组管理', icon: <PartitionOutlined /> },
         { key: '/bay', path: '/bay', name: '点位管理', icon: <CarOutlined /> },
         { key: '/device', path: '/device', name: '设备管理', icon: <DeploymentUnitOutlined /> },
@@ -101,11 +99,11 @@ const BasicLayout: React.FC = () => {
     },
     {
       key: 'group-catalog',
-      name: '套餐权益',
+      name: '权益商品',
       icon: <AppstoreOutlined />,
       children: [
-        { key: '/service', path: '/service', name: '套餐管理', icon: <AppstoreOutlined /> },
-        { key: '/service/pricing', path: '/service/pricing', name: '套餐价格', icon: <TagsOutlined /> },
+        { key: '/asset/service-cards', path: '/asset/service-cards', name: '次卡/月卡', icon: <IdcardOutlined /> },
+        { key: '/marketing/coupon-templates', path: '/marketing/coupon-templates', name: '优惠券模板', icon: <GiftOutlined /> },
       ],
     },
     {
@@ -125,7 +123,6 @@ const BasicLayout: React.FC = () => {
       children: [
         { key: '/asset/profiles', path: '/asset/profiles', name: '用户档案', icon: <ContactsOutlined /> },
         { key: '/asset', path: '/asset', name: '资产总览', icon: <WalletOutlined /> },
-        { key: '/asset/service-cards', path: '/asset/service-cards', name: '次卡/月卡', icon: <IdcardOutlined /> },
         { key: '/asset/coupon-cards', path: '/asset/coupon-cards', name: '优惠券明细', icon: <GiftOutlined /> },
         { key: '/asset/flows', path: '/asset/flows', name: '资产流水', icon: <TransactionOutlined /> },
       ],
@@ -136,7 +133,6 @@ const BasicLayout: React.FC = () => {
       icon: <GiftOutlined />,
       children: [
         { key: '/marketing', path: '/marketing', name: '活动总览', icon: <GiftOutlined /> },
-        { key: '/marketing/coupon-templates', path: '/marketing/coupon-templates', name: '券模板管理', icon: <GiftOutlined /> },
         { key: '/marketing/recharge-activities', path: '/marketing/recharge-activities', name: '充值活动', icon: <DollarOutlined /> },
         { key: '/marketing/invite-activities', path: '/marketing/invite-activities', name: '邀请活动', icon: <ShareAltOutlined /> },
         { key: '/marketing/cross-store', path: '/marketing/cross-store', name: '跨店经营', icon: <PartitionOutlined /> },
@@ -177,10 +173,7 @@ const BasicLayout: React.FC = () => {
       name: '运营支撑',
       icon: <SafetyOutlined />,
       children: [
-        { key: '/payment-ops', path: '/payment-ops', name: '支付运维', icon: <PayCircleOutlined /> },
-        { key: '/device-ops', path: '/device-ops', name: '设备运维', icon: <ThunderboltOutlined /> },
         { key: '/mini-program-ops', path: '/mini-program-ops', name: '小程序运营配置', icon: <MobileOutlined /> },
-        { key: '/platform-base', path: '/platform-base', name: '平台基础配置', icon: <ControlOutlined /> },
       ],
     },
     {

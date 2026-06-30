@@ -131,7 +131,6 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'TIME_PACK', label: '时长包' },
   { value: 'SERVICE_PACK', label: '服务包' },
   { value: 'COUNT_CARD', label: '次卡' },
-  { value: 'MONTH_CARD', label: '月卡' },
 ],
   billingModeOptions: [
   { value: 'PACKAGE', label: '套餐计费' },
@@ -193,9 +192,7 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'CITY', label: '城市级' },
 ],
   serviceCardTypeOptions: [
-  { value: 'SERVICE_CARD', label: '服务卡' },
   { value: 'COUNT_CARD', label: '次卡' },
-  { value: 'MONTH_CARD', label: '月卡' },
 ],
   messageChannelOptions: [
   { value: 'WECHAT', label: '小程序模板消息' },

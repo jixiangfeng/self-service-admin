@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Col, Form, Input, Row, Select, Statistic, Tabs, message } from 'antd';
-import { AuditOutlined, BankOutlined, ContactsOutlined, DeleteOutlined, EditOutlined, FileProtectOutlined, PlusOutlined, SolutionOutlined, SyncOutlined } from '@ant-design/icons';
+import { AuditOutlined, BankOutlined, ContactsOutlined, DeleteOutlined, EditOutlined, FileProtectOutlined, PlusOutlined, SolutionOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
   auditStatusOptions,
+  contactTypeOptions as catalogContactTypeOptions,
   merchantContractStatusOptions,
   qualificationTypeOptions,
   settlementCycleOptions,
@@ -18,17 +19,16 @@ import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
 import type {
-  MerchantChangeLogRecord,
   MerchantContactRecord,
   MerchantContractRecord,
   MerchantQualificationRecord,
   MerchantSettlementAccountRecord,
 } from '@/services/backendService';
-import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
-import { DateField, DateTimeField, fromDatePickerValue, fromDateTimePickerValue, toDatePickerValue, toDateTimePickerValue } from '@/utils/formControls';
+import { buildValueEnum, containsKeyword, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
+import { DateField, fromDatePickerValue, toDatePickerValue } from '@/utils/formControls';
 
-type ProfileTab = 'contact' | 'qualification' | 'contract' | 'account' | 'change';
-type EditableRecord = MerchantContactRecord | MerchantContractRecord | MerchantSettlementAccountRecord | MerchantQualificationRecord | MerchantChangeLogRecord;
+type ProfileTab = 'contact' | 'qualification' | 'contract' | 'account';
+type EditableRecord = MerchantContactRecord | MerchantContractRecord | MerchantSettlementAccountRecord | MerchantQualificationRecord;
 type ProfileSearchValues = { keyword?: string; merchantId?: number };
 
 const auditStatusMap = buildValueEnum(auditStatusOptions);
@@ -40,23 +40,11 @@ const primaryFlagMap = {
   0: { color: 'default', text: '否' },
 };
 
-const contactTypeOptions = [
-  { value: 'PRIMARY', label: '主联系人' },
-  { value: 'FINANCE', label: '财务联系人' },
-  { value: 'OPERATION', label: '运营联系人' },
-  { value: 'LEGAL', label: '法务联系人' },
-];
+const contactTypeOptions = catalogContactTypeOptions;
 
 const accountStatusOptions = [
   { value: 'ACTIVE', label: '启用' },
   { value: 'DISABLED', label: '停用' },
-];
-
-const changeTypeOptions = [
-  { value: 'CONTACT', label: '联系人变更' },
-  { value: 'QUALIFICATION', label: '资质变更' },
-  { value: 'CONTRACT', label: '合同变更' },
-  { value: 'ACCOUNT', label: '结算账户变更' },
 ];
 
 const profileTabMeta: Record<ProfileTab, { eyebrow: string; createTitle: string; editTitle: string; subtitle: string; sectionTitle: string; sectionDesc: string; icon: React.ReactNode; meta: string }> = {
@@ -100,16 +88,6 @@ const profileTabMeta: Record<ProfileTab, { eyebrow: string; createTitle: string;
     icon: <BankOutlined />,
     meta: '结算账户',
   },
-  change: {
-    eyebrow: '商户变更维护',
-    createTitle: '新增变更记录',
-    editTitle: '编辑变更记录',
-    subtitle: '记录商户关键资料的变更前后内容、操作人和变更时间，形成审计闭环。',
-    sectionTitle: '变更内容',
-    sectionDesc: '填写变更单号、变更类型、变更前后内容和操作信息。',
-    icon: <SyncOutlined />,
-    meta: '变更日志',
-  },
 };
 
 
@@ -125,9 +103,6 @@ const normalizeProfilePayload = (payload: Record<string, unknown>, tab: ProfileT
   if (tab === 'account') {
     next.effectiveAt = fromDatePickerValue(next.effectiveAt as any) || next.effectiveAt;
   }
-  if (tab === 'change') {
-    next.changedAt = fromDateTimePickerValue(next.changedAt as any) || next.changedAt;
-  }
   return next;
 };
 
@@ -139,7 +114,6 @@ const normalizeProfileFormRecord = (record: EditableRecord, tab: ProfileTab) => 
     next.endAt = toDatePickerValue(next.endAt) || next.endAt;
   }
   if (tab === 'account') next.effectiveAt = toDatePickerValue(next.effectiveAt) || next.effectiveAt;
-  if (tab === 'change') next.changedAt = toDateTimePickerValue(next.changedAt) || next.changedAt;
   return next;
 };
 
@@ -181,15 +155,6 @@ const profileDetailFields: Record<ProfileTab, DetailField<any>[]> = {
     { name: 'status', label: '账户状态' },
     { name: 'effectiveAt', label: '生效日期' },
   ],
-  change: [
-    { name: 'changeNo', label: '变更单号' },
-    { name: 'merchantName', label: '商户' },
-    { name: 'changeType', label: '变更类型' },
-    { name: 'beforeValue', label: '变更前' },
-    { name: 'afterValue', label: '变更后' },
-    { name: 'operator', label: '操作人' },
-    { name: 'changedAt', label: '变更时间' },
-  ],
 };
 
 const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
@@ -218,20 +183,17 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
   const qualificationQuery = useQuery({ queryKey: ['merchantQualifications', profileMerchantId], queryFn: async () => (await api.merchantQualification.page(profileQueryParams)).data as { records: MerchantQualificationRecord[] } });
   const contractQuery = useQuery({ queryKey: ['merchantContracts', profileMerchantId], queryFn: async () => (await api.merchantContract.page(profileQueryParams)).data as { records: MerchantContractRecord[] } });
   const accountQuery = useQuery({ queryKey: ['merchantSettlementAccounts', profileMerchantId], queryFn: async () => (await api.merchantSettlementAccount.page(profileQueryParams)).data as { records: MerchantSettlementAccountRecord[] } });
-  const changeQuery = useQuery({ queryKey: ['merchantChangeLogs', profileMerchantId], queryFn: async () => (await api.merchantChangeLog.page(profileQueryParams)).data as { records: MerchantChangeLogRecord[] } });
 
   const contacts = enrichMerchantName(contactQuery.data?.records);
   const qualifications = enrichMerchantName(qualificationQuery.data?.records);
   const contracts = enrichMerchantName(contractQuery.data?.records);
   const settlementAccounts = enrichMerchantName(accountQuery.data?.records);
-  const changes = enrichMerchantName(changeQuery.data?.records);
 
   const invalidateTab = (tab: ProfileTab) => {
     if (tab === 'contact') queryClient.invalidateQueries({ queryKey: ['merchantContacts'] });
     if (tab === 'qualification') queryClient.invalidateQueries({ queryKey: ['merchantQualifications'] });
     if (tab === 'contract') queryClient.invalidateQueries({ queryKey: ['merchantContracts'] });
     if (tab === 'account') queryClient.invalidateQueries({ queryKey: ['merchantSettlementAccounts'] });
-    if (tab === 'change') queryClient.invalidateQueries({ queryKey: ['merchantChangeLogs'] });
   };
 
   const saveMutation = useMutation({
@@ -240,8 +202,7 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
       if (activeTab === 'contact') return normalizedPayload.id ? api.merchantContact.edit(normalizedPayload) : api.merchantContact.add(normalizedPayload);
       if (activeTab === 'qualification') return normalizedPayload.id ? api.merchantQualification.edit(normalizedPayload) : api.merchantQualification.add(normalizedPayload);
       if (activeTab === 'contract') return normalizedPayload.id ? api.merchantContract.edit(normalizedPayload) : api.merchantContract.add(normalizedPayload);
-      if (activeTab === 'account') return normalizedPayload.id ? api.merchantSettlementAccount.edit(normalizedPayload) : api.merchantSettlementAccount.add(normalizedPayload);
-      return normalizedPayload.id ? api.merchantChangeLog.edit(normalizedPayload) : api.merchantChangeLog.add(normalizedPayload);
+      return normalizedPayload.id ? api.merchantSettlementAccount.edit(normalizedPayload) : api.merchantSettlementAccount.add(normalizedPayload);
     },
     onSuccess: () => {
       message.success('商户档案已保存');
@@ -257,8 +218,7 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
       if (tab === 'contact') return api.merchantContact.remove(id);
       if (tab === 'qualification') return api.merchantQualification.remove(id);
       if (tab === 'contract') return api.merchantContract.remove(id);
-      if (tab === 'account') return api.merchantSettlementAccount.remove(id);
-      return api.merchantChangeLog.remove(id);
+      return api.merchantSettlementAccount.remove(id);
     },
     onSuccess: (_, variables) => {
       message.success('商户档案已删除');
@@ -288,15 +248,13 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
     if (record) {
       form.setFieldsValue(normalizeProfileFormRecord(record, tab) as Record<string, string | number | undefined>);
     } else if (tab === 'contact') {
-      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, contactType: 'PRIMARY', primaryFlag: 0, status: 'APPROVED' });
+      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, contactType: 'BUSINESS', primaryFlag: 0, status: 'APPROVED' });
     } else if (tab === 'contract') {
       form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, settlementCycle: 'WEEK', contractStatus: 'PENDING', status: 'PENDING' });
     } else if (tab === 'qualification') {
       form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, auditStatus: 'PENDING', status: 'ACTIVE' });
     } else if (tab === 'account') {
       form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, auditStatus: 'PENDING', status: 'ACTIVE' });
-    } else {
-      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, changeType: 'CONTACT' });
     }
     setModalVisible(true);
   };
@@ -394,36 +352,15 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
     },
   ];
 
-  const changeColumns: ProColumns<MerchantChangeLogRecord>[] = [
-    { title: '变更单号', dataIndex: 'changeNo', width: 180 },
-    { title: '商户', dataIndex: 'merchantName', width: 180 },
-    { title: '变更类型', dataIndex: 'changeType', width: 150 , render: (value) => formatEnumText(value, 'changeType', '变更类型') },
-    { title: '变更前', dataIndex: 'beforeValue', width: 180 },
-    { title: '变更后', dataIndex: 'afterValue', width: 180 },
-    { title: '操作人', dataIndex: 'operator', width: 130 },
-    { title: '变更时间', dataIndex: 'changedAt', width: 180, render: (_, record) => formatDateTime(record.changedAt) },
-    {
-      title: '操作',
-      width: 130,
-      fixed: 'right',
-      render: (_, record) => (
-        <>
-          <Button size="small" type="link" onClick={() => openDetail('change', record)}>详情</Button>
-        </>
-      ),
-    },
-  ];
-
   return (
     <div style={{ padding: embedded ? 0 : 24 }}>
-      {!embedded ? <PageBanner title="商户档案中心" subtitle="维护商户联系人、资质、合同、结算账户和变更日志。" icon={<SolutionOutlined />} /> : null}
+      {!embedded ? <PageBanner title="商户档案中心" subtitle="维护商户联系人、资质、合同和结算账户。" icon={<SolutionOutlined />} /> : null}
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} xl={5}><Card><Statistic title="联系人" value={contacts.length} suffix="人" /></Card></Col>
-        <Col xs={24} sm={12} xl={5}><Card><Statistic title="待审资质" value={qualifications.filter((item) => item.auditStatus === 'PENDING').length} suffix="份" /></Card></Col>
-        <Col xs={24} sm={12} xl={5}><Card><Statistic title="合同" value={contracts.length} suffix="份" /></Card></Col>
-        <Col xs={24} sm={12} xl={5}><Card><Statistic title="待审账户" value={settlementAccounts.filter((item) => item.auditStatus === 'PENDING').length} suffix="个" /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="变更记录" value={changes.length} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="联系人" value={contacts.length} suffix="人" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="待审资质" value={qualifications.filter((item) => item.auditStatus === 'PENDING').length} suffix="份" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="合同" value={contracts.length} suffix="份" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="待审账户" value={settlementAccounts.filter((item) => item.auditStatus === 'PENDING').length} suffix="个" /></Card></Col>
       </Row>
 
       <Form
@@ -439,7 +376,7 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
           <Select allowClear showSearch optionFilterProp="label" options={merchantOptions || []} placeholder="全部商户" style={{ width: 240 }} />
         </Form.Item>
         <Form.Item name="keyword" label="关键词">
-          <Input allowClear placeholder="输入商户、联系人、资质、合同、账户、变更关键词" style={{ width: 360 }} />
+          <Input allowClear placeholder="输入商户、联系人、资质、合同、账户关键词" style={{ width: 360 }} />
         </Form.Item>
         <Form.Item>
           <Button type="primary" htmlType="submit">查询</Button>
@@ -457,7 +394,6 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
           { key: 'qualification', label: '资质', children: <ProTable<MerchantQualificationRecord> cardBordered rowKey="id" columns={qualificationColumns} dataSource={filter(qualifications)} loading={qualificationQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1360 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('qualification')}>新增资质</Button>]} /> },
           { key: 'contract', label: '合同', children: <ProTable<MerchantContractRecord> cardBordered rowKey="id" columns={contractColumns} dataSource={filter(contracts)} loading={contractQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1460 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('contract')}>新增合同</Button>]} /> },
           { key: 'account', label: '结算账户', children: <ProTable<MerchantSettlementAccountRecord> cardBordered rowKey="id" columns={accountColumns} dataSource={filter(settlementAccounts)} loading={accountQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('account')}>新增账户</Button>]} /> },
-          { key: 'change', label: '变更日志', children: <ProTable<MerchantChangeLogRecord> cardBordered rowKey="id" columns={changeColumns} dataSource={filter(changes)} loading={changeQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1360 }} toolBarRender={false} /> },
         ]}
       />
 
@@ -478,7 +414,7 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
         }}
         onOk={async () => saveMutation.mutate(await form.validateFields())}
         confirmLoading={saveMutation.isPending}
-        okText={editingRecord ? '保存变更' : '保存档案'}
+        okText={editingRecord ? '保存修改' : '保存档案'}
         width={1040}
         forceRender
         destroyOnClose
@@ -539,16 +475,6 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
                 <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
                 <Form.Item name="status" label="账户状态"><Select options={accountStatusOptions} placeholder="请选择账户状态" /></Form.Item>
                 <Form.Item name="effectiveAt" label="生效日期"><DateField /></Form.Item>
-              </>
-            ) : null}
-            {activeTab === 'change' ? (
-              <>
-                <Form.Item name="changeNo" label="变更单号" rules={[{ required: true, message: '请输入变更单号' }]}><Input placeholder="例如：MCG202605100001" /></Form.Item>
-                <Form.Item name="changeType" label="变更类型"><Select options={changeTypeOptions} placeholder="请选择变更类型" /></Form.Item>
-                <Form.Item name="operator" label="操作人"><Input placeholder="例如：平台运营" /></Form.Item>
-                <Form.Item name="changedAt" label="变更时间"><DateTimeField /></Form.Item>
-                <Form.Item className="merchant-editor-field-span-2" name="beforeValue" label="变更前"><Input.TextArea rows={3} placeholder="记录变更前的关键字段和值" /></Form.Item>
-                <Form.Item className="merchant-editor-field-span-2" name="afterValue" label="变更后"><Input.TextArea rows={3} placeholder="记录变更后的关键字段和值" /></Form.Item>
               </>
             ) : null}
                 <Form.Item className="merchant-editor-field-span-2" name="remark" label="备注"><Input.TextArea rows={3} placeholder="补充审核说明、资料来源或内部交接说明" /></Form.Item>

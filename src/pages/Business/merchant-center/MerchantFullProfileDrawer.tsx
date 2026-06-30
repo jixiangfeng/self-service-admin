@@ -1,5 +1,5 @@
 import React from 'react';
-import { Descriptions, Drawer, Empty, List, Space, Statistic, Table, Tabs, Tag, Typography } from 'antd';
+import { Descriptions, Drawer, Empty, List, Space, Statistic, Table, Tabs, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   auditStatusOptions,
@@ -11,7 +11,6 @@ import {
 } from '@/constants/businessCatalog';
 import type {
   MerchantAccountRecord,
-  MerchantChangeLogRecord,
   MerchantContactRecord,
   MerchantContractRecord,
   MerchantFullProfileRecord,
@@ -39,121 +38,12 @@ const primaryFlagMap = {
   0: { color: 'default', text: '否' },
 };
 
-const changeTypeMap: Record<string, string> = {
-  MERCHANT_CREATE: '商户创建',
-  MERCHANT_UPDATE: '商户主档修改',
-  MERCHANT_STATUS: '商户启停',
-  MERCHANT_DELETE: '商户删除',
-  CONTACT_CREATE: '联系人新增',
-  CONTACT_UPDATE: '联系人修改',
-  CONTACT_DELETE: '联系人删除',
-  QUALIFICATION_CREATE: '资质新增',
-  QUALIFICATION_UPDATE: '资质修改',
-  QUALIFICATION_DELETE: '资质删除',
-  CONTRACT_CREATE: '合同新增',
-  CONTRACT_UPDATE: '合同修改',
-  CONTRACT_DELETE: '合同删除',
-  SETTLEMENT_ACCOUNT_CREATE: '结算账户新增',
-  SETTLEMENT_ACCOUNT_UPDATE: '结算账户修改',
-  SETTLEMENT_ACCOUNT_DELETE: '结算账户删除',
-};
-
 const maskAccountNo = (value?: string) => {
   if (!value) return '-';
   if (value.length <= 4) return value;
   return `${'*'.repeat(Math.min(value.length - 4, 8))}${value.slice(-4)}`;
 };
 
-type ChangeDiffRow = {
-  key: string;
-  field: string;
-  before: unknown;
-  after: unknown;
-};
-
-const fieldLabelMap: Record<string, string> = {
-  merchantName: '商户名称',
-  shortName: '商户简称',
-  merchantCode: '商户编号',
-  merchantType: '主体类型',
-  contractStatus: '合同状态',
-  creditCode: '统一信用代码',
-  contactName: '联系人',
-  contactPhone: '联系电话',
-  cityCoverage: '覆盖城市',
-  settlementAccountName: '结算户名',
-  settlementAccountNo: '结算账号',
-  settlementCycle: '结算周期',
-  licenseUrl: '营业资质文件',
-  status: '状态',
-  remark: '备注',
-  contactType: '联系人类型',
-  mobile: '手机号',
-  email: '邮箱',
-  primaryFlag: '主联系人',
-  qualificationType: '资质类型',
-  qualificationNo: '资质编号',
-  fileName: '文件名称',
-  fileUrl: '文件地址',
-  auditStatus: '审核状态',
-  expireAt: '到期日',
-  contractNo: '合同编号',
-  contractName: '合同名称',
-  startAt: '开始日期',
-  endAt: '结束日期',
-  accountName: '户名',
-  accountNo: '账号',
-  bankName: '开户行',
-  effectiveAt: '生效日期',
-};
-
-const parseJsonObject = (value?: string): Record<string, unknown> => {
-  if (!value) return {};
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : { value };
-  } catch {
-    return { value };
-  }
-};
-
-const formatDiffValue = (value: unknown, field?: string) => {
-  if (value === undefined || value === null || value === '') return '-';
-  if (field === 'accountNo' || field === 'settlementAccountNo') return maskAccountNo(String(value));
-  if (field === 'status' && (value === 1 || value === 0)) return value === 1 ? '启用' : '停用';
-  if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
-};
-
-const buildDiffRows = (record: MerchantChangeLogRecord): ChangeDiffRow[] => {
-  const before = parseJsonObject(record.beforeValue);
-  const after = parseJsonObject(record.afterValue);
-  const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
-  return keys.map((key) => ({
-    key,
-    field: fieldLabelMap[key] || key,
-    before: before[key],
-    after: after[key],
-  }));
-};
-
-const ChangeDiffTable: React.FC<{ record: MerchantChangeLogRecord }> = ({ record }) => {
-  const rows = buildDiffRows(record);
-  if (!rows.length) return <Typography.Text type="secondary">暂无字段差异</Typography.Text>;
-  return (
-    <Table<ChangeDiffRow>
-      rowKey="key"
-      size="small"
-      pagination={false}
-      columns={[
-        { title: '字段', dataIndex: 'field', width: 180 },
-        { title: '变更前', dataIndex: 'before', render: (value, row) => formatDiffValue(value, row.key) },
-        { title: '变更后', dataIndex: 'after', render: (value, row) => formatDiffValue(value, row.key) },
-      ]}
-      dataSource={rows}
-    />
-  );
-};
 
 const MerchantFullProfileDrawer: React.FC<MerchantFullProfileDrawerProps> = ({ open, loading, profile, onClose }) => {
   const merchant = profile?.merchant;
@@ -215,14 +105,6 @@ const MerchantFullProfileDrawer: React.FC<MerchantFullProfileDrawerProps> = ({ o
     { title: '城市', render: (_, record) => [record.province, record.city, record.district].filter(Boolean).join(' / ') || '-' },
     { title: '负责人', dataIndex: 'managerName', render: (value) => value || '-' },
     { title: '状态', dataIndex: 'status', render: (value) => formatEnumText(value, 'storeStatus', '门店状态') },
-  ];
-
-  const changeColumns: ColumnsType<MerchantChangeLogRecord> = [
-    { title: '变更时间', dataIndex: 'changedAt', width: 170, render: (value) => formatDateTime(value) },
-    { title: '类型', dataIndex: 'changeType', width: 150, render: (value) => changeTypeMap[value] || value },
-    { title: '操作人', dataIndex: 'operator', width: 100, render: (value) => value || '-' },
-    { title: '变更字段', width: 120, render: (_, record) => `${buildDiffRows(record).length} 项` },
-    { title: '摘要', render: (_, record) => buildDiffRows(record).slice(0, 3).map((row) => `${row.field}: ${formatDiffValue(row.before, row.key)} → ${formatDiffValue(row.after, row.key)}`).join('；') || '-' },
   ];
 
   return (
@@ -299,23 +181,6 @@ const MerchantFullProfileDrawer: React.FC<MerchantFullProfileDrawerProps> = ({ o
             { key: 'settlement', label: '结算账户', children: <Table rowKey="id" columns={settlementColumns} dataSource={profile.settlementAccounts || []} pagination={false} size="small" /> },
             { key: 'accounts', label: '账号权限', children: <Table rowKey="id" columns={accountColumns} dataSource={profile.accounts || []} pagination={false} size="small" /> },
             { key: 'stores', label: '门店范围', children: <Table rowKey="id" columns={storeColumns} dataSource={profile.stores || []} pagination={false} size="small" /> },
-            {
-              key: 'changes',
-              label: '变更轨迹',
-              children: (
-                <Table
-                  rowKey="id"
-                  columns={changeColumns}
-                  dataSource={profile.changeLogs || []}
-                  pagination={{ pageSize: 8 }}
-                  size="small"
-                  expandable={{
-                    expandedRowRender: (record) => <ChangeDiffTable record={record} />,
-                    rowExpandable: (record) => buildDiffRows(record).length > 0,
-                  }}
-                />
-              ),
-            },
           ]}
         />
       )}

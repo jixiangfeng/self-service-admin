@@ -17,8 +17,7 @@ const MerchantAccountManagement = lazy(() => import('./pages/Business/merchant-c
 const StoreManagement = lazy(() => import('./pages/Business/store-operations').then((module) => ({ default: module.StoreManagement })));
 const ServicePointManagement = lazy(() => import('./pages/Business/store-operations').then((module) => ({ default: module.ServicePointManagement })));
 const DeviceManagement = lazy(() => import('./pages/Business/store-operations').then((module) => ({ default: module.DeviceManagement })));
-const ServiceManagement = lazy(() => import('./pages/Business/product-service').then((module) => ({ default: module.ServiceManagement })));
-const ProductPricingManagement = lazy(() => import('./pages/Business/product-service').then((module) => ({ default: module.ProductPricingManagement })));
+const StorePricingManagement = lazy(() => import('./pages/Business/product-service').then((module) => ({ default: module.StorePricingManagement })));
 const TradeManagement = lazy(() => import('./pages/Business/trade-fulfillment').then((module) => ({ default: module.TradeManagement })));
 const FulfillmentManagement = lazy(() => import('./pages/Business/trade-fulfillment').then((module) => ({ default: module.FulfillmentManagement })));
 const OrderDetailManagement = lazy(() => import('./pages/Business/trade-fulfillment').then((module) => ({ default: module.OrderDetailManagement })));
@@ -41,9 +40,6 @@ const AnalysisManagement = lazy(() => import('./pages/Business/data-reports').th
 const ServiceDeskManagement = lazy(() => import('./pages/Business/service-messaging').then((module) => ({ default: module.ServiceDeskManagement })));
 const MessageCenterManagement = lazy(() => import('./pages/Business/service-messaging').then((module) => ({ default: module.MessageCenterManagement })));
 const EvaluationFeedbackManagement = lazy(() => import('./pages/Business/service-messaging').then((module) => ({ default: module.EvaluationFeedbackManagement })));
-const PlatformBaseManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.PlatformBaseManagement })));
-const PaymentOpsManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.PaymentOpsManagement })));
-const DeviceOpsManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.DeviceOpsManagement })));
 const DeviceAccessManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.DeviceAccessManagement })));
 const MiniProgramOpsManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.MiniProgramOpsManagement })));
 const UserManagement = lazy(() => import('./pages/System/User'));
@@ -120,13 +116,14 @@ const AppContent = () => {
               <Route path="merchant-console" element={<MerchantWorkbench />} />
               <Route path="store" element={<StoreManagement />} />
               <Route path="store/profiles" element={<Navigate to="/store" replace />} />
+              <Route path="store/pricing" element={<StorePricingManagement />} />
               <Route path="store-operations" element={<Navigate to="/store" replace />} />
               <Route path="bay" element={<ServicePointManagement />} />
               <Route path="bay/profiles" element={<Navigate to="/bay" replace />} />
               <Route path="device" element={<DeviceManagement />} />
               <Route path="device/profiles" element={<Navigate to="/device" replace />} />
-              <Route path="service" element={<ServiceManagement />} />
-              <Route path="service/pricing" element={<ProductPricingManagement />} />
+              <Route path="service" element={<Navigate to="/asset/service-cards" replace />} />
+              <Route path="service/pricing" element={<Navigate to="/store/pricing" replace />} />
               <Route path="trade" element={<TradeManagement />} />
               <Route path="trade/details" element={<OrderDetailManagement />} />
               <Route path="order" element={<Navigate to="/trade" replace />} />
@@ -151,9 +148,6 @@ const AppContent = () => {
               <Route path="service-desk" element={<ServiceDeskManagement />} />
               <Route path="service-desk/messages" element={<MessageCenterManagement />} />
               <Route path="service-desk/evaluations" element={<EvaluationFeedbackManagement />} />
-              <Route path="platform-base" element={<PlatformBaseManagement />} />
-              <Route path="payment-ops" element={<PaymentOpsManagement />} />
-              <Route path="device-ops" element={<DeviceOpsManagement />} />
               <Route path="device-access" element={<DeviceAccessManagement />} />
               <Route path="mini-program-ops" element={<MiniProgramOpsManagement />} />
 

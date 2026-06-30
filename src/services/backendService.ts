@@ -228,20 +228,6 @@ export interface MerchantQualificationRecord {
   updatedAt?: string;
 }
 
-export interface MerchantChangeLogRecord {
-  id: number;
-  changeNo: string;
-  merchantId: number;
-  merchantName?: string;
-  changeType: string;
-  beforeValue?: string;
-  afterValue?: string;
-  operator?: string;
-  changedAt?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
 export interface MerchantFullProfileRecord {
   merchant: MerchantRecord;
   contacts: MerchantContactRecord[];
@@ -251,7 +237,6 @@ export interface MerchantFullProfileRecord {
   accounts: MerchantAccountRecord[];
   groups: MerchantGroupRecord[];
   stores: StoreRecord[];
-  changeLogs: MerchantChangeLogRecord[];
   storeCount?: number;
   activeStoreCount?: number;
   deviceCount?: number;
@@ -411,7 +396,6 @@ export interface StoreFullProfileRecord {
   businessHours: StoreBusinessHoursRecord[];
   tempCloseRecords: StoreTempCloseRecord[];
   capabilities: StoreServiceCapabilityRecord[];
-  changeLogs: StoreChangeLogRecord[];
   servicePoints: ServicePointRecord[];
   devices: DeviceRecord[];
   imageCount?: number;
@@ -448,7 +432,6 @@ export interface StoreServiceCapabilityRecord {
   createdAt?: string;
   updatedAt?: string;
 }
-export interface StoreChangeLogRecord { id: number; changeNo: string; storeId: number; storeName?: string; changeType: string; beforeValue?: string; afterValue?: string; operator?: string; changedAt?: string; createdAt?: string; updatedAt?: string; }
 export interface ServicePointRecord {
   id: number;
   storeId: number;
@@ -531,44 +514,12 @@ export interface DeviceFullProfileRecord {
   operationWarnings?: string[];
 }
 
-export interface ServiceProductRecord {
-  id: number;
-  productName: string;
-  productCode: string;
-  categoryCode: string;
-  billingMode: string;
-  scopeType: string;
-  scopeId?: number;
-  scopeName?: string;
-  priceDesc?: string;
-  combineMode?: string;
-  memberPriceStack?: string;
-  couponStack?: string;
-  serviceDuration?: string;
-  usageNotice?: string;
-  sellingPoints?: string;
-  rightsContent?: string;
-  refundPolicy?: string;
-  abnormalRefund?: string;
-  refundWindowHours?: number;
-  priceVersion?: string;
-  effectiveAt?: string;
-  expireAt?: string;
-  status: number;
-  createdAt?: string;
-  updatedAt?: string;
-  createTime?: string;
-  updateTime?: string;
-}
-
 export interface PricingRuleRecord {
   id: number;
   ruleName: string;
   ruleCode: string;
   storeId?: number;
   storeName?: string;
-  serviceProductId?: number;
-  productName?: string;
   startPrice?: number | string;
   minutePrice?: number | string;
   countPrice?: number | string;
@@ -665,18 +616,6 @@ export interface DeviceMaintenanceRecord {
   updatedAt?: string;
 }
 
-export interface DeviceSparePartRecord {
-  id: number;
-  partCode: string;
-  partName: string;
-  deviceModel?: string;
-  stockQty?: number;
-  warningQty?: number;
-  status?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
 export interface DeviceVendorRecord { id: number; vendorCode: string; vendorName: string; contactName?: string; contactPhone?: string; apiBaseUrl?: string; status: string; createdAt?: string; updatedAt?: string; }
 export interface DeviceModelRecord { id: number; vendorName?: string; modelCode: string; modelName: string; deviceType: string; protocolCode?: string; status: string; createdAt?: string; updatedAt?: string; }
 export interface DeviceCommandTemplateRecord { id: number; templateCode: string; templateName: string; protocolCode?: string; deviceType?: string; commandType: string; commandPayload?: string; description?: string; status: string; createdAt?: string; updatedAt?: string; }
@@ -761,23 +700,13 @@ export interface RechargeActivityRecord {
   costOwner?: string;
   tierAmounts?: string;
   minAmount?: number;
-  rewardMethod?: string;
-  rewardCap?: number | string;
-  rewardType?: string;
-  rewardValue?: string;
-  couponTemplateId?: number;
-  serviceCardId?: number;
   bannerImageUrl?: string;
-  rewardStatus?: string;
-  issuedCount?: number;
   status: string;
   updatedAt?: string;
 }
 
 export interface RechargeActivityFullProfileRecord {
   activity: RechargeActivityRecord;
-  couponTemplate?: CouponTemplateRecord;
-  serviceCard?: ServiceCardRecord;
   rechargeOrders: RechargeOrderRecord[];
   rechargeRewards: RechargeRewardRecord[];
   participations: MarketingParticipationRecord[];
@@ -855,7 +784,6 @@ export interface ServiceOrderRecord {
   merchantName?: string;
   storeId: number;
   servicePointId?: number;
-  serviceProductId?: number;
   orderType: string;
   billingMode: string;
   payMode: string;
@@ -1509,31 +1437,6 @@ export interface PermissionChangeLogRecord {
   updatedAt?: string;
 }
 
-export interface SystemConfigRecord {
-  id: number;
-  configKey: string;
-  configName: string;
-  configType?: string;
-  scopeType?: string;
-  configValue?: string;
-  status?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface SequenceRuleRecord {
-  id: number;
-  ruleCode: string;
-  bizType: string;
-  prefix?: string;
-  datePattern?: string;
-  sequenceLength?: number;
-  currentValue?: number;
-  status?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
 export interface BizEventRecord {
   id: number;
   eventNo: string;
@@ -1542,18 +1445,6 @@ export interface BizEventRecord {
   idempotentKey?: string;
   processStatus?: string;
   retryCount?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface ContentArticleRecord {
-  id: number;
-  articleCode: string;
-  title: string;
-  category?: string;
-  scopeType?: string;
-  content?: string;
-  status?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1571,6 +1462,7 @@ export interface ServiceCardRecord {
   validityText?: string;
   stock?: number;
   rightsServiceTimes?: number;
+  rightsDurationMinutes?: number;
   rightsServices?: string;
   rightsDiscount?: number | string;
   rightsTransferable?: boolean;
@@ -1827,62 +1719,6 @@ export interface AnalysisSnapshotRecord {
   updatedAt?: string;
 }
 
-export interface PaymentOrderRecord {
-  id: number;
-  paymentNo: string;
-  serviceOrderId?: number;
-  orderNo?: string;
-  payChannel?: string;
-  payStatus?: string;
-  payAmount?: number;
-  channelTradeNo?: string;
-  paidAt?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface PaymentCallbackLogRecord {
-  id: number;
-  paymentOrderId?: number;
-  paymentNo?: string;
-  callbackType?: string;
-  callbackStatus?: string;
-  requestId?: string;
-  payload?: string;
-  handledAt?: string;
-  remark?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface PaymentChannelRecord {
-  id: number;
-  channelCode: string;
-  channelName: string;
-  mchId?: string;
-  appId?: string;
-  settleAccount?: string;
-  status?: string;
-  remark?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface RefundCallbackLogRecord {
-  id: number;
-  refundNo: string;
-  paymentNo?: string;
-  payOrderNo?: string;
-  refundAmount?: number | string;
-  channelRefundNo?: string;
-  status?: string;
-  callbackAt?: string;
-  payload?: string;
-  remark?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
 export interface PaymentReconciliationRecord {
   id: number;
   reconNo: string;
@@ -1962,26 +1798,58 @@ export interface FileAssetRecord {
   uploadedAt?: string;
   createdAt?: string;
   updatedAt?: string;
-}const pageParams = (params: Record<string, unknown>) => ({
+}
+
+const pageParams = (params: Record<string, unknown>) => ({
   ...params,
   current: params.current ?? params.pageNum ?? 1,
   size: params.size ?? params.pageSize ?? 10,
 });
 
-const httpPage = <T,>(url: string, params: Record<string, unknown>) =>
-  request.get<ApiEnvelope<PageResult<T>>>(url, { params: pageParams(params) });
+const isPlainObject = (value: unknown): value is Record<string, any> =>
+  Object.prototype.toString.call(value) === '[object Object]';
 
-const httpPut = <T,>(url: string, data?: Record<string, unknown>) =>
-  request.put<ApiEnvelope<T>>(url, data);
+const normalizeRecordFields = <T,>(value: T): T => {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeRecordFields(item)) as T;
+  }
 
-const httpGet = <T,>(url: string, params?: Record<string, unknown>) =>
-  request.get<ApiEnvelope<T>>(url, params ? { params } : undefined);
+  if (!isPlainObject(value)) {
+    return value;
+  }
 
-const httpPost = <T,>(url: string, data?: Record<string, unknown>) =>
-  request.post<ApiEnvelope<T>>(url, data);
+  const next: Record<string, any> = {};
+  Object.entries(value).forEach(([key, item]) => {
+    next[key] = normalizeRecordFields(item);
+  });
 
-const httpDelete = <T,>(url: string) =>
-  request.delete<ApiEnvelope<T>>(url);
+  next.createdAt = next.createdAt ?? next.createTime;
+  next.updatedAt = next.updatedAt ?? next.updateTime;
+  next.createTime = next.createTime ?? next.createdAt;
+  next.updateTime = next.updateTime ?? next.updatedAt;
+
+  return next as T;
+};
+
+const normalizeEnvelope = <T,>(res: ApiEnvelope<T>): ApiEnvelope<T> => ({
+  ...res,
+  data: normalizeRecordFields(res.data),
+});
+
+const httpPage = async <T,>(url: string, params: Record<string, unknown>) =>
+  normalizeEnvelope(await request.get<ApiEnvelope<PageResult<T>>>(url, { params: pageParams(params) }));
+
+const httpPut = async <T,>(url: string, data?: Record<string, unknown>) =>
+  normalizeEnvelope(await request.put<ApiEnvelope<T>>(url, data));
+
+const httpGet = async <T,>(url: string, params?: Record<string, unknown>) =>
+  normalizeEnvelope(await request.get<ApiEnvelope<T>>(url, params ? { params } : undefined));
+
+const httpPost = async <T,>(url: string, data?: Record<string, unknown>) =>
+  normalizeEnvelope(await request.post<ApiEnvelope<T>>(url, data));
+
+const httpDelete = async <T,>(url: string) =>
+  normalizeEnvelope(await request.delete<ApiEnvelope<T>>(url));
 
 const mapPageRecords = <T, U>(page: PageResult<T>, mapper: (item: T) => U): PageResult<U> => ({
   ...page,
@@ -1990,6 +1858,8 @@ const mapPageRecords = <T, U>(page: PageResult<T>, mapper: (item: T) => U): Page
 
 const normalizeTimeFields = <T extends Record<string, any>>(item: T) => ({
   ...item,
+  createdAt: item.createdAt ?? item.createTime,
+  updatedAt: item.updatedAt ?? item.updateTime,
   createTime: item.createTime ?? item.createdAt,
   updateTime: item.updateTime ?? item.updatedAt,
 });
@@ -2084,7 +1954,7 @@ const toServiceOrderRecord = (order: Record<string, any>): ServiceOrderRecord =>
   status: order.status ?? order.orderStatus,
   storeName: order.storeName ?? (order.storeId ? `门店#${order.storeId}` : '-'),
   pointCode: order.pointCode ?? (order.servicePointId ? `点位#${order.servicePointId}` : '-'),
-  serviceName: order.serviceName ?? (order.serviceProductId ? `商品#${order.serviceProductId}` : '-'),
+  serviceName: order.serviceName ?? '自助洗车',
   userName: order.userName ?? '-',
 } as unknown as ServiceOrderRecord);
 
@@ -2337,16 +2207,6 @@ export const merchantQualificationApi = {
   remove: async (id: number) =>
     httpDelete<void>(`/merchant-qualifications/${id}`),
 };
-export const merchantChangeLogApi = {
-  page: async (params: Record<string, unknown>) =>
-    httpPage<MerchantChangeLogRecord>('/merchant-change-logs', params),
-  add: async (data: Record<string, unknown>) =>
-    httpPost<MerchantChangeLogRecord>('/merchant-change-logs', data),
-  edit: async (data: Record<string, unknown>) =>
-    httpPut<void>(`/merchant-change-logs/${data.id}`, data),
-  remove: async (id: number) =>
-    httpDelete<void>(`/merchant-change-logs/${id}`),
-};
 export const merchantGroupApi = {
   page: async (params: Record<string, unknown>) =>
     httpPage<MerchantGroupRecord>('/merchant-groups', params),
@@ -2419,7 +2279,6 @@ export const storeImageApi = crudApi<StoreImageRecord>('/store-images');
 export const storeBusinessHoursApi = crudApi<StoreBusinessHoursRecord>('/store-business-hours');
 export const storeTempCloseRecordApi = crudApi<StoreTempCloseRecord>('/store-temp-close-records');
 export const storeServiceCapabilityApi = crudApi<StoreServiceCapabilityRecord>('/store-service-capabilities');
-export const storeChangeLogApi = crudApi<StoreChangeLogRecord>('/store-change-logs');
 export const servicePointApi = {
   page: async (params: Record<string, unknown>) =>
     httpPage<ServicePointRecord>('/service-points', params),
@@ -2462,25 +2321,7 @@ export const deviceCallbackConfigApi = crudApi<DeviceCallbackConfigRecord>('/dev
 export const deviceBindLogApi = crudApi<DeviceBindLogRecord>('/device-bind-logs');
 
 export const deviceOpsApi = {
-  commands: crudApi<DeviceCommandRecord>('/device-commands'),
   commandLogs: crudApi<DeviceCommandLogRecord>('/device-command-logs'),
-  faults: crudApi<DeviceFaultRecord>('/device-faults'),
-  heartbeats: crudApi<DeviceHeartbeatRecord>('/device-heartbeats'),
-  maintenances: crudApi<DeviceMaintenanceRecord>('/device-maintenances'),
-  spareParts: crudApi<DeviceSparePartRecord>('/device-spare-parts'),
-};
-
-export const serviceProductApi = {
-  page: async (params: Record<string, unknown>) =>
-    httpPage<ServiceProductRecord>('/service-products', params),
-  options: async () =>
-    httpGet<SelectOptionRecord[]>('/service-products/options'),
-  add: async (data: Record<string, unknown>) =>
-    httpPost<ServiceProductRecord>('/service-products', data),
-  edit: async (data: Record<string, unknown>) => httpPut<void>(`/service-products/${data.id}`, data),
-  changeStatus: async (id: number, status: number) =>
-    httpPut<void>(`/service-products/${id}/status`, { status }),
-  remove: async (id: number) => httpDelete<void>(`/service-products/${id}`),
 };
 
 export const pricingRuleApi = {
@@ -2851,14 +2692,11 @@ export const platformBaseApi = {
     page: async (params: Record<string, unknown>) => httpPage<PlatformOrganizationChangeLogRecord>('/platform-organization-change-logs', params),
     add: async (data: Record<string, unknown>) => httpPost<PlatformOrganizationChangeLogRecord>('/platform-organization-change-logs', data),
   },
-  configs: crudApi<SystemConfigRecord>('/system-configs'),
-  sequenceRules: crudApi<SequenceRuleRecord>('/sequence-rules'),
   events: {
     page: async (params: Record<string, unknown>) => httpPage<BizEventRecord>('/biz-events', params),
     add: async (data: Record<string, unknown>) => httpPost<BizEventRecord>('/biz-events', data),
     retry: async (id: number) => request.post<ApiEnvelope<BizEventRecord>>(`/biz-events/${id}/retry`),
   },
-  contents: crudApi<ContentArticleRecord>('/content-articles'),
 };
 
 export const authAuditApi = {
@@ -2889,32 +2727,6 @@ export const authAuditApi = {
 };
 
 export const paymentApi = {
-  orders: {
-    page: async (params: Record<string, unknown>) =>
-      httpPage<PaymentOrderRecord>('/payment-orders', params),
-    updateStatus: async (id: number, payStatus: string) =>
-      httpPut<void>(`/payment-orders/${id}/status`, { payStatus }),
-    sync: async (id: number) =>
-      request.post<ApiEnvelope<PaymentOrderRecord>>(`/payment-orders/${id}/sync`),
-  },
-  callbackLogs: {
-    page: async (params: Record<string, unknown>) =>
-      httpPage<PaymentCallbackLogRecord>('/payment-callback-logs', params),
-    add: async (data: Record<string, unknown>) => httpPost<PaymentCallbackLogRecord>('/payment-callback-logs', data),
-    replay: async (id: number) => request.post<ApiEnvelope<PaymentCallbackLogRecord>>(`/payment-callback-logs/${id}/replay`),
-  },
-  channels: {
-    page: async (params: Record<string, unknown>) =>
-      httpPage<PaymentChannelRecord>('/payment-channels', params),
-    add: async (data: Record<string, unknown>) => httpPost<PaymentChannelRecord>('/payment-channels', data),
-    edit: async (data: Record<string, unknown>) => httpPut<void>(`/payment-channels/${data.id}`, data),
-    remove: async (id: number) => httpDelete<void>(`/payment-channels/${id}`),
-  },
-  refundCallbacks: {
-    page: async (params: Record<string, unknown>) =>
-      httpPage<RefundCallbackLogRecord>('/refund-callback-logs', params),
-    add: async (data: Record<string, unknown>) => httpPost<RefundCallbackLogRecord>('/refund-callback-logs', data),
-  },
   reconciliations: {
     page: async (params: Record<string, unknown>) =>
       httpPage<PaymentReconciliationRecord>('/payment-reconciliations', params),
@@ -2941,7 +2753,6 @@ export default {
   merchantContract: merchantContractApi,
   merchantSettlementAccount: merchantSettlementAccountApi,
   merchantQualification: merchantQualificationApi,
-  merchantChangeLog: merchantChangeLogApi,
   merchantGroup: merchantGroupApi,
   merchantGroupStore: merchantGroupStoreApi,
   merchantAccount: merchantAccountApi,
@@ -2952,7 +2763,6 @@ export default {
   storeBusinessHours: storeBusinessHoursApi,
   storeTempCloseRecord: storeTempCloseRecordApi,
   storeServiceCapability: storeServiceCapabilityApi,
-  storeChangeLog: storeChangeLogApi,
   servicePoint: servicePointApi,
   servicePointQrRecord: servicePointQrRecordApi,
   servicePointMaintainRecord: servicePointMaintainRecordApi,
@@ -2967,7 +2777,6 @@ export default {
   deviceCallbackConfig: deviceCallbackConfigApi,
   deviceBindLog: deviceBindLogApi,
   deviceOps: deviceOpsApi,
-  serviceProduct: serviceProductApi,
   pricingRule: pricingRuleApi,
   productStatusLog: productStatusLogApi,
   pricingRuleVersion: pricingRuleVersionApi,

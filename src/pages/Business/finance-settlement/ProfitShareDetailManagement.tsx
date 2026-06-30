@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Statistic, Tabs, message } from 'antd';
-import { CheckCircleOutlined, SplitCellsOutlined, TeamOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, ReloadOutlined, SearchOutlined, SplitCellsOutlined, TeamOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
@@ -13,7 +13,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
-import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import api, {
   type ProfitChargebackRecord,
   type ProfitConfirmRecord,
@@ -83,6 +83,15 @@ const profitShareCenterDetailFields: Record<'relation' | 'version' | 'detail' | 
   ],
 };
 
+type ProfitShareDetailSearchValues = {
+  keyword?: string;
+  relationStatus?: string;
+  versionAuditStatus?: string;
+  detailStatus?: string;
+  chargebackStatus?: string;
+  confirmStatus?: string;
+};
+
 const ProfitShareDetailManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
@@ -95,7 +104,27 @@ const ProfitShareDetailManagement: React.FC = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [form] = Form.useForm<Record<string, any>>();
+  const [searchForm] = Form.useForm<ProfitShareDetailSearchValues>();
   const action = Form.useWatch('action', form);
+
+  const handleSearch = (values: ProfitShareDetailSearchValues) => {
+    setKeyword(String(values.keyword || '').trim());
+    setRelationStatusFilter(values.relationStatus);
+    setVersionAuditStatusFilter(values.versionAuditStatus);
+    setDetailStatusFilter(values.detailStatus);
+    setChargebackStatusFilter(values.chargebackStatus);
+    setConfirmStatusFilter(values.confirmStatus);
+  };
+
+  const handleResetSearch = () => {
+    searchForm.resetFields();
+    setKeyword('');
+    setRelationStatusFilter(undefined);
+    setVersionAuditStatusFilter(undefined);
+    setDetailStatusFilter(undefined);
+    setChargebackStatusFilter(undefined);
+    setConfirmStatusFilter(undefined);
+  };
 
   const openAction = (title: string) => {
     setModalTitle(title);
@@ -214,18 +243,37 @@ const ProfitShareDetailManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="确认记录" value={confirms.length} suffix="条" /></Card></Col>
       </Row>
 
-      <Space size={12} wrap style={{ marginBottom: 16 }}>
-        <KeywordSearchBar
-          value={keyword}
-          placeholder="输入门店、合伙人、订单、结算单、版本、回冲单"
-          onSearch={setKeyword}
-        />
-        <Select allowClear placeholder="关系状态" style={{ width: 140 }} options={profitRelationStatusOptions} value={relationStatusFilter} onChange={setRelationStatusFilter} />
-        <Select allowClear placeholder="版本审核" style={{ width: 140 }} options={auditStatusOptions} value={versionAuditStatusFilter} onChange={setVersionAuditStatusFilter} />
-        <Select allowClear placeholder="分润状态" style={{ width: 140 }} options={auditStatusOptions} value={detailStatusFilter} onChange={setDetailStatusFilter} />
-        <Select allowClear placeholder="回冲状态" style={{ width: 140 }} options={auditStatusOptions} value={chargebackStatusFilter} onChange={setChargebackStatusFilter} />
-        <Select allowClear placeholder="确认状态" style={{ width: 140 }} options={auditStatusOptions} value={confirmStatusFilter} onChange={setConfirmStatusFilter} />
-      </Space>
+      <Form
+        form={searchForm}
+        layout="inline"
+        onFinish={handleSearch}
+        style={{ marginBottom: 16, padding: 16, background: '#fff', borderRadius: 8, rowGap: 12 }}
+      >
+        <Form.Item name="keyword" style={{ minWidth: 320, flex: 1, marginBottom: 0 }}>
+          <Input allowClear prefix={<SearchOutlined />} placeholder="输入门店、合伙人、订单、结算单、版本、回冲单" />
+        </Form.Item>
+        <Form.Item name="relationStatus" style={{ marginBottom: 0 }}>
+          <Select allowClear placeholder="关系状态" style={{ width: 140 }} options={profitRelationStatusOptions} />
+        </Form.Item>
+        <Form.Item name="versionAuditStatus" style={{ marginBottom: 0 }}>
+          <Select allowClear placeholder="版本审核" style={{ width: 140 }} options={auditStatusOptions} />
+        </Form.Item>
+        <Form.Item name="detailStatus" style={{ marginBottom: 0 }}>
+          <Select allowClear placeholder="分润状态" style={{ width: 140 }} options={auditStatusOptions} />
+        </Form.Item>
+        <Form.Item name="chargebackStatus" style={{ marginBottom: 0 }}>
+          <Select allowClear placeholder="回冲状态" style={{ width: 140 }} options={auditStatusOptions} />
+        </Form.Item>
+        <Form.Item name="confirmStatus" style={{ marginBottom: 0 }}>
+          <Select allowClear placeholder="确认状态" style={{ width: 140 }} options={auditStatusOptions} />
+        </Form.Item>
+        <Form.Item style={{ marginBottom: 0 }}>
+          <Space>
+            <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>查询</Button>
+            <Button icon={<ReloadOutlined />} onClick={handleResetSearch}>重置</Button>
+          </Space>
+        </Form.Item>
+      </Form>
 
       <Tabs
         items={[

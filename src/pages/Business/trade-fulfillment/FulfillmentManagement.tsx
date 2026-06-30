@@ -395,7 +395,7 @@ const FulfillmentManagement: React.FC = () => {
       userName: order?.userName === '-' ? undefined : order?.userName,
       storeId: order?.storeId,
       storeName: order?.storeName,
-      objectId: order?.serviceProductId,
+      objectId: order?.id,
       objectName: order?.serviceName,
       amount: order?.payAmount ?? order?.amount,
     });

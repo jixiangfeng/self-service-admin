@@ -79,11 +79,6 @@ const rechargeModeOptions = [
   { label: '任意金额充值', value: '任意金额充值' },
   { label: '首充专享', value: '首充专享' },
 ];
-const rewardMethodOptions = [
-  { label: '赠送余额', value: '赠送余额' },
-  { label: '赠送优惠券', value: '赠送优惠券' },
-  { label: '赠送积分', value: '赠送积分' },
-];
 const stackLimitOptions = [
   { label: '不可与同类型券叠加', value: '同类券不可叠加' },
   { label: '不可与平台促销同享', value: '不可与平台促销同享' },
@@ -118,9 +113,6 @@ const formatRechargeTierAmounts = (value?: string) => {
   const tiers = parseRechargeTierAmounts(value);
   return tiers.length ? tiers.map((item) => `${item.amount} 元送 ${item.gift} 元`).join(' / ') : '-';
 };
-const hasRewardType = (value: unknown, target: string) => Array.isArray(value)
-  ? value.includes(target)
-  : String(value || '').split(/[;；,，]/).map((item) => item.trim()).includes(target);
 const rewardSummary = (type?: string, amount?: number | string, couponId?: number, cardId?: number) => {
   if (type === 'COUPON') return couponId ? `优惠券模板 #${couponId}` : '优惠券';
   if (type === 'CARD') return cardId ? `服务卡产品 #${cardId}` : '服务卡';
@@ -149,7 +141,6 @@ const buildModalPayload = (type: ActivityTab, values: Record<string, any>) => {
   return {
     ...values,
     tierAmounts: buildRechargeTierAmounts(values),
-    rewardType: joinMultiValue(values.rewardType),
   };
 };
 
@@ -202,12 +193,7 @@ const marketingDetailFields: Record<ActivityTab, DetailField<any>[]> = {
     { name: 'activityName', label: '活动名称' },
     { name: 'rechargeMode', label: '充值方式' },
     { name: 'tierAmounts', label: '固定档位' },
-    { name: 'rewardMethod', label: '奖励方式' },
-    { name: 'rewardValue', label: '奖励值' },
-    { name: 'couponTemplateId', label: '奖励券模板' },
-    { name: 'serviceCardId', label: '奖励服务卡' },
     { name: 'bannerImageUrl', label: '活动条Banner' },
-    { name: 'rewardCap', label: '单人奖励上限' },
     { name: 'scope', label: '作用范围' },
     { name: 'costOwner', label: '成本承担' },
     { name: 'status', label: '状态' },
@@ -253,7 +239,6 @@ const MarketingManagement: React.FC = () => {
   const serviceCardOptions = (serviceCardOptionsQuery.data || []) as SelectOptionRecord[];
   const inviterRewardType = Form.useWatch('inviterRewardType', form);
   const inviteeRewardType = Form.useWatch('inviteeRewardType', form);
-  const selectedRechargeRewardType = Form.useWatch('rewardType', form);
 
   const filteredCoupons = useMemo(
     () => couponActivities.filter((item) => containsKeyword(keyword, [item.templateCode, item.templateName, item.couponType, item.scope, item.issueChannel, item.issueAudience, item.stackLimits]) && (!status || item.status === status)),
@@ -264,7 +249,7 @@ const MarketingManagement: React.FC = () => {
     [inviteActivities, keyword, status]
   );
   const filteredRecharge = useMemo(
-    () => rechargeActivities.filter((item) => containsKeyword(keyword, [item.activityCode, item.activityName, item.rechargeMode, item.rewardMethod, item.tierAmounts, item.scope]) && (!status || item.status === status)),
+    () => rechargeActivities.filter((item) => containsKeyword(keyword, [item.activityCode, item.activityName, item.rechargeMode, item.tierAmounts, item.scope]) && (!status || item.status === status)),
     [keyword, rechargeActivities, status]
   );
 
@@ -308,7 +293,6 @@ const MarketingManagement: React.FC = () => {
         ...(type === 'invite' ? { fraudChecks: splitMultiValue((record as InviteActivityRecord).fraudChecks) } : {}),
         ...(type === 'recharge' ? {
           tierAmounts: parseRechargeTierAmounts((record as RechargeActivityRecord).tierAmounts),
-          rewardType: splitMultiValue((record as RechargeActivityRecord).rewardType),
         } : {}),
       } as any);
       return;
@@ -321,7 +305,7 @@ const MarketingManagement: React.FC = () => {
       form.setFieldsValue({ status: 'DRAFT', qualifyCondition: '被邀请人首单支付', recoveryMode: 'REFUND', fraudChecks: ['同手机号限制', '同设备限制'], inviterRewardType: 'BALANCE', inviteeRewardType: 'COUPON' } as any);
       return;
     }
-    form.setFieldsValue({ status: 'DRAFT', tierAmounts: [{ amount: 50, gift: 0 }, { amount: 100, gift: 10 }, { amount: 200, gift: 30 }], rechargeMode: '固定档位充值', rewardMethod: '赠送余额', scope: '全部门店' } as any);
+    form.setFieldsValue({ status: 'DRAFT', tierAmounts: [{ amount: 50, gift: 0 }, { amount: 100, gift: 10 }, { amount: 200, gift: 30 }], rechargeMode: '固定档位充值', scope: '全部门店' } as any);
   };
 
   const closeModal = () => {
@@ -442,12 +426,9 @@ const MarketingManagement: React.FC = () => {
         </div>
       ),
     },
-    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '活动名称 / 编码 / 充值门槛 / 奖励' } },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '活动名称 / 编码 / 充值门槛 / 范围' } },
     { title: '充值方式', dataIndex: 'rechargeMode', width: 160, search: false , render: (value) => formatEnumText(value, 'rechargeMode', '充值方式') },
-    { title: '奖励方式', dataIndex: 'rewardMethod', width: 160, search: false , render: (value) => formatEnumText(value, 'rewardMethod', '奖励方式') },
     { title: '固定档位', dataIndex: 'tierAmounts', width: 160, search: false, render: (value) => formatRechargeTierAmounts(value as string | undefined) },
-    { title: '奖励券模板', dataIndex: 'couponTemplateId', width: 120, search: false, render: (_, record) => record.couponTemplateId ? `#${record.couponTemplateId}` : '-' },
-    { title: '服务卡产品', dataIndex: 'serviceCardId', width: 120, search: false, render: (_, record) => record.serviceCardId ? `#${record.serviceCardId}` : '-' },
     { title: '作用范围', dataIndex: 'scope', width: 140, search: false , render: (value) => formatEnumText(value, 'scope', '作用范围') },
     { title: '成本承担', dataIndex: 'costOwner', width: 160, valueType: 'select', valueEnum: costBearerMap, render: (_, record) => renderStatusTag(record.costOwner, costBearerMap) },
     { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
@@ -687,16 +668,6 @@ const MarketingManagement: React.FC = () => {
                     </Form.List>
                   </Form.Item>
                   <Form.Item name="minAmount" label="最低充值金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
-                </div>
-              </BusinessEditorSection>
-              <BusinessEditorSection icon={<GiftOutlined />} title="奖励规则" desc="配置奖励方式、奖励值和单人奖励上限。">
-                <div className="merchant-editor-fields">
-                  <Form.Item name="rewardMethod" label="奖励方式"><Select options={rewardMethodOptions} placeholder="请选择奖励方式" /></Form.Item>
-                  <Form.Item name="rewardValue" label="奖励值"><InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="例如：20" /></Form.Item>
-                  <Form.Item name="rewardCap" label="单人奖励上限"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
-                  <Form.Item name="rewardType" label="奖励类型"><Select mode="multiple" options={closedRewardTypeOptions} placeholder="请选择奖励类型" /></Form.Item>
-                  {hasRewardType(selectedRechargeRewardType, 'COUPON') ? <Form.Item name="couponTemplateId" label="优惠券模板"><Select showSearch optionFilterProp="label" options={couponTemplateOptions} placeholder="请选择奖励券模板" /></Form.Item> : null}
-                  {hasRewardType(selectedRechargeRewardType, 'CARD') || hasRewardType(selectedRechargeRewardType, 'SERVICE_CARD') ? <Form.Item name="serviceCardId" label="服务卡产品"><Select showSearch optionFilterProp="label" options={serviceCardOptions} placeholder="请选择奖励服务卡" /></Form.Item> : null}
                 </div>
               </BusinessEditorSection>
             </div>

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Statistic, Tabs, message } from 'antd';
-import { CalculatorOutlined, CheckCircleOutlined, FileSearchOutlined } from '@ant-design/icons';
+import { CalculatorOutlined, CheckCircleOutlined, FileSearchOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
@@ -15,7 +15,7 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
-import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import api, {
   type PaymentReconciliationRecord,
   type SettlementBillDetailRecord,
@@ -146,6 +146,14 @@ const crossStoreReceivableFields: DetailField<CrossStoreReceivableRecord>[] = [
   { name: 'remark', label: '说明' },
 ];
 
+type SettlementDetailSearchValues = {
+  keyword?: string;
+  detailType?: string;
+  payoutStatus?: string;
+  reconcileStatus?: string;
+  confirmStatus?: string;
+};
+
 const SettlementDetailManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
@@ -157,6 +165,24 @@ const SettlementDetailManagement: React.FC = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [form] = Form.useForm<{ billNo: string; status: string; costAmount?: number; bearer?: string; relatedNo?: string; confirmer?: string; confirmScene?: string; supplement?: string }>();
+  const [searchForm] = Form.useForm<SettlementDetailSearchValues>();
+
+  const handleSearch = (values: SettlementDetailSearchValues) => {
+    setKeyword(String(values.keyword || '').trim());
+    setDetailTypeFilter(values.detailType);
+    setPayoutStatusFilter(values.payoutStatus);
+    setReconcileStatusFilter(values.reconcileStatus);
+    setConfirmStatusFilter(values.confirmStatus);
+  };
+
+  const handleResetSearch = () => {
+    searchForm.resetFields();
+    setKeyword('');
+    setDetailTypeFilter(undefined);
+    setPayoutStatusFilter(undefined);
+    setReconcileStatusFilter(undefined);
+    setConfirmStatusFilter(undefined);
+  };
 
   const billDetailQuery = useQuery({
     queryKey: ['settlementBillDetailsCenter', keyword, detailTypeFilter],
@@ -384,17 +410,34 @@ const SettlementDetailManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="跨店未结" value={formatAmount(crossStoreReceivables.reduce((sum, item) => sum + item.unpaidAmount, 0))} /></Card></Col>
       </Row>
 
-      <Space size={12} wrap style={{ marginBottom: 16 }}>
-        <KeywordSearchBar
-          value={keyword}
-          placeholder="输入结算单、订单、商户、门店、打款流水、对账单号"
-          onSearch={setKeyword}
-        />
-        <Select allowClear placeholder="明细类型" style={{ width: 140 }} options={settlementDetailTypeOptions} value={detailTypeFilter} onChange={setDetailTypeFilter} />
-        <Select allowClear placeholder="打款状态" style={{ width: 140 }} options={payoutStatusOptions} value={payoutStatusFilter} onChange={setPayoutStatusFilter} />
-        <Select allowClear placeholder="对账状态" style={{ width: 140 }} options={reconciliationStatusOptions} value={reconcileStatusFilter} onChange={setReconcileStatusFilter} />
-        <Select allowClear placeholder="确认状态" style={{ width: 140 }} options={settlementStatusOptions} value={confirmStatusFilter} onChange={setConfirmStatusFilter} />
-      </Space>
+      <Form
+        form={searchForm}
+        layout="inline"
+        onFinish={handleSearch}
+        style={{ marginBottom: 16, padding: 16, background: '#fff', borderRadius: 8, rowGap: 12 }}
+      >
+        <Form.Item name="keyword" style={{ minWidth: 320, flex: 1, marginBottom: 0 }}>
+          <Input allowClear prefix={<SearchOutlined />} placeholder="输入结算单、订单、商户、门店、打款流水、对账单号" />
+        </Form.Item>
+        <Form.Item name="detailType" style={{ marginBottom: 0 }}>
+          <Select allowClear placeholder="明细类型" style={{ width: 140 }} options={settlementDetailTypeOptions} />
+        </Form.Item>
+        <Form.Item name="payoutStatus" style={{ marginBottom: 0 }}>
+          <Select allowClear placeholder="打款状态" style={{ width: 140 }} options={payoutStatusOptions} />
+        </Form.Item>
+        <Form.Item name="reconcileStatus" style={{ marginBottom: 0 }}>
+          <Select allowClear placeholder="对账状态" style={{ width: 140 }} options={reconciliationStatusOptions} />
+        </Form.Item>
+        <Form.Item name="confirmStatus" style={{ marginBottom: 0 }}>
+          <Select allowClear placeholder="确认状态" style={{ width: 140 }} options={settlementStatusOptions} />
+        </Form.Item>
+        <Form.Item style={{ marginBottom: 0 }}>
+          <Space>
+            <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>查询</Button>
+            <Button icon={<ReloadOutlined />} onClick={handleResetSearch}>重置</Button>
+          </Space>
+        </Form.Item>
+      </Form>
 
       <Tabs
         items={[

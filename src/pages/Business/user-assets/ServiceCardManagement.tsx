@@ -15,7 +15,8 @@ import api from '@/services/backendService';
 import type { AppUserProfileRecord, ServiceCardFullProfileRecord, ServiceCardRecord, ServiceCardUsageRecord, ServiceOrderRecord, StoreRecord, UserServiceCardRecord } from '@/services/backendService';
 import ServiceCardFullProfileDrawer from './ServiceCardFullProfileDrawer';
 
-const cardTypeMap = buildValueEnum(serviceCardTypeOptions);
+const cardProductTypeOptions = serviceCardTypeOptions.filter((item) => item.value === 'COUNT_CARD');
+const cardTypeMap = buildValueEnum(cardProductTypeOptions);
 const cardProductStatusOptions = [
   { value: 'DRAFT', label: '草稿' },
   { value: 'ENABLED', label: '启用' },
@@ -91,6 +92,7 @@ const formatServiceValidity = (record: ServiceCardRecord) =>
 
 const formatServiceRights = (record: ServiceCardRecord) => compactJoin([
   record.rightsServiceTimes ? `${record.rightsServiceTimes}次` : undefined,
+  record.rightsDurationMinutes ? `每次${record.rightsDurationMinutes}分钟` : undefined,
   optionLabels(serviceRightOptions, splitValues(record.rightsServices)),
   record.rightsDiscount ? `${record.rightsDiscount}折` : undefined,
   record.rightsTransferable ? '可转赠' : undefined,
@@ -138,10 +140,11 @@ const buildCardDefaults = (cardType: string) => ({
   salePrice: 0,
   scopeMode: 'ALL_STORE',
   validityMode: 'DAYS',
-  validityDays: cardType === 'MONTH_CARD' ? 31 : 365,
-  rightsServiceTimes: cardType === 'SERVICE_CARD' ? 1 : 10,
+  validityDays: 365,
+  rightsServiceTimes: 10,
+  rightsDurationMinutes: 30,
   rightsServices: ['CAR_WASH'],
-  issueChannels: cardType === 'SERVICE_CARD' ? ['BACKEND'] : ['BACKEND', 'PURCHASE'],
+  issueChannels: ['BACKEND', 'PURCHASE'],
   issueNeedApproval: false,
   issueAutoNotify: true,
 });
@@ -464,19 +467,19 @@ const ServiceCardManagement: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="服务卡与次卡" subtitle="补齐服务卡、次卡、月卡的产品配置、售价、发放规则和上下架状态。" icon={<WalletOutlined />} />
+      <PageBanner title="次卡" subtitle="维护次卡的产品配置、单次分钟数、售价、发放规则和上下架状态。" icon={<WalletOutlined />} />
       <CoreFlowPanel
         title="权益次卡产品闭环"
         subtitle="权益产品要同时串起产品配置、可售库存、用户持卡、核销流水和充值活动赠送，避免只维护卡面规则却无法追踪发放与消耗。"
         config={[
-          { label: '权益定义', desc: '维护卡类型、次数、适用服务、有效期和范围，是购买、发放和扣次的统一口径。', tag: '产品' },
+          { label: '权益定义', desc: '维护次数、单次分钟数、适用服务、有效期和范围，是购买、发放和扣次的统一口径。', tag: '产品' },
           { label: '库存与状态', desc: '库存决定能否继续发卡，状态决定后续售卖/发放，不影响用户已持有权益。', tag: '控制' },
           { label: '发放渠道', desc: '后台发放、购买自动发放、充值赠送和活动奖励需要在同一产品上留痕。', tag: '渠道' },
         ]}
         landing={[
           { label: '用户持卡', desc: '每张用户卡记录总次数、剩余次数、有效期和来源单号。' },
           { label: '核销流水', desc: '每次服务订单或人工扣次都写入使用记录，支持售后回滚。' },
-          { label: '充值套餐', desc: '充值活动可引用服务卡作为赠送权益，需确认卡产品启用且库存充足。' },
+          { label: '充值套餐', desc: '充值活动可引用次卡作为赠送权益，需确认卡产品启用且库存充足。' },
         ]}
         verify={[
           { label: '上架前', desc: '确认权益次数、有效期、适用范围、发放渠道和库存配置完整。' },
@@ -486,16 +489,16 @@ const ServiceCardManagement: React.FC = () => {
       />
       <OperatorTips
         items={[
-          { label: '新建产品', desc: '先选卡类型，再填售价、次数、有效期、适用门店和可用服务。', tag: '产品' },
+          { label: '新建产品', desc: '填写售价、次数、单次分钟数、有效期、适用门店和可用服务。', tag: '产品' },
           { label: '上架/停用', desc: '上架后可购买或发放；停用只影响后续发放，不应影响用户已持有卡。', tag: '状态' },
-          { label: '人工发放', desc: '售后补偿、活动奖励和人工补发都走“发放服务卡”，备注要写清业务原因。', tag: '发放' },
+          { label: '人工发放', desc: '售后补偿、活动奖励和人工补发都走“发卡”，备注要写清业务原因。', tag: '发放' },
         ]}
       />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="卡产品" value={cards.length} suffix="种" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="服务卡" value={cards.filter((item) => item.cardType === 'SERVICE_CARD').length} suffix="种" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="次卡 / 月卡" value={cards.filter((item) => item.cardType !== 'SERVICE_CARD').length} suffix="种" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="次卡" value={cards.filter((item) => item.cardType === 'COUNT_CARD').length} suffix="种" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="总次数" value={cards.reduce((sum, item) => sum + Number(item.rightsServiceTimes || 0), 0)} suffix="次" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="可售库存" value={cards.reduce((sum, item) => sum + Number(item.stock || 0), 0)} suffix="份" /></Card></Col>
       </Row>
 
@@ -515,14 +518,13 @@ const ServiceCardManagement: React.FC = () => {
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1780 }}
                 toolBarRender={() => [
-                  <Button key="count" onClick={() => openCreateCard('COUNT_CARD')}>新建次卡</Button>,
                   <Button
-                    key="new"
+                    key="count"
                     type="primary"
                     icon={<PlusOutlined />}
-                    onClick={() => openCreateCard('SERVICE_CARD')}
+                    onClick={() => openCreateCard('COUNT_CARD')}
                   >
-                    新建服务卡
+                    新建次卡
                   </Button>,
                 ]}
                 onSubmit={(values) => {
@@ -596,10 +598,10 @@ const ServiceCardManagement: React.FC = () => {
                   <Input placeholder="例如：CARD-SERVICE-001" />
                 </Form.Item>
                 <Form.Item name="cardName" label="卡名称" rules={[{ required: true, message: '请输入卡名称' }]}>
-                  <Input placeholder="例如：洗车服务卡" />
+                  <Input placeholder="例如：10 次洗车卡" />
                 </Form.Item>
                 <Form.Item name="cardType" label="卡类型" rules={[{ required: true, message: '请选择卡类型' }]}>
-                  <Select options={serviceCardTypeOptions} placeholder="请选择卡类型" />
+                  <Select options={cardProductTypeOptions} placeholder="请选择卡类型" />
                 </Form.Item>
                 <Form.Item name="status" label="状态">
                   <Select options={cardProductStatusOptions} placeholder="请选择状态" />
@@ -642,6 +644,9 @@ const ServiceCardManagement: React.FC = () => {
               <div className="merchant-editor-fields">
                 <Form.Item name="rightsServiceTimes" label="权益次数">
                   <InputNumber style={{ width: '100%' }} min={0} precision={0} addonAfter="次" placeholder="例如：10" />
+                </Form.Item>
+                <Form.Item name="rightsDurationMinutes" label="单次分钟数" rules={[{ required: true, message: '请输入单次可用分钟数' }]}>
+                  <InputNumber style={{ width: '100%' }} min={1} precision={0} addonAfter="分钟" placeholder="例如：30" />
                 </Form.Item>
                 <Form.Item name="rightsServices" label="适用权益">
                   <Select mode="multiple" options={serviceRightOptions} placeholder="请选择可用权益" />

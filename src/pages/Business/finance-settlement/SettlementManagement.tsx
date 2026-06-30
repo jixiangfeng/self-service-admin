@@ -727,7 +727,7 @@ const SettlementManagement: React.FC = () => {
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 1600 }}
                 loading={reconciliationQuery.isLoading}
-                toolBarRender={() => [<Button key="handle" type="primary" onClick={() => navigate('/payment-ops')}>处理差异</Button>]}
+                toolBarRender={() => []}
                 onSubmit={(values) => { setReconcileKeyword(String(values.keyword || '')); setReconcileStatusFilter(values.status ? String(values.status) : undefined); }}
                 onReset={() => { setReconcileKeyword(''); setReconcileStatusFilter(undefined); }}
               />

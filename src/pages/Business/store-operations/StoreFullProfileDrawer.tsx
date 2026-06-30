@@ -1,11 +1,10 @@
 import React from 'react';
-import { Descriptions, Drawer, Empty, Image, Space, Statistic, Table, Tabs, Tag, Typography } from 'antd';
+import { Descriptions, Drawer, Empty, Image, Space, Statistic, Table, Tabs, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type {
   DeviceRecord,
   ServicePointRecord,
   StoreBusinessHoursRecord,
-  StoreChangeLogRecord,
   StoreFullProfileRecord,
   StoreImageRecord,
   StoreServiceCapabilityRecord,
@@ -20,114 +19,9 @@ interface StoreFullProfileDrawerProps {
   onClose: () => void;
 }
 
-type ChangeDiffRow = {
-  key: string;
-  field: string;
-  before: unknown;
-  after: unknown;
-};
-
-const storeFieldLabelMap: Record<string, string> = {
-  merchantId: '所属商户',
-  storeName: '门店名称',
-  storeCode: '门店编号',
-  storePhone: '门店电话',
-  managerName: '店长',
-  managerPhone: '负责人电话',
-  province: '省份',
-  city: '城市',
-  district: '区县',
-  address: '详细地址',
-  longitude: '经度',
-  latitude: '纬度',
-  businessHours: '营业时间',
-  openTime: '开门时间',
-  closeTime: '闭店时间',
-  holidayHours: '节假日营业',
-  serviceRadius: '服务半径',
-  marketingEnabled: '营销开关',
-  tempClosed: '临停状态',
-  tempClosedReason: '临停原因',
-  tempClosedUntil: '临停截止',
-  intro: '门店介绍',
-  coverUrl: '封面图',
-  imageUrls: '图片集',
-  status: '门店状态',
-  notice: '公告',
-};
-
-const changeTypeMap: Record<string, string> = {
-  STORE_CREATE: '门店创建',
-  STORE_UPDATE: '门店主档修改',
-  STORE_STATUS: '门店启停',
-  STORE_DELETE: '门店删除',
-  BUSINESS_HOURS_CREATE: '营业时间新增',
-  BUSINESS_HOURS_UPDATE: '营业时间修改',
-  BUSINESS_HOURS_DELETE: '营业时间删除',
-  TEMP_CLOSE_CREATE: '临停新增',
-  TEMP_CLOSE_UPDATE: '临停修改',
-  TEMP_CLOSE_DELETE: '临停删除',
-  CAPABILITY_CREATE: '能力新增',
-  CAPABILITY_UPDATE: '能力修改',
-  CAPABILITY_DELETE: '能力删除',
-  IMAGE_CREATE: '图片新增',
-  IMAGE_UPDATE: '图片修改',
-  IMAGE_DELETE: '图片删除',
-};
-
-const parseJsonObject = (value?: string): Record<string, unknown> => {
-  if (!value) return {};
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : { value };
-  } catch {
-    return { value };
-  }
-};
-
-const formatDiffValue = (value: unknown, field?: string) => {
-  if (value === undefined || value === null || value === '') return '-';
-  if (field === 'marketingEnabled' || field === 'tempClosed') return Number(value) === 1 ? '是' : '否';
-  if (field === 'status') return formatEnumText(String(value), 'storeStatus', '门店状态');
-  if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
-};
-
-const buildDiffRows = (record: StoreChangeLogRecord): ChangeDiffRow[] => {
-  const before = parseJsonObject(record.beforeValue);
-  const after = parseJsonObject(record.afterValue);
-  const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
-  return keys
-    .filter((key) => formatDiffValue(before[key], key) !== formatDiffValue(after[key], key))
-    .map((key) => ({
-      key,
-      field: storeFieldLabelMap[key] || key,
-      before: before[key],
-      after: after[key],
-    }));
-};
-
 const formatMoney = (value?: number | string) => {
   const amount = Number(value || 0);
   return Number.isFinite(amount) ? amount.toFixed(2) : '0.00';
-};
-
-const ChangeDiffTable: React.FC<{ record: StoreChangeLogRecord }> = ({ record }) => {
-  const rows = buildDiffRows(record);
-  if (!rows.length) return <Typography.Text type="secondary">暂无字段差异</Typography.Text>;
-  return (
-    <Table<ChangeDiffRow>
-      rowKey="key"
-      size="small"
-      pagination={false}
-      columns={[
-        { title: '字段', dataIndex: 'field', width: 160 },
-        { title: '变更前', dataIndex: 'before', render: (value, row) => formatDiffValue(value, row.key) },
-        { title: '变更后', dataIndex: 'after', render: (value, row) => formatDiffValue(value, row.key) },
-      ]}
-      dataSource={rows}
-    />
-  );
 };
 
 const StoreFullProfileDrawer: React.FC<StoreFullProfileDrawerProps> = ({ open, loading, profile, onClose }) => {
@@ -186,14 +80,6 @@ const StoreFullProfileDrawer: React.FC<StoreFullProfileDrawerProps> = ({ open, l
     { title: '心跳', dataIndex: 'lastHeartbeatAt', render: (value) => formatDateTime(value) },
   ];
 
-  const changeColumns: ColumnsType<StoreChangeLogRecord> = [
-    { title: '变更时间', dataIndex: 'changedAt', width: 170, render: (value) => formatDateTime(value) },
-    { title: '类型', dataIndex: 'changeType', width: 150, render: (value) => changeTypeMap[value] || value },
-    { title: '操作人', dataIndex: 'operator', width: 100, render: (value) => value || '-' },
-    { title: '字段数', width: 90, render: (_, record) => `${buildDiffRows(record).length} 项` },
-    { title: '摘要', render: (_, record) => buildDiffRows(record).slice(0, 3).map((row) => `${row.field}: ${formatDiffValue(row.before, row.key)} → ${formatDiffValue(row.after, row.key)}`).join('；') || '-' },
-  ];
-
   return (
     <Drawer title={store ? `门店完整档案 · ${store.storeName}` : '门店完整档案'} open={open} onClose={onClose} width={1160} destroyOnClose>
       {!profile || !store ? (
@@ -247,11 +133,6 @@ const StoreFullProfileDrawer: React.FC<StoreFullProfileDrawerProps> = ({ open, l
             { key: 'capabilities', label: '服务能力', children: <Table rowKey="id" size="small" columns={capabilityColumns} dataSource={profile.capabilities || []} pagination={false} /> },
             { key: 'points', label: '点位', children: <Table rowKey="id" size="small" columns={pointColumns} dataSource={profile.servicePoints || []} pagination={false} /> },
             { key: 'devices', label: '设备', children: <Table rowKey="id" size="small" columns={deviceColumns} dataSource={profile.devices || []} pagination={false} /> },
-            {
-              key: 'changes',
-              label: '变更轨迹',
-              children: <Table rowKey="id" size="small" columns={changeColumns} dataSource={profile.changeLogs || []} expandable={{ expandedRowRender: (record) => <ChangeDiffTable record={record} /> }} pagination={{ pageSize: 8 }} />,
-            },
           ]}
         />
       )}

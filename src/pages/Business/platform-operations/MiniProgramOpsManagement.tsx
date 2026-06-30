@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Button, Card, Col, Form, Image, Input, InputNumber, Row, Select, Space, Statistic, Tabs, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Col, Form, Image, Input, InputNumber, Row, Select, Space, Statistic, Tabs, Typography, message } from 'antd';
 import { DeleteOutlined, EditOutlined, FileTextOutlined, MobileOutlined, PictureOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
@@ -64,7 +64,7 @@ const jumpTypeOptions = [
   { value: 'PAGE', label: '小程序页面' },
   { value: 'COUPON', label: '优惠券' },
   { value: 'RECHARGE', label: '充值中心' },
-  { value: 'PRODUCT', label: '商品/套餐' },
+  { value: 'SERVICE_CARD', label: '次卡/月卡' },
   { value: 'STORE', label: '门店详情' },
   { value: 'GROUPON', label: '团购核销' },
   { value: 'WEBVIEW', label: '网页链接' },
@@ -105,14 +105,6 @@ const pagePathOptions = [
   { value: '/pages/invite-guide/index', label: '邀请活动' },
   { value: '/pages/contact-service/index', label: '联系客服' },
   { value: '/pages/help-center/index', label: '帮助中心' },
-];
-
-const hardcodedOpsFindings = [
-  { area: '客服与帮助', paths: 'scan-wash / scan-offline / order-service / order-complete / contact-service / help-center', suggestion: '客服电话、在线留言响应文案、帮助中心 FAQ、异常提示适合纳入客服入口/帮助配置。' },
-  { area: '活动页兜底文案', paths: 'activity-gift / invite-guide / invite-record', suggestion: '活动广场标题、副标题、活动类型兜底文案和邀请页默认图适合由运营配置统一维护。' },
-  { area: '静态兜底 Banner', paths: 'home / store-list / profile / coupon-list / recharge-success', suggestion: '目前已有 Banner 配置接口，但仍存在 OSS 兜底图；建议后续补“默认图/缺省图”配置，避免用户端写死。' },
-  { area: '支付/余额展示素材', paths: 'recharge-center / balance-records / balance-detail / package-confirm', suggestion: '余额卡背景、微信支付图标、默认门店图属于视觉运营素材，可进入素材/主题配置。' },
-  { area: '表单分类与 Tab', paths: 'feedback / balance-records / coupon-list / invite-record-paid', suggestion: '问题分类、余额流水 Tab、优惠券 Tab 等低频枚举可纳入字典或页面配置。' },
 ];
 
 const unwrapOptionData = (value?: SelectOptionRecord[] | { data?: SelectOptionRecord[] }) =>
@@ -299,7 +291,7 @@ const MiniProgramOpsManagement: React.FC = () => {
   const bannersQuery = useQuery({ queryKey: ['banner-configs', queryParams], queryFn: () => api.miniProgramOps.banners.page(queryParams) });
   const agreementsQuery = useQuery({ queryKey: ['agreement-contents', queryParams], queryFn: () => api.miniProgramOps.agreements.page(queryParams) });
   const storeOptionsQuery = useQuery({ queryKey: ['mini-ops-store-options'], queryFn: () => api.store.options() });
-  const productOptionsQuery = useQuery({ queryKey: ['mini-ops-product-options'], queryFn: () => api.serviceProduct.options() });
+  const serviceCardOptionsQuery = useQuery({ queryKey: ['mini-ops-service-card-options'], queryFn: () => api.asset.serviceCards.options() });
   const couponOptionsQuery = useQuery({ queryKey: ['mini-ops-coupon-options'], queryFn: () => api.marketing.couponTemplates.options() });
 
   const watchedPageCode = Form.useWatch('pageCode', form);
@@ -327,12 +319,12 @@ const MiniProgramOpsManagement: React.FC = () => {
   const jumpValueOptions = useMemo(() => {
     if (watchedJumpType === 'PAGE') return pagePathOptions;
     if (watchedJumpType === 'STORE') return toSelectOptions(storeOptionsQuery.data || []);
-    if (watchedJumpType === 'PRODUCT') return toSelectOptions(productOptionsQuery.data || []);
+    if (watchedJumpType === 'SERVICE_CARD') return toSelectOptions(serviceCardOptionsQuery.data || []);
     if (watchedJumpType === 'COUPON') return toSelectOptions(couponOptionsQuery.data || []);
     if (watchedJumpType === 'RECHARGE') return [{ value: '/pages/recharge-center/index', label: '充值中心' }];
     if (watchedJumpType === 'GROUPON') return [{ value: '/pages/group-code-verify/index', label: '团购核销页' }];
     return [];
-  }, [watchedJumpType, storeOptionsQuery.data, productOptionsQuery.data, couponOptionsQuery.data]);
+  }, [watchedJumpType, storeOptionsQuery.data, serviceCardOptionsQuery.data, couponOptionsQuery.data]);
 
   const openModal = (title: string, record?: DetailRecord) => {
     setModalTitle(title);
@@ -514,7 +506,7 @@ const MiniProgramOpsManagement: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="小程序运营配置" subtitle="维护首页模块、Banner 投放、协议版本、分享配置和客服入口。" icon={<MobileOutlined />} />
+      <PageBanner title="小程序运营配置" icon={<MobileOutlined />} />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="页面模块" value={pageConfigs.length} suffix="个" /></Card></Col>
@@ -528,36 +520,6 @@ const MiniProgramOpsManagement: React.FC = () => {
         placeholder="页面 / 模块 / Banner / 协议"
         onSearch={setKeyword}
       />
-
-      <Card style={{ marginBottom: 16 }}>
-        <Space direction="vertical" size={10} style={{ width: '100%' }}>
-          <Space wrap>
-            <Tag color="blue">self-service-app 实时读取</Tag>
-            <Tag color="green">/app/page-config</Tag>
-            <Tag color="cyan">/app/banners</Tag>
-            <Tag color="purple">/app/agreements/latest</Tag>
-          </Space>
-          <div style={{ color: '#5f6f89', lineHeight: 1.8 }}>
-            页面模块控制小程序页面区域显隐；Banner 按运营位投放到首页、门店列表、我的页、优惠券与活动页；协议版本会提供给登录授权、充值协议等用户侧入口。编辑或删除配置后，小程序下一次拉取接口即生效。
-          </div>
-        </Space>
-      </Card>
-
-      <Card title="用户端写死运营项扫描" style={{ marginBottom: 16 }}>
-        <Row gutter={[12, 12]}>
-          {hardcodedOpsFindings.map((item) => (
-            <Col xs={24} md={12} xl={8} key={item.area}>
-              <Card size="small" bordered style={{ height: '100%' }}>
-                <Space direction="vertical" size={6} style={{ width: '100%' }}>
-                  <Tag color="orange">{item.area}</Tag>
-                  <Typography.Text type="secondary">{item.paths}</Typography.Text>
-                  <Typography.Text>{item.suggestion}</Typography.Text>
-                </Space>
-              </Card>
-            </Col>
-          ))}
-        </Row>
-      </Card>
 
       <Tabs
         items={[

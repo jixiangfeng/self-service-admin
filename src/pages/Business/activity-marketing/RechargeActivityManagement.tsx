@@ -5,7 +5,7 @@ import { CalendarOutlined, GiftOutlined, PlusOutlined, WalletOutlined } from '@a
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useNavigate } from 'react-router-dom';
-import { activityRewardStatusOptions, activityStatusOptions, costBearerOptions, rewardTypeOptions } from '@/constants/businessCatalog';
+import { activityStatusOptions, costBearerOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import OssImageUpload from '@/components/OssImageUpload';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
@@ -13,13 +13,11 @@ import BusinessEditorModal, { BusinessEditorSection } from '@/components/Busines
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { buildValueEnum, containsKeyword, CoreFlowPanel, formatDateTime, OperatorTips, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
-import api, { type RechargeActivityFullProfileRecord, type RechargeActivityRecord, type SelectOptionRecord } from '@/services/backendService';
+import api, { type RechargeActivityFullProfileRecord, type RechargeActivityRecord } from '@/services/backendService';
 import RechargeActivityFullProfileDrawer from './RechargeActivityFullProfileDrawer';
 
 const statusMap = buildValueEnum(activityStatusOptions);
 const costBearerMap = buildValueEnum(costBearerOptions);
-const rewardStatusMap = buildValueEnum(activityRewardStatusOptions);
-const closedRewardTypeOptions = rewardTypeOptions.filter((item) => item.value !== 'POINTS');
 const rechargeModeOptions = [
   { label: '固定档位充值', value: '固定档位充值' },
   { label: '任意金额充值', value: '任意金额充值' },
@@ -31,22 +29,6 @@ const scopeOptions = [
   { label: '新客专享', value: '新客专享' },
   { label: '会员专享', value: '会员专享' },
 ];
-const rewardMethodOptions = [
-  { label: '赠送余额', value: '赠送余额' },
-  { label: '赠送优惠券', value: '赠送优惠券' },
-  { label: '赠送服务卡', value: '赠送服务卡' },
-];
-const rewardMethodTypeMap: Record<string, string[]> = {
-  赠送余额: ['BALANCE'],
-  赠送优惠券: ['COUPON'],
-  赠送服务卡: ['CARD'],
-};
-const splitMultiValue = (value?: string) => String(value || '').split(/[;；,，]/).map((item) => item.trim()).filter(Boolean);
-const joinMultiValue = (value: unknown, separator = '；') => Array.isArray(value) ? value.join(separator) : String(value || '');
-const formatOptionLabel = (options: SelectOptionRecord[], value?: unknown) => {
-  if (value === undefined || value === null || value === '') return '-';
-  return options.find((item) => item.value === Number(value))?.label || `#${value}`;
-};
 const buildRechargeTierAmounts = (values: Record<string, any>) => {
   const tiers = Array.isArray(values.tierAmounts) ? values.tierAmounts : [];
   return JSON.stringify(tiers
@@ -75,27 +57,16 @@ const formatRechargeTierAmounts = (value?: string) => {
 const buildRechargePayload = (values: Record<string, any>) => ({
   ...values,
   tierAmounts: buildRechargeTierAmounts(values),
-  rewardType: joinMultiValue(values.rewardType),
 });
-const hasRewardType = (value: unknown, target: string) => Array.isArray(value)
-  ? value.includes(target)
-  : String(value || '').split(/[;；,，]/).map((item) => item.trim()).includes(target);
 
-const buildRechargeDetailFields = (couponTemplateOptions: SelectOptionRecord[], serviceCardOptions: SelectOptionRecord[]): DetailField<RechargeActivityRecord>[] => [
+const rechargeDetailFields: DetailField<RechargeActivityRecord>[] = [
   { name: 'activityCode', label: '活动编码' },
   { name: 'activityName', label: '活动名称' },
   { name: 'rechargeMode', label: '充值方式' },
   { name: 'costOwner', label: '成本承担', render: (value) => value ? costBearerMap[value as keyof typeof costBearerMap]?.text || value : '-' },
   { name: 'tierAmounts', label: '固定档位', render: (value) => formatRechargeTierAmounts(value as string | undefined) },
   { name: 'minAmount', label: '最低充值金额' },
-  { name: 'rewardMethod', label: '奖励方式' },
-  { name: 'rewardValue', label: '奖励值' },
-  { name: 'couponTemplateId', label: '奖励券模板', render: (value) => formatOptionLabel(couponTemplateOptions, value) },
-  { name: 'serviceCardId', label: '奖励服务卡', render: (value) => formatOptionLabel(serviceCardOptions, value) },
   { name: 'bannerImageUrl', label: '活动条Banner' },
-  { name: 'rewardCap', label: '单人奖励上限' },
-  { name: 'rewardStatus', label: '发放状态', render: (value) => value ? rewardStatusMap[value as keyof typeof rewardStatusMap]?.text || value : '-' },
-  { name: 'issuedCount', label: '发放数量' },
   { name: 'status', label: '状态', render: (value) => value ? statusMap[value as keyof typeof statusMap]?.text || value : '-' },
   { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
 ];
@@ -117,8 +88,6 @@ const RechargeActivityManagement: React.FC = () => {
     queryKey: ['rechargeActivities', keyword, statusFilter],
     queryFn: async () => (await api.marketing.rechargeActivities.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: statusFilter })).data,
   });
-  const couponTemplateOptionsQuery = useQuery({ queryKey: ['rechargeActivityCouponTemplateOptions'], queryFn: async () => (await api.marketing.couponTemplates.options({ status: 'ENABLED' })).data });
-  const serviceCardOptionsQuery = useQuery({ queryKey: ['rechargeActivityServiceCardOptions'], queryFn: async () => (await api.asset.serviceCards.options({ status: 'ENABLED' })).data });
   const saveMutation = useMutation({
     mutationFn: async (values: Record<string, unknown>) => {
       if (values.id) {
@@ -141,13 +110,6 @@ const RechargeActivityManagement: React.FC = () => {
   });
 
   const records = activityQuery.data?.records || [];
-  const couponTemplateOptions = (couponTemplateOptionsQuery.data || []) as SelectOptionRecord[];
-  const serviceCardOptions = (serviceCardOptionsQuery.data || []) as SelectOptionRecord[];
-  const selectedRewardType = Form.useWatch('rewardType', form);
-  const detailFields = useMemo(
-    () => buildRechargeDetailFields(couponTemplateOptions, serviceCardOptions),
-    [couponTemplateOptions, serviceCardOptions]
-  );
 
   const closeModal = () => {
     setModalVisible(false);
@@ -159,7 +121,7 @@ const RechargeActivityManagement: React.FC = () => {
     () =>
       records.filter(
         (item) =>
-          containsKeyword(keyword, [item.activityCode, item.activityName, item.rechargeMode, item.rewardMethod, item.tierAmounts, item.scope]) &&
+          containsKeyword(keyword, [item.activityCode, item.activityName, item.rechargeMode, item.tierAmounts, item.scope]) &&
           (!statusFilter || item.status === statusFilter)
       ),
     [keyword, records, statusFilter]
@@ -202,16 +164,10 @@ const RechargeActivityManagement: React.FC = () => {
     },
     { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '活动 / 编码 / 充值门槛 / 奖励 / 范围' } },
     { title: '充值方式', dataIndex: 'rechargeMode', width: 160, search: false , render: (value) => formatEnumText(value, 'rechargeMode', '充值方式') },
-    { title: '奖励方式', dataIndex: 'rewardMethod', width: 160, search: false , render: (value) => formatEnumText(value, 'rewardMethod', '奖励方式') },
     { title: '作用范围', dataIndex: 'scope', width: 160, search: false , render: (value) => formatEnumText(value, 'scope', '作用范围') },
     { title: '成本承担', dataIndex: 'costOwner', width: 160, valueType: 'select', valueEnum: costBearerMap, render: (_, record) => renderStatusTag(record.costOwner, costBearerMap) },
     { title: '固定档位', dataIndex: 'tierAmounts', width: 160, search: false, render: (value) => formatRechargeTierAmounts(value as string | undefined) },
     { title: '最低充值', dataIndex: 'minAmount', width: 100, search: false },
-    { title: '奖励值', dataIndex: 'rewardValue', width: 160, search: false },
-    { title: '奖励券模板', dataIndex: 'couponTemplateId', width: 160, search: false, render: (_, record) => formatOptionLabel(couponTemplateOptions, record.couponTemplateId) },
-    { title: '服务卡产品', dataIndex: 'serviceCardId', width: 160, search: false, render: (_, record) => formatOptionLabel(serviceCardOptions, record.serviceCardId) },
-    { title: '发放状态', dataIndex: 'rewardStatus', width: 120, valueType: 'select', valueEnum: rewardStatusMap, render: (_, record) => renderStatusTag(record.rewardStatus, rewardStatusMap) },
-    { title: '发放数', dataIndex: 'issuedCount', width: 100, search: false },
     { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
     {
@@ -222,7 +178,7 @@ const RechargeActivityManagement: React.FC = () => {
         <Space>
           <Button size="small" onClick={() => openFullProfile(record)}>档案</Button>
           <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-          <Button size="small" onClick={() => { setEditingRecord(record); form.setFieldsValue({ ...record, tierAmounts: parseRechargeTierAmounts(record.tierAmounts), rewardType: splitMultiValue(record.rewardType).length ? splitMultiValue(record.rewardType) : rewardMethodTypeMap[record.rewardMethod || ''] } as any); setModalVisible(true); }}>编辑</Button>
+          <Button size="small" onClick={() => { setEditingRecord(record); form.setFieldsValue({ ...record, tierAmounts: parseRechargeTierAmounts(record.tierAmounts) } as any); setModalVisible(true); }}>编辑</Button>
           <Button
             size="small"
             loading={statusMutation.isPending}
@@ -248,13 +204,13 @@ const RechargeActivityManagement: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="充值活动" subtitle="补齐固定档位、赠送规则、成本承担和状态控制能力。" icon={<GiftOutlined />} />
+      <PageBanner title="充值活动" subtitle="补齐固定档位、赠送金额、成本承担和状态控制能力。" icon={<GiftOutlined />} />
       <CoreFlowPanel
         title="充值套餐与权益闭环"
         subtitle="充值活动不是单独一张规则表，要同时确认充值档位、赠送权益、适用范围、成本承担和上线状态，用户充值后才能正确落到账户和权益资产。"
         config={[
           { label: '充值档位', desc: '固定档位按金额排序展示，启动后不建议直接改金额，避免用户认知和对账口径变化。', tag: '套餐' },
-          { label: '权益奖励', desc: '赠送余额、优惠券或服务卡必须绑定有效模板，权益产品先在资产页维护。', tag: '权益' },
+          { label: '赠送金额', desc: '赠送金额直接随固定档位配置，用户支付后按档位写入赠送余额。', tag: '权益' },
           { label: '适用范围', desc: '明确全部门店、指定门店组或活动门店，跨店核销要同步考虑结算规则。', tag: '范围' },
         ]}
         landing={[
@@ -263,7 +219,7 @@ const RechargeActivityManagement: React.FC = () => {
           { label: '结算清分', desc: '跨店充值和消费会进入结算明细、分润明细或清分台账。' },
         ]}
         verify={[
-          { label: '启动前', desc: '确认档位、赠送权益、成本承担、门店范围和有效期都已配置。' },
+          { label: '启动前', desc: '确认档位、赠送金额、成本承担、门店范围和有效期都已配置。' },
           { label: '用户充值后', desc: '去资产总览和营销执行台核对余额、券卡和奖励记录是否落地。' },
           { label: '活动复盘', desc: '重点看充值单、奖励失败、预算异常和券卡核销结果。' },
         ]}
@@ -284,7 +240,7 @@ const RechargeActivityManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="充值活动" value={activityQuery.data?.total ?? records.length} suffix="个" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="固定档位" value={records.reduce((sum, item) => sum + parseRechargeTierAmounts(item.tierAmounts).length, 0)} suffix="档" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="首充礼包" value={records.filter((item) => item.activityName.includes('首充')).length} suffix="套" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="赠送规则" value={records.filter((item) => item.rewardMethod || item.rewardValue).length} suffix="类" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="运行活动" value={records.filter((item) => item.status === 'RUNNING').length} suffix="个" /></Card></Col>
       </Row>
 
       <ProTable<RechargeActivityRecord>
@@ -295,15 +251,15 @@ const RechargeActivityManagement: React.FC = () => {
         loading={activityQuery.isLoading}
         search={{ labelWidth: 'auto', defaultCollapsed: false }}
         pagination={{ pageSize: 8 }}
-        scroll={{ x: 1860 }}
+        scroll={{ x: 1360 }}
         toolBarRender={() => [
           <Button key="tiers" onClick={() => {
             setEditingRecord(null);
             form.resetFields();
-            form.setFieldsValue({ status: 'DRAFT', tierAmounts: [{ amount: 50, gift: 0 }, { amount: 100, gift: 10 }, { amount: 200, gift: 30 }, { amount: 500, gift: 100 }], rechargeMode: '固定档位充值', rewardMethod: '赠送余额', rewardType: ['BALANCE'], rewardStatus: 'PENDING', scope: '全部门店' } as any);
+            form.setFieldsValue({ status: 'DRAFT', tierAmounts: [{ amount: 50, gift: 0 }, { amount: 100, gift: 10 }, { amount: 200, gift: 30 }, { amount: 500, gift: 100 }], rechargeMode: '固定档位充值', scope: '全部门店' } as any);
             setModalVisible(true);
           }}>固定档位</Button>,
-          <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => { setEditingRecord(null); form.resetFields(); form.setFieldsValue({ status: 'DRAFT', tierAmounts: [{ amount: 50, gift: 0 }, { amount: 100, gift: 10 }, { amount: 200, gift: 30 }], rechargeMode: '固定档位充值', rewardMethod: '赠送余额', rewardType: ['BALANCE'], rewardStatus: 'PENDING', scope: '全部门店' } as any); setModalVisible(true); }}>
+          <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => { setEditingRecord(null); form.resetFields(); form.setFieldsValue({ status: 'DRAFT', tierAmounts: [{ amount: 50, gift: 0 }, { amount: 100, gift: 10 }, { amount: 200, gift: 30 }], rechargeMode: '固定档位充值', scope: '全部门店' } as any); setModalVisible(true); }}>
             新建充值活动
           </Button>,
         ]}
@@ -320,7 +276,7 @@ const RechargeActivityManagement: React.FC = () => {
       <BusinessEditorModal
         eyebrow="充值活动配置"
         title={editingRecord ? `编辑充值活动 · ${editingRecord.activityName}` : '新建充值活动'}
-        subtitle="把充值档位、适用范围、成本承担、奖励内容和发放状态拆成可配置字段，方便运营维护。"
+        subtitle="把充值档位、适用范围、成本承担和奖励内容拆成可配置字段，方便运营维护。"
         meta={[editingRecord ? '编辑' : '新增', '充值营销']}
         open={modalVisible}
         onOk={handleSubmit}
@@ -367,28 +323,6 @@ const RechargeActivityManagement: React.FC = () => {
                 <Form.Item name="minAmount" label="最低充值金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
               </div>
             </BusinessEditorSection>
-            <BusinessEditorSection icon={<GiftOutlined />} title="奖励发放" desc="配置奖励方式、奖励类型、奖励值、发放数量和单人上限。">
-              <div className="merchant-editor-fields">
-                <Form.Item name="rewardMethod" label="奖励方式">
-                  <Select
-                    options={rewardMethodOptions}
-                    placeholder="请选择奖励方式"
-                    onChange={(value) => form.setFieldsValue({ rewardType: rewardMethodTypeMap[value] || [], couponTemplateId: undefined, serviceCardId: undefined })}
-                  />
-                </Form.Item>
-                <Form.Item name="rewardValue" label="奖励值"><InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="例如：20" /></Form.Item>
-                <Form.Item name="rewardStatus" label="发放状态"><Select options={activityRewardStatusOptions} placeholder="请选择发放状态" /></Form.Item>
-                <Form.Item name="issuedCount" label="发放数量"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
-                <Form.Item name="rewardCap" label="单人奖励上限"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
-                <Form.Item className="merchant-editor-field-span-all" name="rewardType" label="奖励类型"><Select mode="multiple" options={closedRewardTypeOptions} placeholder="请选择奖励类型" /></Form.Item>
-                {hasRewardType(selectedRewardType, 'COUPON') ? (
-                  <Form.Item name="couponTemplateId" label="优惠券模板"><Select showSearch optionFilterProp="label" options={couponTemplateOptions} placeholder="请选择奖励券模板" /></Form.Item>
-                ) : null}
-                {hasRewardType(selectedRewardType, 'CARD') || hasRewardType(selectedRewardType, 'SERVICE_CARD') ? (
-                  <Form.Item name="serviceCardId" label="服务卡产品"><Select showSearch optionFilterProp="label" options={serviceCardOptions} placeholder="请选择奖励服务卡" /></Form.Item>
-                ) : null}
-              </div>
-            </BusinessEditorSection>
           </div>
         </Form>
       </BusinessEditorModal>
@@ -405,7 +339,7 @@ const RechargeActivityManagement: React.FC = () => {
 
       <BusinessDetailModal title="充值活动详情" open={!!detail} onCancel={() => setDetail(null)} width={820}>
         {detail ? (
-          <SchemaDetail record={detail} fields={detailFields} column={2} labelWidth={110} />
+          <SchemaDetail record={detail} fields={rechargeDetailFields} column={2} labelWidth={110} />
         ) : null}
       </BusinessDetailModal>
 

@@ -172,7 +172,7 @@ const tradeDetailFields: Record<'order' | 'refund' | 'afterSale', DetailField<an
     { name: 'orderType', label: '订单类型' },
     { name: 'storeName', label: '门店' },
     { name: 'pointCode', label: '点位' },
-    { name: 'serviceName', label: '服务商品' },
+    { name: 'serviceName', label: '服务内容' },
     { name: 'payMode', label: '支付方式' },
     { name: 'amount', label: '订单金额', render: (value) => formatAmount(value) },
     { name: 'userName', label: '用户' },
@@ -235,14 +235,11 @@ const TradeManagement: React.FC = () => {
   const merchantOptionsQuery = useQuery({ queryKey: ['merchantOptionsForTrade'], queryFn: async () => (await api.merchant.options()).data });
   const storeOptionsQuery = useQuery({ queryKey: ['storeOptionsForTrade'], queryFn: async () => (await api.store.options()).data });
   const servicePointOptionsQuery = useQuery({ queryKey: ['servicePointOptionsForTrade'], queryFn: async () => (await api.servicePoint.options()).data });
-  const serviceProductOptionsQuery = useQuery({ queryKey: ['serviceProductOptionsForTrade'], queryFn: async () => (await api.serviceProduct.options()).data });
   const merchantOptions = (merchantOptionsQuery.data || []) as SelectOptionRecord[];
   const storeOptions = (storeOptionsQuery.data || []) as SelectOptionRecord[];
   const servicePointOptions = (servicePointOptionsQuery.data || []) as SelectOptionRecord[];
-  const serviceProductOptions = (serviceProductOptionsQuery.data || []) as SelectOptionRecord[];
   const storeOptionMap = useMemo(() => new Map(storeOptions.map((item) => [item.value, item.label])), [storeOptions]);
   const servicePointOptionMap = useMemo(() => new Map(servicePointOptions.map((item) => [item.value, item.label])), [servicePointOptions]);
-  const serviceProductOptionMap = useMemo(() => new Map(serviceProductOptions.map((item) => [item.value, item.label])), [serviceProductOptions]);
 
   const updateOrderMutation = useMutation({
     mutationFn: async ({ id, status, note }: { id: string; status: string; note?: string }) => api.serviceOrder.updateStatus(Number(id), { orderStatus: status, remark: note, operatorType: 'ADMIN', operatorName: '后台操作' }),
@@ -377,7 +374,7 @@ const TradeManagement: React.FC = () => {
     { title: '订单类型', dataIndex: 'orderType', width: 130, valueType: 'select', valueEnum: buildValueEnum(orderTypeOptions), render: (_, record) => renderStatusTag(record.orderType, buildValueEnum(orderTypeOptions) as any) },
     { title: '门店', dataIndex: 'storeName', width: 160, search: false },
     { title: '点位', dataIndex: 'pointCode', width: 100, search: false },
-    { title: '服务商品', dataIndex: 'serviceName', width: 180, search: false },
+    { title: '服务内容', dataIndex: 'serviceName', width: 180, search: false },
     { title: '支付方式', dataIndex: 'payMode', width: 120, valueType: 'select', valueEnum: buildValueEnum(payModeOptions), render: (_, record) => renderStatusTag(record.payMode, buildValueEnum(payModeOptions) as any) },
     { title: '订单金额', dataIndex: 'amount', width: 120, search: false, render: (_, record) => formatAmount(record.amount) },
     { title: '用户', dataIndex: 'userName', width: 100, search: false },
@@ -601,7 +598,6 @@ const TradeManagement: React.FC = () => {
             merchantId: values.merchantId,
             storeId: values.storeId,
             servicePointId: values.servicePointId,
-            serviceProductId: values.serviceProductId,
             orderType: values.orderType,
             billingMode: values.billingMode,
             payMode: values.payMode,
@@ -614,7 +610,7 @@ const TradeManagement: React.FC = () => {
             note: buildSupplementNote(values),
             storeName: storeOptionMap.get(values.storeId),
             pointCode: servicePointOptionMap.get(values.servicePointId),
-            serviceName: serviceProductOptionMap.get(values.serviceProductId),
+            serviceName: values.serviceName || '自助洗车',
           });
           setCreateOrderVisible(false);
           createOrderForm.resetFields();
@@ -626,13 +622,13 @@ const TradeManagement: React.FC = () => {
       >
         <Form form={createOrderForm} layout="vertical" className="merchant-editor-form" initialValues={{ orderType: 'SCAN', billingMode: 'TIME', payMode: 'WX', orderStatus: 'PAID', supplementSource: 'CUSTOMER_SERVICE', userConfirmed: true }}>
           <div className="merchant-editor-shell">
-            <BusinessEditorSection icon={<FileAddOutlined />} title="订单归属" desc="确认订单号、商户、门店、点位和服务商品，保证补录订单能回到履约对象。">
+            <BusinessEditorSection icon={<FileAddOutlined />} title="订单归属" desc="确认订单号、商户、门店和点位，保证补录订单能回到履约对象。">
               <div className="merchant-editor-fields">
                 <Form.Item name="orderNo" label="订单号" rules={[{ required: true, message: '请输入订单号' }]}><Input placeholder="例如：SO202605100001" /></Form.Item>
                 <Form.Item name="merchantId" label="商户" rules={[{ required: true, message: '请选择商户' }]}><Select options={merchantOptions} placeholder="选择商户主体" /></Form.Item>
                 <Form.Item name="storeId" label="门店" rules={[{ required: true, message: '请选择门店' }]}><Select options={storeOptions} placeholder="选择发生门店" /></Form.Item>
                 <Form.Item name="servicePointId" label="服务点位"><Select options={servicePointOptions} allowClear placeholder="选择点位，非点位订单可为空" /></Form.Item>
-                <Form.Item className="merchant-editor-field-span-2" name="serviceProductId" label="服务商品" rules={[{ required: true, message: '请选择服务商品' }]}><Select options={serviceProductOptions} placeholder="选择本次补录的服务商品" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-2" name="serviceName" label="服务内容"><Input placeholder="例如：自助洗车" /></Form.Item>
               </div>
             </BusinessEditorSection>
 

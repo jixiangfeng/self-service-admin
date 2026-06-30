@@ -23,9 +23,6 @@ const RechargeActivityFullProfileDrawer: React.FC<Props> = ({ open, loading, pro
   const risks = [
     activity?.status !== 'RUNNING' ? '活动未运行，用户端不会正常参与' : null,
     !activity?.tierAmounts ? '未配置充值档位' : null,
-    !activity?.rewardType ? '未配置奖励类型' : null,
-    activity?.rewardType?.includes('COUPON') && !profile?.couponTemplate ? '券奖励未关联有效模板' : null,
-    activity?.rewardType?.includes('CARD') && !profile?.serviceCard ? '服务卡奖励未关联有效产品' : null,
     (profile?.failedRewardCount || 0) > 0 ? `存在 ${profile?.failedRewardCount} 条奖励失败` : null,
   ].filter(Boolean) as string[];
 
@@ -101,10 +98,6 @@ const RechargeActivityFullProfileDrawer: React.FC<Props> = ({ open, loading, pro
                 <Descriptions.Item label="作用范围">{formatEnumText(activity.scope, 'scope', '作用范围')}</Descriptions.Item>
                 <Descriptions.Item label="成本承担">{formatEnumText(activity.costOwner, 'costOwner', '成本承担')}</Descriptions.Item>
                 <Descriptions.Item label="最低充值">{formatAmount(activity.minAmount)}</Descriptions.Item>
-                <Descriptions.Item label="奖励方式">{formatEnumText(activity.rewardMethod, 'rewardMethod', '奖励方式')}</Descriptions.Item>
-                <Descriptions.Item label="奖励值">{activity.rewardValue || '-'}</Descriptions.Item>
-                <Descriptions.Item label="奖励券模板">{profile.couponTemplate?.templateName || '-'}</Descriptions.Item>
-                <Descriptions.Item label="奖励服务卡">{profile.serviceCard?.cardName || '-'}</Descriptions.Item>
               </Descriptions>
               <Space wrap>{risks.length ? risks.map((risk) => <Tag key={risk} color="warning">{risk}</Tag>) : <Tag color="success">套餐配置与权益链路完整</Tag>}</Space>
               <Typography.Text type="secondary">聚合最近 100 条充值单、奖励记录、参与记录与营销奖励；预算最多展示最近 50 条。</Typography.Text>

@@ -2,15 +2,44 @@ import React from 'react';
 import { Cascader, DatePicker, TimePicker } from 'antd';
 import type { CascaderProps } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
+
+dayjs.extend(customParseFormat);
 
 const DATE_TIME_FORMAT = 'YYYY-MM-DD HH:mm:ss';
 const DATE_FORMAT = 'YYYY-MM-DD';
 const TIME_FORMAT = 'HH:mm';
 
+const normalizePickerText = (value: unknown, format: string) => {
+  const text = String(value).trim();
+  if (!text) return '';
+
+  if (format === DATE_FORMAT) {
+    const match = text.match(/\d{4}-\d{2}-\d{2}/);
+    return match?.[0] || text;
+  }
+
+  if (format === TIME_FORMAT) {
+    const match = text.match(/\d{2}:\d{2}/);
+    return match?.[0] || text;
+  }
+
+  if (format === DATE_TIME_FORMAT) {
+    const match = text.match(/\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2})?/);
+    if (match) {
+      const normalized = match[0].replace('T', ' ');
+      return normalized.length === 16 ? `${normalized}:00` : normalized;
+    }
+  }
+
+  return text;
+};
+
 const toDayjs = (value: unknown, format: string): Dayjs | null => {
   if (!value) return null;
   if (dayjs.isDayjs(value)) return value;
-  const parsed = dayjs(String(value), format);
+  const normalized = normalizePickerText(value, format);
+  const parsed = dayjs(normalized, format);
   return parsed.isValid() ? parsed : null;
 };
 

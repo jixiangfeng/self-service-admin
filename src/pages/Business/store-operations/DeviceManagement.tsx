@@ -208,7 +208,7 @@ const DeviceManagement: React.FC = () => {
     <div style={{ padding: 24 }}>
       <PageBanner title="设备管理" subtitle="维护设备台账、门店点位绑定和运行状态。" icon={<DeploymentUnitOutlined />} />
       <WorkflowGuide
-        title="设备运维闭环"
+        title="设备管理流程"
         summary="主设备页只处理设备资产、门店点位绑定和运行状态；厂商、型号和协议放在接入档案中维护。"
         steps={[
           { title: '设备建档', description: '录设备名称、编号、类型和厂商', status: 'finish', tag: '当前页' },

@@ -268,7 +268,7 @@ const Dashboard: React.FC = () => {
             </Card>
           </Col>
           <Col xs={24} xl={8}>
-            <Card className="dashboard-list-card" title="异常提醒" extra={<Button size="small" onClick={() => navigate('/device-ops')}>设备运维 <RightOutlined /></Button>}>
+            <Card className="dashboard-list-card" title="异常提醒" extra={<Button size="small" onClick={() => navigate('/device')}>设备管理 <RightOutlined /></Button>}>
               {renderItemList(alerts, '暂无异常')}
             </Card>
           </Col>

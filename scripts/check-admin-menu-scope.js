@@ -18,7 +18,6 @@ const requiredMenuLabels = [
   '门店组管理',
   '点位管理',
   '设备管理',
-  '门店运营台',
   '设备接入',
   '设备接入管理',
   '套餐权益',
@@ -56,7 +55,6 @@ const requiredMenuLabels = [
   '支付运维',
   '设备运维',
   '小程序运营配置',
-  '平台基础配置',
   '系统管理',
   '用户管理',
   '角色管理',
@@ -101,7 +99,6 @@ const requiredRoutes = [
   'path="device-access"',
   'path="device-ops"',
   'path="mini-program-ops"',
-  'path="platform-base"',
 ];
 
 const removedRoutes = [
