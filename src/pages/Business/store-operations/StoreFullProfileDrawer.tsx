@@ -97,12 +97,19 @@ const buildDiffRows = (record: StoreChangeLogRecord): ChangeDiffRow[] => {
   const before = parseJsonObject(record.beforeValue);
   const after = parseJsonObject(record.afterValue);
   const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
-  return keys.map((key) => ({
-    key,
-    field: storeFieldLabelMap[key] || key,
-    before: before[key],
-    after: after[key],
-  }));
+  return keys
+    .filter((key) => formatDiffValue(before[key], key) !== formatDiffValue(after[key], key))
+    .map((key) => ({
+      key,
+      field: storeFieldLabelMap[key] || key,
+      before: before[key],
+      after: after[key],
+    }));
+};
+
+const formatMoney = (value?: number | string) => {
+  const amount = Number(value || 0);
+  return Number.isFinite(amount) ? amount.toFixed(2) : '0.00';
 };
 
 const ChangeDiffTable: React.FC<{ record: StoreChangeLogRecord }> = ({ record }) => {
@@ -125,14 +132,14 @@ const ChangeDiffTable: React.FC<{ record: StoreChangeLogRecord }> = ({ record })
 
 const StoreFullProfileDrawer: React.FC<StoreFullProfileDrawerProps> = ({ open, loading, profile, onClose }) => {
   const store = profile?.store;
-  const risks = [
+  const risks = (profile?.operationWarnings && profile.operationWarnings.length ? profile.operationWarnings : [
     !store?.address ? '未配置详细地址' : null,
     !(profile?.businessHours || []).some((item) => item.status === 'PUBLISHED') ? '暂无已发布营业时间' : null,
     !(profile?.images || []).some((item) => item.status === 'PUBLISHED') ? '暂无已发布门店图片' : null,
     (profile?.servicePointCount || 0) === 0 ? '尚未配置服务点位' : null,
     (profile?.onlineDeviceCount || 0) === 0 ? '暂无在线设备' : null,
     (profile?.processingTempCloseCount || 0) > 0 ? `当前有 ${profile?.processingTempCloseCount} 条临停进行中` : null,
-  ].filter(Boolean) as string[];
+  ].filter(Boolean)) as string[];
 
   const imageColumns: ColumnsType<StoreImageRecord> = [
     { title: '类型', dataIndex: 'imageType', width: 110, render: (value) => formatEnumText(value, 'imageType', '图片类型') },
@@ -206,6 +213,13 @@ const StoreFullProfileDrawer: React.FC<StoreFullProfileDrawerProps> = ({ open, l
                     <Statistic title="服务能力" value={profile.publishedCapabilityCount || 0} />
                     <Statistic title="点位" value={profile.servicePointCount || 0} />
                     <Statistic title="在线设备" value={profile.onlineDeviceCount || 0} />
+                    <Statistic title="离线设备" value={profile.offlineDeviceCount || 0} />
+                    <Statistic title="故障设备" value={profile.faultDeviceCount || 0} />
+                    <Statistic title="今日订单" value={profile.todayOrderCount || 0} />
+                    <Statistic title="进行中订单" value={profile.processingOrderCount || 0} />
+                    <Statistic title="今日实收" value={formatMoney(profile.todayPayAmount)} prefix="￥" />
+                    <Statistic title="累计实收" value={formatMoney(profile.totalPayAmount)} prefix="￥" />
+                    <Statistic title="今日核销" value={profile.todayWriteOffCount || 0} />
                   </Space>
                   <Descriptions bordered column={2} size="small">
                     <Descriptions.Item label="门店编号">{store.storeCode}</Descriptions.Item>
@@ -217,6 +231,8 @@ const StoreFullProfileDrawer: React.FC<StoreFullProfileDrawerProps> = ({ open, l
                     <Descriptions.Item label="城市">{[store.province, store.city, store.district].filter(Boolean).join(' / ') || '-'}</Descriptions.Item>
                     <Descriptions.Item label="详细地址">{store.address || '-'}</Descriptions.Item>
                     <Descriptions.Item label="公告" span={2}>{store.notice || '-'}</Descriptions.Item>
+                    <Descriptions.Item label="今日核销金额">￥{formatMoney(profile.todayWriteOffAmount)}</Descriptions.Item>
+                    <Descriptions.Item label="累计完成订单">{profile.completedOrderCount || 0}</Descriptions.Item>
                     <Descriptions.Item label="介绍" span={2}>{store.intro || '-'}</Descriptions.Item>
                   </Descriptions>
                   <Space wrap>

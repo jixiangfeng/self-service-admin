@@ -29,16 +29,31 @@ const jsonSummary = (value?: string) => {
   }
 };
 
+const healthStatusMap: Record<string, { text: string; color: string }> = {
+  HEALTHY: { text: '健康', color: 'success' },
+  ATTENTION: { text: '需关注', color: 'warning' },
+  RISK: { text: '风险', color: 'error' },
+};
+
+const formatOfflineMinutes = (value?: number) => {
+  if (value === undefined || value === null) return '-';
+  if (value < 60) return `${value} 分钟`;
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+  return `${hours} 小时${minutes ? ` ${minutes} 分钟` : ''}`;
+};
+
 const DeviceFullProfileDrawer: React.FC<DeviceFullProfileDrawerProps> = ({ open, loading, profile, onClose }) => {
   const device = profile?.device;
-  const risks = [
+  const health = profile?.healthStatus ? healthStatusMap[profile.healthStatus] : undefined;
+  const risks = (profile?.operationWarnings && profile.operationWarnings.length ? profile.operationWarnings : [
     !device?.storeId ? '未绑定门店' : null,
     !device?.servicePointId ? '未绑定点位' : null,
     !profile?.latestHeartbeatAt ? '暂无心跳记录' : null,
     (profile?.openFaultCount || 0) > 0 ? `存在 ${profile?.openFaultCount} 条未关闭故障` : null,
     (profile?.pendingCommandCount || 0) > 0 ? `存在 ${profile?.pendingCommandCount} 条待完成指令` : null,
     (profile?.pendingMaintenanceCount || 0) > 0 ? `存在 ${profile?.pendingMaintenanceCount} 条待处理维护` : null,
-  ].filter(Boolean) as string[];
+  ].filter(Boolean)) as string[];
 
   const bindColumns: ColumnsType<DeviceBindLogRecord> = [
     { title: '绑定单号', dataIndex: 'bindNo', width: 160 },
@@ -111,9 +126,11 @@ const DeviceFullProfileDrawer: React.FC<DeviceFullProfileDrawerProps> = ({ open,
                     <Statistic title="未关闭故障" value={profile.openFaultCount || 0} />
                     <Statistic title="心跳" value={profile.heartbeatCount || 0} />
                     <Statistic title="维护" value={profile.maintenanceCount || 0} />
+                    <Statistic title="离线时长" value={formatOfflineMinutes(profile.offlineMinutes)} />
                   </Space>
                   <Descriptions bordered column={2} size="small">
                     <Descriptions.Item label="设备编号">{device.deviceCode}</Descriptions.Item>
+                    <Descriptions.Item label="健康状态">{health ? <Tag color={health.color}>{health.text}</Tag> : '-'}</Descriptions.Item>
                     <Descriptions.Item label="设备状态">{formatEnumText(device.status, 'deviceStatus', '设备状态')}</Descriptions.Item>
                     <Descriptions.Item label="设备类型">{formatEnumText(device.deviceType, 'deviceType', '设备类型')}</Descriptions.Item>
                     <Descriptions.Item label="厂商">{device.vendorName || '-'}</Descriptions.Item>

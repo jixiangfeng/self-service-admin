@@ -16,8 +16,10 @@ import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
+import UserAssetFullProfileDrawer from './UserAssetFullProfileDrawer';
 import api from '@/services/backendService';
 import type {
+  AppUserFullProfileRecord,
   AppUserProfileRecord,
   ServiceCardUsageRecord,
   StoreRecord,
@@ -140,6 +142,9 @@ const UserProfileManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
   const [detail, setDetail] = useState<AppUserProfileRecord | UserVehicleRecord | UserFavoriteStoreRecord | ServiceCardUsageRecord | UserRiskRecord | null>(null);
+  const [fullProfileVisible, setFullProfileVisible] = useState(false);
+  const [fullProfileLoading, setFullProfileLoading] = useState(false);
+  const [fullProfile, setFullProfile] = useState<AppUserFullProfileRecord | undefined>();
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [form] = Form.useForm<Record<string, unknown>>();
@@ -202,6 +207,22 @@ const UserProfileManagement: React.FC = () => {
     setModalVisible(true);
   };
 
+  const openFullProfile = async (record: AppUserProfileRecord) => {
+    setFullProfileVisible(true);
+    setFullProfileLoading(true);
+    try {
+      const response = await api.asset.profiles.fullProfile(record.id);
+      setFullProfile(response.data);
+    } finally {
+      setFullProfileLoading(false);
+    }
+  };
+
+  const closeFullProfile = () => {
+    setFullProfileVisible(false);
+    setFullProfile(undefined);
+  };
+
   const profileColumns = useMemo<ProColumns<AppUserProfileRecord>[]>(() => [
     { title: '用户', dataIndex: 'userName', width: 120 },
     { title: '手机号', dataIndex: 'mobile', width: 150 },
@@ -209,7 +230,16 @@ const UserProfileManagement: React.FC = () => {
     { title: '实名状态', dataIndex: 'realNameStatus', width: 120 , render: (value) => formatEnumText(value, 'realNameStatus', '实名状态') },
     { title: '风控状态', dataIndex: 'riskStatus', width: 120, render: (_, record) => renderStatusTag(record.riskStatus, riskStatusMap) },
     { title: '注册时间', dataIndex: 'registeredAt', width: 180, render: (_, record) => formatDateTime(record.registeredAt) },
-    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
+    {
+      title: '操作',
+      width: 180,
+      render: (_, record) => (
+        <>
+          <Button size="small" onClick={() => openFullProfile(record)}>完整档案</Button>
+          <Button size="small" type="link" onClick={() => setDetail(record)}>详情</Button>
+        </>
+      ),
+    },
   ], []);
 
   const vehicleColumns = useMemo<ProColumns<UserVehicleRecord>[]>(() => [
@@ -288,6 +318,13 @@ const UserProfileManagement: React.FC = () => {
           { key: 'cardUsage', label: '服务卡使用', children: <ProTable<ServiceCardUsageRecord> cardBordered rowKey="id" columns={cardUsageColumns} dataSource={cardUsages} loading={cardUsageQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1460 }} toolBarRender={() => []} /> },
           { key: 'risk', label: '用户风控', children: <ProTable<UserRiskRecord> cardBordered rowKey="id" columns={riskColumns} dataSource={userRisks} loading={riskQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="handle" type="primary" onClick={() => openModal('处理用户风控')}>处理风控</Button>]} /> },
         ]}
+      />
+
+      <UserAssetFullProfileDrawer
+        open={fullProfileVisible}
+        loading={fullProfileLoading}
+        profile={fullProfile}
+        onClose={closeFullProfile}
       />
 
       <BusinessDetailModal title="用户档案详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>

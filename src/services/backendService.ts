@@ -420,6 +420,16 @@ export interface StoreFullProfileRecord {
   publishedCapabilityCount?: number;
   servicePointCount?: number;
   onlineDeviceCount?: number;
+  offlineDeviceCount?: number;
+  faultDeviceCount?: number;
+  todayOrderCount?: number;
+  processingOrderCount?: number;
+  completedOrderCount?: number;
+  todayPayAmount?: number | string;
+  totalPayAmount?: number | string;
+  todayWriteOffCount?: number;
+  todayWriteOffAmount?: number | string;
+  operationWarnings?: string[];
 }
 
 export interface StoreImageRecord { id: number; storeId: number; storeName?: string; imageType: string; imageUrl: string; sortNo?: number; status: string; createdAt?: string; updatedAt?: string; }
@@ -516,6 +526,9 @@ export interface DeviceFullProfileRecord {
   latestHeartbeatAt?: string;
   maintenanceCount?: number;
   pendingMaintenanceCount?: number;
+  offlineMinutes?: number;
+  healthStatus?: string;
+  operationWarnings?: string[];
 }
 
 export interface ServiceProductRecord {
@@ -857,6 +870,7 @@ export interface ServiceOrderRecord {
   pointCode?: string;
   serviceName?: string;
   userName?: string;
+  plateNo?: string;
   status?: string;
   note?: string;
 }
@@ -1268,6 +1282,39 @@ export interface UserRiskRecord {
   remark?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface AppUserFullProfileRecord {
+  profile: AppUserProfileRecord;
+  account?: UserAssetAccountRecord;
+  vehicles: UserVehicleRecord[];
+  favoriteStores: UserFavoriteStoreRecord[];
+  serviceCards: UserServiceCardRecord[];
+  serviceCardUsages: ServiceCardUsageRecord[];
+  coupons: UserCouponRecord[];
+  rechargeOrders: RechargeOrderRecord[];
+  serviceOrders: ServiceOrderRecord[];
+  balanceFlows: BalanceFlowRecord[];
+  riskRecords: UserRiskRecord[];
+  vehicleCount?: number;
+  favoriteStoreCount?: number;
+  serviceCardCount?: number;
+  activeServiceCardCount?: number;
+  totalRemainTimes?: number;
+  serviceCardUsageCount?: number;
+  totalDeductCount?: number;
+  couponCount?: number;
+  availableCouponCount?: number;
+  rechargeOrderCount?: number;
+  totalRechargePayAmount?: number | string;
+  totalRechargeGiftAmount?: number | string;
+  serviceOrderCount?: number;
+  totalServicePayAmount?: number | string;
+  balanceFlowCount?: number;
+  riskRecordCount?: number;
+  activeRiskCount?: number;
+  totalBalance?: number | string;
+  availableBalance?: number | string;
 }
 
 export interface AlarmRecord {
@@ -2642,7 +2689,10 @@ export const assetApi = {
   rechargeRewards: {
     page: async (params: Record<string, unknown>) => httpPage<RechargeRewardRecord>('/recharge-reward-records', params),
   },
-  profiles: crudApi<AppUserProfileRecord>('/app-user-profiles'),
+  profiles: {
+    ...crudApi<AppUserProfileRecord>('/app-user-profiles'),
+    fullProfile: async (id: number) => httpGet<AppUserFullProfileRecord>(`/app-user-profiles/${id}/full-profile`),
+  },
   vehicles: crudApi<UserVehicleRecord>('/user-vehicles'),
   favoriteStores: {
     page: async (params: Record<string, unknown>) => httpPage<UserFavoriteStoreRecord>('/user-favorite-stores', params),

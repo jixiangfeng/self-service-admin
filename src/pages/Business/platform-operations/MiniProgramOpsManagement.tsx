@@ -130,6 +130,123 @@ const parseAgreementContent = (value?: string) => {
   return value || '-';
 };
 
+type ContentFieldType = 'text' | 'textarea' | 'tags' | 'image';
+type ContentFieldConfig = { name: string; label: string; type?: ContentFieldType; placeholder?: string };
+
+const contentFieldGroups: Record<string, ContentFieldConfig[]> = {
+  CONTACT_SERVICE: [
+    { name: 'contentHotline', label: '客服电话', placeholder: '400-999-0000' },
+    { name: 'contentServiceTime', label: '服务时间', placeholder: '08:00 - 22:00' },
+    { name: 'contentFaq', label: '常见问题', type: 'textarea', placeholder: '每行一个问题' },
+    { name: 'contentPhoneTitle', label: '电话卡片标题', placeholder: '电话客服' },
+    { name: 'contentPhoneDesc', label: '电话卡片说明', placeholder: '订单、充值、设备异常优先处理' },
+    { name: 'contentOnlineTitle', label: '留言卡片标题', placeholder: '在线留言' },
+    { name: 'contentOnlineUrl', label: '留言跳转页', placeholder: '/pages/feedback/index' },
+  ],
+  HELP_CENTER: [
+    { name: 'contentCategories', label: '帮助分类', type: 'tags', placeholder: '输入后回车，例如 新手指南' },
+    { name: 'contentHotQuestion', label: '热门问题', placeholder: '如何开始自助洗车？' },
+    { name: 'contentHotAnswer', label: '问题答案', type: 'textarea', placeholder: '到店后点击首页“扫码洗车”...' },
+  ],
+  FEEDBACK_TYPES: [
+    { name: 'contentFeedbackTypes', label: '反馈类型', type: 'tags' },
+    { name: 'contentCouponTabs', label: '优惠券 Tab', type: 'tags' },
+    { name: 'contentBalanceTabs', label: '余额流水 Tab', type: 'tags' },
+  ],
+  ACTIVITY_COPY: [
+    { name: 'contentTitle', label: '页面标题', placeholder: '活动广场' },
+    { name: 'contentDesc', label: '页面副标题', placeholder: '热门福利都在这里' },
+    { name: 'contentInviteText', label: '邀请活动文案' },
+    { name: 'contentRechargeText', label: '充值活动文案' },
+    { name: 'contentCouponText', label: '优惠券活动文案' },
+    { name: 'contentCrossStoreText', label: '跨店活动文案' },
+    { name: 'contentDefaultText', label: '默认活动文案' },
+  ],
+  VISUAL_ASSET: [
+    { name: 'homeTopBanner', label: '首页顶部兜底图', type: 'image' },
+    { name: 'homeCouponBanner', label: '首页优惠券兜底图', type: 'image' },
+    { name: 'storeListTopBanner', label: '门店列表兜底图', type: 'image' },
+    { name: 'profileRechargeBanner', label: '我的页充值图', type: 'image' },
+    { name: 'profileUserCardBg', label: '我的页用户卡背景', type: 'image' },
+    { name: 'couponInviteBanner', label: '优惠券邀请图', type: 'image' },
+    { name: 'inviteHeroBanner', label: '邀请页头图', type: 'image' },
+    { name: 'rechargeSuccessBanner', label: '充值成功图', type: 'image' },
+    { name: 'balanceCardBg', label: '余额卡背景', type: 'image' },
+    { name: 'defaultStorePhoto', label: '默认门店图', type: 'image' },
+    { name: 'wechatPayIcon', label: '微信支付图标', type: 'image' },
+    { name: 'merchantRevenueCardBg', label: '商户收益卡背景', type: 'image' },
+    { name: 'contactMessageIcon', label: '客服留言图标', type: 'image' },
+    { name: 'orderMachineIllustration', label: '订单设备插画', type: 'image' },
+    { name: 'orderServingBg', label: '服务中背景图', type: 'image' },
+  ],
+  DEFAULT: [
+    { name: 'contentTitle', label: '标题' },
+    { name: 'contentDesc', label: '说明', type: 'textarea' },
+    { name: 'contentImageUrl', label: '图片 URL', type: 'image' },
+    { name: 'contentActionText', label: '按钮文案' },
+  ],
+};
+
+const splitLines = (value?: string) => String(value || '').split(/\n+/).map((item) => item.trim()).filter(Boolean);
+const stringifyLines = (value: unknown) => Array.isArray(value) ? value.join('\n') : String(value || '');
+const normalizeTags = (value: unknown): string[] => Array.isArray(value) ? value.map(String).filter(Boolean) : splitLines(String(value || '').replace(/，/g, '\n').replace(/,/g, '\n'));
+
+const pageModuleTemplates: Record<string, Record<string, unknown>> = {
+  CONTACT_SERVICE: {
+    hotline: '400-999-0000',
+    serviceTime: '08:00 - 22:00',
+    faq: ['设备扫码后未启动怎么办？', '充值余额是否支持跨门店使用？'],
+    cards: [
+      { title: '电话客服', desc: '订单、充值、设备异常优先处理', action: '拨打电话', type: 'phone', icon: '/static/materials/profile/phone_icon.svg' },
+      { title: '在线留言', desc: '提交问题后客服将在 10 分钟内响应', action: '填写留言', url: '/pages/feedback/index', icon: '' },
+    ],
+  },
+  HELP_CENTER: { categories: ['新手指南', '订单支付', '充值余额', '设备异常', '商户服务'], hot: [{ q: '如何开始自助洗车？', a: '到店后点击首页“扫码洗车”，扫描设备二维码并确认订单即可启动。' }] },
+  FEEDBACK_TYPES: { types: ['设备故障', '订单支付', '充值余额', '优惠券', '功能建议'], couponTabs: ['可用优惠券', '已使用', '已过期'], balanceTabs: ['全部', '充值', '消费', '退款'] },
+  ACTIVITY_COPY: { title: '活动广场', desc: '热门福利都在这里，选择活动直接参与', inviteText: '邀请好友，达标返现', rechargeText: '充值满赠，余额更划算', couponText: '优惠券福利，下单可抵扣', crossStoreText: '跨店活动，更多门店可用', defaultText: '限时福利，点击查看' },
+  VISUAL_ASSET: {},
+};
+
+const contentToFormValues = (moduleCode?: string, content: Record<string, unknown> = {}) => {
+  if (moduleCode === 'CONTACT_SERVICE') {
+    const cards = Array.isArray(content.cards) ? content.cards as Record<string, unknown>[] : [];
+    return {
+      contentHotline: content.hotline,
+      contentServiceTime: content.serviceTime,
+      contentFaq: stringifyLines(content.faq),
+      contentPhoneTitle: cards[0]?.title,
+      contentPhoneDesc: cards[0]?.desc,
+      contentOnlineTitle: cards[1]?.title,
+      contentOnlineUrl: cards[1]?.url,
+    };
+  }
+  if (moduleCode === 'HELP_CENTER') {
+    const hot = Array.isArray(content.hot) ? content.hot as Record<string, unknown>[] : [];
+    return { contentCategories: normalizeTags(content.categories), contentHotQuestion: hot[0]?.q, contentHotAnswer: hot[0]?.a };
+  }
+  if (moduleCode === 'FEEDBACK_TYPES') return { contentFeedbackTypes: normalizeTags(content.types), contentCouponTabs: normalizeTags(content.couponTabs), contentBalanceTabs: normalizeTags(content.balanceTabs) };
+  if (moduleCode === 'ACTIVITY_COPY') return { contentTitle: content.title, contentDesc: content.desc, contentInviteText: content.inviteText, contentRechargeText: content.rechargeText, contentCouponText: content.couponText, contentCrossStoreText: content.crossStoreText, contentDefaultText: content.defaultText };
+  if (moduleCode === 'VISUAL_ASSET') return content;
+  return { contentTitle: content.title, contentDesc: content.desc, contentImageUrl: content.imageUrl, contentActionText: content.actionText };
+};
+
+const buildStructuredContent = (moduleCode: string | undefined, values: Record<string, any>) => {
+  if (moduleCode === 'CONTACT_SERVICE') return {
+    hotline: values.contentHotline || '',
+    serviceTime: values.contentServiceTime || '',
+    faq: splitLines(values.contentFaq),
+    cards: [
+      { title: values.contentPhoneTitle || '电话客服', desc: values.contentPhoneDesc || '', action: '拨打电话', type: 'phone', icon: '/static/materials/profile/phone_icon.svg' },
+      { title: values.contentOnlineTitle || '在线留言', desc: '提交问题后客服将尽快响应', action: '填写留言', url: values.contentOnlineUrl || '/pages/feedback/index', icon: '' },
+    ],
+  };
+  if (moduleCode === 'HELP_CENTER') return { categories: normalizeTags(values.contentCategories), hot: [{ q: values.contentHotQuestion || '', a: values.contentHotAnswer || '' }] };
+  if (moduleCode === 'FEEDBACK_TYPES') return { types: normalizeTags(values.contentFeedbackTypes), couponTabs: normalizeTags(values.contentCouponTabs), balanceTabs: normalizeTags(values.contentBalanceTabs) };
+  if (moduleCode === 'ACTIVITY_COPY') return { title: values.contentTitle || '', desc: values.contentDesc || '', inviteText: values.contentInviteText || '', rechargeText: values.contentRechargeText || '', couponText: values.contentCouponText || '', crossStoreText: values.contentCrossStoreText || '', defaultText: values.contentDefaultText || '' };
+  if (moduleCode === 'VISUAL_ASSET') return Object.fromEntries(contentFieldGroups.VISUAL_ASSET.map((field) => [field.name, values[field.name] || '']).filter(([, value]) => value));
+  return { title: values.contentTitle || '', desc: values.contentDesc || '', imageUrl: values.contentImageUrl || '', actionText: values.contentActionText || '' };
+};
+
 const miniOpsDetailFields: Record<'page' | 'banner' | 'agreement', DetailField<Record<string, unknown>>[]> = {
   page: [
     { name: 'pageCode', label: '页面' },
@@ -223,10 +340,17 @@ const MiniProgramOpsManagement: React.FC = () => {
     form.resetFields();
     const defaults = { pageCode: 'HOME', slotCode: 'HOME_TOP_CAROUSEL', moduleCode: 'BANNER', jumpType: 'NONE', agreementType: 'SERVICE', displayMode: 'SHOW', sortNo: 1, status: 1 };
     if (!record) {
-      form.setFieldsValue(defaults);
+      form.setFieldsValue({ ...defaults, ...contentToFormValues(defaults.moduleCode, pageModuleTemplates.BANNER || {}) });
     } else if ('moduleCode' in record) {
       const parsed = parsePageConfig(record.configJson);
-      form.setFieldsValue({ ...defaults, ...record, name: record.moduleName, displayMode: parsed.displayMode || 'SHOW', jumpValue: parsed.jumpValue || '', contentJson: JSON.stringify(parsed.content || {}, null, 2) });
+      form.setFieldsValue({
+        ...defaults,
+        ...record,
+        name: record.moduleName,
+        displayMode: parsed.displayMode || 'SHOW',
+        jumpValue: parsed.jumpValue || '',
+        ...contentToFormValues(record.moduleCode, parsed.content || {}),
+      });
     } else if ('bannerName' in record) {
       form.setFieldsValue({ ...defaults, ...record, name: record.bannerName });
     } else {
@@ -248,63 +372,16 @@ const MiniProgramOpsManagement: React.FC = () => {
     }
   };
 
+  const handleModuleCodeChange = (moduleCode: string) => {
+    const template = pageModuleTemplates[moduleCode] || {};
+    form.setFieldsValue({ moduleCode, ...contentToFormValues(moduleCode, template) });
+  };
 
   const fillContentTemplate = () => {
-    const templates: Record<string, Record<string, unknown>> = {
-      CONTACT_SERVICE: {
-        hotline: '400-999-0000',
-        serviceTime: '08:00 - 22:00',
-        faq: ['设备扫码后未启动怎么办？', '充值余额是否支持跨门店使用？'],
-        cards: [
-          { title: '电话客服', desc: '订单、充值、设备异常优先处理', action: '拨打电话', type: 'phone', icon: '/static/materials/profile/phone_icon.svg' },
-          { title: '在线留言', desc: '提交问题后客服将在 10 分钟内响应', action: '填写留言', url: '/pages/feedback/index', icon: '' },
-        ],
-      },
-      HELP_CENTER: {
-        categories: ['新手指南', '订单支付', '充值余额', '设备异常', '商户服务'],
-        hot: [{ q: '如何开始自助洗车？', a: '到店后点击首页“扫码洗车”，扫描设备二维码并确认订单即可启动。' }],
-      },
-      FEEDBACK_TYPES: {
-        types: ['设备故障', '订单支付', '充值余额', '优惠券', '功能建议'],
-        couponTabs: ['可用优惠券', '已使用', '已过期'],
-        balanceTabs: ['全部', '充值', '消费', '退款'],
-      },
-      ACTIVITY_COPY: {
-        title: '活动广场',
-        desc: '热门福利都在这里，选择活动直接参与',
-        defaultTitle: '活动福利',
-        inviteText: '邀请好友，达标返现',
-        rechargeText: '充值满赠，余额更划算',
-        couponText: '优惠券福利，下单可抵扣',
-        crossStoreText: '跨店活动，更多门店可用',
-        defaultText: '限时福利，点击查看',
-        couponTodo: '优惠券功能敬请期待',
-      },
-      VISUAL_ASSET: {
-        homeTopBanner: '',
-        homeCouponBanner: '',
-        storeListTopBanner: '',
-        profileRechargeBanner: '',
-        profileUserCardBg: '',
-        couponInviteBanner: '',
-        inviteHeroBanner: '',
-        rechargeSuccessBanner: '',
-        balanceCardBg: '',
-        defaultStorePhoto: '',
-        wechatPayIcon: '',
-        merchantRevenueCardBg: '',
-        contactMessageIcon: '',
-        orderMachineIllustration: '',
-        orderServingBg: '',
-      },
-    };
-    const template = templates[watchedModuleCode || ''];
-    if (template) {
-      form.setFieldsValue({ contentJson: JSON.stringify(template, null, 2) });
-      message.success('已填入运营内容模板');
-    } else {
-      message.info('当前模块暂无模板，可直接填写 JSON');
-    }
+    const moduleCode = watchedModuleCode || 'BANNER';
+    const template = pageModuleTemplates[moduleCode] || {};
+    form.setFieldsValue(contentToFormValues(moduleCode, template));
+    message.success('已填入当前模块结构化模板');
   };
 
   const closeModal = () => {
@@ -323,7 +400,7 @@ const MiniProgramOpsManagement: React.FC = () => {
         configJson: JSON.stringify({
           displayMode: values.displayMode || 'SHOW',
           jumpValue: values.jumpValue || '',
-          content: safeJsonParse<Record<string, unknown>>(values.contentJson || '{}', {}),
+          content: buildStructuredContent(values.moduleCode || 'CUSTOM', values),
         }),
         sortNo: Number(values.sortNo ?? 0),
         status: values.status,
@@ -526,16 +603,19 @@ const MiniProgramOpsManagement: React.FC = () => {
             {modalTitle === '新建页面模块' ? (
               <BusinessEditorSection icon={<MobileOutlined />} title="页面模块" desc="配置模块类型、展示状态和跳转目标。">
                 <div className="merchant-editor-fields">
-                  <Form.Item name="moduleCode" label="模块"><Select options={moduleCodeOptions} placeholder="请选择模块" /></Form.Item>
+                  <Form.Item name="moduleCode" label="模块"><Select options={moduleCodeOptions} placeholder="请选择模块" onChange={handleModuleCodeChange} /></Form.Item>
                   <Form.Item name="displayMode" label="展示状态"><Select options={displayModeOptions} placeholder="请选择展示状态" /></Form.Item>
                   <Alert type={watchedDisplayMode === 'HIDE' ? 'warning' : 'info'} showIcon message={watchedDisplayMode === 'HIDE' ? '当前模块将被隐藏，排序和跳转目标不会影响用户端展示。' : '当前模块会展示，建议补充明确跳转目标便于运营验收。'} style={{ gridColumn: '1 / -1' }} />
                   <Form.Item className="merchant-editor-field-span-all" name="jumpValue" label="跳转目标"><Select showSearch allowClear options={pagePathOptions} placeholder="选择常用页面，或直接输入 /pages/store-list/index" /></Form.Item>
-                  <Form.Item className="merchant-editor-field-span-all" label="运营内容 JSON">
-                    <Space direction="vertical" style={{ width: '100%' }}>
-                      <Button onClick={fillContentTemplate}>填入当前模块模板</Button>
-                      <Form.Item name="contentJson" noStyle><Input.TextArea rows={10} placeholder={'点击模板按钮生成结构；视觉素材字段包括 homeTopBanner/homeCouponBanner/storeListTopBanner/profileRechargeBanner/profileUserCardBg/couponInviteBanner/inviteHeroBanner/rechargeSuccessBanner/balanceCardBg/defaultStorePhoto/wechatPayIcon/merchantRevenueCardBg/contactMessageIcon/orderMachineIllustration/orderServingBg'} /></Form.Item>
-                    </Space>
-                  </Form.Item>
+                  <Card className="merchant-editor-field-span-all" size="small" title="运营内容结构化配置" extra={<Button size="small" onClick={fillContentTemplate}>填入模板</Button>}>
+                    <div className="merchant-editor-fields">
+                      {(contentFieldGroups[watchedModuleCode || 'DEFAULT'] || contentFieldGroups.DEFAULT).map((field) => (
+                        <Form.Item key={field.name} className={field.type === 'textarea' || field.type === 'image' ? 'merchant-editor-field-span-all' : undefined} name={field.name} label={field.label}>
+                          {field.type === 'textarea' ? <Input.TextArea rows={4} placeholder={field.placeholder} /> : field.type === 'tags' ? <Select mode="tags" tokenSeparators={[',', '，']} placeholder={field.placeholder || '输入后回车'} /> : <Input placeholder={field.placeholder || (field.type === 'image' ? '上传图片后自动填入，也可填写 URL' : '')} />}
+                        </Form.Item>
+                      ))}
+                    </div>
+                  </Card>
                 </div>
               </BusinessEditorSection>
             ) : null}

@@ -20,7 +20,8 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, OperatorTips, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
-import api, { type AppUserProfileRecord, type BalanceFlowRecord, type CouponTemplateRecord, type RechargeOrderRecord, type UserAssetAccountRecord } from '@/services/backendService';
+import UserAssetFullProfileDrawer from './UserAssetFullProfileDrawer';
+import api, { type AppUserFullProfileRecord, type AppUserProfileRecord, type BalanceFlowRecord, type CouponTemplateRecord, type RechargeOrderRecord, type UserAssetAccountRecord } from '@/services/backendService';
 
 type UserAssetRecord = AppUserProfileRecord;
 
@@ -190,6 +191,9 @@ const AssetManagement: React.FC = () => {
   const navigate = useNavigate();
   const [detail, setDetail] = useState<UserAssetRecord | BalanceRecord | CouponRecord | RechargeOrderRecord | BalanceFlowRecord | null>(null);
   const [detailType, setDetailType] = useState<AssetDetailType>('profile');
+  const [userProfileVisible, setUserProfileVisible] = useState(false);
+  const [userProfileLoading, setUserProfileLoading] = useState(false);
+  const [fullProfile, setFullProfile] = useState<AppUserFullProfileRecord | undefined>();
   const [modalType, setModalType] = useState<AssetModalType>(null);
   const [currentId, setCurrentId] = useState<string | number | null>(null);
   const [assetKeyword, setAssetKeyword] = useState('');
@@ -269,6 +273,22 @@ const AssetManagement: React.FC = () => {
     setDetailType(type);
   };
 
+  const openUserFullProfile = async (record: UserAssetRecord) => {
+    setUserProfileVisible(true);
+    setUserProfileLoading(true);
+    try {
+      const response = await api.asset.profiles.fullProfile(record.id);
+      setFullProfile(response.data);
+    } finally {
+      setUserProfileLoading(false);
+    }
+  };
+
+  const closeUserFullProfile = () => {
+    setUserProfileVisible(false);
+    setFullProfile(undefined);
+  };
+
   const filteredUsers = useMemo(() => users.filter((item) => containsKeyword(assetKeyword, [item.userName, item.mobile, item.memberLevel, item.riskStatus, item.remark])), [assetKeyword, users]);
   const filteredBalances = useMemo(() => balances.filter((item) => containsKeyword(balanceKeyword, [item.accountNo, item.userName, item.phone, item.latestChange])), [balanceKeyword, balances]);
   const filteredCoupons = useMemo(() => coupons.filter((item) => containsKeyword(couponKeyword, [item.templateCode, item.templateName, item.couponType, item.scope])), [couponKeyword, coupons]);
@@ -289,6 +309,7 @@ const AssetManagement: React.FC = () => {
       search: false,
       render: (_, record) => (
         <Space>
+          <Button size="small" onClick={() => openUserFullProfile(record)}>完整档案</Button>
           <Button size="small" onClick={() => openDetail(record, 'profile')}>查看画像</Button>
           <Button
             size="small"
@@ -814,6 +835,13 @@ const AssetManagement: React.FC = () => {
           </div>
         </Form>
       </BusinessEditorModal>
+
+      <UserAssetFullProfileDrawer
+        open={userProfileVisible}
+        loading={userProfileLoading}
+        profile={fullProfile}
+        onClose={closeUserFullProfile}
+      />
 
       <BusinessDetailModal title="资产详情" open={!!detail} width={640} onCancel={() => setDetail(null)} destroyOnClose>
         {detail ? (
