@@ -1918,12 +1918,36 @@ export interface PlatformDashboardItemRecord {
   occurredAt?: string;
 }
 
+export interface PlatformDashboardChartPointRecord {
+  date: string;
+  orders: number;
+  revenue: number | string;
+  users: number;
+}
+
+export interface PlatformDashboardDistributionItemRecord {
+  name: string;
+  value: number;
+}
+
+export interface PlatformDashboardRankItemRecord {
+  name: string;
+  orders: number;
+  revenue: number | string;
+  status?: string;
+}
+
 export interface PlatformDashboardOverviewRecord {
   cards: PlatformDashboardCardRecord[];
   todos: PlatformDashboardItemRecord[];
   alerts: PlatformDashboardItemRecord[];
   changes: PlatformDashboardItemRecord[];
   quickEntries: PlatformDashboardItemRecord[];
+  trend?: PlatformDashboardChartPointRecord[];
+  orderStatusDistribution?: PlatformDashboardDistributionItemRecord[];
+  storeStatusDistribution?: PlatformDashboardDistributionItemRecord[];
+  settlementStatusDistribution?: PlatformDashboardDistributionItemRecord[];
+  storeRevenueRank?: PlatformDashboardRankItemRecord[];
 }
 
 export interface FileAssetRecord {
