@@ -15,7 +15,7 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
-import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, KeywordSearchBar, OperatorTips, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api, { type CouponIssueRecord, type CouponUsageRecord, type MarketingBudgetRecord, type MarketingParticipationRecord, type MarketingRewardRecord, type SelectOptionRecord } from '@/services/backendService';
 
 const activityStatusMap = buildValueEnum(activityStatusOptions);
@@ -294,6 +294,13 @@ const MarketingExecutionManagement: React.FC = () => {
   return (
     <div style={{ padding: 24 }}>
       <PageBanner title="营销执行台" subtitle="维护活动参与、奖励发放、预算消耗、券发放和券使用流水。" icon={<FundProjectionScreenOutlined />} />
+      <OperatorTips
+        items={[
+          { label: '查参与', desc: '按活动、用户或订单搜索，先确认用户是否达标和是否已有奖励记录。', tag: '查询' },
+          { label: '补发奖励', desc: '奖励异常时在奖励行内处理，选择立即补发、转待确认或不予发放。', tag: '奖励' },
+          { label: '看预算', desc: '活动预算不足或异常扣减时，先看预算消耗，再决定追加、冻结或释放预算。', tag: '预算' },
+        ]}
+      />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="参与记录" value={participationQuery.data?.total ?? participationRecords.length} suffix="条" /></Card></Col>

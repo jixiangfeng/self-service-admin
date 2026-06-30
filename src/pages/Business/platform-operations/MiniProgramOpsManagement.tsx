@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
-import { FileTextOutlined, MobileOutlined, PictureOutlined } from '@ant-design/icons';
+import { Alert, Button, Card, Col, Form, Image, Input, InputNumber, Row, Select, Space, Statistic, Tabs, Tag, Typography, message } from 'antd';
+import { DeleteOutlined, EditOutlined, FileTextOutlined, MobileOutlined, PictureOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,11 +10,13 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import OssImageUpload from '@/components/OssImageUpload';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag, safeJsonParse } from '@/pages/Business/shared';
 import api, {
   type AgreementContentRecord,
   type BannerConfigRecord,
   type MiniProgramPageConfigRecord,
+  type SelectOptionRecord,
 } from '@/services/backendService';
 import { DateTimeField, fromDateTimePickerValue } from '@/utils/formControls';
 
@@ -28,16 +30,19 @@ const pageCodeOptions = [
   { value: 'ACTIVITY_GIFT', label: '优惠活动' },
   { value: 'RECHARGE_SUCCESS', label: '充值成功页' },
   { value: 'STORE_DETAIL', label: '门店详情' },
+  { value: 'CONTACT_SERVICE', label: '联系客服' },
+  { value: 'HELP_CENTER', label: '帮助中心' },
+  { value: 'FEEDBACK', label: '意见反馈' },
 ];
 
 const slotCodeOptions = [
-  { value: 'HOME_TOP_CAROUSEL', label: '首页顶部轮播' },
-  { value: 'HOME_COUPON_BANNER', label: '首页优惠券横幅' },
-  { value: 'STORE_LIST_TOP_BANNER', label: '门店列表顶部图' },
-  { value: 'PROFILE_RECHARGE_BANNER', label: '我的页充值图' },
-  { value: 'COUPON_LIST_INVITE_BANNER', label: '优惠券邀请图' },
-  { value: 'ACTIVITY_GIFT_HERO_BANNER', label: '活动页头图' },
-  { value: 'RECHARGE_SUCCESS_BANNER', label: '充值成功图' },
+  { value: 'HOME_TOP_CAROUSEL', label: '首页顶部轮播', pageCode: 'HOME', size: '750×320', consumer: 'pages/home/index.vue', tip: '首页首屏主轮播，建议用于全平台活动和品牌主视觉。' },
+  { value: 'HOME_COUPON_BANNER', label: '首页优惠券横幅', pageCode: 'HOME', size: '702×180', consumer: 'pages/home/index.vue', tip: '首页优惠券/活动横幅，适合短期促销。' },
+  { value: 'STORE_LIST_TOP_BANNER', label: '门店列表顶部图', pageCode: 'STORE_LIST', size: '702×180', consumer: 'pages/store-list/index.vue', tip: '门店列表顶部运营图，适合附近门店促销。' },
+  { value: 'PROFILE_RECHARGE_BANNER', label: '我的页充值图', pageCode: 'PROFILE', size: '702×220', consumer: 'pages/profile/index.vue', tip: '我的页余额/充值入口图，适合充值引导。' },
+  { value: 'COUPON_LIST_INVITE_BANNER', label: '优惠券邀请图', pageCode: 'COUPON_LIST', size: '702×220', consumer: 'pages/coupon-list/index.vue', tip: '优惠券列表邀请横幅，适合裂变活动。' },
+  { value: 'ACTIVITY_GIFT_HERO_BANNER', label: '活动页头图', pageCode: 'ACTIVITY_GIFT', size: '702×260', consumer: 'pages/activity-gift/index.vue', tip: '活动广场头图，适合福利集合页。' },
+  { value: 'RECHARGE_SUCCESS_BANNER', label: '充值成功图', pageCode: 'RECHARGE_SUCCESS', size: '702×220', consumer: 'pages/recharge-success/index.vue', tip: '充值成功页推荐图，适合二次转化。' },
 ];
 
 const moduleCodeOptions = [
@@ -47,6 +52,11 @@ const moduleCodeOptions = [
   { value: 'NOTICE', label: '公告模块' },
   { value: 'SHARE', label: '分享配置' },
   { value: 'CUSTOMER_SERVICE', label: '客服入口' },
+  { value: 'CONTACT_SERVICE', label: '联系客服页内容' },
+  { value: 'HELP_CENTER', label: '帮助中心内容' },
+  { value: 'FEEDBACK_TYPES', label: '反馈问题类型' },
+  { value: 'ACTIVITY_COPY', label: '活动页文案' },
+  { value: 'VISUAL_ASSET', label: '视觉素材兜底' },
 ];
 
 const jumpTypeOptions = [
@@ -55,7 +65,11 @@ const jumpTypeOptions = [
   { value: 'COUPON', label: '优惠券' },
   { value: 'RECHARGE', label: '充值中心' },
   { value: 'PRODUCT', label: '商品/套餐' },
+  { value: 'STORE', label: '门店详情' },
+  { value: 'GROUPON', label: '团购核销' },
+  { value: 'WEBVIEW', label: '网页链接' },
   { value: 'URL', label: '外部链接' },
+  { value: 'PHONE', label: '拨打电话' },
 ];
 
 const agreementTypeOptions = [
@@ -75,9 +89,39 @@ const displayModeOptions = [
   { value: 'SHOW', label: '展示' },
   { value: 'HIDE', label: '隐藏' },
 ];
+
+const slotMetaMap = slotCodeOptions.reduce<Record<string, typeof slotCodeOptions[number]>>((acc, item) => {
+  acc[item.value] = item;
+  return acc;
+}, {});
+
+const pagePathOptions = [
+  { value: '/pages/home/index', label: '首页' },
+  { value: '/pages/store-list/index', label: '门店列表' },
+  { value: '/pages/profile/index', label: '我的页' },
+  { value: '/pages/coupon-list/index', label: '优惠券列表' },
+  { value: '/pages/activity-gift/index', label: '活动广场' },
+  { value: '/pages/recharge-center/index', label: '充值中心' },
+  { value: '/pages/invite-guide/index', label: '邀请活动' },
+  { value: '/pages/contact-service/index', label: '联系客服' },
+  { value: '/pages/help-center/index', label: '帮助中心' },
+];
+
+const hardcodedOpsFindings = [
+  { area: '客服与帮助', paths: 'scan-wash / scan-offline / order-service / order-complete / contact-service / help-center', suggestion: '客服电话、在线留言响应文案、帮助中心 FAQ、异常提示适合纳入客服入口/帮助配置。' },
+  { area: '活动页兜底文案', paths: 'activity-gift / invite-guide / invite-record', suggestion: '活动广场标题、副标题、活动类型兜底文案和邀请页默认图适合由运营配置统一维护。' },
+  { area: '静态兜底 Banner', paths: 'home / store-list / profile / coupon-list / recharge-success', suggestion: '目前已有 Banner 配置接口，但仍存在 OSS 兜底图；建议后续补“默认图/缺省图”配置，避免用户端写死。' },
+  { area: '支付/余额展示素材', paths: 'recharge-center / balance-records / balance-detail / package-confirm', suggestion: '余额卡背景、微信支付图标、默认门店图属于视觉运营素材，可进入素材/主题配置。' },
+  { area: '表单分类与 Tab', paths: 'feedback / balance-records / coupon-list / invite-record-paid', suggestion: '问题分类、余额流水 Tab、优惠券 Tab 等低频枚举可纳入字典或页面配置。' },
+];
+
+const unwrapOptionData = (value?: SelectOptionRecord[] | { data?: SelectOptionRecord[] }) =>
+  Array.isArray(value) ? value : (value?.data || []);
+const toSelectOptions = (options?: SelectOptionRecord[] | { data?: SelectOptionRecord[] }) =>
+  unwrapOptionData(options).map((item) => ({ value: String(item.value), label: item.label }));
 const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
 const parsePageConfig = (configJson?: string) =>
-  safeJsonParse<{ displayMode?: string; jumpValue?: string }>(configJson, {});
+  safeJsonParse<{ displayMode?: string; jumpValue?: string; content?: Record<string, unknown> }>(configJson, {});
 const parseAgreementContent = (value?: string) => {
   const parsed = safeJsonParse<Record<string, string>>(value, {});
   if (parsed.contentSummary || parsed.contentPoint) {
@@ -93,6 +137,7 @@ const miniOpsDetailFields: Record<'page' | 'banner' | 'agreement', DetailField<R
     { name: 'moduleName', label: '模块名称' },
     { name: 'displayMode', label: '展示状态', render: (value) => optionLabel(displayModeOptions, value) || '-' },
     { name: 'jumpValue', label: '跳转目标' },
+    { name: 'contentJson', label: '运营内容', render: (_value, record) => JSON.stringify(parsePageConfig(String(record.configJson || '')).content || {}, null, 2) },
     { name: 'sortNo', label: '排序' },
     { name: 'status', label: '状态' },
     { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
@@ -129,12 +174,26 @@ const MiniProgramOpsManagement: React.FC = () => {
   const [detail, setDetail] = useState<DetailRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
+  const [editingRecord, setEditingRecord] = useState<DetailRecord | null>(null);
   const [form] = Form.useForm();
 
   const queryParams = useMemo(() => ({ keyword, current: 1, size: 50 }), [keyword]);
   const pageConfigsQuery = useQuery({ queryKey: ['mini-program-page-configs', queryParams], queryFn: () => api.miniProgramOps.pageConfigs.page(queryParams) });
   const bannersQuery = useQuery({ queryKey: ['banner-configs', queryParams], queryFn: () => api.miniProgramOps.banners.page(queryParams) });
   const agreementsQuery = useQuery({ queryKey: ['agreement-contents', queryParams], queryFn: () => api.miniProgramOps.agreements.page(queryParams) });
+  const storeOptionsQuery = useQuery({ queryKey: ['mini-ops-store-options'], queryFn: () => api.store.options() });
+  const productOptionsQuery = useQuery({ queryKey: ['mini-ops-product-options'], queryFn: () => api.serviceProduct.options() });
+  const couponOptionsQuery = useQuery({ queryKey: ['mini-ops-coupon-options'], queryFn: () => api.marketing.couponTemplates.options() });
+
+  const watchedPageCode = Form.useWatch('pageCode', form);
+  const watchedSlotCode = Form.useWatch('slotCode', form);
+  const watchedJumpType = Form.useWatch('jumpType', form);
+  const watchedImageUrl = Form.useWatch('imageUrl', form);
+  const watchedTitle = Form.useWatch('title', form);
+  const watchedSubtitle = Form.useWatch('subtitle', form);
+  const watchedDisplayMode = Form.useWatch('displayMode', form);
+  const watchedModuleCode = Form.useWatch('moduleCode', form);
+  const watchedStatus = Form.useWatch('status', form);
 
   const pageConfigs = (pageConfigsQuery.data?.data.records ?? []).map((record) => {
     const parsed = parsePageConfig(record.configJson);
@@ -146,31 +205,134 @@ const MiniProgramOpsManagement: React.FC = () => {
   });
   const banners = bannersQuery.data?.data.records ?? [];
   const agreements = agreementsQuery.data?.data.records ?? [];
+  const filteredSlotOptions = slotCodeOptions.filter((item) => !watchedPageCode || item.pageCode === watchedPageCode);
+  const currentSlotMeta = watchedSlotCode ? slotMetaMap[watchedSlotCode] : undefined;
+  const jumpValueOptions = useMemo(() => {
+    if (watchedJumpType === 'PAGE') return pagePathOptions;
+    if (watchedJumpType === 'STORE') return toSelectOptions(storeOptionsQuery.data || []);
+    if (watchedJumpType === 'PRODUCT') return toSelectOptions(productOptionsQuery.data || []);
+    if (watchedJumpType === 'COUPON') return toSelectOptions(couponOptionsQuery.data || []);
+    if (watchedJumpType === 'RECHARGE') return [{ value: '/pages/recharge-center/index', label: '充值中心' }];
+    if (watchedJumpType === 'GROUPON') return [{ value: '/pages/group-code-verify/index', label: '团购核销页' }];
+    return [];
+  }, [watchedJumpType, storeOptionsQuery.data, productOptionsQuery.data, couponOptionsQuery.data]);
 
-  const openModal = (title: string) => {
+  const openModal = (title: string, record?: DetailRecord) => {
     setModalTitle(title);
+    setEditingRecord(record || null);
     form.resetFields();
-    form.setFieldsValue({ pageCode: 'HOME', slotCode: 'HOME_TOP_CAROUSEL', moduleCode: 'BANNER', jumpType: 'NONE', agreementType: 'SERVICE', displayMode: 'SHOW', sortNo: 1, status: 1 });
+    const defaults = { pageCode: 'HOME', slotCode: 'HOME_TOP_CAROUSEL', moduleCode: 'BANNER', jumpType: 'NONE', agreementType: 'SERVICE', displayMode: 'SHOW', sortNo: 1, status: 1 };
+    if (!record) {
+      form.setFieldsValue(defaults);
+    } else if ('moduleCode' in record) {
+      const parsed = parsePageConfig(record.configJson);
+      form.setFieldsValue({ ...defaults, ...record, name: record.moduleName, displayMode: parsed.displayMode || 'SHOW', jumpValue: parsed.jumpValue || '', contentJson: JSON.stringify(parsed.content || {}, null, 2) });
+    } else if ('bannerName' in record) {
+      form.setFieldsValue({ ...defaults, ...record, name: record.bannerName });
+    } else {
+      const parsed = safeJsonParse<{ contentSummary?: string; contentPoint?: string }>(record.content, {});
+      form.setFieldsValue({ ...defaults, ...record, name: record.title, contentSummary: parsed.contentSummary || record.content || '', contentPoint: parsed.contentPoint || '' });
+    }
     setModalVisible(true);
+  };
+
+  const handlePageCodeChange = (pageCode: string) => {
+    const firstSlot = slotCodeOptions.find((item) => item.pageCode === pageCode);
+    form.setFieldsValue({ pageCode, slotCode: firstSlot?.value });
+  };
+
+  const handleSlotCodeChange = (slotCode: string) => {
+    const slotMeta = slotMetaMap[slotCode];
+    if (slotMeta) {
+      form.setFieldsValue({ slotCode, pageCode: slotMeta.pageCode });
+    }
+  };
+
+
+  const fillContentTemplate = () => {
+    const templates: Record<string, Record<string, unknown>> = {
+      CONTACT_SERVICE: {
+        hotline: '400-999-0000',
+        serviceTime: '08:00 - 22:00',
+        faq: ['设备扫码后未启动怎么办？', '充值余额是否支持跨门店使用？'],
+        cards: [
+          { title: '电话客服', desc: '订单、充值、设备异常优先处理', action: '拨打电话', type: 'phone', icon: '/static/materials/profile/phone_icon.svg' },
+          { title: '在线留言', desc: '提交问题后客服将在 10 分钟内响应', action: '填写留言', url: '/pages/feedback/index', icon: '' },
+        ],
+      },
+      HELP_CENTER: {
+        categories: ['新手指南', '订单支付', '充值余额', '设备异常', '商户服务'],
+        hot: [{ q: '如何开始自助洗车？', a: '到店后点击首页“扫码洗车”，扫描设备二维码并确认订单即可启动。' }],
+      },
+      FEEDBACK_TYPES: {
+        types: ['设备故障', '订单支付', '充值余额', '优惠券', '功能建议'],
+        couponTabs: ['可用优惠券', '已使用', '已过期'],
+        balanceTabs: ['全部', '充值', '消费', '退款'],
+      },
+      ACTIVITY_COPY: {
+        title: '活动广场',
+        desc: '热门福利都在这里，选择活动直接参与',
+        defaultTitle: '活动福利',
+        inviteText: '邀请好友，达标返现',
+        rechargeText: '充值满赠，余额更划算',
+        couponText: '优惠券福利，下单可抵扣',
+        crossStoreText: '跨店活动，更多门店可用',
+        defaultText: '限时福利，点击查看',
+        couponTodo: '优惠券功能敬请期待',
+      },
+      VISUAL_ASSET: {
+        homeTopBanner: '',
+        homeCouponBanner: '',
+        storeListTopBanner: '',
+        profileRechargeBanner: '',
+        profileUserCardBg: '',
+        couponInviteBanner: '',
+        inviteHeroBanner: '',
+        rechargeSuccessBanner: '',
+        balanceCardBg: '',
+        defaultStorePhoto: '',
+        wechatPayIcon: '',
+        merchantRevenueCardBg: '',
+        contactMessageIcon: '',
+        orderMachineIllustration: '',
+        orderServingBg: '',
+      },
+    };
+    const template = templates[watchedModuleCode || ''];
+    if (template) {
+      form.setFieldsValue({ contentJson: JSON.stringify(template, null, 2) });
+      message.success('已填入运营内容模板');
+    } else {
+      message.info('当前模块暂无模板，可直接填写 JSON');
+    }
+  };
+
+  const closeModal = () => {
+    setModalVisible(false);
+    setEditingRecord(null);
   };
 
   const handleSubmit = async () => {
     const values = await form.validateFields();
     if (modalTitle === '新建页面模块') {
-      await api.miniProgramOps.pageConfigs.add({
+      const payload = {
+        id: editingRecord?.id,
         pageCode: values.pageCode || 'HOME',
         moduleCode: values.moduleCode || 'CUSTOM',
         moduleName: values.name,
         configJson: JSON.stringify({
           displayMode: values.displayMode || 'SHOW',
           jumpValue: values.jumpValue || '',
+          content: safeJsonParse<Record<string, unknown>>(values.contentJson || '{}', {}),
         }),
         sortNo: Number(values.sortNo ?? 0),
         status: values.status,
-      });
+      };
+      editingRecord ? await api.miniProgramOps.pageConfigs.edit(payload) : await api.miniProgramOps.pageConfigs.add(payload);
       await queryClient.invalidateQueries({ queryKey: ['mini-program-page-configs'] });
     } else if (modalTitle === '新建 Banner') {
-      await api.miniProgramOps.banners.add({
+      const payload = {
+        id: editingRecord?.id,
         bannerName: values.name,
         pageCode: values.pageCode || 'HOME',
         slotCode: values.slotCode,
@@ -185,10 +347,12 @@ const MiniProgramOpsManagement: React.FC = () => {
         sortNo: Number(values.sortNo ?? 0),
         status: values.status,
         extraJson: values.extraJson,
-      });
+      };
+      editingRecord ? await api.miniProgramOps.banners.edit(payload) : await api.miniProgramOps.banners.add(payload);
       await queryClient.invalidateQueries({ queryKey: ['banner-configs'] });
     } else if (modalTitle === '新建协议版本') {
-      await api.miniProgramOps.agreements.add({
+      const payload = {
+        id: editingRecord?.id,
         agreementType: values.agreementType || 'SERVICE',
         title: values.name,
         content: JSON.stringify({
@@ -198,11 +362,39 @@ const MiniProgramOpsManagement: React.FC = () => {
         versionNo: values.versionNo,
         effectiveAt: fromDateTimePickerValue(values.effectiveAt) || values.effectiveAt,
         status: values.status,
-      });
+      };
+      editingRecord ? await api.miniProgramOps.agreements.edit(payload) : await api.miniProgramOps.agreements.add(payload);
       await queryClient.invalidateQueries({ queryKey: ['agreement-contents'] });
     }
-    setModalVisible(false);
-    message.success('已保存到后端');
+    closeModal();
+    message.success(editingRecord ? '已更新小程序运营配置' : '已保存到后端');
+  };
+
+  const removeConfig = (type: 'page' | 'banner' | 'agreement', record: DetailRecord) => {
+    const title = type === 'page' ? '删除页面模块' : type === 'banner' ? '删除 Banner' : '删除协议版本';
+    const content = type === 'page'
+      ? `删除后 self-service-app 对应页面将不再读取该模块展示控制：${(record as MiniProgramPageConfigRecord).moduleName}`
+      : type === 'banner'
+        ? `删除后对应小程序运营位将回退为空或默认图：${(record as BannerConfigRecord).bannerName}`
+        : `删除后小程序无法再读取该协议版本：${(record as AgreementContentRecord).title}`;
+    showBusinessConfirm({
+      title,
+      content,
+      okText: '确认删除',
+      onOk: async () => {
+        if (type === 'page') {
+          await api.miniProgramOps.pageConfigs.remove(record.id);
+          await queryClient.invalidateQueries({ queryKey: ['mini-program-page-configs'] });
+        } else if (type === 'banner') {
+          await api.miniProgramOps.banners.remove(record.id);
+          await queryClient.invalidateQueries({ queryKey: ['banner-configs'] });
+        } else {
+          await api.miniProgramOps.agreements.remove(record.id);
+          await queryClient.invalidateQueries({ queryKey: ['agreement-contents'] });
+        }
+        message.success('已删除配置');
+      },
+    });
   };
 
   const pageColumns = useMemo<ProColumns<MiniProgramPageConfigRecord>[]>(() => [
@@ -214,7 +406,7 @@ const MiniProgramOpsManagement: React.FC = () => {
     { title: '排序', dataIndex: 'sortNo', width: 90 },
     { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, statusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
-    { title: '操作', valueType: 'option', width: 90, fixed: 'right', render: (_, record) => [<a key="detail" onClick={() => setDetail(record)}>详情</a>] },
+    { title: '操作', valueType: 'option', width: 180, fixed: 'right', render: (_, record) => <Space size={6}><a key="detail" onClick={() => setDetail(record)}>详情</a><a key="edit" onClick={() => openModal('新建页面模块', record)}><EditOutlined /> 编辑</a><a key="delete" onClick={() => removeConfig('page', record)}><DeleteOutlined /> 删除</a></Space> },
   ], []);
 
   const bannerColumns = useMemo<ProColumns<BannerConfigRecord>[]>(() => [
@@ -230,7 +422,7 @@ const MiniProgramOpsManagement: React.FC = () => {
     { title: '结束时间', dataIndex: 'endAt', width: 180, render: (_, record) => formatDateTime(record.endAt) },
     { title: '排序', dataIndex: 'sortNo', width: 90 },
     { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, statusMap) },
-    { title: '操作', valueType: 'option', width: 90, fixed: 'right', render: (_, record) => [<a key="detail" onClick={() => setDetail(record)}>详情</a>] },
+    { title: '操作', valueType: 'option', width: 180, fixed: 'right', render: (_, record) => <Space size={6}><a key="detail" onClick={() => setDetail(record)}>详情</a><a key="edit" onClick={() => openModal('新建 Banner', record)}><EditOutlined /> 编辑</a><a key="delete" onClick={() => removeConfig('banner', record)}><DeleteOutlined /> 删除</a></Space> },
   ], []);
 
   const agreementColumns = useMemo<ProColumns<AgreementContentRecord>[]>(() => [
@@ -240,7 +432,7 @@ const MiniProgramOpsManagement: React.FC = () => {
     { title: '内容摘要', dataIndex: 'content', width: 340, ellipsis: true, render: (_, record) => parseAgreementContent(record.content) },
     { title: '生效时间', dataIndex: 'effectiveAt', width: 180, render: (_, record) => formatDateTime(record.effectiveAt) },
     { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, statusMap) },
-    { title: '操作', valueType: 'option', width: 90, fixed: 'right', render: (_, record) => [<a key="detail" onClick={() => setDetail(record)}>详情</a>] },
+    { title: '操作', valueType: 'option', width: 180, fixed: 'right', render: (_, record) => <Space size={6}><a key="detail" onClick={() => setDetail(record)}>详情</a><a key="edit" onClick={() => openModal('新建协议版本', record)}><EditOutlined /> 编辑</a><a key="delete" onClick={() => removeConfig('agreement', record)}><DeleteOutlined /> 删除</a></Space> },
   ], []);
 
   return (
@@ -260,11 +452,41 @@ const MiniProgramOpsManagement: React.FC = () => {
         onSearch={setKeyword}
       />
 
+      <Card style={{ marginBottom: 16 }}>
+        <Space direction="vertical" size={10} style={{ width: '100%' }}>
+          <Space wrap>
+            <Tag color="blue">self-service-app 实时读取</Tag>
+            <Tag color="green">/app/page-config</Tag>
+            <Tag color="cyan">/app/banners</Tag>
+            <Tag color="purple">/app/agreements/latest</Tag>
+          </Space>
+          <div style={{ color: '#5f6f89', lineHeight: 1.8 }}>
+            页面模块控制小程序页面区域显隐；Banner 按运营位投放到首页、门店列表、我的页、优惠券与活动页；协议版本会提供给登录授权、充值协议等用户侧入口。编辑或删除配置后，小程序下一次拉取接口即生效。
+          </div>
+        </Space>
+      </Card>
+
+      <Card title="用户端写死运营项扫描" style={{ marginBottom: 16 }}>
+        <Row gutter={[12, 12]}>
+          {hardcodedOpsFindings.map((item) => (
+            <Col xs={24} md={12} xl={8} key={item.area}>
+              <Card size="small" bordered style={{ height: '100%' }}>
+                <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                  <Tag color="orange">{item.area}</Tag>
+                  <Typography.Text type="secondary">{item.paths}</Typography.Text>
+                  <Typography.Text>{item.suggestion}</Typography.Text>
+                </Space>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      </Card>
+
       <Tabs
         items={[
-          { key: 'page', label: '页面模块', children: <ProTable<MiniProgramPageConfigRecord> cardBordered rowKey="id" columns={pageColumns} dataSource={pageConfigs} loading={pageConfigsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1300 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建页面模块')}>新建模块</Button>]} /> },
-          { key: 'banner', label: 'Banner 配置', children: <ProTable<BannerConfigRecord> cardBordered rowKey="id" columns={bannerColumns} dataSource={banners} loading={bannersQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1900 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建 Banner')}>新建 Banner</Button>]} /> },
-          { key: 'agreement', label: '协议内容', children: <ProTable<AgreementContentRecord> cardBordered rowKey="id" columns={agreementColumns} dataSource={agreements} loading={agreementsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1200 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新建协议版本')}>新建协议</Button>]} /> },
+          { key: 'page', label: '页面模块', children: <ProTable<MiniProgramPageConfigRecord> cardBordered rowKey="id" columns={pageColumns} dataSource={pageConfigs} loading={pageConfigsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1300 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('新建页面模块')}>新建模块</Button>]} /> },
+          { key: 'banner', label: 'Banner 配置', children: <ProTable<BannerConfigRecord> cardBordered rowKey="id" columns={bannerColumns} dataSource={banners} loading={bannersQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1900 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('新建 Banner')}>新建 Banner</Button>]} /> },
+          { key: 'agreement', label: '协议内容', children: <ProTable<AgreementContentRecord> cardBordered rowKey="id" columns={agreementColumns} dataSource={agreements} loading={agreementsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1200 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('新建协议版本')}>新建协议</Button>]} /> },
         ]}
       />
 
@@ -295,9 +517,10 @@ const MiniProgramOpsManagement: React.FC = () => {
             <BusinessEditorSection icon={<MobileOutlined />} title="基础信息" desc="维护名称、页面、排序和状态。">
               <div className="merchant-editor-fields">
                 <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}><Input placeholder="例如：首页洗车活动模块" /></Form.Item>
-                <Form.Item name="pageCode" label="页面"><Select options={pageCodeOptions} placeholder="请选择页面" /></Form.Item>
+                <Form.Item name="pageCode" label="页面"><Select options={pageCodeOptions} placeholder="请选择页面" onChange={handlePageCodeChange} /></Form.Item>
                 <Form.Item name="sortNo" label="排序"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="1" /></Form.Item>
                 <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={statusOptions} placeholder="请选择状态" /></Form.Item>
+                <Alert type={watchedStatus === 1 ? 'success' : 'warning'} showIcon message={watchedStatus === 1 ? '启用后小程序接口会返回该配置' : '停用后用户端不展示/不生效'} style={{ gridColumn: '1 / -1' }} />
               </div>
             </BusinessEditorSection>
             {modalTitle === '新建页面模块' ? (
@@ -305,14 +528,21 @@ const MiniProgramOpsManagement: React.FC = () => {
                 <div className="merchant-editor-fields">
                   <Form.Item name="moduleCode" label="模块"><Select options={moduleCodeOptions} placeholder="请选择模块" /></Form.Item>
                   <Form.Item name="displayMode" label="展示状态"><Select options={displayModeOptions} placeholder="请选择展示状态" /></Form.Item>
-                  <Form.Item className="merchant-editor-field-span-all" name="jumpValue" label="跳转目标"><Input placeholder="例如：/pages/store/list" /></Form.Item>
+                  <Alert type={watchedDisplayMode === 'HIDE' ? 'warning' : 'info'} showIcon message={watchedDisplayMode === 'HIDE' ? '当前模块将被隐藏，排序和跳转目标不会影响用户端展示。' : '当前模块会展示，建议补充明确跳转目标便于运营验收。'} style={{ gridColumn: '1 / -1' }} />
+                  <Form.Item className="merchant-editor-field-span-all" name="jumpValue" label="跳转目标"><Select showSearch allowClear options={pagePathOptions} placeholder="选择常用页面，或直接输入 /pages/store-list/index" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" label="运营内容 JSON">
+                    <Space direction="vertical" style={{ width: '100%' }}>
+                      <Button onClick={fillContentTemplate}>填入当前模块模板</Button>
+                      <Form.Item name="contentJson" noStyle><Input.TextArea rows={10} placeholder={'点击模板按钮生成结构；视觉素材字段包括 homeTopBanner/homeCouponBanner/storeListTopBanner/profileRechargeBanner/profileUserCardBg/couponInviteBanner/inviteHeroBanner/rechargeSuccessBanner/balanceCardBg/defaultStorePhoto/wechatPayIcon/merchantRevenueCardBg/contactMessageIcon/orderMachineIllustration/orderServingBg'} /></Form.Item>
+                    </Space>
+                  </Form.Item>
                 </div>
               </BusinessEditorSection>
             ) : null}
             {modalTitle === '新建 Banner' ? (
               <BusinessEditorSection icon={<PictureOutlined />} title="Banner 投放" desc="配置图片文件、跳转类型和跳转值。">
                 <div className="merchant-editor-fields">
-                  <Form.Item name="slotCode" label="运营位" rules={[{ required: true, message: '请选择运营位' }]}><Select showSearch options={slotCodeOptions} placeholder="请选择运营位" /></Form.Item>
+                  <Form.Item name="slotCode" label="运营位" rules={[{ required: true, message: '请选择运营位' }]}><Select showSearch options={filteredSlotOptions} placeholder="先选页面后展示对应运营位" onChange={handleSlotCodeChange} /></Form.Item>
                   <Form.Item name="title" label="展示标题"><Input placeholder="例如：自助洗车限时活动" /></Form.Item>
                   <Form.Item name="subtitle" label="展示副标题"><Input placeholder="例如：扫码即洗，快速便捷" /></Form.Item>
                   <Form.Item name="imageFileAssetId" label="Banner 图片">
@@ -325,10 +555,18 @@ const MiniProgramOpsManagement: React.FC = () => {
                   </Form.Item>
                   <Form.Item name="imageUrl" label="图片URL"><Input placeholder="上传图片后自动填入，也可手动填写远程 URL" /></Form.Item>
                   <Form.Item name="jumpType" label="跳转类型"><Select options={jumpTypeOptions} placeholder="请选择跳转类型" /></Form.Item>
-                  <Form.Item className="merchant-editor-field-span-all" name="jumpValue" label="跳转值"><Input placeholder="PAGE: /pages/recharge-center/index；URL: https://example.com；COUPON/RECHARGE/PRODUCT: 业务编号" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="jumpValue" label="跳转值"><Select showSearch allowClear options={jumpValueOptions} placeholder={jumpValueOptions.length ? '选择业务目标，也可直接输入' : '按跳转类型填写：URL/PHONE 可直接输入'} /></Form.Item>
                   <Form.Item name="startAt" label="开始时间"><DateTimeField /></Form.Item>
                   <Form.Item name="endAt" label="结束时间"><DateTimeField /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="extraJson" label="扩展配置 JSON"><Input.TextArea rows={3} placeholder='例如：{"trackCode":"home_banner"}' /></Form.Item>
+                  <Alert className="merchant-editor-field-span-all" type="info" showIcon message={currentSlotMeta ? `${currentSlotMeta.label} · 建议尺寸 ${currentSlotMeta.size} · ${currentSlotMeta.consumer}` : '选择运营位后会显示推荐尺寸和小程序消费页面'} description={currentSlotMeta?.tip} />
+                  <Card className="merchant-editor-field-span-all" size="small" title="用户端预览">
+                    <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                      {watchedImageUrl ? <Image src={watchedImageUrl} height={120} style={{ objectFit: 'cover', borderRadius: 12 }} /> : <div style={{ height: 120, borderRadius: 12, background: '#f3f6fb', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8a96a8' }}>未上传图片</div>}
+                      <Typography.Text strong>{watchedTitle || '展示标题预览'}</Typography.Text>
+                      <Typography.Text type="secondary">{watchedSubtitle || '展示副标题预览'}</Typography.Text>
+                    </Space>
+                  </Card>
                 </div>
               </BusinessEditorSection>
             ) : null}

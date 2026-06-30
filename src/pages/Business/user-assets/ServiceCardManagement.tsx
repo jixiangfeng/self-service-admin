@@ -10,9 +10,10 @@ import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, formatAmount, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, CoreFlowPanel, formatAmount, OperatorTips, renderStatusTag } from '@/pages/Business/shared';
 import api from '@/services/backendService';
-import type { AppUserProfileRecord, ServiceCardRecord, ServiceCardUsageRecord, ServiceOrderRecord, StoreRecord, UserServiceCardRecord } from '@/services/backendService';
+import type { AppUserProfileRecord, ServiceCardFullProfileRecord, ServiceCardRecord, ServiceCardUsageRecord, ServiceOrderRecord, StoreRecord, UserServiceCardRecord } from '@/services/backendService';
+import ServiceCardFullProfileDrawer from './ServiceCardFullProfileDrawer';
 
 const cardTypeMap = buildValueEnum(serviceCardTypeOptions);
 const cardProductStatusOptions = [
@@ -186,6 +187,9 @@ const ServiceCardManagement: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState<string | undefined>();
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [modalVisible, setModalVisible] = useState(false);
+  const [profileVisible, setProfileVisible] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [fullProfile, setFullProfile] = useState<ServiceCardFullProfileRecord | undefined>();
   const [editingRecord, setEditingRecord] = useState<ServiceCardRecord | null>(null);
   const [detail, setDetail] = useState<ServiceCardRecord | UserServiceCardRecord | ServiceCardUsageRecord | null>(null);
   const [issueVisible, setIssueVisible] = useState(false);
@@ -322,6 +326,17 @@ const ServiceCardManagement: React.FC = () => {
     setDeductVisible(true);
   };
 
+  const openFullProfile = async (record: ServiceCardRecord) => {
+    setProfileVisible(true);
+    setProfileLoading(true);
+    try {
+      const res = await api.asset.serviceCards.fullProfile(record.id);
+      setFullProfile(res.data);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
   const closeModal = () => {
     setModalVisible(false);
     setEditingRecord(null);
@@ -363,6 +378,7 @@ const ServiceCardManagement: React.FC = () => {
       search: false,
       render: (_, record) => (
         <Space>
+          <Button size="small" onClick={() => openFullProfile(record)}>档案</Button>
           <Button size="small" onClick={() => setDetail(record)}>详情</Button>
           <Button
             size="small"
@@ -449,6 +465,32 @@ const ServiceCardManagement: React.FC = () => {
   return (
     <div style={{ padding: 24 }}>
       <PageBanner title="服务卡与次卡" subtitle="补齐服务卡、次卡、月卡的产品配置、售价、发放规则和上下架状态。" icon={<WalletOutlined />} />
+      <CoreFlowPanel
+        title="权益次卡产品闭环"
+        subtitle="权益产品要同时串起产品配置、可售库存、用户持卡、核销流水和充值活动赠送，避免只维护卡面规则却无法追踪发放与消耗。"
+        config={[
+          { label: '权益定义', desc: '维护卡类型、次数、适用服务、有效期和范围，是购买、发放和扣次的统一口径。', tag: '产品' },
+          { label: '库存与状态', desc: '库存决定能否继续发卡，状态决定后续售卖/发放，不影响用户已持有权益。', tag: '控制' },
+          { label: '发放渠道', desc: '后台发放、购买自动发放、充值赠送和活动奖励需要在同一产品上留痕。', tag: '渠道' },
+        ]}
+        landing={[
+          { label: '用户持卡', desc: '每张用户卡记录总次数、剩余次数、有效期和来源单号。' },
+          { label: '核销流水', desc: '每次服务订单或人工扣次都写入使用记录，支持售后回滚。' },
+          { label: '充值套餐', desc: '充值活动可引用服务卡作为赠送权益，需确认卡产品启用且库存充足。' },
+        ]}
+        verify={[
+          { label: '上架前', desc: '确认权益次数、有效期、适用范围、发放渠道和库存配置完整。' },
+          { label: '发卡后', desc: '查看用户持卡和核销流水，确认次数与有效期符合产品规则。' },
+          { label: '活动引用', desc: '被充值套餐赠送时，先检查卡产品是否启用并保留充足库存。' },
+        ]}
+      />
+      <OperatorTips
+        items={[
+          { label: '新建产品', desc: '先选卡类型，再填售价、次数、有效期、适用门店和可用服务。', tag: '产品' },
+          { label: '上架/停用', desc: '上架后可购买或发放；停用只影响后续发放，不应影响用户已持有卡。', tag: '状态' },
+          { label: '人工发放', desc: '售后补偿、活动奖励和人工补发都走“发放服务卡”，备注要写清业务原因。', tag: '发放' },
+        ]}
+      />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="卡产品" value={cards.length} suffix="种" /></Card></Col>
@@ -633,6 +675,16 @@ const ServiceCardManagement: React.FC = () => {
           </div>
         </Form>
       </BusinessEditorModal>
+
+      <ServiceCardFullProfileDrawer
+        open={profileVisible}
+        loading={profileLoading}
+        profile={fullProfile}
+        onClose={() => {
+          setProfileVisible(false);
+          setFullProfile(undefined);
+        }}
+      />
 
       <BusinessDetailModal title={detail && 'serviceOrderNo' in detail ? '使用记录详情' : detail && 'cardNo' in detail ? '用户服务卡详情' : '卡产品详情'} open={!!detail} onCancel={() => setDetail(null)} width={820}>
         {detail ? (

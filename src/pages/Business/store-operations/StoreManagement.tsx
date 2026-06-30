@@ -5,18 +5,20 @@ import type { ProColumns } from '@ant-design/pro-components';
 import { DeleteOutlined, EditOutlined, EnvironmentOutlined, FieldTimeOutlined, NotificationOutlined, PlusOutlined, ShopOutlined } from '@ant-design/icons';
 import { Button, Form, Input, InputNumber, Select, Space, Tabs, message } from 'antd';
 import type { CascaderProps } from 'antd';
+import { useNavigate } from 'react-router-dom';
 import {
   marketingOptions,
   storeStatusOptions,
 } from '@/constants/businessCatalog';
 import api from '@/services/backendService';
-import type { SelectOptionRecord, StoreRecord } from '@/services/backendService';
+import type { SelectOptionRecord, StoreFullProfileRecord, StoreRecord } from '@/services/backendService';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import PageBanner from '@/components/PageBanner';
-import { buildValueEnum, formatDateTime, renderBooleanTag, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, CoreFlowPanel, formatDateTime, OperatorTips, renderBooleanTag, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import { RegionCascader } from '@/utils/formControls';
+import StoreFullProfileDrawer from './StoreFullProfileDrawer';
 import StoreProfileManagement from './StoreProfileManagement';
 
 const normalizePickerInitialValues = (record: StoreRecord) => ({
@@ -27,9 +29,13 @@ const normalizePickerInitialValues = (record: StoreRecord) => ({
 const storeStatusMap = buildValueEnum(storeStatusOptions);
 
 const StoreManagement: React.FC = () => {
+  const navigate = useNavigate();
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
+  const [profileVisible, setProfileVisible] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [fullProfile, setFullProfile] = useState<StoreFullProfileRecord | undefined>();
   const [editingRecord, setEditingRecord] = useState<StoreRecord | null>(null);
   const [queryParams, setQueryParams] = useState({
     pageNum: 1,
@@ -115,6 +121,17 @@ const StoreManagement: React.FC = () => {
     setModalVisible(true);
   };
 
+  const openFullProfile = React.useCallback(async (record: StoreRecord) => {
+    setProfileVisible(true);
+    setProfileLoading(true);
+    try {
+      const res = await api.store.fullProfile(record.id);
+      setFullProfile(res.data);
+    } finally {
+      setProfileLoading(false);
+    }
+  }, []);
+
   const columns = useMemo<ProColumns<StoreRecord>[]>(
     () => [
       {
@@ -159,6 +176,9 @@ const StoreManagement: React.FC = () => {
         search: false,
         render: (_, record) => (
           <Space>
+            <Button size="small" onClick={() => openFullProfile(record)}>
+              详情
+            </Button>
             <Button
               size="small"
               icon={<EditOutlined />}
@@ -191,7 +211,7 @@ const StoreManagement: React.FC = () => {
         ),
       },
     ],
-    [deleteMutation, form, merchantOptions, statusMutation]
+    [deleteMutation, form, merchantOptions, openFullProfile, statusMutation]
   );
 
   return (
@@ -207,6 +227,36 @@ const StoreManagement: React.FC = () => {
         ]}
         actions={[
           { key: 'create', label: '新建门店', type: 'primary', onClick: openCreateDrawer },
+        ]}
+      />
+      <CoreFlowPanel
+        title="门店上线闭环"
+        subtitle="门店要同时满足商户归属、地理位置、营业策略、点位设备和商品适用范围，开业后用户端才会稳定展示和下单。"
+        config={[
+          { label: '商户归属', desc: '新建门店必须先选择商户，后续订单、结算和活动都按这个归属流转。', tag: '必填' },
+          { label: '地址与营业', desc: '省市区、详细地址、营业状态和公告决定用户端展示与接单。', tag: '上线' },
+          { label: '点位设备', desc: '开业前至少要补齐服务点位和可用设备，否则运营无法闭环验证。', tag: '履约' },
+        ]}
+        landing={[
+          { label: '用户下单', desc: '门店状态、地理位置和服务能力会影响用户端可见性和可选服务。' },
+          { label: '设备履约', desc: '设备绑定门店点位后，订单启动、回执和异常才有明确落点。' },
+          { label: '结算统计', desc: '门店维度沉淀收入、退款、成本和跨店清分明细。' },
+        ]}
+        verify={[
+          { label: '开业前', desc: '确认商户、地址、联系人、营业状态、点位和设备均已配置。' },
+          { label: '暂停前', desc: '确认是否有进行中订单、待核销权益和运行中活动。' },
+          { label: '上线后', desc: '用交易中心和设备管理查看是否产生正确订单和履约数据。' },
+        ]}
+        actions={[
+          { key: 'device', label: '去设备管理', type: 'primary', onClick: () => navigate('/device') },
+          { key: 'service', label: '配置商品服务', onClick: () => navigate('/service') },
+        ]}
+      />
+      <OperatorTips
+        items={[
+          { label: '新增门店', desc: '先选商户，再填门店名称、编号、地址和负责人，创建后再维护点位和图片。', tag: '建档' },
+          { label: '暂停营业', desc: '列表行内点“暂停”，会影响用户端可见性和接单，提交前会二次确认。', tag: '状态' },
+          { label: '完善档案', desc: '营业时间、临停、图片和服务能力放在“档案维护”，避免主表单过长。', tag: '档案' },
         ]}
       />
 
@@ -255,6 +305,16 @@ const StoreManagement: React.FC = () => {
           },
           { key: 'store-profile', label: '档案维护', children: <StoreProfileManagement embedded /> },
         ]}
+      />
+
+      <StoreFullProfileDrawer
+        open={profileVisible}
+        loading={profileLoading}
+        profile={fullProfile}
+        onClose={() => {
+          setProfileVisible(false);
+          setFullProfile(undefined);
+        }}
       />
 
       <BusinessEditorModal

@@ -11,13 +11,14 @@ import {
   deviceTypeOptions,
 } from '@/constants/businessCatalog';
 import api from '@/services/backendService';
-import type { DeviceRecord, SelectOptionRecord } from '@/services/backendService';
+import type { DeviceFullProfileRecord, DeviceRecord, SelectOptionRecord } from '@/services/backendService';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import PageBanner from '@/components/PageBanner';
-import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, CoreFlowPanel, formatDateTime, OperatorTips, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import { DateField, fromDatePickerValue, toDatePickerValue } from '@/utils/formControls';
+import DeviceFullProfileDrawer from './DeviceFullProfileDrawer';
 import DeviceProfileManagement from './DeviceProfileManagement';
 
 const normalizeDeviceValues = (values: Record<string, any>) => ({ ...values, installTime: fromDatePickerValue(values.installTime) || values.installTime });
@@ -29,6 +30,9 @@ const DeviceManagement: React.FC = () => {
   const selectedStoreId = Form.useWatch('storeId', form);
   const queryClient = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
+  const [profileVisible, setProfileVisible] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [fullProfile, setFullProfile] = useState<DeviceFullProfileRecord | undefined>();
   const [editingRecord, setEditingRecord] = useState<DeviceRecord | null>(null);
   const [queryParams, setQueryParams] = useState({
     pageNum: 1,
@@ -104,6 +108,17 @@ const DeviceManagement: React.FC = () => {
     setModalVisible(true);
   };
 
+  const openFullProfile = React.useCallback(async (record: DeviceRecord) => {
+    setProfileVisible(true);
+    setProfileLoading(true);
+    try {
+      const res = await api.device.fullProfile(record.id);
+      setFullProfile(res.data);
+    } finally {
+      setProfileLoading(false);
+    }
+  }, []);
+
   const columns = useMemo<ProColumns<DeviceRecord>[]>(
     () => [
       {
@@ -150,10 +165,13 @@ const DeviceManagement: React.FC = () => {
       },
       {
         title: '操作',
-        width: 160,
+        width: 210,
         search: false,
         render: (_, record) => (
           <Space>
+            <Button size="small" onClick={() => openFullProfile(record)}>
+              详情
+            </Button>
             <Button
               size="small"
               icon={<EditOutlined />}
@@ -183,7 +201,7 @@ const DeviceManagement: React.FC = () => {
         ),
       },
     ],
-    [deleteMutation, form, storeOptions]
+    [deleteMutation, form, openFullProfile, storeOptions]
   );
 
   return (
@@ -206,6 +224,36 @@ const DeviceManagement: React.FC = () => {
             onClick: openCreateDrawer,
           },
           { key: 'trade', label: '去交易中心', onClick: () => navigate('/trade') },
+        ]}
+      />
+      <CoreFlowPanel
+        title="设备履约闭环"
+        subtitle="设备要从资产建档、门店点位绑定、协议接入、状态监控一路串到订单履约，运营才能快速判断故障影响范围。"
+        config={[
+          { label: '设备主档', desc: '设备编号、类型、厂商和状态用于识别资产与售后责任。', tag: '资产' },
+          { label: '门店点位', desc: '绑定门店和点位后，订单才知道从哪个设备执行服务。', tag: '绑定' },
+          { label: '接入资料', desc: '型号、协议、指令模板和回调配置放在设备接入管理维护。', tag: '技术' },
+        ]}
+        landing={[
+          { label: '服务订单', desc: '订单记录设备编号、点位和启动结果，异常可反查设备状态。' },
+          { label: '故障运维', desc: '故障级别、信号强度和最近心跳用于判断是否现场处理。' },
+          { label: '结算影响', desc: '设备不可用会影响门店履约、退款原因和结算复盘。' },
+        ]}
+        verify={[
+          { label: '新建后', desc: '确认设备已绑定门店点位，状态不是停用或离线。' },
+          { label: '异常时', desc: '先看最近心跳、故障级别和交易中心的失败订单。' },
+          { label: '更换点位', desc: '换绑前确认旧点位没有进行中订单，并保留换绑记录。' },
+        ]}
+        actions={[
+          { key: 'access', label: '设备接入管理', onClick: () => navigate('/device-access') },
+          { key: 'trade', label: '去交易中心', type: 'primary', onClick: () => navigate('/trade') },
+        ]}
+      />
+      <OperatorTips
+        items={[
+          { label: '新建设备', desc: '先选门店，再选点位；选择点位后会自动带出点位编号，减少手工录错。', tag: '建档' },
+          { label: '看异常设备', desc: '优先看状态、故障级别、信号强度和最近心跳，判断是否需要现场处理。', tag: '巡检' },
+          { label: '维护接入资料', desc: '厂商、型号、协议和鉴权资料在“接入档案”，由实施或技术人员维护。', tag: '接入' },
         ]}
       />
       <Tabs
@@ -258,6 +306,16 @@ const DeviceManagement: React.FC = () => {
           },
           { key: 'device-profile', label: '接入档案', children: <DeviceProfileManagement embedded /> },
         ]}
+      />
+
+      <DeviceFullProfileDrawer
+        open={profileVisible}
+        loading={profileLoading}
+        profile={fullProfile}
+        onClose={() => {
+          setProfileVisible(false);
+          setFullProfile(undefined);
+        }}
       />
 
       <BusinessEditorModal

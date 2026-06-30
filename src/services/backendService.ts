@@ -242,6 +242,24 @@ export interface MerchantChangeLogRecord {
   updatedAt?: string;
 }
 
+export interface MerchantFullProfileRecord {
+  merchant: MerchantRecord;
+  contacts: MerchantContactRecord[];
+  qualifications: MerchantQualificationRecord[];
+  contracts: MerchantContractRecord[];
+  settlementAccounts: MerchantSettlementAccountRecord[];
+  accounts: MerchantAccountRecord[];
+  groups: MerchantGroupRecord[];
+  stores: StoreRecord[];
+  changeLogs: MerchantChangeLogRecord[];
+  storeCount?: number;
+  activeStoreCount?: number;
+  deviceCount?: number;
+  activeContractCount?: number;
+  pendingQualificationCount?: number;
+  pendingSettlementAccountCount?: number;
+}
+
 export interface MerchantGroupRecord {
   id: number;
   groupCode: string;
@@ -387,6 +405,23 @@ export interface StoreRecord {
   updateTime?: string;
 }
 
+export interface StoreFullProfileRecord {
+  store: StoreRecord;
+  images: StoreImageRecord[];
+  businessHours: StoreBusinessHoursRecord[];
+  tempCloseRecords: StoreTempCloseRecord[];
+  capabilities: StoreServiceCapabilityRecord[];
+  changeLogs: StoreChangeLogRecord[];
+  servicePoints: ServicePointRecord[];
+  devices: DeviceRecord[];
+  imageCount?: number;
+  businessHourCount?: number;
+  processingTempCloseCount?: number;
+  publishedCapabilityCount?: number;
+  servicePointCount?: number;
+  onlineDeviceCount?: number;
+}
+
 export interface StoreImageRecord { id: number; storeId: number; storeName?: string; imageType: string; imageUrl: string; sortNo?: number; status: string; createdAt?: string; updatedAt?: string; }
 export interface StoreBusinessHoursRecord { id: number; storeId: number; storeName?: string; weekday: string; openTime: string; closeTime: string; status: string; createdAt?: string; updatedAt?: string; }
 export interface StoreTempCloseRecord { id: number; storeId: number; storeName?: string; closeReason: string; startAt?: string; endAt?: string; operator?: string; status: string; createdAt?: string; updatedAt?: string; }
@@ -459,6 +494,28 @@ export interface DeviceRecord {
   updatedAt?: string;
   createTime?: string;
   updateTime?: string;
+}
+
+export interface DeviceFullProfileRecord {
+  device: DeviceRecord;
+  store?: StoreRecord;
+  servicePoint?: ServicePointRecord;
+  bindLogs: DeviceBindLogRecord[];
+  commands: DeviceCommandRecord[];
+  commandLogs: DeviceCommandLogRecord[];
+  faults: DeviceFaultRecord[];
+  heartbeats: DeviceHeartbeatRecord[];
+  maintenances: DeviceMaintenanceRecord[];
+  bindLogCount?: number;
+  commandCount?: number;
+  pendingCommandCount?: number;
+  commandLogCount?: number;
+  faultCount?: number;
+  openFaultCount?: number;
+  heartbeatCount?: number;
+  latestHeartbeatAt?: string;
+  maintenanceCount?: number;
+  pendingMaintenanceCount?: number;
 }
 
 export interface ServiceProductRecord {
@@ -702,6 +759,27 @@ export interface RechargeActivityRecord {
   issuedCount?: number;
   status: string;
   updatedAt?: string;
+}
+
+export interface RechargeActivityFullProfileRecord {
+  activity: RechargeActivityRecord;
+  couponTemplate?: CouponTemplateRecord;
+  serviceCard?: ServiceCardRecord;
+  rechargeOrders: RechargeOrderRecord[];
+  rechargeRewards: RechargeRewardRecord[];
+  participations: MarketingParticipationRecord[];
+  marketingRewards: MarketingRewardRecord[];
+  budgets: MarketingBudgetRecord[];
+  rechargeOrderCount?: number;
+  paidOrderCount?: number;
+  paidAmountTotal?: number | string;
+  giftAmountTotal?: number | string;
+  rewardRecordCount?: number;
+  failedRewardCount?: number;
+  participationCount?: number;
+  issuedMarketingRewardCount?: number;
+  budgetTotalAmount?: number | string;
+  budgetUsedAmount?: number | string;
 }
 
 export interface CrossStoreActivityRecord {
@@ -1461,6 +1539,22 @@ export interface ServiceCardRecord {
   updatedAt?: string;
 }
 
+export interface ServiceCardFullProfileRecord {
+  card: ServiceCardRecord;
+  userCards: UserServiceCardRecord[];
+  usageRecords: ServiceCardUsageRecord[];
+  rechargeActivities: RechargeActivityRecord[];
+  userCardCount?: number;
+  activeUserCardCount?: number;
+  expiredUserCardCount?: number;
+  totalIssuedTimes?: number;
+  totalRemainTimes?: number;
+  usageCount?: number;
+  totalUsedTimes?: number;
+  rechargeActivityCount?: number;
+  runningRechargeActivityCount?: number;
+}
+
 export interface UserServiceCardRecord {
   id: number;
   cardId?: number;
@@ -2112,6 +2206,8 @@ export const merchantApi = {
     httpPage<MerchantRecord>('/merchants', params),
   options: async () =>
     httpGet<SelectOptionRecord[]>('/merchants/options'),
+  fullProfile: async (id: number) =>
+    httpGet<MerchantFullProfileRecord>(`/merchants/${id}/full-profile`),
   add: async (data: Record<string, unknown>) =>
     httpPost<MerchantRecord>('/merchants', data),
   edit: async (data: Record<string, unknown>) => httpPut<void>(`/merchants/${data.id}`, data),
@@ -2238,6 +2334,8 @@ export const storeApi = {
     httpPage<StoreRecord>('/stores', params),
   options: async (merchantId?: number) =>
     httpGet<SelectOptionRecord[]>('/stores/options', merchantId ? { merchantId } : undefined),
+  fullProfile: async (id: number) =>
+    httpGet<StoreFullProfileRecord>(`/stores/${id}/full-profile`),
   add: async (data: Record<string, unknown>) =>
     httpPost<StoreRecord>('/stores', data),
   edit: async (data: Record<string, unknown>) => httpPut<void>(`/stores/${data.id}`, data),
@@ -2274,6 +2372,8 @@ export const deviceApi = {
     httpPage<DeviceRecord>('/devices', params),
   options: async (params?: { storeId?: number; servicePointId?: number }) =>
     httpGet<SelectOptionRecord[]>('/devices/options', params),
+  fullProfile: async (id: number) =>
+    httpGet<DeviceFullProfileRecord>(`/devices/${id}/full-profile`),
   add: async (data: Record<string, unknown>) =>
     httpPost<DeviceRecord>('/devices', data),
   edit: async (data: Record<string, unknown>) => httpPut<void>(`/devices/${data.id}`, data),
@@ -2494,8 +2594,10 @@ export const marketingApi = {
   },
   rechargeActivities: {
     page: async (params: Record<string, unknown>) => httpPage<RechargeActivityRecord>('/recharge-activities', params),
+    fullProfile: async (id: number) => httpGet<RechargeActivityFullProfileRecord>(`/recharge-activities/${id}/full-profile`),
     add: async (data: Record<string, unknown>) => httpPost<RechargeActivityRecord>('/recharge-activities', data),
     edit: async (data: Record<string, unknown>) => httpPut<void>(`/recharge-activities/${data.id}`, data),
+    changeStatus: async (id: number, status: string) => httpPut<void>(`/recharge-activities/${id}/status`, { status }),
     remove: async (id: number) => httpDelete<void>(`/recharge-activities/${id}`),
   },
   crossStoreActivities: {
@@ -2556,6 +2658,7 @@ export const assetApi = {
   serviceCards: {
     page: async (params: Record<string, unknown>) => httpPage<ServiceCardRecord>('/service-cards', params),
     options: async (params?: Record<string, unknown>) => httpGet<SelectOptionRecord[]>('/service-cards/options', params),
+    fullProfile: async (id: number) => httpGet<ServiceCardFullProfileRecord>(`/service-cards/${id}/full-profile`),
     add: async (data: Record<string, unknown>) => httpPost<ServiceCardRecord>('/service-cards', data),
     edit: async (data: Record<string, unknown>) => httpPut<void>(`/service-cards/${data.id}`, data),
     changeStatus: async (id: number, status: string) => httpPut<void>(`/service-cards/${id}/status`, { status }),

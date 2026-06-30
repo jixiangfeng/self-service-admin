@@ -19,7 +19,7 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
-import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, CoreFlowPanel, formatAmount, formatDateTime, OperatorTips, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import { DateField, fromDatePickerValue } from '@/utils/formControls';
 import api, {
@@ -586,6 +586,36 @@ const SettlementManagement: React.FC = () => {
           { title: '跨店清分', description: '对独立微信商户收款的跨店消费生成线下应收应付', status: 'process', tag: '清分台账' },
           { title: '分润确认', description: '按门店和合伙关系确认实际分润结果', status: 'process', tag: '合伙人分润' },
           { title: '导出复盘', description: '最终输出结算单、分润明细和经营复盘数据', status: 'wait', tag: '报表 / 导出' },
+        ]}
+      />
+      <CoreFlowPanel
+        title="多商户跨店结算闭环"
+        subtitle="结算总览要能解释收入从哪里来、退款和成本怎么扣、跨店消费怎么清分、合伙人分润怎么确认，避免财务只能看金额猜原因。"
+        config={[
+          { label: '结算主体', desc: '按商户、门店、门店组或平台主体生成账单，周期和账户来自商户档案。', tag: '主体' },
+          { label: '跨店清分', desc: '独立微信商户收款但跨店消费时，要形成应收应付和清分备注。', tag: '清分' },
+          { label: '分润规则', desc: '多合伙人比例要使用版本化规则，不能覆盖历史口径。', tag: '分润' },
+        ]}
+        landing={[
+          { label: '结算单', desc: '汇总服务收入、充值收入、退款冲减、成本分摊和应结金额。' },
+          { label: '结算明细', desc: '按订单、充值单、门店和商户组保留可追溯明细。' },
+          { label: '打款流水', desc: '打款状态、失败原因和重试结果单独沉淀，便于财务复盘。' },
+        ]}
+        verify={[
+          { label: '确认前', desc: '核对周期、主体、账户、收入、退款、成本和跨店清分金额。' },
+          { label: '打款前', desc: '确认收款账户和失败原因，不要对失败流水批量盲重试。' },
+          { label: '归档后', desc: '去分润明细和结算明细抽查订单级金额是否一致。' },
+        ]}
+        actions={[
+          { key: 'profit', label: '合伙人分润', onClick: () => navigate('/settlement/profit-sharing') },
+          { key: 'details', label: '结算明细', type: 'primary', onClick: () => navigate('/settlement/details') },
+        ]}
+      />
+      <OperatorTips
+        items={[
+          { label: '先核结算单', desc: '先看收入、退款、成本和应结金额，再处理跨店清分和分润。', tag: '核对' },
+          { label: '打款失败', desc: '在打款流水行内重试，先确认失败原因和收款账户，不要批量盲重试。', tag: '打款' },
+          { label: '确认结算', desc: '确认后进入财务归档口径，提交前要核对周期、主体、金额和备注。', tag: '归档' },
         ]}
       />
 

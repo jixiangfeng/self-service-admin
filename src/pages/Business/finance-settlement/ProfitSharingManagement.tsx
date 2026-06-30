@@ -11,7 +11,7 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
-import { buildValueEnum, containsKeyword, formatAmount, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatAmount, OperatorTips, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import api, { type ProfitPartnerRelationRecord, type ProfitRatioVersionRecord, type ProfitShareDetailRecord } from '@/services/backendService';
 import { DateField, DateTimeField, fromDatePickerValue, fromDateTimePickerValue, toDatePickerValue, toDateTimePickerValue } from '@/utils/formControls';
@@ -232,6 +232,13 @@ const ProfitSharingManagement: React.FC = () => {
           { title: '生效版本', description: '按时间版本确定当前生效周期', status: 'process', tag: '版本管理' },
           { title: '单笔分润', description: '核对订单级分润基数和实际分润金额', status: 'process', tag: '分润明细' },
           { title: '结算确认', description: '回到结算总览生成最终结算单', status: 'wait', tag: '结算总览' },
+        ]}
+      />
+      <OperatorTips
+        items={[
+          { label: '维护关系', desc: '合伙关系要先确定门店、角色、比例和生效周期，后续分润都按版本计算。', tag: '关系' },
+          { label: '审核版本', desc: '比例调整不要直接覆盖历史，新增版本并审核，保证历史结算可追溯。', tag: '版本' },
+          { label: '核对明细', desc: '按订单核对分润基数和实际金额，异常再做调整或退款回冲。', tag: '明细' },
         ]}
       />
 

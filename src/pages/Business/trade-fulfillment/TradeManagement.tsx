@@ -18,7 +18,7 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
 import type { SelectOptionRecord } from '@/services/backendService';
-import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, CoreFlowPanel, formatAmount, formatDateTime, OperatorTips, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import { DateTimeField } from '@/utils/formControls';
 
@@ -478,6 +478,36 @@ const TradeManagement: React.FC = () => {
           { title: '支付与启动', description: '确认支付方式和设备启动结果', status: 'process', tag: '支付状态' },
           { title: '退款与售后', description: '处理异常退款、故障申诉和补偿', status: 'process', tag: '退款 / 售后工单' },
           { title: '回看履约结果', description: '最后回到核销履约和结算复盘', status: 'wait', tag: '下一步：核销 / 结算' },
+        ]}
+      />
+      <CoreFlowPanel
+        title="订单履约与异常闭环"
+        subtitle="订单中心要把下单、支付、设备启动、退款售后、权益扣减和结算归集串起来，运营看到一条订单就能判断下一步处理动作。"
+        config={[
+          { label: '订单识别', desc: '商户、门店、点位、设备和服务项目是后续履约与结算的关键字段。', tag: '主线' },
+          { label: '异常处置', desc: '行内处理订单、退款和售后，必须写清原因、责任归属和处理结论。', tag: '处理' },
+          { label: '权益联动', desc: '次卡、优惠券、余额和混合支付要在订单里保留扣减与核销痕迹。', tag: '资产' },
+        ]}
+        landing={[
+          { label: '履约结果', desc: '服务订单记录支付状态、设备启动结果和最终订单状态。' },
+          { label: '资产流水', desc: '退款、补偿、权益核销会沉淀到余额流水、券卡记录或售后工单。' },
+          { label: '结算明细', desc: '完成订单进入结算明细，退款和补偿会影响应结金额。' },
+        ]}
+        verify={[
+          { label: '处置前', desc: '先核支付状态、设备状态、用户权益和订单时间线。' },
+          { label: '退款前', desc: '确认退款金额、支付方式、是否已享受权益和售后责任。' },
+          { label: '结案后', desc: '去资产总览和结算总览核对补偿、退款和收入冲减是否落地。' },
+        ]}
+        actions={[
+          { key: 'asset', label: '核对用户资产', onClick: () => navigate('/asset') },
+          { key: 'settlement', label: '去结算总览', type: 'primary', onClick: () => navigate('/settlement') },
+        ]}
+      />
+      <OperatorTips
+        items={[
+          { label: '处理异常订单', desc: '在服务订单行内点“处置”，选择原因、责任归属和后续动作，处理备注会自动拼接。', tag: '订单' },
+          { label: '审核退款', desc: '在退款中心行内点“审核”，确认金额、原因和申请来源后再提交，避免批量误审。', tag: '退款' },
+          { label: '售后补偿', desc: '在售后工单行内点“补偿 / 结论”，把处理结果回写到工单，后续可进入客服页跟进。', tag: '售后' },
         ]}
       />
 

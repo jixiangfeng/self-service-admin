@@ -409,8 +409,6 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
       render: (_, record) => (
         <>
           <Button size="small" type="link" onClick={() => openDetail('change', record)}>详情</Button>
-          <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openModal('change', record)}>编辑</Button>
-          <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => confirmRemove('change', record.id)}>删除</Button>
         </>
       ),
     },
@@ -459,7 +457,7 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
           { key: 'qualification', label: '资质', children: <ProTable<MerchantQualificationRecord> cardBordered rowKey="id" columns={qualificationColumns} dataSource={filter(qualifications)} loading={qualificationQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1360 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('qualification')}>新增资质</Button>]} /> },
           { key: 'contract', label: '合同', children: <ProTable<MerchantContractRecord> cardBordered rowKey="id" columns={contractColumns} dataSource={filter(contracts)} loading={contractQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1460 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('contract')}>新增合同</Button>]} /> },
           { key: 'account', label: '结算账户', children: <ProTable<MerchantSettlementAccountRecord> cardBordered rowKey="id" columns={accountColumns} dataSource={filter(settlementAccounts)} loading={accountQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('account')}>新增账户</Button>]} /> },
-          { key: 'change', label: '变更日志', children: <ProTable<MerchantChangeLogRecord> cardBordered rowKey="id" columns={changeColumns} dataSource={filter(changes)} loading={changeQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1360 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('change')}>新增变更</Button>]} /> },
+          { key: 'change', label: '变更日志', children: <ProTable<MerchantChangeLogRecord> cardBordered rowKey="id" columns={changeColumns} dataSource={filter(changes)} loading={changeQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1360 }} toolBarRender={false} /> },
         ]}
       />
 

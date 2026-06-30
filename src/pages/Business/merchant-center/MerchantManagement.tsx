@@ -18,12 +18,13 @@ import {
   statusOptions,
 } from '@/constants/businessCatalog';
 import api from '@/services/backendService';
-import type { MerchantRecord } from '@/services/backendService';
+import type { MerchantFullProfileRecord, MerchantRecord } from '@/services/backendService';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import BusinessEditorModal from '@/components/BusinessEditorModal';
 import PageBanner from '@/components/PageBanner';
-import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, CoreFlowPanel, formatDateTime, OperatorTips, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
+import MerchantFullProfileDrawer from './MerchantFullProfileDrawer';
 import MerchantProfileManagement from './MerchantProfileManagement';
 
 const merchantStatusMap = {
@@ -44,6 +45,9 @@ const MerchantManagement: React.FC = () => {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
+  const [profileVisible, setProfileVisible] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [fullProfile, setFullProfile] = useState<MerchantFullProfileRecord | undefined>();
   const [editingRecord, setEditingRecord] = useState<MerchantRecord | null>(null);
   const [queryParams, setQueryParams] = useState({
     pageNum: 1,
@@ -115,6 +119,18 @@ const MerchantManagement: React.FC = () => {
     form.setFieldsValue(merchantFormDefaults);
     setModalVisible(true);
   };
+
+  const openFullProfile = React.useCallback(async (record: MerchantRecord) => {
+    setProfileVisible(true);
+    setProfileLoading(true);
+    try {
+      const res = await api.merchant.fullProfile(record.id);
+      setFullProfile(res.data);
+    } finally {
+      setProfileLoading(false);
+    }
+  }, []);
+
   const modalTitle = editingRecord ? `编辑商户 · ${editingRecord.merchantName}` : '新建商户';
 
   const columns = useMemo<ProColumns<MerchantRecord>[]>(
@@ -173,6 +189,9 @@ const MerchantManagement: React.FC = () => {
         search: false,
         render: (_, record) => (
           <Space>
+            <Button size="small" onClick={() => openFullProfile(record)}>
+              详情
+            </Button>
             <Button
               size="small"
               icon={<EditOutlined />}
@@ -209,7 +228,7 @@ const MerchantManagement: React.FC = () => {
         ),
       },
     ],
-    [deleteMutation, form, statusMutation]
+    [deleteMutation, form, statusMutation, openFullProfile]
   );
 
   return (
@@ -227,6 +246,38 @@ const MerchantManagement: React.FC = () => {
         actions={[
           { key: 'create', label: '新建商户', type: 'primary', onClick: openCreateDrawer },
           { key: 'store', label: '去门店管理', onClick: () => navigate('/store') },
+        ]}
+      />
+
+      <CoreFlowPanel
+        title="商户经营闭环"
+        subtitle="先把主体、合同、账户和门店范围配完整，再启用商户。这样后续门店开业、活动投放、订单归属和结算打款才能稳定串起来。"
+        config={[
+          { label: '主体资料', desc: '商户名称、编号、类型、统一信用代码必须唯一且可追溯。', tag: '建档' },
+          { label: '合同与资质', desc: '合同状态、资质文件和结算账户在档案维护补齐后再开放经营。', tag: '准入' },
+          { label: '门店范围', desc: '商户启用后继续维护门店、门店组和经营城市，避免订单归属错乱。', tag: '范围' },
+        ]}
+        landing={[
+          { label: '订单归属', desc: '订单会按商户、门店、设备、点位沉淀，结算和分润依赖这些主数据。' },
+          { label: '活动范围', desc: '充值套餐、权益发放和跨店核销会读取商户组和门店范围。' },
+          { label: '结算主体', desc: '商户结算账户、合同周期和主体状态决定后续账单生成与打款。' },
+        ]}
+        verify={[
+          { label: '启用前', desc: '确认联系人、合同、结算账户和至少一个门店已准备好。' },
+          { label: '停用前', desc: '先核查是否有营业门店、进行中订单、未结算账单和运行中活动。' },
+          { label: '变更后', desc: '去门店管理、门店组管理和商户后台确认数据已同步。' },
+        ]}
+        actions={[
+          { key: 'group', label: '门店组管理', onClick: () => navigate('/merchant/groups') },
+          { key: 'store', label: '去门店管理', type: 'primary', onClick: () => navigate('/store') },
+        ]}
+      />
+
+      <OperatorTips
+        items={[
+          { label: '新增商户', desc: '先建主体主档，再进入档案维护补资质、合同、联系人和结算账户。', tag: '高频' },
+          { label: '启停商户', desc: '启停会影响下游门店、活动和结算，操作前先看门店数和合同状态。', tag: '谨慎' },
+          { label: '跨店经营', desc: '需要跨店活动或核销时，先去门店组管理维护范围和结算规则。', tag: '闭环' },
         ]}
       />
 
@@ -383,6 +434,15 @@ const MerchantManagement: React.FC = () => {
           </div>
         </Form>
       </BusinessEditorModal>
+      <MerchantFullProfileDrawer
+        open={profileVisible}
+        loading={profileLoading}
+        profile={fullProfile}
+        onClose={() => {
+          setProfileVisible(false);
+          setFullProfile(undefined);
+        }}
+      />
     </div>
   );
 };

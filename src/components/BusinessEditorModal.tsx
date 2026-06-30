@@ -28,18 +28,14 @@ export const BusinessEditorSection: React.FC<{
 );
 
 const BusinessEditorModal: React.FC<BusinessEditorModalProps> = ({
-  eyebrow: _eyebrow,
+  eyebrow,
   title,
-  subtitle: _subtitle,
-  meta: _meta,
+  subtitle,
+  meta,
   wrapClassName,
   children,
   ...modalProps
 }) => {
-  void _eyebrow;
-  void _subtitle;
-  void _meta;
-
   const mergedWrapClassName = ['merchant-editor-modal', 'business-modal--continuous', wrapClassName].filter(Boolean).join(' ');
 
   return (
@@ -50,7 +46,14 @@ const BusinessEditorModal: React.FC<BusinessEditorModalProps> = ({
       title={(
         <div className="merchant-editor-modal-header">
           <div>
+            {eyebrow ? <div className="merchant-editor-modal-header__eyebrow">{eyebrow}</div> : null}
             <div className="merchant-editor-modal-header__title">{title}</div>
+            {subtitle ? <div className="merchant-editor-modal-header__subtitle">{subtitle}</div> : null}
+            {meta?.length ? (
+              <div className="merchant-editor-modal-header__meta">
+                {meta.map((item, index) => <span key={index}>{item}</span>)}
+              </div>
+            ) : null}
           </div>
         </div>
       )}

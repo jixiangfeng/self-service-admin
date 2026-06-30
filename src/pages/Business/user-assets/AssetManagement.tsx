@@ -18,7 +18,7 @@ import BusinessDetailModal from '@/components/BusinessDetailModal';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
-import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, OperatorTips, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import api, { type AppUserProfileRecord, type BalanceFlowRecord, type CouponTemplateRecord, type RechargeOrderRecord, type UserAssetAccountRecord } from '@/services/backendService';
 
@@ -516,6 +516,13 @@ const AssetManagement: React.FC = () => {
           { title: '账户动作', description: '处理充值、赠送、冻结和调账', status: 'process', tag: '余额账户' },
           { title: '权益发放', description: '发券、补券、服务卡和活动奖励统一进资产', status: 'process', tag: '卡券权益 / 服务卡与次卡' },
           { title: '回写营销与售后', description: '最终把奖励、补偿和黑名单反馈给营销与客服', status: 'wait', tag: '营销 / 客服' },
+        ]}
+      />
+      <OperatorTips
+        items={[
+          { label: '找用户', desc: '先在用户档案按手机号、昵称或风控状态筛选，再进入余额、卡券或流水核对。', tag: '识别' },
+          { label: '调账补偿', desc: '余额调账、冻结解冻、补券和奖励补发都需要填写业务场景、处理方式和关联工单。', tag: '资产' },
+          { label: '风控处置', desc: '批量打标签或加入风控名单前，先确认影响资产和是否需要通知用户。', tag: '风控' },
         ]}
       />
 

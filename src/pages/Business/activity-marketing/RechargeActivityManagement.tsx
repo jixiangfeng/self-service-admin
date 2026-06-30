@@ -4,6 +4,7 @@ import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Statis
 import { CalendarOutlined, GiftOutlined, PlusOutlined, WalletOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
+import { useNavigate } from 'react-router-dom';
 import { activityRewardStatusOptions, activityStatusOptions, costBearerOptions, rewardTypeOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import OssImageUpload from '@/components/OssImageUpload';
@@ -11,8 +12,9 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
-import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
-import api, { type RechargeActivityRecord, type SelectOptionRecord } from '@/services/backendService';
+import { buildValueEnum, containsKeyword, CoreFlowPanel, formatDateTime, OperatorTips, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
+import api, { type RechargeActivityFullProfileRecord, type RechargeActivityRecord, type SelectOptionRecord } from '@/services/backendService';
+import RechargeActivityFullProfileDrawer from './RechargeActivityFullProfileDrawer';
 
 const statusMap = buildValueEnum(activityStatusOptions);
 const costBearerMap = buildValueEnum(costBearerOptions);
@@ -99,11 +101,15 @@ const buildRechargeDetailFields = (couponTemplateOptions: SelectOptionRecord[], 
 ];
 
 const RechargeActivityManagement: React.FC = () => {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [form] = Form.useForm<Record<string, any>>();
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [modalVisible, setModalVisible] = useState(false);
+  const [profileVisible, setProfileVisible] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [fullProfile, setFullProfile] = useState<RechargeActivityFullProfileRecord | undefined>();
   const [editingRecord, setEditingRecord] = useState<RechargeActivityRecord | null>(null);
   const [detail, setDetail] = useState<RechargeActivityRecord | null>(null);
 
@@ -127,7 +133,7 @@ const RechargeActivityManagement: React.FC = () => {
     },
   });
   const statusMutation = useMutation({
-    mutationFn: (record: RechargeActivityRecord) => api.marketing.rechargeActivities.edit({ ...record, status: record.status === 'RUNNING' ? 'PAUSED' : 'RUNNING' }),
+    mutationFn: (record: RechargeActivityRecord) => api.marketing.rechargeActivities.changeStatus(record.id, record.status === 'RUNNING' ? 'PAUSED' : 'RUNNING'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rechargeActivities'] });
       message.success('充值活动状态已更新');
@@ -170,6 +176,17 @@ const RechargeActivityManagement: React.FC = () => {
     });
   };
 
+  const openFullProfile = async (record: RechargeActivityRecord) => {
+    setProfileVisible(true);
+    setProfileLoading(true);
+    try {
+      const res = await api.marketing.rechargeActivities.fullProfile(record.id);
+      setFullProfile(res.data);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
   const columns: ProColumns<RechargeActivityRecord>[] = [
     {
       title: '活动',
@@ -203,6 +220,7 @@ const RechargeActivityManagement: React.FC = () => {
       search: false,
       render: (_, record) => (
         <Space>
+          <Button size="small" onClick={() => openFullProfile(record)}>档案</Button>
           <Button size="small" onClick={() => setDetail(record)}>详情</Button>
           <Button size="small" onClick={() => { setEditingRecord(record); form.setFieldsValue({ ...record, tierAmounts: parseRechargeTierAmounts(record.tierAmounts), rewardType: splitMultiValue(record.rewardType).length ? splitMultiValue(record.rewardType) : rewardMethodTypeMap[record.rewardMethod || ''] } as any); setModalVisible(true); }}>编辑</Button>
           <Button
@@ -231,6 +249,36 @@ const RechargeActivityManagement: React.FC = () => {
   return (
     <div style={{ padding: 24 }}>
       <PageBanner title="充值活动" subtitle="补齐固定档位、赠送规则、成本承担和状态控制能力。" icon={<GiftOutlined />} />
+      <CoreFlowPanel
+        title="充值套餐与权益闭环"
+        subtitle="充值活动不是单独一张规则表，要同时确认充值档位、赠送权益、适用范围、成本承担和上线状态，用户充值后才能正确落到账户和权益资产。"
+        config={[
+          { label: '充值档位', desc: '固定档位按金额排序展示，启动后不建议直接改金额，避免用户认知和对账口径变化。', tag: '套餐' },
+          { label: '权益奖励', desc: '赠送余额、优惠券或服务卡必须绑定有效模板，权益产品先在资产页维护。', tag: '权益' },
+          { label: '适用范围', desc: '明确全部门店、指定门店组或活动门店，跨店核销要同步考虑结算规则。', tag: '范围' },
+        ]}
+        landing={[
+          { label: '用户资产', desc: '支付成功后会沉淀余额流水、用户优惠券或用户服务卡。' },
+          { label: '营销执行', desc: '参与记录、奖励状态、预算消耗和异常补发在执行台复盘。' },
+          { label: '结算清分', desc: '跨店充值和消费会进入结算明细、分润明细或清分台账。' },
+        ]}
+        verify={[
+          { label: '启动前', desc: '确认档位、赠送权益、成本承担、门店范围和有效期都已配置。' },
+          { label: '用户充值后', desc: '去资产总览和营销执行台核对余额、券卡和奖励记录是否落地。' },
+          { label: '活动复盘', desc: '重点看充值单、奖励失败、预算异常和券卡核销结果。' },
+        ]}
+        actions={[
+          { key: 'cards', label: '维护权益产品', onClick: () => navigate('/asset/service-cards') },
+          { key: 'execution', label: '营销执行台', type: 'primary', onClick: () => navigate('/marketing/execution') },
+        ]}
+      />
+      <OperatorTips
+        items={[
+          { label: '先建草稿', desc: '先配置充值档位、赠送规则和适用范围，确认成本承担后再启动。', tag: '配置' },
+          { label: '启动活动', desc: '活动启动前会二次确认；启动后用户端可见，尽量避免直接改金额档位。', tag: '上线' },
+          { label: '查看效果', desc: '用营销执行台看参与、奖励、预算和券核销，活动页只负责规则和状态。', tag: '复盘' },
+        ]}
+      />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="充值活动" value={activityQuery.data?.total ?? records.length} suffix="个" /></Card></Col>
@@ -344,6 +392,16 @@ const RechargeActivityManagement: React.FC = () => {
           </div>
         </Form>
       </BusinessEditorModal>
+
+      <RechargeActivityFullProfileDrawer
+        open={profileVisible}
+        loading={profileLoading}
+        profile={fullProfile}
+        onClose={() => {
+          setProfileVisible(false);
+          setFullProfile(undefined);
+        }}
+      />
 
       <BusinessDetailModal title="充值活动详情" open={!!detail} onCancel={() => setDetail(null)} width={820}>
         {detail ? (
