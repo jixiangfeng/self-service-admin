@@ -26,7 +26,6 @@ const pageCodeOptions = [
   { value: 'HOME', label: '首页' },
   { value: 'STORE_LIST', label: '门店列表' },
   { value: 'PROFILE', label: '我的页' },
-  { value: 'COUPON_LIST', label: '优惠券列表' },
   { value: 'ACTIVITY_GIFT', label: '优惠活动' },
   { value: 'RECHARGE_SUCCESS', label: '充值成功页' },
   { value: 'STORE_DETAIL', label: '门店详情' },
@@ -37,10 +36,8 @@ const pageCodeOptions = [
 
 const slotCodeOptions = [
   { value: 'HOME_TOP_CAROUSEL', label: '首页顶部轮播', pageCode: 'HOME', size: '750×320', consumer: 'pages/home/index.vue', tip: '首页首屏主轮播，建议用于全平台活动和品牌主视觉。' },
-  { value: 'HOME_COUPON_BANNER', label: '首页优惠券横幅', pageCode: 'HOME', size: '702×180', consumer: 'pages/home/index.vue', tip: '首页优惠券/活动横幅，适合短期促销。' },
   { value: 'STORE_LIST_TOP_BANNER', label: '门店列表顶部图', pageCode: 'STORE_LIST', size: '702×180', consumer: 'pages/store-list/index.vue', tip: '门店列表顶部运营图，适合附近门店促销。' },
   { value: 'PROFILE_RECHARGE_BANNER', label: '我的页充值图', pageCode: 'PROFILE', size: '702×220', consumer: 'pages/profile/index.vue', tip: '我的页余额/充值入口图，适合充值引导。' },
-  { value: 'COUPON_LIST_INVITE_BANNER', label: '优惠券邀请图', pageCode: 'COUPON_LIST', size: '702×220', consumer: 'pages/coupon-list/index.vue', tip: '优惠券列表邀请横幅，适合裂变活动。' },
   { value: 'ACTIVITY_GIFT_HERO_BANNER', label: '活动页头图', pageCode: 'ACTIVITY_GIFT', size: '702×260', consumer: 'pages/activity-gift/index.vue', tip: '活动广场头图，适合福利集合页。' },
   { value: 'RECHARGE_SUCCESS_BANNER', label: '充值成功图', pageCode: 'RECHARGE_SUCCESS', size: '702×220', consumer: 'pages/recharge-success/index.vue', tip: '充值成功页推荐图，适合二次转化。' },
 ];
@@ -62,7 +59,6 @@ const moduleCodeOptions = [
 const jumpTypeOptions = [
   { value: 'NONE', label: '不跳转' },
   { value: 'PAGE', label: '小程序页面' },
-  { value: 'COUPON', label: '优惠券' },
   { value: 'RECHARGE', label: '充值中心' },
   { value: 'SERVICE_CARD', label: '次卡/月卡' },
   { value: 'STORE', label: '门店详情' },
@@ -99,7 +95,6 @@ const pagePathOptions = [
   { value: '/pages/home/index', label: '首页' },
   { value: '/pages/store-list/index', label: '门店列表' },
   { value: '/pages/profile/index', label: '我的页' },
-  { value: '/pages/coupon-list/index', label: '优惠券列表' },
   { value: '/pages/activity-gift/index', label: '活动广场' },
   { value: '/pages/recharge-center/index', label: '充值中心' },
   { value: '/pages/invite-guide/index', label: '邀请活动' },
@@ -142,7 +137,6 @@ const contentFieldGroups: Record<string, ContentFieldConfig[]> = {
   ],
   FEEDBACK_TYPES: [
     { name: 'contentFeedbackTypes', label: '反馈类型', type: 'tags' },
-    { name: 'contentCouponTabs', label: '优惠券 Tab', type: 'tags' },
     { name: 'contentBalanceTabs', label: '余额流水 Tab', type: 'tags' },
   ],
   ACTIVITY_COPY: [
@@ -150,17 +144,14 @@ const contentFieldGroups: Record<string, ContentFieldConfig[]> = {
     { name: 'contentDesc', label: '页面副标题', placeholder: '热门福利都在这里' },
     { name: 'contentInviteText', label: '邀请活动文案' },
     { name: 'contentRechargeText', label: '充值活动文案' },
-    { name: 'contentCouponText', label: '优惠券活动文案' },
     { name: 'contentCrossStoreText', label: '跨店活动文案' },
     { name: 'contentDefaultText', label: '默认活动文案' },
   ],
   VISUAL_ASSET: [
     { name: 'homeTopBanner', label: '首页顶部兜底图', type: 'image' },
-    { name: 'homeCouponBanner', label: '首页优惠券兜底图', type: 'image' },
     { name: 'storeListTopBanner', label: '门店列表兜底图', type: 'image' },
     { name: 'profileRechargeBanner', label: '我的页充值图', type: 'image' },
     { name: 'profileUserCardBg', label: '我的页用户卡背景', type: 'image' },
-    { name: 'couponInviteBanner', label: '优惠券邀请图', type: 'image' },
     { name: 'inviteHeroBanner', label: '邀请页头图', type: 'image' },
     { name: 'rechargeSuccessBanner', label: '充值成功图', type: 'image' },
     { name: 'balanceCardBg', label: '余额卡背景', type: 'image' },
@@ -194,8 +185,8 @@ const pageModuleTemplates: Record<string, Record<string, unknown>> = {
     ],
   },
   HELP_CENTER: { categories: ['新手指南', '订单支付', '充值余额', '设备异常', '商户服务'], hot: [{ q: '如何开始自助洗车？', a: '到店后点击首页“扫码洗车”，扫描设备二维码并确认订单即可启动。' }] },
-  FEEDBACK_TYPES: { types: ['设备故障', '订单支付', '充值余额', '优惠券', '功能建议'], couponTabs: ['可用优惠券', '已使用', '已过期'], balanceTabs: ['全部', '充值', '消费', '退款'] },
-  ACTIVITY_COPY: { title: '活动广场', desc: '热门福利都在这里，选择活动直接参与', inviteText: '邀请好友，达标返现', rechargeText: '充值满赠，余额更划算', couponText: '优惠券福利，下单可抵扣', crossStoreText: '跨店活动，更多门店可用', defaultText: '限时福利，点击查看' },
+  FEEDBACK_TYPES: { types: ['设备故障', '订单支付', '充值余额', '功能建议'], balanceTabs: ['全部', '充值', '消费', '退款'] },
+  ACTIVITY_COPY: { title: '活动广场', desc: '热门福利都在这里，选择活动直接参与', inviteText: '邀请好友，达标返现', rechargeText: '充值满赠，余额更划算', crossStoreText: '跨店活动，更多门店可用', defaultText: '限时福利，点击查看' },
   VISUAL_ASSET: {},
 };
 
@@ -216,8 +207,8 @@ const contentToFormValues = (moduleCode?: string, content: Record<string, unknow
     const hot = Array.isArray(content.hot) ? content.hot as Record<string, unknown>[] : [];
     return { contentCategories: normalizeTags(content.categories), contentHotQuestion: hot[0]?.q, contentHotAnswer: hot[0]?.a };
   }
-  if (moduleCode === 'FEEDBACK_TYPES') return { contentFeedbackTypes: normalizeTags(content.types), contentCouponTabs: normalizeTags(content.couponTabs), contentBalanceTabs: normalizeTags(content.balanceTabs) };
-  if (moduleCode === 'ACTIVITY_COPY') return { contentTitle: content.title, contentDesc: content.desc, contentInviteText: content.inviteText, contentRechargeText: content.rechargeText, contentCouponText: content.couponText, contentCrossStoreText: content.crossStoreText, contentDefaultText: content.defaultText };
+  if (moduleCode === 'FEEDBACK_TYPES') return { contentFeedbackTypes: normalizeTags(content.types), contentBalanceTabs: normalizeTags(content.balanceTabs) };
+  if (moduleCode === 'ACTIVITY_COPY') return { contentTitle: content.title, contentDesc: content.desc, contentInviteText: content.inviteText, contentRechargeText: content.rechargeText, contentCrossStoreText: content.crossStoreText, contentDefaultText: content.defaultText };
   if (moduleCode === 'VISUAL_ASSET') return content;
   return { contentTitle: content.title, contentDesc: content.desc, contentImageUrl: content.imageUrl, contentActionText: content.actionText };
 };
@@ -233,8 +224,8 @@ const buildStructuredContent = (moduleCode: string | undefined, values: Record<s
     ],
   };
   if (moduleCode === 'HELP_CENTER') return { categories: normalizeTags(values.contentCategories), hot: [{ q: values.contentHotQuestion || '', a: values.contentHotAnswer || '' }] };
-  if (moduleCode === 'FEEDBACK_TYPES') return { types: normalizeTags(values.contentFeedbackTypes), couponTabs: normalizeTags(values.contentCouponTabs), balanceTabs: normalizeTags(values.contentBalanceTabs) };
-  if (moduleCode === 'ACTIVITY_COPY') return { title: values.contentTitle || '', desc: values.contentDesc || '', inviteText: values.contentInviteText || '', rechargeText: values.contentRechargeText || '', couponText: values.contentCouponText || '', crossStoreText: values.contentCrossStoreText || '', defaultText: values.contentDefaultText || '' };
+  if (moduleCode === 'FEEDBACK_TYPES') return { types: normalizeTags(values.contentFeedbackTypes), balanceTabs: normalizeTags(values.contentBalanceTabs) };
+  if (moduleCode === 'ACTIVITY_COPY') return { title: values.contentTitle || '', desc: values.contentDesc || '', inviteText: values.contentInviteText || '', rechargeText: values.contentRechargeText || '', crossStoreText: values.contentCrossStoreText || '', defaultText: values.contentDefaultText || '' };
   if (moduleCode === 'VISUAL_ASSET') return Object.fromEntries(contentFieldGroups.VISUAL_ASSET.map((field) => [field.name, values[field.name] || '']).filter(([, value]) => value));
   return { title: values.contentTitle || '', desc: values.contentDesc || '', imageUrl: values.contentImageUrl || '', actionText: values.contentActionText || '' };
 };
@@ -292,7 +283,6 @@ const MiniProgramOpsManagement: React.FC = () => {
   const agreementsQuery = useQuery({ queryKey: ['agreement-contents', queryParams], queryFn: () => api.miniProgramOps.agreements.page(queryParams) });
   const storeOptionsQuery = useQuery({ queryKey: ['mini-ops-store-options'], queryFn: () => api.store.options() });
   const serviceCardOptionsQuery = useQuery({ queryKey: ['mini-ops-service-card-options'], queryFn: () => api.asset.serviceCards.options() });
-  const couponOptionsQuery = useQuery({ queryKey: ['mini-ops-coupon-options'], queryFn: () => api.marketing.couponTemplates.options() });
 
   const watchedPageCode = Form.useWatch('pageCode', form);
   const watchedSlotCode = Form.useWatch('slotCode', form);
@@ -320,11 +310,10 @@ const MiniProgramOpsManagement: React.FC = () => {
     if (watchedJumpType === 'PAGE') return pagePathOptions;
     if (watchedJumpType === 'STORE') return toSelectOptions(storeOptionsQuery.data || []);
     if (watchedJumpType === 'SERVICE_CARD') return toSelectOptions(serviceCardOptionsQuery.data || []);
-    if (watchedJumpType === 'COUPON') return toSelectOptions(couponOptionsQuery.data || []);
     if (watchedJumpType === 'RECHARGE') return [{ value: '/pages/recharge-center/index', label: '充值中心' }];
     if (watchedJumpType === 'GROUPON') return [{ value: '/pages/group-code-verify/index', label: '团购核销页' }];
     return [];
-  }, [watchedJumpType, storeOptionsQuery.data, serviceCardOptionsQuery.data, couponOptionsQuery.data]);
+  }, [watchedJumpType, storeOptionsQuery.data, serviceCardOptionsQuery.data]);
 
   const openModal = (title: string, record?: DetailRecord) => {
     setModalTitle(title);

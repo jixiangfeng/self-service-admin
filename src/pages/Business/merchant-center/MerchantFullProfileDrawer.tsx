@@ -58,12 +58,25 @@ const renderQualificationExpireAt = (record: MerchantQualificationRecord) => {
   return String(value || '-').match(/\d{4}-\d{2}-\d{2}/)?.[0] || String(value || '-');
 };
 
+const normalizeStatusValue = (value: unknown) => String(value ?? '').trim().toUpperCase();
+
+const isConfiguredContact = (item: MerchantContactRecord) =>
+  Boolean(item.contactName?.trim() || item.mobile?.trim() || item.email?.trim());
+
+const isEffectiveContract = (item: MerchantContractRecord) => {
+  const status = normalizeStatusValue(item.contractStatus);
+  return ['ACTIVE', 'EFFECTIVE', 'VALID', 'RUNNING', 'APPROVED', '履约中', '生效', '有效'].includes(status);
+};
 
 const MerchantFullProfileDrawer: React.FC<MerchantFullProfileDrawerProps> = ({ open, loading, profile, onClose }) => {
   const merchant = profile?.merchant;
+  const hasConfiguredContact = (profile?.contacts || []).some(isConfiguredContact);
+  const hasEffectiveContract = typeof profile?.activeContractCount === 'number'
+    ? profile.activeContractCount > 0
+    : (profile?.contracts || []).some(isEffectiveContract);
   const risks = [
-    !(profile?.contacts || []).some((item) => item.primaryFlag === 1) ? '未配置主联系人' : null,
-    !(profile?.contracts || []).some((item) => item.contractStatus === 'ACTIVE') ? '暂无有效合同' : null,
+    !hasConfiguredContact ? '未配置联系人' : null,
+    !hasEffectiveContract ? '暂无有效合同' : null,
     !(profile?.settlementAccounts || []).some((item) => item.status === 'ACTIVE') ? '暂无启用结算账户' : null,
     (profile?.pendingQualificationCount || 0) > 0 ? `有 ${profile?.pendingQualificationCount} 份待审资质` : null,
     (profile?.storeCount || 0) === 0 ? '尚未开设门店' : null,

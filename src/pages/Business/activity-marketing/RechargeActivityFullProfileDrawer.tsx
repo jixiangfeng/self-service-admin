@@ -24,8 +24,7 @@ const RechargeActivityFullProfileDrawer: React.FC<Props> = ({ open, loading, pro
     activity?.status !== 'RUNNING' ? '活动未运行，用户端不会正常参与' : null,
     !activity?.tierAmounts ? '未配置充值档位' : null,
     !activity?.rewardType ? '未配置奖励类型' : null,
-    (activity?.rewardType === 'COUPON' || activity?.rewardType === 'MIXED') && !activity?.couponTemplateId ? '优惠券奖励未选择券模板' : null,
-    (activity?.rewardType === 'SERVICE_CARD' || activity?.rewardType === 'MIXED') && !activity?.serviceCardId ? '服务卡奖励未选择卡产品' : null,
+    activity?.rewardType === 'SERVICE_CARD' && !activity?.serviceCardId ? '服务卡奖励未选择卡产品' : null,
     (profile?.failedRewardCount || 0) > 0 ? `存在 ${profile?.failedRewardCount} 条奖励失败` : null,
   ].filter(Boolean) as string[];
 
@@ -46,7 +45,6 @@ const RechargeActivityFullProfileDrawer: React.FC<Props> = ({ open, loading, pro
     { title: '用户', dataIndex: 'userName', width: 120, render: (value) => value || '-' },
     { title: '奖励类型', dataIndex: 'rewardType', width: 120, render: (value) => formatEnumText(value, 'rewardType', '奖励类型') },
     { title: '奖励金额', dataIndex: 'rewardAmount', width: 120, render: formatAmount },
-    { title: '券号', dataIndex: 'couponNo', width: 160, render: (value) => value || '-' },
     { title: '状态', dataIndex: 'status', width: 120, render: (value) => formatEnumText(value, 'status', '状态') },
     { title: '发放时间', dataIndex: 'issuedAt', width: 180, render: (value) => formatDateTime(value) },
     { title: '失败原因', dataIndex: 'failReason', width: 220, render: (value) => value || '-' },
@@ -101,7 +99,6 @@ const RechargeActivityFullProfileDrawer: React.FC<Props> = ({ open, loading, pro
                 <Descriptions.Item label="适用范围">{activity.scope || formatEnumText(activity.scopeMode, 'scopeType', '适用范围')}</Descriptions.Item>
                 <Descriptions.Item label="范围对象">{activity.scopeIds || '-'}</Descriptions.Item>
                 <Descriptions.Item label="奖励类型">{formatEnumText(activity.rewardType || 'BALANCE', 'rewardType', '奖励类型')}</Descriptions.Item>
-                <Descriptions.Item label="券模板">{profile.couponTemplate?.templateName || activity.couponTemplateId || '-'}</Descriptions.Item>
                 <Descriptions.Item label="服务卡产品">{profile.serviceCard?.cardName || activity.serviceCardId || '-'}</Descriptions.Item>
                 <Descriptions.Item label="成本承担">{formatEnumText(activity.costOwner, 'costOwner', '成本承担')}</Descriptions.Item>
                 <Descriptions.Item label="最低充值">{formatAmount(activity.minAmount)}</Descriptions.Item>

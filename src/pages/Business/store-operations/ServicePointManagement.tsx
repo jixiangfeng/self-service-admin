@@ -2,53 +2,37 @@ import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { CarOutlined, DeleteOutlined, EditOutlined, PlusOutlined, QrcodeOutlined, ToolOutlined } from '@ant-design/icons';
+import { CarOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { Button, Form, Input, InputNumber, Select, Space, Tabs, message } from 'antd';
-import { useNavigate } from 'react-router-dom';
 import {
   pointAbilityOptions,
   pointStatusOptions,
   pointTypeOptions,
-  statusOptions,
 } from '@/constants/businessCatalog';
 import api from '@/services/backendService';
 import type { SelectOptionRecord, ServicePointRecord } from '@/services/backendService';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import PageBanner from '@/components/PageBanner';
-import { buildValueEnum, formatDateTime, renderBooleanTag, renderOptionTags, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, formatDateTime, renderOptionTags, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import { joinCommaValues, splitCommaValues } from '@/utils/csv';
-import { DateTimeField, fromDateTimePickerValue, toDateTimePickerValue } from '@/utils/formControls';
 import ServicePointProfileManagement from './ServicePointProfileManagement';
 
-const qrStatusOptions = [
-  { value: 'NORMAL', label: '正常' },
-  { value: 'DISABLED', label: '停用' },
-  { value: 'EXPIRED', label: '已过期' },
-];
-const qrStatusMap = buildValueEnum(qrStatusOptions);
-const pointMaintainStatusOptions = [
-  { value: 'PENDING', label: '待处理' },
-  { value: 'PROCESSING', label: '处理中' },
-  { value: 'COMPLETED', label: '已完成' },
-  { value: 'CANCELLED', label: '已取消' },
-];
-const pointMaintainStatusMap = buildValueEnum(pointMaintainStatusOptions);
-
-const normalizePointValues = (values: Record<string, any>) => ({
-  ...values,
-  lastMaintainAt: fromDateTimePickerValue(values.lastMaintainAt) || values.lastMaintainAt,
-  temporaryClosedUntil: fromDateTimePickerValue(values.temporaryClosedUntil) || values.temporaryClosedUntil,
-});
-const normalizePointInitialValues = (record: ServicePointRecord) => ({
-  ...record,
-  lastMaintainAt: toDateTimePickerValue(record.lastMaintainAt) || record.lastMaintainAt,
-  temporaryClosedUntil: toDateTimePickerValue(record.temporaryClosedUntil) || record.temporaryClosedUntil,
-}) as Record<string, unknown>;
+const normalizePointInitialValues = (record: ServicePointRecord) =>
+  ({
+    storeId: record.storeId,
+    pointCode: record.pointCode,
+    pointName: record.pointName,
+    pointType: record.pointType,
+    locationDesc: record.locationDesc,
+    capacity: record.capacity,
+    abilityTags: record.abilityTags,
+    sortNo: record.sortNo,
+    status: record.status,
+  }) as Record<string, unknown>;
 
 const ServicePointManagement: React.FC = () => {
-  const navigate = useNavigate();
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
@@ -72,7 +56,9 @@ const ServicePointManagement: React.FC = () => {
     queryFn: async () => (await api.store.options()).data,
   });
 
-  const storeOptions = storeOptionsData || [];
+  const storeOptions = useMemo(() => storeOptionsData || [], [storeOptionsData]);
+  const pointTypeValueEnum = useMemo(() => buildValueEnum(pointTypeOptions), []);
+  const pointStatusValueEnum = useMemo(() => buildValueEnum(pointStatusOptions), []);
 
   const closeDrawer = () => {
     setModalVisible(false);
@@ -124,24 +110,18 @@ const ServicePointManagement: React.FC = () => {
         dataIndex: 'pointType',
         width: 140,
         valueType: 'select',
-        valueEnum: buildValueEnum(pointTypeOptions),
-        render: (_, record) => renderStatusTag(record.pointType, buildValueEnum(pointTypeOptions) as any),
+        valueEnum: pointTypeValueEnum,
+        render: (_, record) => renderStatusTag(record.pointType, pointTypeValueEnum),
       },
       { title: '能力标签', dataIndex: 'abilityTags', width: 240, search: false, render: (_, record) => renderOptionTags(record.abilityTags, pointAbilityOptions) },
-      { title: '二维码', dataIndex: 'qrCode', width: 160, search: false, render: (_, record) => record.qrCode || '-' },
-      { title: '二维码状态', dataIndex: 'qrStatus', width: 120, search: false, render: (_, record) => renderStatusTag(record.qrStatus, qrStatusMap) },
-      { title: '设备数', dataIndex: 'deviceCount', width: 90, search: false, render: (_, record) => record.deviceCount ?? 0 },
-      { title: '绑定设备', dataIndex: 'bindDeviceCodes', width: 180, search: false, render: (_, record) => record.bindDeviceCodes || '-' },
-      { title: '维护状态', dataIndex: 'maintainStatus', width: 120, search: false, render: (_, record) => renderStatusTag(record.maintainStatus, pointMaintainStatusMap) },
-      { title: '排队提示', dataIndex: 'queueEnabled', width: 100, search: false, render: (_, record) => renderBooleanTag(record.queueEnabled, '开启', '关闭') },
       { title: '排序', dataIndex: 'sortNo', width: 100, search: false, render: (_, record) => record.sortNo ?? 0 },
       {
         title: '状态',
         dataIndex: 'status',
         width: 120,
         valueType: 'select',
-        valueEnum: buildValueEnum(pointStatusOptions),
-        render: (_, record) => renderStatusTag(record.status, buildValueEnum(pointStatusOptions) as any),
+        valueEnum: pointStatusValueEnum,
+        render: (_, record) => renderStatusTag(record.status, pointStatusValueEnum),
       },
       { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt || record.updateTime) },
       {
@@ -182,19 +162,19 @@ const ServicePointManagement: React.FC = () => {
         ),
       },
     ],
-    [deleteMutation, form, storeOptions]
+    [deleteMutation, form, pointStatusValueEnum, pointTypeValueEnum, storeOptions]
   );
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="点位管理" subtitle="管理点位档案、二维码、能力标签和运行状态。" icon={<CarOutlined />} />
+      <PageBanner title="点位管理" subtitle="维护点位基础档案。二维码、维护记录、设备绑定和状态流转在档案维护中处理。" icon={<CarOutlined />} />
       <WorkflowGuide
-        title="点位投放闭环"
-        summary="点位页需要承接门店、二维码、能力标签和设备绑定，最终让扫码下单和选点位下单形成闭环。"
+        title="点位建档闭环"
+        summary="主表单只创建点位基础资料；二维码、维护记录、设备绑定和状态流转进入档案维护，避免建档和运营记录混在一起。"
         steps={[
           { title: '定义点位', description: '给门店创建点位编号、名称和类型', status: 'finish', tag: '当前页' },
-          { title: '生成二维码', description: '把扫码入口和点位一一绑定', status: 'process', tag: '二维码标识' },
-          { title: '绑定设备', description: '确定点位承载哪些设备能力', status: 'process', tag: '下一步：设备管理' },
+          { title: '配置能力', description: '标记点位支持扫码、选位或夜间价格等能力', status: 'process', tag: '基础能力' },
+          { title: '维护档案', description: '二维码、维护、绑定和状态记录在档案维护里追踪', status: 'wait', tag: '档案维护' },
           { title: '进入交易', description: '到交易中心验证扫码 / 选点位下单体验', status: 'wait', tag: '交易中心' },
         ]}
         actions={[
@@ -210,13 +190,11 @@ const ServicePointManagement: React.FC = () => {
                 status: 'IDLE',
                 sortNo: 0,
                 capacity: 1,
-                queueEnabled: 1,
                 abilityTags: ['SCAN', 'POINT_SELECT'],
               });
               setModalVisible(true);
             },
           },
-          { key: 'device', label: '去设备管理', onClick: () => navigate('/device') },
         ]}
       />
       <Tabs
@@ -232,7 +210,7 @@ const ServicePointManagement: React.FC = () => {
         dataSource={data?.records || []}
         loading={isLoading}
         search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        scroll={{ x: 1760 }}
+        scroll={{ x: 1180 }}
         pagination={{
           current: data?.current || queryParams.pageNum,
           pageSize: data?.size || queryParams.pageSize,
@@ -254,7 +232,6 @@ const ServicePointManagement: React.FC = () => {
                 status: 'IDLE',
                 sortNo: 0,
                 capacity: 1,
-                queueEnabled: 1,
                 abilityTags: ['SCAN', 'POINT_SELECT'],
               });
               setModalVisible(true);
@@ -286,7 +263,7 @@ const ServicePointManagement: React.FC = () => {
       <BusinessEditorModal
         eyebrow={editingRecord ? '点位档案维护' : '点位投放配置'}
         title={editingRecord ? `编辑点位 · ${editingRecord.pointCode}` : '新建点位'}
-        subtitle="点位承接扫码入口、设备绑定、排队提示和维护状态，配置完整后才能支撑用户选点位下单。"
+        subtitle="主表单只维护点位基础档案；二维码、维护、设备绑定和状态流转在档案维护中处理。"
         meta={['点位闭环', editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
         width={1120}
@@ -304,7 +281,7 @@ const ServicePointManagement: React.FC = () => {
           preserve={false}
           onFinish={(values) => {
             const payload = {
-              ...normalizePointValues(values),
+              ...values,
               abilityTags: joinCommaValues(values.abilityTags),
             };
             if (editingRecord) {
@@ -318,7 +295,7 @@ const ServicePointManagement: React.FC = () => {
             <BusinessEditorSection
               icon={<CarOutlined />}
               title="点位基础"
-              desc="把点位绑定到具体门店，并明确工位编码、名称、类型和现场位置，方便扫码、导航和设备绑定。"
+              desc="把点位绑定到具体门店，并明确工位编码、名称、类型和现场位置。二维码、维护和设备绑定在档案维护中补齐。"
             >
               <div className="merchant-editor-fields">
                 <Form.Item name="storeId" label="所属门店" rules={[{ required: true, message: '请选择所属门店' }]}>
@@ -339,56 +316,14 @@ const ServicePointManagement: React.FC = () => {
                 <Form.Item name="capacity" label="可同时服务车辆数">
                   <InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder="例如：1" />
                 </Form.Item>
-              </div>
-            </BusinessEditorSection>
-
-            <BusinessEditorSection
-              icon={<QrcodeOutlined />}
-              title="扫码与投放"
-              desc="配置二维码标识、二维码状态、能力标签和排序，决定小程序扫码或选点位时是否可见可用。"
-            >
-              <div className="merchant-editor-fields">
-                <Form.Item name="qrCode" label="二维码标识">
-                  <Input placeholder="例如：QR-BAY-A-01" />
-                </Form.Item>
-                <Form.Item name="qrStatus" label="二维码状态">
-                  <Select options={qrStatusOptions} placeholder="请选择二维码状态" />
+                <Form.Item className="merchant-editor-field-span-all" name="abilityTags" label="能力标签">
+                  <Select mode="multiple" options={pointAbilityOptions} placeholder="选择点位能力" />
                 </Form.Item>
                 <Form.Item name="sortNo" label="排序">
                   <InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="数字越小越靠前" />
                 </Form.Item>
-                <Form.Item className="merchant-editor-field-span-all" name="abilityTags" label="能力标签">
-                  <Select mode="multiple" options={pointAbilityOptions} placeholder="选择点位能力" />
-                </Form.Item>
-              </div>
-            </BusinessEditorSection>
-
-            <BusinessEditorSection
-              icon={<ToolOutlined />}
-              title="设备与运营状态"
-              desc="维护绑定设备、排队策略、维护状态和临时关闭信息，形成点位从投放到运维的完整闭环。"
-            >
-              <div className="merchant-editor-fields">
-                <Form.Item className="merchant-editor-field-span-all" name="bindDeviceCodes" label="绑定设备编号">
-                  <Input placeholder="多个设备编号可用逗号分隔，例如 DEV-HP-001, DEV-FOAM-002" />
-                </Form.Item>
-                <Form.Item name="maintainStatus" label="维护状态">
-                  <Select options={pointMaintainStatusOptions} placeholder="请选择维护状态" />
-                </Form.Item>
-                <Form.Item name="lastMaintainAt" label="最近维护时间">
-                  <DateTimeField />
-                </Form.Item>
                 <Form.Item name="status" label="点位状态">
                   <Select options={pointStatusOptions} placeholder="请选择点位状态" />
-                </Form.Item>
-                <Form.Item name="queueEnabled" label="是否开启排队提示">
-                  <Select options={statusOptions.map((item) => ({ value: item.value, label: item.value === 1 ? '开启' : '关闭' }))} placeholder="请选择排队提示状态" />
-                </Form.Item>
-                <Form.Item name="queueRule" label="排队规则">
-                  <Input placeholder="例如：最多排队 3 人，超时 10 分钟释放" />
-                </Form.Item>
-                <Form.Item name="temporaryClosedUntil" label="临时关闭截止时间">
-                  <DateTimeField />
                 </Form.Item>
               </div>
             </BusinessEditorSection>

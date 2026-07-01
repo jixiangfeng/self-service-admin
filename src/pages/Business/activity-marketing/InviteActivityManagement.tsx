@@ -17,13 +17,14 @@ import api, { type InviteActivityRecord, type SelectOptionRecord } from '@/servi
 const statusMap = buildValueEnum(activityStatusOptions);
 const rewardStatusMap = buildValueEnum(activityRewardStatusOptions);
 const inviteRecordStatusMap = buildValueEnum(inviteRecordStatusOptions);
-const rewardTypeMap = buildValueEnum(rewardTypeOptions);
+const inviteRewardTypeOptions = rewardTypeOptions.filter((item) => item.value !== 'COUPON' && item.value !== 'MIXED' && item.value !== 'POINTS');
+const rewardTypeMap = buildValueEnum(inviteRewardTypeOptions);
 const scopeModeMap = buildValueEnum(scopeTypeOptions);
 const inviteScopeOptions = scopeTypeOptions.map((item) => ({
   ...item,
   label: item.value === 'PLATFORM' ? '平台通用' : item.value === 'STORE' ? '指定门店' : item.value === 'STORE_GROUP' ? '指定门店组' : item.value === 'MERCHANT' ? '指定商户' : item.label,
 }));
-const closedRewardTypeOptions = rewardTypeOptions.filter((item) => item.value !== 'POINTS');
+const closedRewardTypeOptions = inviteRewardTypeOptions;
 const qualifyConditionOptions = [
   { label: '被邀请人完成注册', value: '被邀请人完成注册' },
   { label: '被邀请人首单支付', value: '被邀请人首单支付' },
@@ -62,8 +63,7 @@ const buildInvitePayload = (values: Record<string, any>) => ({
   scopeIds: values.scopeMode === 'PLATFORM' ? '' : splitScopeValues(values.scopeIds).join(','),
   fraudChecks: joinMultiValue(values.fraudChecks),
 });
-const rewardSummary = (type?: string, amount?: number | string, couponId?: number, cardId?: number) => {
-  if (type === 'COUPON') return couponId ? `优惠券模板 #${couponId}` : '优惠券';
+const rewardSummary = (type?: string, amount?: number | string, cardId?: number) => {
   if (type === 'CARD') return cardId ? `服务卡产品 #${cardId}` : '服务卡';
   if (type === 'POINTS') return amount ? `${amount}积分` : '积分';
   return amount ? `${amount}元余额` : '余额';
@@ -83,11 +83,9 @@ const inviteDetailFields: DetailField<InviteActivityRecord>[] = [
   { name: 'inviteCount', label: '邀请数' },
   { name: 'qualifiedCount', label: '达标数' },
   { name: 'inviterRewardType', label: '邀请人奖励类型', render: (value) => value ? rewardTypeMap[value as keyof typeof rewardTypeMap]?.text || value : '-' },
-  { name: 'inviterCouponTemplateId', label: '邀请人券模板' },
   { name: 'inviterServiceCardId', label: '邀请人服务卡' },
   { name: 'inviterRewardAmount', label: '邀请人金额/积分' },
   { name: 'inviteeRewardType', label: '被邀请人奖励类型', render: (value) => value ? rewardTypeMap[value as keyof typeof rewardTypeMap]?.text || value : '-' },
-  { name: 'inviteeCouponTemplateId', label: '被邀请人券模板' },
   { name: 'inviteeServiceCardId', label: '被邀请人服务卡' },
   { name: 'inviteeRewardAmount', label: '被邀请人金额/积分' },
   { name: 'tierRewardRules', label: '阶梯返利规则' },
@@ -115,7 +113,6 @@ const InviteActivityManagement: React.FC = () => {
     queryKey: ['inviteActivities', keyword, statusFilter],
     queryFn: async () => (await api.marketing.inviteActivities.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: statusFilter })).data,
   });
-  const couponTemplateOptionsQuery = useQuery({ queryKey: ['inviteActivityCouponTemplateOptions'], queryFn: async () => (await api.marketing.couponTemplates.options({ status: 'ENABLED' })).data });
   const serviceCardOptionsQuery = useQuery({ queryKey: ['inviteActivityServiceCardOptions'], queryFn: async () => (await api.asset.serviceCards.options({ status: 'ENABLED' })).data });
   const storeQuery = useQuery({ queryKey: ['inviteActivityScopeStores'], queryFn: async () => (await api.store.page({ pageNum: 1, pageSize: 500 })).data });
   const merchantOptionsQuery = useQuery({ queryKey: ['inviteActivityScopeMerchants'], queryFn: async () => (await api.merchant.options()).data });
@@ -142,7 +139,6 @@ const InviteActivityManagement: React.FC = () => {
   });
 
   const records = activityQuery.data?.records || [];
-  const couponTemplateOptions = (couponTemplateOptionsQuery.data || []) as SelectOptionRecord[];
   const serviceCardOptions = (serviceCardOptionsQuery.data || []) as SelectOptionRecord[];
   const stores = storeQuery.data?.records || [];
   const storeOptions = stores.map((item) => ({ value: item.id, label: `${item.storeName}${item.storeCode ? `（${item.storeCode}）` : ''}` }));
@@ -194,8 +190,8 @@ const InviteActivityManagement: React.FC = () => {
     { title: '邀请人奖励', dataIndex: 'inviterReward', width: 160, search: false },
     { title: '被邀请人奖励', dataIndex: 'inviteeReward', width: 160, search: false },
     { title: '阶梯返利', dataIndex: 'tierRewardRules', width: 220, search: false, ellipsis: true, render: (_, record) => record.tierRewardRules || '-' },
-    { title: '邀请人奖励配置', dataIndex: 'inviterRewardType', width: 180, search: false, render: (_, record) => rewardSummary(record.inviterRewardType, record.inviterRewardAmount, record.inviterCouponTemplateId, record.inviterServiceCardId) },
-    { title: '被邀请人奖励配置', dataIndex: 'inviteeRewardType', width: 180, search: false, render: (_, record) => rewardSummary(record.inviteeRewardType, record.inviteeRewardAmount, record.inviteeCouponTemplateId, record.inviteeServiceCardId) },
+    { title: '邀请人奖励配置', dataIndex: 'inviterRewardType', width: 180, search: false, render: (_, record) => rewardSummary(record.inviterRewardType, record.inviterRewardAmount, record.inviterServiceCardId) },
+    { title: '被邀请人奖励配置', dataIndex: 'inviteeRewardType', width: 180, search: false, render: (_, record) => rewardSummary(record.inviteeRewardType, record.inviteeRewardAmount, record.inviteeServiceCardId) },
     { title: '邀请数', dataIndex: 'inviteCount', width: 100, search: false },
     { title: '达标数', dataIndex: 'qualifiedCount', width: 100, search: false },
     { title: '记录状态', dataIndex: 'recordStatus', width: 120, valueType: 'select', valueEnum: inviteRecordStatusMap, render: (_, record) => renderStatusTag(record.recordStatus, inviteRecordStatusMap) },
@@ -259,7 +255,7 @@ const InviteActivityManagement: React.FC = () => {
         scroll={{ x: 2160 }}
         toolBarRender={() => [
           <Button key="fraud" onClick={() => navigate('/risk-schedule-alarms')}>防刷策略</Button>,
-          <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => { setEditingRecord(null); form.resetFields(); form.setFieldsValue({ status: 'DRAFT', qualifyCondition: '被邀请人首单支付', rewardStatus: 'PENDING', recordStatus: 'INVITED', scopeMode: 'PLATFORM', scopeIds: [], inviterRewardType: 'BALANCE', inviteeRewardType: 'COUPON', recoveryMode: 'REFUND', fraudChecks: ['同手机号限制', '同设备限制'] } as any); setModalVisible(true); }}>
+          <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => { setEditingRecord(null); form.resetFields(); form.setFieldsValue({ status: 'DRAFT', qualifyCondition: '被邀请人首单支付', rewardStatus: 'PENDING', recordStatus: 'INVITED', scopeMode: 'PLATFORM', scopeIds: [], inviterRewardType: 'BALANCE', inviteeRewardType: 'BALANCE', recoveryMode: 'REFUND', fraudChecks: ['同手机号限制', '同设备限制'] } as any); setModalVisible(true); }}>
             新建邀请活动
           </Button>,
         ]}
@@ -338,10 +334,8 @@ const InviteActivityManagement: React.FC = () => {
                 <Form.Item name="inviterRewardType" label="邀请人奖励类型"><Select options={closedRewardTypeOptions} placeholder="请选择奖励类型" /></Form.Item>
                 <Form.Item name="inviteeRewardType" label="被邀请人奖励类型"><Select options={closedRewardTypeOptions} placeholder="请选择奖励类型" /></Form.Item>
                 {inviterRewardType === 'BALANCE' ? <Form.Item name="inviterRewardAmount" label="邀请人奖励金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="例如：10" /></Form.Item> : null}
-                {inviterRewardType === 'COUPON' ? <Form.Item name="inviterCouponTemplateId" label="邀请人券模板"><Select showSearch optionFilterProp="label" options={couponTemplateOptions} placeholder="请选择券模板" /></Form.Item> : null}
                 {(inviterRewardType === 'CARD' || inviterRewardType === 'SERVICE_CARD') ? <Form.Item name="inviterServiceCardId" label="邀请人服务卡"><Select showSearch optionFilterProp="label" options={serviceCardOptions} placeholder="请选择服务卡产品" /></Form.Item> : null}
                 {inviteeRewardType === 'BALANCE' ? <Form.Item name="inviteeRewardAmount" label="被邀请人奖励金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="例如：10" /></Form.Item> : null}
-                {inviteeRewardType === 'COUPON' ? <Form.Item name="inviteeCouponTemplateId" label="被邀请人券模板"><Select showSearch optionFilterProp="label" options={couponTemplateOptions} placeholder="请选择券模板" /></Form.Item> : null}
                 {(inviteeRewardType === 'CARD' || inviteeRewardType === 'SERVICE_CARD') ? <Form.Item name="inviteeServiceCardId" label="被邀请人服务卡"><Select showSearch optionFilterProp="label" options={serviceCardOptions} placeholder="请选择服务卡产品" /></Form.Item> : null}
                 <Form.Item name="inviterReward" label="邀请人奖励说明"><Input placeholder="例如：邀请成功奖励，系统按上方配置发放" /></Form.Item>
                 <Form.Item name="inviteeReward" label="被邀请人奖励说明"><Input placeholder="例如：新客首单奖励，系统按上方配置发放" /></Form.Item>

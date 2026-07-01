@@ -103,7 +103,6 @@ const BasicLayout: React.FC = () => {
       icon: <AppstoreOutlined />,
       children: [
         { key: '/asset/service-cards', path: '/asset/service-cards', name: '次卡/月卡', icon: <IdcardOutlined /> },
-        { key: '/marketing/coupon-templates', path: '/marketing/coupon-templates', name: '优惠券模板', icon: <GiftOutlined /> },
       ],
     },
     {
@@ -122,8 +121,6 @@ const BasicLayout: React.FC = () => {
       icon: <WalletOutlined />,
       children: [
         { key: '/asset/profiles', path: '/asset/profiles', name: '用户档案', icon: <ContactsOutlined /> },
-        { key: '/asset', path: '/asset', name: '资产总览', icon: <WalletOutlined /> },
-        { key: '/asset/coupon-cards', path: '/asset/coupon-cards', name: '优惠券明细', icon: <GiftOutlined /> },
         { key: '/asset/flows', path: '/asset/flows', name: '资产流水', icon: <TransactionOutlined /> },
       ],
     },

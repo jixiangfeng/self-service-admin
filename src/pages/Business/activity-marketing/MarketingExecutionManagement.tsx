@@ -8,7 +8,6 @@ import {
   activityRewardStatusOptions,
   activityStatusOptions,
   rewardTypeOptions,
-  writeOffStatusOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
@@ -16,12 +15,12 @@ import BusinessEditorModal, { BusinessEditorSection } from '@/components/Busines
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, KeywordSearchBar, OperatorTips, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
-import api, { type CouponIssueRecord, type CouponUsageRecord, type MarketingBudgetRecord, type MarketingParticipationRecord, type MarketingRewardRecord, type SelectOptionRecord } from '@/services/backendService';
+import api, { type MarketingBudgetRecord, type MarketingParticipationRecord, type MarketingRewardRecord, type SelectOptionRecord } from '@/services/backendService';
 
 const activityStatusMap = buildValueEnum(activityStatusOptions);
 const rewardStatusMap = buildValueEnum(activityRewardStatusOptions);
-const rewardTypeMap = buildValueEnum(rewardTypeOptions);
-const writeOffStatusMap = buildValueEnum(writeOffStatusOptions);
+const executionRewardTypeOptions = rewardTypeOptions.filter((item) => item.value !== 'COUPON' && item.value !== 'MIXED' && item.value !== 'POINTS');
+const rewardTypeMap = buildValueEnum(executionRewardTypeOptions);
 
 interface ExecutionActionFormValues {
   bizNo: string;
@@ -30,7 +29,6 @@ interface ExecutionActionFormValues {
   userId?: number;
   userName?: string;
   rewardType?: string;
-  couponTemplateId?: number;
   serviceCardId?: number;
   totalTimes?: number;
   validDays?: number;
@@ -43,7 +41,7 @@ interface ExecutionActionFormValues {
   supplement?: string;
 }
 
-type ExecutionDetailType = 'participation' | 'reward' | 'budget' | 'issue' | 'usage';
+type ExecutionDetailType = 'participation' | 'reward' | 'budget';
 
 const processSceneOptions = [
   { value: 'USER_APPEAL', label: '用户申诉' },
@@ -57,7 +55,7 @@ const rewardActionOptions = [
   { value: 'MARK_PENDING', label: '转待确认' },
   { value: 'REJECT_ISSUE', label: '不予发放' },
 ];
-const closedRewardTypeOptions = rewardTypeOptions.filter((item) => item.value !== 'POINTS');
+const closedRewardTypeOptions = executionRewardTypeOptions;
 
 const budgetActionOptions = [
   { value: 'ADD_BUDGET', label: '追加预算' },
@@ -104,30 +102,12 @@ const executionDetailFields: Record<ExecutionDetailType, DetailField<any>[]> = {
     { name: 'bearer', label: '承担方' },
     { name: 'status', label: '状态' },
   ],
-  issue: [
-    { name: 'issueNo', label: '发放流水' },
-    { name: 'templateName', label: '券模板' },
-    { name: 'couponNo', label: '券码' },
-    { name: 'userName', label: '用户' },
-    { name: 'activityName', label: '来源活动' },
-    { name: 'issueStatus', label: '状态' },
-    { name: 'issuedAt', label: '发放时间', render: (value) => formatDateTime(value) },
-  ],
-  usage: [
-    { name: 'couponNo', label: '券码' },
-    { name: 'templateName', label: '券模板' },
-    { name: 'userName', label: '用户' },
-    { name: 'serviceOrderNo', label: '订单号' },
-    { name: 'writeOffRecordNo', label: '核销流水' },
-    { name: 'usageStatus', label: '状态' },
-    { name: 'usedAt', label: '使用时间', render: (value) => formatDateTime(value) },
-  ],
 };
 
 const MarketingExecutionManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
-  const [detail, setDetail] = useState<MarketingParticipationRecord | MarketingRewardRecord | MarketingBudgetRecord | CouponIssueRecord | CouponUsageRecord | null>(null);
+  const [detail, setDetail] = useState<MarketingParticipationRecord | MarketingRewardRecord | MarketingBudgetRecord | null>(null);
   const [detailType, setDetailType] = useState<ExecutionDetailType | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
@@ -136,10 +116,7 @@ const MarketingExecutionManagement: React.FC = () => {
   const participationQuery = useQuery({ queryKey: ['marketingParticipations', keyword], queryFn: async () => (await api.marketing.participations.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
   const rewardQuery = useQuery({ queryKey: ['marketingRewards', keyword], queryFn: async () => (await api.marketing.rewards.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
   const budgetQuery = useQuery({ queryKey: ['marketingBudgets', keyword], queryFn: async () => (await api.marketing.budgets.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
-  const issueQuery = useQuery({ queryKey: ['marketingCouponIssues', keyword], queryFn: async () => (await api.asset.couponIssues.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
-  const usageQuery = useQuery({ queryKey: ['marketingCouponUsages', keyword], queryFn: async () => (await api.asset.couponUsages.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data });
   const userOptionsQuery = useQuery({ queryKey: ['marketingExecutionUserOptions'], queryFn: async () => (await api.asset.userOptions({ pageSize: 500 })).data });
-  const couponTemplateOptionsQuery = useQuery({ queryKey: ['marketingExecutionCouponTemplateOptions'], queryFn: async () => (await api.marketing.couponTemplates.options({ status: 'ENABLED' })).data });
   const serviceCardOptionsQuery = useQuery({ queryKey: ['marketingExecutionServiceCardOptions'], queryFn: async () => (await api.asset.serviceCards.options({ status: 'ENABLED' })).data });
   const issueRewardMutation = useMutation({
     mutationFn: async (values: Record<string, unknown>) => api.marketing.rewards.issue(Number(currentId), values),
@@ -158,14 +135,11 @@ const MarketingExecutionManagement: React.FC = () => {
   const participationRecords = participationQuery.data?.records || [];
   const rewardRecords = rewardQuery.data?.records || [];
   const budgets = budgetQuery.data?.records || [];
-  const couponIssues = issueQuery.data?.records || [];
-  const couponUsages = usageQuery.data?.records || [];
   const userOptions = (userOptionsQuery.data || []) as SelectOptionRecord[];
-  const couponTemplateOptions = (couponTemplateOptionsQuery.data || []) as SelectOptionRecord[];
   const serviceCardOptions = (serviceCardOptionsQuery.data || []) as SelectOptionRecord[];
   const selectedRewardType = Form.useWatch('rewardType', form);
 
-  const openDetail = (type: ExecutionDetailType, record: MarketingParticipationRecord | MarketingRewardRecord | MarketingBudgetRecord | CouponIssueRecord | CouponUsageRecord) => {
+  const openDetail = (type: ExecutionDetailType, record: MarketingParticipationRecord | MarketingRewardRecord | MarketingBudgetRecord) => {
     setDetailType(type);
     setDetail(record);
   };
@@ -269,31 +243,9 @@ const MarketingExecutionManagement: React.FC = () => {
     { title: '操作', width: 150, render: (_, record) => <><Button size="small" onClick={() => openDetail('budget', record)}>详情</Button><Button size="small" style={{ marginLeft: 8 }} onClick={() => openModal('调整活动预算', record.id, record)}>调整</Button></> },
   ], []);
 
-  const issueColumns = useMemo<ProColumns<CouponIssueRecord>[]>(() => [
-    { title: '发放流水', dataIndex: 'issueNo', width: 180 },
-    { title: '券模板', dataIndex: 'templateName', width: 160 },
-    { title: '券码', dataIndex: 'couponNo', width: 150 },
-    { title: '用户', dataIndex: 'userName', width: 120 },
-    { title: '来源活动', dataIndex: 'activityName', width: 140 },
-    { title: '状态', dataIndex: 'issueStatus', width: 120, render: (_, record) => renderStatusTag(record.issueStatus, writeOffStatusMap) },
-    { title: '发放时间', dataIndex: 'issuedAt', width: 180, render: (_, record) => formatDateTime(record.issuedAt) },
-    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => openDetail('issue', record)}>详情</Button> },
-  ], []);
-
-  const usageColumns = useMemo<ProColumns<CouponUsageRecord>[]>(() => [
-    { title: '券码', dataIndex: 'couponNo', width: 160 },
-    { title: '券模板', dataIndex: 'templateName', width: 160 },
-    { title: '用户', dataIndex: 'userName', width: 120 },
-    { title: '订单号', dataIndex: 'serviceOrderNo', width: 180 },
-    { title: '核销流水', dataIndex: 'writeOffRecordNo', width: 180 },
-    { title: '状态', dataIndex: 'usageStatus', width: 120, render: (_, record) => renderStatusTag(record.usageStatus, writeOffStatusMap) },
-    { title: '使用时间', dataIndex: 'usedAt', width: 180, render: (_, record) => formatDateTime(record.usedAt) },
-    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => openDetail('usage', record)}>详情</Button> },
-  ], []);
-
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="营销执行台" subtitle="维护活动参与、奖励发放、预算消耗、券发放和券使用流水。" icon={<FundProjectionScreenOutlined />} />
+      <PageBanner title="营销执行台" subtitle="维护活动参与、奖励发放和预算消耗。" icon={<FundProjectionScreenOutlined />} />
       <OperatorTips
         items={[
           { label: '查参与', desc: '按活动、用户或订单搜索，先确认用户是否达标和是否已有奖励记录。', tag: '查询' },
@@ -306,13 +258,11 @@ const MarketingExecutionManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="参与记录" value={participationQuery.data?.total ?? participationRecords.length} suffix="条" /></Card></Col>
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="待发奖励" value={rewardRecords.filter((item) => item.status === 'PENDING').length} suffix="笔" /></Card></Col>
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="已用预算" value={formatAmount(budgets.reduce((sum, item) => sum + Number(item.usedAmount || 0), 0))} /></Card></Col>
-        <Col xs={24} sm={12} xl={5}><Card><Statistic title="券发放流水" value={issueQuery.data?.total ?? couponIssues.length} suffix="条" /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="券核销流水" value={usageQuery.data?.total ?? couponUsages.length} suffix="条" /></Card></Col>
       </Row>
 
       <KeywordSearchBar
         value={keyword}
-        placeholder="输入活动、用户、订单、奖励、券码关键词"
+        placeholder="输入活动、用户、订单、奖励关键词"
         onSearch={setKeyword}
       />
 
@@ -321,8 +271,6 @@ const MarketingExecutionManagement: React.FC = () => {
           { key: 'participation', label: '参与记录', children: <ProTable<MarketingParticipationRecord> cardBordered rowKey="id" columns={participationColumns} dataSource={filter(participationRecords) as MarketingParticipationRecord[]} loading={participationQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} /> },
           { key: 'reward', label: '奖励发放', children: <ProTable<MarketingRewardRecord> cardBordered rowKey="id" columns={rewardColumns} dataSource={filter(rewardRecords) as MarketingRewardRecord[]} loading={rewardQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1500 }} /> },
           { key: 'budget', label: '预算消耗', children: <ProTable<MarketingBudgetRecord> cardBordered rowKey="id" columns={budgetColumns} dataSource={filter(budgets) as MarketingBudgetRecord[]} loading={budgetQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1260 }} /> },
-          { key: 'couponIssue', label: '券发放流水', children: <ProTable<CouponIssueRecord> cardBordered rowKey="id" columns={issueColumns} dataSource={filter(couponIssues) as CouponIssueRecord[]} loading={issueQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} /> },
-          { key: 'couponUsage', label: '券使用流水', children: <ProTable<CouponUsageRecord> cardBordered rowKey="id" columns={usageColumns} dataSource={filter(couponUsages) as CouponUsageRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} /> },
         ]}
       />
 
@@ -340,7 +288,7 @@ const MarketingExecutionManagement: React.FC = () => {
       <BusinessEditorModal
         eyebrow={modalTitle.includes('预算') ? '预算处理' : '奖励发放'}
         title={modalTitle}
-        subtitle={modalTitle.includes('预算') ? '按追加、冻结、释放、扣减处理活动预算，系统会同步预算金额和状态。' : '选择用户、奖励类型和奖励载体后发放，系统会同步写入余额、优惠券或服务卡资产。'}
+        subtitle={modalTitle.includes('预算') ? '按追加、冻结、释放、扣减处理活动预算，系统会同步预算金额和状态。' : '选择用户、奖励类型和奖励载体后发放，系统会同步写入余额或服务卡资产。'}
         meta={[modalTitle.includes('预算') ? '预算闭环' : '奖励闭环', currentId ? `ID ${currentId}` : '待选择']}
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
@@ -357,7 +305,7 @@ const MarketingExecutionManagement: React.FC = () => {
               desc="选择处理对象和处理后的业务状态。"
             >
               <div className="merchant-editor-fields">
-                <Form.Item name="bizNo" label="活动编码 / 奖励单号 / 券码" rules={[{ required: true, message: '请输入业务编码' }]}>
+                <Form.Item name="bizNo" label="活动编码 / 奖励单号" rules={[{ required: true, message: '请输入业务编码' }]}>
                   <Input placeholder="例如：ACT-20260510 或 RW-20260510-001" />
                 </Form.Item>
                 <Form.Item name="status" label="处理后状态">
@@ -381,7 +329,7 @@ const MarketingExecutionManagement: React.FC = () => {
               <BusinessEditorSection
                 icon={<CheckCircleOutlined />}
                 title="奖励资产"
-                desc="按奖励类型选择具体资产载体，发放后会写入用户账户、券库存或服务卡库存。"
+                desc="按奖励类型选择具体资产载体，发放后会写入用户账户或服务卡库存。"
               >
                 <div className="merchant-editor-fields">
                   <Form.Item name="userId" label="发放用户">
@@ -403,16 +351,6 @@ const MarketingExecutionManagement: React.FC = () => {
                   <Form.Item name="rewardType" label="奖励类型" rules={[{ required: true, message: '请选择奖励类型' }]}>
                     <Select options={closedRewardTypeOptions} placeholder="请选择奖励类型" />
                   </Form.Item>
-                  {selectedRewardType === 'COUPON' ? (
-                    <>
-                      <Form.Item name="couponTemplateId" label="优惠券模板" rules={[{ required: true, message: '请选择优惠券模板' }]}>
-                        <Select showSearch optionFilterProp="label" options={couponTemplateOptions} placeholder="请选择优惠券模板" />
-                      </Form.Item>
-                      <Form.Item name="discountAmount" label="抵扣金额">
-                        <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="默认按奖励成本" />
-                      </Form.Item>
-                    </>
-                  ) : null}
                   {selectedRewardType === 'CARD' || selectedRewardType === 'SERVICE_CARD' ? (
                     <>
                       <Form.Item name="serviceCardId" label="服务卡产品" rules={[{ required: true, message: '请选择服务卡产品' }]}>

@@ -21,13 +21,9 @@ const StorePricingManagement = lazy(() => import('./pages/Business/product-servi
 const TradeManagement = lazy(() => import('./pages/Business/trade-fulfillment').then((module) => ({ default: module.TradeManagement })));
 const FulfillmentManagement = lazy(() => import('./pages/Business/trade-fulfillment').then((module) => ({ default: module.FulfillmentManagement })));
 const OrderDetailManagement = lazy(() => import('./pages/Business/trade-fulfillment').then((module) => ({ default: module.OrderDetailManagement })));
-const AssetManagement = lazy(() => import('./pages/Business/user-assets').then((module) => ({ default: module.AssetManagement })));
 const ServiceCardManagement = lazy(() => import('./pages/Business/user-assets').then((module) => ({ default: module.ServiceCardManagement })));
 const AssetFlowManagement = lazy(() => import('./pages/Business/user-assets').then((module) => ({ default: module.AssetFlowManagement })));
 const UserProfileManagement = lazy(() => import('./pages/Business/user-assets').then((module) => ({ default: module.UserProfileManagement })));
-const CouponCardDetailManagement = lazy(() => import('./pages/Business/user-assets').then((module) => ({ default: module.CouponCardDetailManagement })));
-const MarketingManagement = lazy(() => import('./pages/Business/activity-marketing').then((module) => ({ default: module.MarketingManagement })));
-const CouponTemplateManagement = lazy(() => import('./pages/Business/activity-marketing').then((module) => ({ default: module.CouponTemplateManagement })));
 const CrossStoreActivityManagement = lazy(() => import('./pages/Business/activity-marketing').then((module) => ({ default: module.CrossStoreActivityManagement })));
 const InviteActivityManagement = lazy(() => import('./pages/Business/activity-marketing').then((module) => ({ default: module.InviteActivityManagement })));
 const RechargeActivityManagement = lazy(() => import('./pages/Business/activity-marketing').then((module) => ({ default: module.RechargeActivityManagement })));
@@ -127,14 +123,12 @@ const AppContent = () => {
               <Route path="trade" element={<TradeManagement />} />
               <Route path="trade/details" element={<OrderDetailManagement />} />
               <Route path="order" element={<Navigate to="/trade" replace />} />
-              <Route path="asset" element={<AssetManagement />} />
+              <Route path="asset" element={<Navigate to="/asset/profiles" replace />} />
               <Route path="asset/profiles" element={<UserProfileManagement />} />
               <Route path="asset/service-cards" element={<ServiceCardManagement />} />
-              <Route path="asset/coupon-cards" element={<CouponCardDetailManagement />} />
               <Route path="asset/flows" element={<AssetFlowManagement />} />
-              <Route path="marketing" element={<MarketingManagement />} />
+              <Route path="marketing" element={<Navigate to="/marketing/recharge-activities" replace />} />
               <Route path="marketing/invite" element={<Navigate to="/marketing/invite-activities" replace />} />
-              <Route path="marketing/coupon-templates" element={<CouponTemplateManagement />} />
               <Route path="marketing/cross-store" element={<CrossStoreActivityManagement />} />
               <Route path="marketing/invite-activities" element={<InviteActivityManagement />} />
               <Route path="marketing/recharge-activities" element={<RechargeActivityManagement />} />

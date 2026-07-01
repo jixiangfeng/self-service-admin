@@ -5,7 +5,6 @@ import type {
   AppUserFullProfileRecord,
   BalanceFlowRecord,
   ServiceCardUsageRecord,
-  UserCouponRecord,
   UserFavoriteStoreRecord,
   UserServiceCardRecord,
   UserVehicleRecord,
@@ -30,7 +29,6 @@ const UserAssetFullProfileDrawer: React.FC<Props> = ({ open, loading, profile, o
     account?.status && account.status !== 'NORMAL' ? `账户状态：${formatEnumText(account.status, 'riskStatus', '账户状态')}` : null,
     (profile?.activeRiskCount || 0) > 0 ? `存在 ${profile?.activeRiskCount} 条观察/黑名单记录` : null,
     !account ? '尚未找到余额账户' : null,
-    (profile?.availableCouponCount || 0) === 0 ? '暂无可用优惠券' : null,
   ].filter(Boolean) as string[];
 
   const vehicleColumns: ColumnsType<UserVehicleRecord> = [
@@ -69,16 +67,6 @@ const UserAssetFullProfileDrawer: React.FC<Props> = ({ open, loading, profile, o
     { title: '扣次', dataIndex: 'deductCount', width: 90, render: (_, record) => record.deductCount ?? record.useTimes ?? 0 },
     { title: '状态', dataIndex: 'status', width: 120, render: (value) => formatEnumText(value, 'status', '状态') },
     { title: '使用时间', dataIndex: 'usedAt', width: 180, render: (value) => formatDateTime(value) },
-  ];
-
-  const couponColumns: ColumnsType<UserCouponRecord> = [
-    { title: '券号', dataIndex: 'couponNo', width: 180 },
-    { title: '券模板', dataIndex: 'templateName', width: 180, render: (value) => value || '-' },
-    { title: '券类型', dataIndex: 'couponType', width: 120, render: (value) => formatEnumText(value, 'couponType', '券类型') },
-    { title: '状态', dataIndex: 'status', width: 120, render: (value) => formatEnumText(value, 'couponStatus', '状态') },
-    { title: '抵扣金额', dataIndex: 'discountAmount', width: 120, render: (value) => formatAmount(value) },
-    { title: '来源', dataIndex: 'sourceType', width: 120, render: (value) => formatEnumText(value, 'sourceType', '来源') },
-    { title: '有效期', width: 260, render: (_, record) => `${formatDateTime(record.validStart)} ~ ${formatDateTime(record.validEnd)}` },
   ];
 
   const rechargeColumns: ColumnsType<RechargeOrderRecord> = [
@@ -132,7 +120,6 @@ const UserAssetFullProfileDrawer: React.FC<Props> = ({ open, loading, profile, o
                 <Statistic title="总余额" value={Number(profile.totalBalance || 0)} precision={2} prefix="¥" />
                 <Statistic title="可用余额" value={Number(profile.availableBalance || 0)} precision={2} prefix="¥" />
                 <Statistic title="车辆" value={profile.vehicleCount || 0} suffix="辆" />
-                <Statistic title="可用券" value={profile.availableCouponCount || 0} suffix="张" />
                 <Statistic title="充值实付" value={Number(profile.totalRechargePayAmount || 0)} precision={2} prefix="¥" />
                 <Statistic title="服务消费" value={Number(profile.totalServicePayAmount || 0)} precision={2} prefix="¥" />
                 <Statistic title="服务卡" value={profile.activeServiceCardCount || 0} suffix="张" />
@@ -151,14 +138,13 @@ const UserAssetFullProfileDrawer: React.FC<Props> = ({ open, loading, profile, o
                 <Descriptions.Item label="备注" span={2}>{user.remark || '-'}</Descriptions.Item>
               </Descriptions>
               <Space wrap>{risks.length ? risks.map((risk) => <Tag key={risk} color="warning">{risk}</Tag>) : <Tag color="success">用户资产状态正常</Tag>}</Space>
-              <Typography.Text type="secondary">聚合最近 50 条车辆/常用门店/风控记录、100 条服务卡/卡券/充值订单/服务订单/余额流水和 100 条核销记录。</Typography.Text>
+              <Typography.Text type="secondary">聚合最近 50 条车辆/常用门店/风控记录、100 条服务卡/充值订单/服务订单/余额流水和 100 条核销记录。</Typography.Text>
             </Space>
           ) },
           { key: 'vehicles', label: '车辆', children: <Table rowKey="id" size="small" columns={vehicleColumns} dataSource={profile.vehicles || []} pagination={{ pageSize: 8 }} scroll={{ x: 960 }} /> },
           { key: 'stores', label: '常用门店', children: <Table rowKey="id" size="small" columns={storeColumns} dataSource={profile.favoriteStores || []} pagination={{ pageSize: 8 }} scroll={{ x: 900 }} /> },
           { key: 'cards', label: '服务卡', children: <Table rowKey="id" size="small" columns={cardColumns} dataSource={profile.serviceCards || []} pagination={{ pageSize: 8 }} scroll={{ x: 1120 }} /> },
           { key: 'usage', label: '核销流水', children: <Table rowKey="id" size="small" columns={usageColumns} dataSource={profile.serviceCardUsages || []} pagination={{ pageSize: 8 }} scroll={{ x: 1120 }} /> },
-          { key: 'coupons', label: '优惠券', children: <Table rowKey="id" size="small" columns={couponColumns} dataSource={profile.coupons || []} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} /> },
           { key: 'recharges', label: '充值订单', children: <Table rowKey="id" size="small" columns={rechargeColumns} dataSource={profile.rechargeOrders || []} pagination={{ pageSize: 8 }} scroll={{ x: 1220 }} /> },
           { key: 'orders', label: '服务订单', children: <Table rowKey="id" size="small" columns={serviceOrderColumns} dataSource={profile.serviceOrders || []} pagination={{ pageSize: 8 }} scroll={{ x: 1220 }} /> },
           { key: 'flows', label: '余额流水', children: <Table rowKey="id" size="small" columns={flowColumns} dataSource={profile.balanceFlows || []} pagination={{ pageSize: 8 }} scroll={{ x: 1120 }} /> },

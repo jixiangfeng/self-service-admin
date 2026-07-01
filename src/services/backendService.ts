@@ -246,16 +246,8 @@ export interface MerchantGroupRecord {
   merchantId?: number;
   merchantName?: string;
   groupType: string;
-  city?: string;
   storeCount?: number;
-  scopeLevel: string;
-  scope?: string;
   writeoffRule?: string;
-  scopeUsages?: string[];
-  scopeRemark?: string;
-  writeoffScope?: string;
-  writeoffLimit?: string;
-  writeoffRemark?: string;
   settlementMode?: string;
   settlementCycle?: string;
   cashHolder?: string;
@@ -423,19 +415,10 @@ export interface ServicePointRecord {
   pointName?: string;
   pointType: string;
   abilityTags?: string;
-  qrCode?: string;
   sortNo?: number;
   status: string;
   capacity?: number;
-  queueEnabled?: number;
-  temporaryClosedUntil?: string;
-  deviceCount?: number;
-  qrStatus?: string;
-  maintainStatus?: string;
-  lastMaintainAt?: string;
-  bindDeviceCodes?: string;
   locationDesc?: string;
-  queueRule?: string;
   createdAt?: string;
   updatedAt?: string;
   createTime?: string;
@@ -620,27 +603,6 @@ export interface DeviceProtocolRecord {
 }
 export interface DeviceBindLogRecord { id: number; deviceId?: number; bindNo: string; deviceCode?: string; beforeStore?: string; afterStore?: string; beforePoint?: string; afterPoint?: string; boundAt?: string; createdAt?: string; updatedAt?: string; }
 
-export interface CouponTemplateRecord {
-  id: number;
-  templateCode: string;
-  templateName: string;
-  couponType: string;
-  scope?: string;
-  thresholdType?: string;
-  thresholdAmount?: number | string;
-  validityType?: string;
-  validityDays?: number;
-  issueChannel?: string;
-  issueAudience?: string;
-  perUserLimit?: number;
-  totalBudget?: number | string;
-  stackLimits?: string;
-  bannerImageUrl?: string;
-  stock?: number;
-  status: string;
-  updatedAt?: string;
-}
-
 export interface InviteActivityRecord {
   id: number;
   activityCode: string;
@@ -653,12 +615,10 @@ export interface InviteActivityRecord {
   qualifyDays?: number;
   inviterReward?: string;
   inviterRewardType?: string;
-  inviterCouponTemplateId?: number;
   inviterServiceCardId?: number;
   inviterRewardAmount?: number | string;
   inviteeReward?: string;
   inviteeRewardType?: string;
-  inviteeCouponTemplateId?: number;
   inviteeServiceCardId?: number;
   inviteeRewardAmount?: number | string;
   tierRewardRules?: string;
@@ -685,7 +645,6 @@ export interface RechargeActivityRecord {
   scopeIds?: string;
   costOwner?: string;
   rewardType?: string;
-  couponTemplateId?: number;
   serviceCardId?: number;
   tierAmounts?: string;
   minAmount?: number;
@@ -696,7 +655,6 @@ export interface RechargeActivityRecord {
 
 export interface RechargeActivityFullProfileRecord {
   activity: RechargeActivityRecord;
-  couponTemplate?: CouponTemplateRecord;
   serviceCard?: ServiceCardRecord;
   rechargeOrders: RechargeOrderRecord[];
   rechargeRewards: RechargeRewardRecord[];
@@ -1228,7 +1186,6 @@ export interface AppUserFullProfileRecord {
   favoriteStores: UserFavoriteStoreRecord[];
   serviceCards: UserServiceCardRecord[];
   serviceCardUsages: ServiceCardUsageRecord[];
-  coupons: UserCouponRecord[];
   rechargeOrders: RechargeOrderRecord[];
   serviceOrders: ServiceOrderRecord[];
   balanceFlows: BalanceFlowRecord[];
@@ -1240,8 +1197,6 @@ export interface AppUserFullProfileRecord {
   totalRemainTimes?: number;
   serviceCardUsageCount?: number;
   totalDeductCount?: number;
-  couponCount?: number;
-  availableCouponCount?: number;
   rechargeOrderCount?: number;
   totalRechargePayAmount?: number | string;
   totalRechargeGiftAmount?: number | string;
@@ -1537,69 +1492,6 @@ export interface ServiceCardUsageRecord {
   deductCount?: number;
   status?: string;
   usedAt?: string;
-  remark?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface UserCouponRecord {
-  id: number;
-  couponNo: string;
-  templateId?: number;
-  templateName?: string;
-  couponType?: string;
-  userId?: number;
-  userName?: string;
-  mobile?: string;
-  sourceType?: string;
-  sourceBizNo?: string;
-  status?: string;
-  receivedAt?: string;
-  usedAt?: string;
-  validStart?: string;
-  validEnd?: string;
-  serviceOrderNo?: string;
-  lockOrderNo?: string;
-  discountAmount?: number | string;
-  remark?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface CouponIssueRecord {
-  id: number;
-  issueNo: string;
-  templateId?: number;
-  templateName?: string;
-  userCouponId?: number;
-  couponNo?: string;
-  userId?: number;
-  userName?: string;
-  mobile?: string;
-  activityName?: string;
-  issueType?: string;
-  issueStatus?: string;
-  issuedAt?: string;
-  failReason?: string;
-  operator?: string;
-  remark?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface CouponUsageRecord {
-  id: number;
-  usageNo: string;
-  userCouponId?: number;
-  couponNo?: string;
-  userId?: number;
-  userName?: string;
-  serviceOrderNo?: string;
-  writeOffRecordNo?: string;
-  discountAmount?: number | string;
-  usageStatus?: string;
-  usedAt?: string;
-  rollbackAt?: string;
   remark?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -2508,13 +2400,6 @@ export const profitShareDetailApi = {
 export const profitChargebackApi = crudApi<ProfitChargebackRecord>('/profit-chargebacks');
 export const profitConfirmApi = crudApi<ProfitConfirmRecord>('/profit-confirms');
 export const marketingApi = {
-  couponTemplates: {
-    page: async (params: Record<string, unknown>) => httpPage<CouponTemplateRecord>('/coupon-templates', params),
-    options: async (params?: Record<string, unknown>) => httpGet<SelectOptionRecord[]>('/coupon-templates/options', params),
-    add: async (data: Record<string, unknown>) => httpPost<CouponTemplateRecord>('/coupon-templates', data),
-    edit: async (data: Record<string, unknown>) => httpPut<void>(`/coupon-templates/${data.id}`, data),
-    remove: async (id: number) => httpDelete<void>(`/coupon-templates/${id}`),
-  },
   inviteActivities: {
     page: async (params: Record<string, unknown>) => httpPage<InviteActivityRecord>('/invite-activities', params),
     add: async (data: Record<string, unknown>) => httpPost<InviteActivityRecord>('/invite-activities', data),
@@ -2607,19 +2492,6 @@ export const assetApi = {
     page: async (params: Record<string, unknown>) => httpPage<ServiceCardUsageRecord>('/service-card-usages', params),
     add: async (data: Record<string, unknown>) => httpPost<ServiceCardUsageRecord>('/service-card-usages', data),
     rollback: async (id: number, data: Record<string, unknown>) => request.post<ApiEnvelope<ServiceCardUsageRecord>>(`/service-card-usages/${id}/rollback`, data),
-  },
-  userCoupons: {
-    page: async (params: Record<string, unknown>) => httpPage<UserCouponRecord>('/user-coupons', params),
-    add: async (data: Record<string, unknown>) => httpPost<UserCouponRecord>('/user-coupons', data),
-    use: async (id: number, data: Record<string, unknown>) => request.post<ApiEnvelope<UserCouponRecord>>(`/user-coupons/${id}/use`, data),
-    rollback: async (id: number, data: Record<string, unknown>) => request.post<ApiEnvelope<UserCouponRecord>>(`/user-coupons/${id}/rollback`, data),
-    recycle: async (id: number, data: Record<string, unknown>) => request.post<ApiEnvelope<UserCouponRecord>>(`/user-coupons/${id}/recycle`, data),
-  },
-  couponIssues: {
-    page: async (params: Record<string, unknown>) => httpPage<CouponIssueRecord>('/coupon-issue-records', params),
-  },
-  couponUsages: {
-    page: async (params: Record<string, unknown>) => httpPage<CouponUsageRecord>('/coupon-usage-records', params),
   },
   operations: {
     overview: async () => httpGet<UserAssetOverviewRecord>('/user-asset-operations/overview'),

@@ -20,7 +20,8 @@ const statusMap = buildValueEnum(activityStatusOptions);
 const costBearerMap = buildValueEnum(costBearerOptions);
 const rechargeModeMap = buildValueEnum(rechargeModeOptions);
 const scopeModeMap = buildValueEnum(scopeTypeOptions);
-const rewardTypeMap = buildValueEnum(rewardTypeOptions);
+const rechargeRewardTypeOptions = rewardTypeOptions.filter((item) => item.value !== 'COUPON' && item.value !== 'MIXED');
+const rewardTypeMap = buildValueEnum(rechargeRewardTypeOptions);
 const rechargeScopeOptions = scopeTypeOptions.map((item) => ({
   ...item,
   label: item.value === 'PLATFORM' ? '平台通用' : item.value === 'STORE' ? '指定门店' : item.value === 'STORE_GROUP' ? '指定门店组' : item.value === 'MERCHANT' ? '指定商户' : item.label,
@@ -56,6 +57,7 @@ const formatRechargeTierAmounts = (value?: string) => {
 };
 const buildRechargePayload = (values: Record<string, any>) => ({
   ...values,
+  rechargeMode: 'FIXED_TIER',
   scopeIds: values.scopeMode === 'PLATFORM' ? '' : splitValues(values.scopeIds).join(','),
   tierAmounts: buildRechargeTierAmounts(values),
 });
@@ -66,7 +68,6 @@ const rechargeDetailFields: DetailField<RechargeActivityRecord>[] = [
   { name: 'rechargeMode', label: '充值方式', render: (value) => value ? rechargeModeMap[value as keyof typeof rechargeModeMap]?.text || value : '-' },
   { name: 'scopeMode', label: '适用范围', render: (_, record) => record.scope || scopeModeMap[record.scopeMode as keyof typeof scopeModeMap]?.text || '-' },
   { name: 'rewardType', label: '奖励类型', render: (value) => value ? rewardTypeMap[value as keyof typeof rewardTypeMap]?.text || value : '-' },
-  { name: 'couponTemplateId', label: '券模板ID' },
   { name: 'serviceCardId', label: '服务卡ID' },
   { name: 'costOwner', label: '成本承担', render: (value) => value ? costBearerMap[value as keyof typeof costBearerMap]?.text || value : '-' },
   { name: 'tierAmounts', label: '固定档位', render: (value) => formatRechargeTierAmounts(value as string | undefined) },
@@ -126,10 +127,6 @@ const RechargeActivityManagement: React.FC = () => {
   const merchantGroupOptionsQuery = useQuery({
     queryKey: ['rechargeActivityScopeMerchantGroups'],
     queryFn: async () => (await api.merchantGroup.options()).data,
-  });
-  const couponTemplateOptionsQuery = useQuery({
-    queryKey: ['rechargeActivityCouponTemplates'],
-    queryFn: async () => (await api.marketing.couponTemplates.options()).data,
   });
   const serviceCardOptionsQuery = useQuery({
     queryKey: ['rechargeActivityServiceCards'],
@@ -253,14 +250,14 @@ const RechargeActivityManagement: React.FC = () => {
           { label: '适用范围', desc: '明确全部门店、指定门店组或活动门店，跨店核销要同步考虑结算规则。', tag: '范围' },
         ]}
         landing={[
-          { label: '用户资产', desc: '支付成功后会沉淀余额流水、用户优惠券或用户服务卡。' },
+          { label: '用户资产', desc: '支付成功后会沉淀余额流水或用户服务卡。' },
           { label: '营销执行', desc: '参与记录、奖励状态、预算消耗和异常补发在执行台复盘。' },
           { label: '结算清分', desc: '跨店充值和消费会进入结算明细、分润明细或清分台账。' },
         ]}
         verify={[
           { label: '启动前', desc: '确认档位、赠送金额、成本承担、门店范围和有效期都已配置。' },
-          { label: '用户充值后', desc: '去资产总览和营销执行台核对余额、券卡和奖励记录是否落地。' },
-          { label: '活动复盘', desc: '重点看充值单、奖励失败、预算异常和券卡核销结果。' },
+          { label: '用户充值后', desc: '去资产总览和营销执行台核对余额、服务卡和奖励记录是否落地。' },
+          { label: '活动复盘', desc: '重点看充值单、奖励失败、预算异常和服务卡核销结果。' },
         ]}
         actions={[
           { key: 'cards', label: '维护权益产品', onClick: () => navigate('/asset/service-cards') },
@@ -334,9 +331,8 @@ const RechargeActivityManagement: React.FC = () => {
                 <Form.Item className="merchant-editor-field-span-all" name="bannerImageUrl" label="活动条Banner图片"><OssImageUpload prefix="activity/banners" placeholder="上传活动条Banner" /></Form.Item>
               </div>
             </BusinessEditorSection>
-            <BusinessEditorSection icon={<CalendarOutlined />} title="充值范围" desc="配置充值方式、适用范围、成本承担和档位门槛。">
+            <BusinessEditorSection icon={<CalendarOutlined />} title="充值范围" desc="配置适用范围、成本承担和固定充值档位。">
               <div className="merchant-editor-fields">
-                <Form.Item name="rechargeMode" label="充值方式" rules={[{ required: true, message: '请选择充值方式' }]}><Select options={rechargeModeOptions} placeholder="请选择充值方式" /></Form.Item>
                 <Form.Item name="scopeMode" label="适用范围" rules={[{ required: true, message: '请选择适用范围' }]}>
                   <Select
                     options={rechargeScopeOptions}
@@ -367,13 +363,8 @@ const RechargeActivityManagement: React.FC = () => {
                   }}
                 </Form.Item>
                 <Form.Item name="costOwner" label="成本承担" rules={[{ required: true, message: '请选择成本承担方' }]}><Select options={costBearerOptions} placeholder="请选择成本承担方" /></Form.Item>
-                <Form.Item name="rewardType" label="奖励类型" rules={[{ required: true, message: '请选择奖励类型' }]}><Select options={rewardTypeOptions} placeholder="请选择奖励类型" /></Form.Item>
-                {(rewardType === 'COUPON' || rewardType === 'MIXED') ? (
-                  <Form.Item name="couponTemplateId" label="优惠券模板" rules={[{ required: true, message: '请选择优惠券模板' }]}>
-                    <Select showSearch optionFilterProp="label" options={couponTemplateOptionsQuery.data || []} placeholder="请选择优惠券模板" />
-                  </Form.Item>
-                ) : null}
-                {(rewardType === 'SERVICE_CARD' || rewardType === 'MIXED') ? (
+                <Form.Item name="rewardType" label="奖励类型" rules={[{ required: true, message: '请选择奖励类型' }]}><Select options={rechargeRewardTypeOptions} placeholder="请选择奖励类型" /></Form.Item>
+                {rewardType === 'SERVICE_CARD' ? (
                   <Form.Item name="serviceCardId" label="服务卡产品" rules={[{ required: true, message: '请选择服务卡产品' }]}>
                     <Select showSearch optionFilterProp="label" options={serviceCardOptionsQuery.data || []} placeholder="请选择服务卡产品" />
                   </Form.Item>

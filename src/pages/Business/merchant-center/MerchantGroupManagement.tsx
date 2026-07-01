@@ -1,29 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import { Button, Card, Col, Collapse, Descriptions, Form, Input, InputNumber, Row, Select, Space, Statistic, message } from 'antd';
-import type { CascaderProps } from 'antd';
-import { ApartmentOutlined, AuditOutlined, DeploymentUnitOutlined, PlusOutlined, ShopOutlined, TagsOutlined } from '@ant-design/icons';
+import { ApartmentOutlined, AuditOutlined, DeploymentUnitOutlined, PlusOutlined, ShopOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
-import { useBackendBusinessEnumOptions, useBusinessEnumOptions } from '@/constants/businessCatalog';
+import { useBusinessEnumOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
 import type { MerchantGroupRecord, MerchantGroupStoreRecord, SelectOptionRecord } from '@/services/backendService';
-import { buildValueEnum, formatDateTime, renderOptionTags, renderStatusTag, safeJsonParse } from '@/pages/Business/shared';
-import { RegionCascader } from '@/utils/formControls';
+import { buildValueEnum, formatDateTime, renderStatusTag, safeJsonParse } from '@/pages/Business/shared';
 
-const writeoffScopeOptions = [
-  { value: '同门店组通用', label: '同门店组通用' },
-  { value: '同商户门店组通用', label: '同商户门店组通用' },
-  { value: '仅原购买门店可用', label: '仅原购买门店可用' },
-];
-const writeoffLimitOptions = [
-  { value: '不支持跨商户核销', label: '不支持跨商户核销' },
-  { value: '支持跨商户核销', label: '支持跨商户核销' },
-];
 const clearingModeOptions = [
   { value: 'NONE', label: '不启用跨商户清分' },
   { value: 'OFFLINE_CLEARING', label: '线下清分' },
@@ -48,18 +37,23 @@ const clearingBaseOptions = [
   { value: 'ORDER_PAYABLE', label: '订单应付金额' },
   { value: 'AFTER_COUPON', label: '优惠后实收口径' },
 ];
+
+type MerchantGroupFormValues = Partial<MerchantGroupRecord> & {
+  settlementMode?: string;
+  settlementCycle?: string;
+  cashHolder?: string;
+  revenueOwner?: string;
+  clearingBase?: string;
+  rechargeMerchantRate?: number | string;
+  consumeMerchantRate?: number | string;
+  platformRate?: number | string;
+  clearingRemark?: string;
+};
+
 const parseGroupRules = (record: MerchantGroupRecord) => ({
-  ...parseScopeConfig(record.scope, record),
   ...parseWriteoffConfig(record.writeoffRule, record),
 });
-const parseScopeConfig = (scope?: string, record?: MerchantGroupRecord) => ({
-  scopeUsages: record?.scopeUsages || safeJsonParse<{ scopeUsages?: string[] }>(scope, {}).scopeUsages || [],
-  scopeRemark: record?.scopeRemark || safeJsonParse<{ scopeRemark?: string }>(scope, {}).scopeRemark,
-});
 const parseWriteoffConfig = (writeoffRule?: string, record?: MerchantGroupRecord) => ({
-  writeoffScope: record?.writeoffScope || safeJsonParse<{ writeoffScope?: string }>(writeoffRule, {}).writeoffScope,
-  writeoffLimit: record?.writeoffLimit || safeJsonParse<{ writeoffLimit?: string }>(writeoffRule, {}).writeoffLimit,
-  writeoffRemark: record?.writeoffRemark || safeJsonParse<{ writeoffRemark?: string }>(writeoffRule, {}).writeoffRemark,
   settlementMode: record?.settlementMode || safeJsonParse<{ settlementMode?: string }>(writeoffRule, {}).settlementMode,
   settlementCycle: record?.settlementCycle || safeJsonParse<{ settlementCycle?: string }>(writeoffRule, {}).settlementCycle,
   cashHolder: record?.cashHolder || safeJsonParse<{ cashHolder?: string }>(writeoffRule, {}).cashHolder,
@@ -70,16 +64,8 @@ const parseWriteoffConfig = (writeoffRule?: string, record?: MerchantGroupRecord
   platformRate: record?.platformRate || safeJsonParse<{ platformRate?: number | string }>(writeoffRule, {}).platformRate,
   clearingRemark: record?.clearingRemark || safeJsonParse<{ clearingRemark?: string }>(writeoffRule, {}).clearingRemark,
 });
-const buildGroupScope = (values: Record<string, any>) =>
+const buildWriteoffRule = (values: MerchantGroupFormValues) =>
   JSON.stringify({
-    scopeUsages: Array.isArray(values.scopeUsages) ? values.scopeUsages : [],
-    scopeRemark: values.scopeRemark || '',
-  });
-const buildWriteoffRule = (values: Record<string, any>) =>
-  JSON.stringify({
-    writeoffScope: values.writeoffScope || '',
-    writeoffLimit: values.writeoffLimit || '',
-    writeoffRemark: values.writeoffRemark || '',
     settlementMode: values.settlementMode || 'NONE',
     settlementCycle: values.settlementCycle || '',
     cashHolder: values.cashHolder || '',
@@ -128,12 +114,9 @@ const MerchantGroupManagement: React.FC = () => {
     enabled: Boolean(memberGroup?.merchantId),
   });
   const merchantGroupTypeOptions = useBusinessEnumOptions('merchantGroupTypeOptions');
-  const scopeLevelOptions = useBusinessEnumOptions('scopeLevelOptions');
   const templateStatusOptions = useBusinessEnumOptions('templateStatusOptions');
-  const groupUsageOptions = useBackendBusinessEnumOptions('merchantGroupUsageOptions');
   const groupTypeMap = useMemo(() => buildValueEnum(merchantGroupTypeOptions), [merchantGroupTypeOptions]);
   const statusMap = useMemo(() => buildValueEnum(templateStatusOptions), [templateStatusOptions]);
-  const scopeLevelMap = useMemo(() => buildValueEnum(scopeLevelOptions), [scopeLevelOptions]);
   const merchantOptionMap = useMemo(() => new Map((merchantOptions as SelectOptionRecord[] | undefined || []).map((item) => [item.value, item.label])), [merchantOptions]);
 
   const fetchRecords = async (params: Record<string, unknown> = {}) => {
@@ -255,7 +238,7 @@ const MerchantGroupManagement: React.FC = () => {
         </div>
       ),
     },
-    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '门店组 / 商户 / 城市 / 负责人' } },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '门店组 / 商户 / 负责人' } },
     { title: '所属商户', dataIndex: 'merchantName', width: 180, search: false },
     {
       title: '分组类型',
@@ -265,17 +248,7 @@ const MerchantGroupManagement: React.FC = () => {
       valueEnum: groupTypeMap,
       render: (_, record) => renderStatusTag(record.groupType, groupTypeMap),
     },
-    {
-      title: '作用层级',
-      dataIndex: 'scopeLevel',
-      width: 120,
-      search: false,
-      render: (_, record) => renderStatusTag(record.scopeLevel, scopeLevelMap),
-    },
-    { title: '城市', dataIndex: 'city', width: 120, search: false },
     { title: '门店数', dataIndex: 'storeCount', width: 100, search: false },
-    { title: '用途范围', dataIndex: 'scopeUsages', width: 240, search: false, render: (_, record) => renderOptionTags(record.scopeUsages?.length ? record.scopeUsages : record.scope, groupUsageOptions) },
-    { title: '核销规则', dataIndex: 'writeoffRule', width: 220, search: false, render: (_, record) => [record.writeoffScope, record.writeoffLimit].filter(Boolean).join('、') || record.writeoffRule || '-' },
     { title: '负责人', dataIndex: 'owner', width: 140, search: false },
     {
       title: '状态',
@@ -297,7 +270,7 @@ const MerchantGroupManagement: React.FC = () => {
             size="small"
             onClick={() => {
               setEditingRecord(record);
-              form.setFieldsValue({ ...record, ...parseGroupRules(record), region: [record.city].filter(Boolean) } as any);
+              form.setFieldsValue({ ...record, ...parseGroupRules(record) } as Partial<MerchantGroupRecord>);
               setModalVisible(true);
             }}
           >
@@ -313,11 +286,6 @@ const MerchantGroupManagement: React.FC = () => {
   const handleSubmit = async () => {
     const values = await form.validateFields();
     const {
-      scopeUsages,
-      scopeRemark,
-      writeoffScope,
-      writeoffLimit,
-      writeoffRemark,
       settlementMode,
       settlementCycle,
       cashHolder,
@@ -327,23 +295,15 @@ const MerchantGroupManagement: React.FC = () => {
       consumeMerchantRate,
       platformRate,
       clearingRemark,
-      region,
       merchantName,
-      storeCount,
-      scopeLevel,
       ...baseValues
-    } = values as Record<string, any>;
+    } = values as MerchantGroupFormValues;
     const merchantId = typeof values.merchantId === 'number' ? values.merchantId : undefined;
     const selectedMerchantName = merchantId !== undefined ? merchantOptionMap.get(merchantId) : undefined;
     const payload = {
       ...baseValues,
       merchantName: selectedMerchantName || merchantName,
-      scopeLevel: 'STORE_GROUP',
-      scope: buildGroupScope({ scopeUsages, scopeRemark }),
       writeoffRule: buildWriteoffRule({
-        writeoffScope,
-        writeoffLimit,
-        writeoffRemark,
         settlementMode,
         settlementCycle,
         cashHolder,
@@ -368,7 +328,7 @@ const MerchantGroupManagement: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="门店组管理" subtitle="按文档补齐区域、活动、核销、统计门店组的配置与查看能力。" icon={<ApartmentOutlined />} />
+      <PageBanner title="门店组管理" subtitle="维护门店组基础信息和成员门店，实际作用范围以成员列表为准。" icon={<ApartmentOutlined />} />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="门店组总量" value={summary.total} suffix="组" /></Card></Col>
@@ -401,7 +361,7 @@ const MerchantGroupManagement: React.FC = () => {
         }}
         search={{ labelWidth: 'auto', defaultCollapsed: false }}
         pagination={{ pageSize: 8 }}
-        scroll={{ x: 1880 }}
+        scroll={{ x: 1320 }}
         toolBarRender={() => [
           <Button
             key="new"
@@ -412,10 +372,8 @@ const MerchantGroupManagement: React.FC = () => {
               form.resetFields();
               form.setFieldsValue({
                 groupType: 'ACTIVITY',
-                scopeLevel: 'STORE_GROUP',
                 status: 'DRAFT',
                 storeCount: 0,
-                writeoffLimit: '不支持跨商户核销',
                 settlementMode: 'NONE',
                 settlementCycle: 'WEEK',
                 cashHolder: 'RECHARGE_MERCHANT',
@@ -436,7 +394,7 @@ const MerchantGroupManagement: React.FC = () => {
       <BusinessEditorModal
         eyebrow={editingRecord ? '门店组配置维护' : '门店组建档'}
         title={editingRecord ? `编辑门店组 · ${editingRecord.groupName}` : '新建门店组'}
-        subtitle="用于活动投放、跨店核销、区域运营和统计分析，需同时绑定商户主体和作用范围。"
+        subtitle="用于活动投放、跨店核销、区域运营和统计分析；作用范围通过门店成员维护。"
         meta={['门店组', editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
         onOk={handleSubmit}
@@ -463,6 +421,9 @@ const MerchantGroupManagement: React.FC = () => {
                 <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}>
                   <Select options={templateStatusOptions} placeholder="请选择状态" />
                 </Form.Item>
+                <Form.Item name="groupType" label="分组类型" rules={[{ required: true, message: '请选择分组类型' }]}>
+                  <Select options={merchantGroupTypeOptions} placeholder="请选择分组类型" />
+                </Form.Item>
                 <Form.Item name="merchantId" label="所属商户" rules={[{ required: true, message: '请选择商户' }]}>
                   <Select
                     showSearch
@@ -474,46 +435,8 @@ const MerchantGroupManagement: React.FC = () => {
                 <Form.Item name="owner" label="负责人">
                   <Input placeholder="例如：区域运营负责人" />
                 </Form.Item>
-              </div>
-            </BusinessEditorSection>
-
-            <BusinessEditorSection
-              icon={<TagsOutlined />}
-              title="作用范围与规则"
-              desc="明确门店组使用场景、城市范围和核销规则，避免活动、券和结算口径混用。"
-            >
-              <div className="merchant-editor-fields">
-                <Form.Item name="groupType" label="分组类型" rules={[{ required: true, message: '请选择分组类型' }]}>
-                  <Select options={merchantGroupTypeOptions} placeholder="请选择分组类型" />
-                </Form.Item>
-                <Form.Item name="scopeLevel" hidden><Input /></Form.Item>
-                <Form.Item name="region" label="城市">
-                  <RegionCascader
-                    placeholder="请选择城市"
-                    onChange={(value: CascaderProps['value']) => {
-                      const parts = (value || []) as string[];
-                      form.setFieldValue('city', parts[1] || parts[0]);
-                    }}
-                  />
-                </Form.Item>
-                <Form.Item name="city" hidden><Input /></Form.Item>
-                <Form.Item name="scopeUsages" label="用途范围">
-                  <Select mode="multiple" options={groupUsageOptions} placeholder="请选择用途范围" />
-                </Form.Item>
-                <Form.Item name="scopeRemark" label="用途补充">
-                  <Input placeholder="例如：五一活动核心门店" />
-                </Form.Item>
-                <Form.Item name="writeoffScope" label="核销范围">
-                  <Select options={writeoffScopeOptions} placeholder="请选择核销范围" />
-                </Form.Item>
-                <Form.Item name="writeoffLimit" label="跨商户限制">
-                  <Select options={writeoffLimitOptions} placeholder="请选择限制方式" />
-                </Form.Item>
-                <Form.Item className="merchant-editor-field-span-2" name="writeoffRemark" label="核销补充">
-                  <Input placeholder="例如：活动券仅支持有效期内核销" />
-                </Form.Item>
                 <Form.Item className="merchant-editor-field-span-2" name="remark" label="备注">
-                  <Input.TextArea rows={3} placeholder="记录维护原因、使用边界或审批说明" />
+                  <Input.TextArea rows={3} placeholder="记录维护原因或审批说明" />
                 </Form.Item>
               </div>
             </BusinessEditorSection>
@@ -575,14 +498,8 @@ const MerchantGroupManagement: React.FC = () => {
             <Descriptions.Item label="门店组名称">{detail.groupName}</Descriptions.Item>
             <Descriptions.Item label="所属商户">{detail.merchantName}</Descriptions.Item>
             <Descriptions.Item label="分组类型">{groupTypeMap[detail.groupType as keyof typeof groupTypeMap]?.text || detail.groupType}</Descriptions.Item>
-            <Descriptions.Item label="作用层级">{scopeLevelMap[detail.scopeLevel as keyof typeof scopeLevelMap]?.text || detail.scopeLevel}</Descriptions.Item>
-            <Descriptions.Item label="城市">{detail.city}</Descriptions.Item>
             <Descriptions.Item label="门店数">{detail.storeCount}</Descriptions.Item>
-            <Descriptions.Item label="用途范围">{(detail.scopeUsages || []).join('、') || '-'}</Descriptions.Item>
-            <Descriptions.Item label="用途补充">{detail.scopeRemark || '-'}</Descriptions.Item>
-            <Descriptions.Item label="核销范围">{detail.writeoffScope || '-'}</Descriptions.Item>
-            <Descriptions.Item label="跨商户限制">{detail.writeoffLimit || '-'}</Descriptions.Item>
-            <Descriptions.Item label="核销补充">{detail.writeoffRemark || '-'}</Descriptions.Item>
+            <Descriptions.Item label="备注">{detail.remark || '-'}</Descriptions.Item>
             <Descriptions.Item label="清分方式">{optionLabel(clearingModeOptions, detail.settlementMode)}</Descriptions.Item>
             <Descriptions.Item label="清分周期">{optionLabel(clearingCycleOptions, detail.settlementCycle)}</Descriptions.Item>
             <Descriptions.Item label="资金持有方">{optionLabel(cashHolderOptions, detail.cashHolder)}</Descriptions.Item>
