@@ -23,6 +23,9 @@ const RechargeActivityFullProfileDrawer: React.FC<Props> = ({ open, loading, pro
   const risks = [
     activity?.status !== 'RUNNING' ? '活动未运行，用户端不会正常参与' : null,
     !activity?.tierAmounts ? '未配置充值档位' : null,
+    !activity?.rewardType ? '未配置奖励类型' : null,
+    (activity?.rewardType === 'COUPON' || activity?.rewardType === 'MIXED') && !activity?.couponTemplateId ? '优惠券奖励未选择券模板' : null,
+    (activity?.rewardType === 'SERVICE_CARD' || activity?.rewardType === 'MIXED') && !activity?.serviceCardId ? '服务卡奖励未选择卡产品' : null,
     (profile?.failedRewardCount || 0) > 0 ? `存在 ${profile?.failedRewardCount} 条奖励失败` : null,
   ].filter(Boolean) as string[];
 
@@ -52,7 +55,7 @@ const RechargeActivityFullProfileDrawer: React.FC<Props> = ({ open, loading, pro
   const participationColumns: ColumnsType<MarketingParticipationRecord> = [
     { title: '活动编码', dataIndex: 'activityCode', width: 160 },
     { title: '用户', dataIndex: 'userName', width: 120, render: (value) => value || '-' },
-    { title: '参与场景', dataIndex: 'joinScene', width: 140, render: (value) => value || '-' },
+    { title: '参与场景', dataIndex: 'joinScene', width: 140, render: (value) => formatEnumText(value, 'joinScene', '参与场景') },
     { title: '资格状态', dataIndex: 'qualifyStatus', width: 120, render: (value) => formatEnumText(value, 'qualifyStatus', '资格状态') },
     { title: '关联单号', dataIndex: 'relatedOrderNo', width: 180, render: (value) => value || '-' },
     { title: '参与时间', dataIndex: 'joinedAt', width: 180, render: (value) => formatDateTime(value) },
@@ -95,7 +98,11 @@ const RechargeActivityFullProfileDrawer: React.FC<Props> = ({ open, loading, pro
                 <Descriptions.Item label="活动编码">{activity.activityCode}</Descriptions.Item>
                 <Descriptions.Item label="状态">{formatEnumText(activity.status, 'activityStatus', '活动状态')}</Descriptions.Item>
                 <Descriptions.Item label="充值方式">{formatEnumText(activity.rechargeMode, 'rechargeMode', '充值方式')}</Descriptions.Item>
-                <Descriptions.Item label="作用范围">{formatEnumText(activity.scope, 'scope', '作用范围')}</Descriptions.Item>
+                <Descriptions.Item label="适用范围">{activity.scope || formatEnumText(activity.scopeMode, 'scopeType', '适用范围')}</Descriptions.Item>
+                <Descriptions.Item label="范围对象">{activity.scopeIds || '-'}</Descriptions.Item>
+                <Descriptions.Item label="奖励类型">{formatEnumText(activity.rewardType || 'BALANCE', 'rewardType', '奖励类型')}</Descriptions.Item>
+                <Descriptions.Item label="券模板">{profile.couponTemplate?.templateName || activity.couponTemplateId || '-'}</Descriptions.Item>
+                <Descriptions.Item label="服务卡产品">{profile.serviceCard?.cardName || activity.serviceCardId || '-'}</Descriptions.Item>
                 <Descriptions.Item label="成本承担">{formatEnumText(activity.costOwner, 'costOwner', '成本承担')}</Descriptions.Item>
                 <Descriptions.Item label="最低充值">{formatAmount(activity.minAmount)}</Descriptions.Item>
               </Descriptions>

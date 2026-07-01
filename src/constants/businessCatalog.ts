@@ -142,7 +142,7 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'PLATFORM', label: '平台' },
   { value: 'MERCHANT', label: '商户' },
   { value: 'STORE', label: '门店' },
-  { value: 'GROUP', label: '门店组' },
+  { value: 'STORE_GROUP', label: '门店组' },
 ],
   serviceSellingPointOptions: [
   { value: 'FAST_ENTRY', label: '快速开洗' },
@@ -202,8 +202,8 @@ export const FALLBACK_BUSINESS_ENUMS = {
   rewardTypeOptions: [
   { value: 'BALANCE', label: '余额' },
   { value: 'COUPON', label: '优惠券' },
-  { value: 'POINTS', label: '积分' },
-  { value: 'CARD', label: '服务卡' },
+  { value: 'SERVICE_CARD', label: '服务卡' },
+  { value: 'MIXED', label: '组合奖励' },
 ],
   costBearerOptions: [
   { value: 'PLATFORM', label: '平台承担' },
@@ -320,6 +320,12 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'WAIT_CONFIRM', label: '待确认' },
   { value: 'SETTLED', label: '已结算' },
   { value: 'REJECTED', label: '已驳回' },
+],
+  settlementModeOptions: [
+  { value: 'OFFLINE_CLEARING', label: '线下清分' },
+  { value: 'ONLINE_SETTLEMENT', label: '线上结算' },
+  { value: 'PLATFORM_SETTLEMENT', label: '平台结算' },
+  { value: 'NONE', label: '不结算' },
 ],
   payoutStatusOptions: [
   { value: 'UNPAID', label: '待打款' },
@@ -506,9 +512,9 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'TARGETED', label: '定向用户' },
 ],
   rechargeModeOptions: [
-  { value: 'FIXED', label: '固定金额' },
-  { value: 'LADDER', label: '阶梯充值' },
-  { value: 'CUSTOM', label: '自定义金额' },
+  { value: 'FIXED_TIER', label: '固定档位充值' },
+  { value: 'CUSTOM_AMOUNT', label: '任意金额充值' },
+  { value: 'FIRST_RECHARGE', label: '首充专享' },
 ],
   rewardMethodOptions: [
   { value: 'BALANCE', label: '赠送余额' },
@@ -789,6 +795,7 @@ export const writeOffStatusOptions = getBusinessEnumOptions('writeOffStatusOptio
 export const performSceneOptions = getBusinessEnumOptions('performSceneOptions');
 export const performStatusOptions = getBusinessEnumOptions('performStatusOptions');
 export const settlementStatusOptions = getBusinessEnumOptions('settlementStatusOptions');
+export const settlementModeOptions = getBusinessEnumOptions('settlementModeOptions');
 export const payoutStatusOptions = getBusinessEnumOptions('payoutStatusOptions');
 export const settlementSubjectTypeOptions = getBusinessEnumOptions('settlementSubjectTypeOptions');
 export const settlementDetailTypeOptions = getBusinessEnumOptions('settlementDetailTypeOptions');

@@ -12,7 +12,7 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, CoreFlowPanel, formatAmount, OperatorTips, renderStatusTag } from '@/pages/Business/shared';
 import api from '@/services/backendService';
-import type { AppUserProfileRecord, ServiceCardFullProfileRecord, ServiceCardRecord, ServiceCardUsageRecord, ServiceOrderRecord, StoreRecord, UserServiceCardRecord } from '@/services/backendService';
+import type { AppUserProfileRecord, SelectOptionRecord, ServiceCardFullProfileRecord, ServiceCardRecord, ServiceCardUsageRecord, ServiceOrderRecord, StoreRecord, UserServiceCardRecord } from '@/services/backendService';
 import ServiceCardFullProfileDrawer from './ServiceCardFullProfileDrawer';
 
 const cardProductTypeOptions = serviceCardTypeOptions.filter((item) => item.value === 'COUNT_CARD');
@@ -26,11 +26,18 @@ const statusMap = buildValueEnum(cardProductStatusOptions);
 const userCardStatusMap = buildValueEnum(serviceCardStatusOptions);
 
 const serviceScopeOptions = [
-  { value: 'ALL_STORE', label: '全部门店可用' },
-  { value: 'SELECTED_STORE', label: '指定门店可用' },
-  { value: 'SERVICE_PACKAGE', label: '指定服务/套餐可用' },
-  { value: 'MEMBER_LEVEL', label: '指定会员等级可用' },
+  { value: 'PLATFORM', label: '平台通用' },
+  { value: 'STORE', label: '指定门店可用' },
+  { value: 'STORE_GROUP', label: '指定门店组可用' },
+  { value: 'MERCHANT', label: '指定商户可用' },
 ];
+
+const serviceScopeTargetLabels: Record<string, string> = {
+  PLATFORM: '平台通用，无需选择范围对象',
+  STORE: '选择一个或多个门店，扣次时仅这些门店可核销',
+  STORE_GROUP: '选择一个或多个门店组，组内门店均可核销',
+  MERCHANT: '选择一个或多个商户，商户旗下门店均可核销',
+};
 
 const serviceRightOptions = [
   { value: 'CAR_WASH', label: '洗车服务' },
@@ -75,11 +82,16 @@ const splitValues = (value?: unknown) => Array.isArray(value)
 const compactJoin = (items: Array<string | false | undefined>) => items.filter(Boolean).join('；');
 
 const buildServiceCardPayload = (values: Record<string, any>) => {
-  return {
+  const payload: Record<string, any> = {
     ...values,
+    scopeIds: splitValues(values.scopeIds).join(','),
     rightsServices: splitValues(values.rightsServices).join(','),
     issueChannels: splitValues(values.issueChannels).join(','),
   };
+  if (payload.scopeMode === 'PLATFORM') {
+    payload.scopeIds = '';
+  }
+  return payload;
 };
 
 const formatServiceScope = (record: ServiceCardRecord) => compactJoin([
@@ -138,7 +150,7 @@ const buildCardDefaults = (cardType: string) => ({
   status: 'ENABLED',
   stock: 0,
   salePrice: 0,
-  scopeMode: 'ALL_STORE',
+  scopeMode: 'PLATFORM',
   validityMode: 'DAYS',
   validityDays: 365,
   rightsServiceTimes: 10,
@@ -221,6 +233,14 @@ const ServiceCardManagement: React.FC = () => {
     queryKey: ['serviceCardDeductStores'],
     queryFn: async () => (await api.store.page({ pageNum: 1, pageSize: 500 })).data,
   });
+  const merchantOptionsQuery = useQuery({
+    queryKey: ['serviceCardScopeMerchants'],
+    queryFn: async () => (await api.merchant.options()).data,
+  });
+  const merchantGroupOptionsQuery = useQuery({
+    queryKey: ['serviceCardScopeMerchantGroups'],
+    queryFn: async () => (await api.merchantGroup.options()).data,
+  });
   const orderQuery = useQuery({
     queryKey: ['serviceCardDeductOrders'],
     queryFn: async () => (await api.serviceOrder.page({ pageNum: 1, pageSize: 500 })).data,
@@ -286,6 +306,8 @@ const ServiceCardManagement: React.FC = () => {
   const usageRecords = usageQuery.data?.records || [];
   const users = userQuery.data?.records || [];
   const stores = storeQuery.data?.records || [];
+  const merchantOptions = merchantOptionsQuery.data || [];
+  const merchantGroupOptions = merchantGroupOptionsQuery.data || [];
   const serviceOrders = orderQuery.data?.records || [];
   const userOptions = users.map((item: AppUserProfileRecord) => ({
     value: item.userId ?? item.id,
@@ -295,6 +317,18 @@ const ServiceCardManagement: React.FC = () => {
     value: item.id,
     label: `${item.storeName}${item.storeCode ? `（${item.storeCode}）` : ''}`,
   }));
+  const normalizeSelectOptions = (options: SelectOptionRecord[]) => options.map((item) => ({
+    value: item.value,
+    label: item.label,
+  }));
+  const scopeMode = Form.useWatch('scopeMode', form);
+  const scopeTargetOptions = scopeMode === 'STORE'
+    ? storeOptions
+    : scopeMode === 'STORE_GROUP'
+      ? normalizeSelectOptions(merchantGroupOptions)
+      : scopeMode === 'MERCHANT'
+        ? normalizeSelectOptions(merchantOptions)
+        : [];
   const orderOptions = serviceOrders.map((item: ServiceOrderRecord) => ({
     value: item.orderNo,
     label: `${item.orderNo} / ${item.storeName || '未记录门店'} / ${item.userName || '未记录用户'}`,
@@ -389,6 +423,7 @@ const ServiceCardManagement: React.FC = () => {
               setEditingRecord(record);
               form.setFieldsValue({
                 ...record,
+                scopeIds: splitValues(record.scopeIds),
                 rightsServices: splitValues(record.rightsServices),
                 issueChannels: splitValues(record.issueChannels),
               });
@@ -612,7 +647,15 @@ const ServiceCardManagement: React.FC = () => {
             <BusinessEditorSection icon={<WalletOutlined />} title="售卖与适用范围" desc="补齐售价、有效期、库存和适用范围，支撑后续发卡、售卖和扣次。">
               <div className="merchant-editor-fields">
                 <Form.Item name="scopeMode" label="适用范围">
-                  <Select options={serviceScopeOptions} placeholder="请选择适用范围" />
+                  <Select
+                    options={serviceScopeOptions}
+                    placeholder="请选择适用范围"
+                    onChange={(value) => {
+                      if (value === 'PLATFORM') {
+                        form.setFieldsValue({ scopeIds: [] });
+                      }
+                    }}
+                  />
                 </Form.Item>
                 <Form.Item name="salePrice" label="售价">
                   <InputNumber style={{ width: '100%' }} min={0} precision={2} addonBefore="￥" placeholder="0.00" />
@@ -634,8 +677,33 @@ const ServiceCardManagement: React.FC = () => {
                     </Form.Item>
                   )}
                 </Form.Item>
+                <Form.Item noStyle shouldUpdate={(prev, next) => prev.scopeMode !== next.scopeMode}>
+                  {({ getFieldValue }) => {
+                    const currentScopeMode = getFieldValue('scopeMode') || 'PLATFORM';
+                    return currentScopeMode === 'PLATFORM' ? (
+                      <Form.Item label="范围对象">
+                        <Input disabled value={serviceScopeTargetLabels.PLATFORM} />
+                      </Form.Item>
+                    ) : (
+                      <Form.Item
+                        name="scopeIds"
+                        label="范围对象"
+                        rules={[{ required: true, message: '请选择适用范围对象' }]}
+                        tooltip={serviceScopeTargetLabels[currentScopeMode]}
+                      >
+                        <Select
+                          mode="multiple"
+                          showSearch
+                          optionFilterProp="label"
+                          options={scopeTargetOptions}
+                          placeholder={serviceScopeTargetLabels[currentScopeMode] || '请选择范围对象'}
+                        />
+                      </Form.Item>
+                    );
+                  }}
+                </Form.Item>
                 <Form.Item name="scopeNote" label="范围补充">
-                  <Input placeholder="指定门店、服务套餐或会员等级名称" />
+                  <Input placeholder="例如：仅限工作日核销、跨店扣次需提前预约" />
                 </Form.Item>
               </div>
             </BusinessEditorSection>

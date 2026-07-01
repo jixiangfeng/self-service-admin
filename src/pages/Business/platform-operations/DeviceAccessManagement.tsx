@@ -9,14 +9,8 @@ import PageBanner from '@/components/PageBanner';
 import { publishStatusOptions } from '@/constants/businessCatalog';
 import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api, {
-  type DeviceCallbackConfigRecord,
-  type DeviceCommandLogRecord,
-  type DeviceCommandTemplateRecord,
   type DeviceModelRecord,
-  type DeviceProtocolRecord,
-  type DeviceStatusMappingRecord,
   type DeviceVendorRecord,
-  type OpenApiCallLogRecord,
 } from '@/services/backendService';
 
 type ModalKind = 'protocol' | 'vendor' | 'model' | 'command' | 'status' | 'callback';
@@ -90,23 +84,11 @@ const DeviceAccessManagement: React.FC = () => {
   const [form] = Form.useForm<DeviceAccessFormValues>();
   const queryParams = useMemo(() => ({ keyword, current: 1, size: 80 }), [keyword]);
 
-  const protocolsQuery = useQuery({ queryKey: ['device-access-protocols', queryParams], queryFn: () => api.deviceProtocol.page(queryParams) });
   const vendorsQuery = useQuery({ queryKey: ['device-access-vendors', queryParams], queryFn: () => api.deviceVendor.page(queryParams) });
   const modelsQuery = useQuery({ queryKey: ['device-access-models', queryParams], queryFn: () => api.deviceModel.page(queryParams) });
-  const commandsQuery = useQuery({ queryKey: ['device-access-command-templates', queryParams], queryFn: () => api.deviceCommandTemplate.page(queryParams) });
-  const statusMappingsQuery = useQuery({ queryKey: ['device-access-status-mappings', queryParams], queryFn: () => api.deviceStatusMapping.page(queryParams) });
-  const commandLogsQuery = useQuery({ queryKey: ['device-access-command-logs', queryParams], queryFn: () => api.deviceOps.commandLogs.page(queryParams) });
-  const callbacksQuery = useQuery({ queryKey: ['device-access-callback-configs', queryParams], queryFn: () => api.deviceCallbackConfig.page(queryParams) });
-  const callLogsQuery = useQuery({ queryKey: ['device-access-callback-call-logs', queryParams], queryFn: () => api.openApi.callLogs.page(queryParams) });
 
-  const protocols = protocolsQuery.data?.data.records ?? [];
   const vendors = vendorsQuery.data?.data.records ?? [];
   const models = modelsQuery.data?.data.records ?? [];
-  const commands = commandsQuery.data?.data.records ?? [];
-  const statusMappings = statusMappingsQuery.data?.data.records ?? [];
-  const commandLogs = commandLogsQuery.data?.data.records ?? [];
-  const callbacks = callbacksQuery.data?.data.records ?? [];
-  const callLogs = callLogsQuery.data?.data.records ?? [];
 
   const openModal = (kind: ModalKind) => {
     setModalKind(kind);
@@ -144,19 +126,6 @@ const DeviceAccessManagement: React.FC = () => {
     setModalKind(null);
   };
 
-  const protocolColumns = useMemo<ProColumns<DeviceProtocolRecord>[]>(() => [
-    { title: '协议编码', dataIndex: 'protocolCode', width: 150, fixed: 'left' },
-    { title: '协议名称', dataIndex: 'protocolName', width: 180 },
-    { title: '协议类型', dataIndex: 'protocolType', width: 120 , render: (value) => formatEnumText(value, 'protocolType', '协议类型') },
-    { title: '版本', dataIndex: 'version', width: 100 },
-    { title: '认证方式', dataIndex: 'authMethod', width: 130 , render: (value) => formatEnumText(value, 'authMethod', '认证方式') },
-    { title: '签名算法', dataIndex: 'signatureMethod', width: 130 , render: (value) => formatEnumText(value, 'signatureMethod', '签名算法') },
-    { title: '回调要求', dataIndex: 'callbackRequired', width: 120 , render: (value) => formatEnumText(value, 'callbackRequired', '回调要求') },
-    { title: '安全负责人', dataIndex: 'securityOwner', width: 140 },
-    { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
-  ], []);
-
   const vendorColumns = useMemo<ProColumns<DeviceVendorRecord>[]>(() => [
     { title: '厂商编码', dataIndex: 'vendorCode', width: 150, fixed: 'left' },
     { title: '厂商名称', dataIndex: 'vendorName', width: 180 },
@@ -177,59 +146,6 @@ const DeviceAccessManagement: React.FC = () => {
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
   ], []);
 
-  const commandColumns = useMemo<ProColumns<DeviceCommandTemplateRecord>[]>(() => [
-    { title: '模板编码', dataIndex: 'templateCode', width: 160, fixed: 'left' },
-    { title: '模板名称', dataIndex: 'templateName', width: 180 },
-    { title: '协议编码', dataIndex: 'protocolCode', width: 150 },
-    { title: '设备类型', dataIndex: 'deviceType', width: 120 , render: (value) => formatEnumText(value, 'deviceType', '设备类型') },
-    { title: '指令类型', dataIndex: 'commandType', width: 140 , render: (value) => formatEnumText(value, 'commandType', '指令类型') },
-    { title: '指令内容', dataIndex: 'commandPayload', width: 320, ellipsis: true },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
-  ], []);
-
-  const statusColumns = useMemo<ProColumns<DeviceStatusMappingRecord>[]>(() => [
-    { title: '映射编码', dataIndex: 'mappingCode', width: 160, fixed: 'left' },
-    { title: '协议编码', dataIndex: 'protocolCode', width: 150 },
-    { title: '映射分组', dataIndex: 'statusGroup', width: 140 , render: (value) => formatEnumText(value, 'statusGroup', '映射分组') },
-    { title: '厂商状态码', dataIndex: 'vendorStatusCode', width: 140 },
-    { title: '平台状态码', dataIndex: 'platformStatusCode', width: 140 },
-    { title: '状态名称', dataIndex: 'statusName', width: 160 },
-    { title: '说明', dataIndex: 'description', width: 220, ellipsis: true },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
-  ], []);
-
-  const callbackColumns = useMemo<ProColumns<DeviceCallbackConfigRecord>[]>(() => [
-    { title: '回调编码', dataIndex: 'callbackCode', width: 160, fixed: 'left' },
-    { title: '回调名称', dataIndex: 'callbackName', width: 180 },
-    { title: '协议编码', dataIndex: 'protocolCode', width: 150 },
-    { title: '厂商编码', dataIndex: 'vendorCode', width: 150 },
-    { title: '回调类型', dataIndex: 'callbackType', width: 140 , render: (value) => formatEnumText(value, 'callbackType', '回调类型') },
-    { title: '回调地址', dataIndex: 'callbackUrl', width: 320, ellipsis: true },
-    { title: '签名算法', dataIndex: 'signatureMethod', width: 130 , render: (value) => formatEnumText(value, 'signatureMethod', '签名算法') },
-    { title: 'IP 白名单', dataIndex: 'ipWhitelist', width: 240, ellipsis: true },
-    { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
-  ], []);
-
-  const logColumns = useMemo<ProColumns<DeviceCommandLogRecord>[]>(() => [
-    { title: '指令编号', dataIndex: 'commandNo', width: 180, fixed: 'left' },
-    { title: '设备编号', dataIndex: 'deviceCode', width: 150 },
-    { title: '请求报文', dataIndex: 'requestPayload', width: 320, ellipsis: true },
-    { title: '回执报文', dataIndex: 'responsePayload', width: 320, ellipsis: true },
-    { title: '重试次数', dataIndex: 'retryCount', width: 100 },
-    { title: '记录时间', dataIndex: 'loggedAt', width: 180, render: (_, record) => formatDateTime(record.loggedAt) },
-  ], []);
-
-  const callLogColumns = useMemo<ProColumns<OpenApiCallLogRecord>[]>(() => [
-    { title: '客户端', dataIndex: 'clientName', width: 180, fixed: 'left' },
-    { title: '接口路径', dataIndex: 'apiPath', width: 220 },
-    { title: '方法', dataIndex: 'requestMethod', width: 100 , render: (value) => formatEnumText(value, 'requestMethod', '方法') },
-    { title: '响应码', dataIndex: 'responseCode', width: 100 },
-    { title: '状态', dataIndex: 'callStatus', width: 100 , render: (value) => formatEnumText(value, 'callStatus', '状态') },
-    { title: '耗时', dataIndex: 'costMs', width: 100, renderText: (value) => `${value}ms` },
-    { title: '调用时间', dataIndex: 'createdAt', width: 180, render: (_, record) => formatDateTime(record.createdAt) },
-  ], []);
-
   const modalTitleMap: Record<ModalKind, string> = {
     protocol: '新增设备协议',
     vendor: '新增设备厂商',
@@ -241,28 +157,19 @@ const DeviceAccessManagement: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="设备接入" subtitle="统一维护设备协议、厂商型号、指令模板、状态映射、回调配置和通信日志。" icon={<ApiOutlined />} />
+      <PageBanner title="设备接入" subtitle="默认只维护设备厂商和型号；协议、指令、状态映射、回调和通信日志作为真实硬件接入后的高级能力暂不开放。" icon={<ApiOutlined />} />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="协议" value={protocols.length} suffix="个" /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="厂商" value={vendors.length} suffix="家" /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="型号" value={models.length} suffix="个" /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="指令模板" value={commands.length} suffix="条" /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="回调配置" value={callbacks.length} suffix="个" /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="通信日志" value={commandLogs.length + callLogs.length} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="厂商" value={vendors.length} suffix="家" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="型号" value={models.length} suffix="个" /></Card></Col>
       </Row>
 
-      <KeywordSearchBar value={keyword} placeholder="协议 / 厂商 / 型号 / 指令 / 回调 / 日志关键词" onSearch={setKeyword} />
+      <KeywordSearchBar value={keyword} placeholder="厂商 / 型号关键词" onSearch={setKeyword} />
 
       <Tabs
         items={[
-          { key: 'protocol', label: '设备协议', children: <ProTable<DeviceProtocolRecord> cardBordered rowKey="id" columns={protocolColumns} dataSource={protocols} loading={protocolsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1500 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('protocol')}>新增协议</Button>]} /> },
           { key: 'vendor', label: '设备厂商', children: <ProTable<DeviceVendorRecord> cardBordered rowKey="id" columns={vendorColumns} dataSource={vendors} loading={vendorsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1200 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('vendor')}>新增厂商</Button>]} /> },
           { key: 'model', label: '设备型号', children: <ProTable<DeviceModelRecord> cardBordered rowKey="id" columns={modelColumns} dataSource={models} loading={modelsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1200 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('model')}>新增型号</Button>]} /> },
-          { key: 'command', label: '指令模板', children: <ProTable<DeviceCommandTemplateRecord> cardBordered rowKey="id" columns={commandColumns} dataSource={commands} loading={commandsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1300 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('command')}>新增指令模板</Button>]} /> },
-          { key: 'status', label: '状态码映射', children: <ProTable<DeviceStatusMappingRecord> cardBordered rowKey="id" columns={statusColumns} dataSource={statusMappings} loading={statusMappingsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1300 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('status')}>新增状态映射</Button>]} /> },
-          { key: 'callback', label: '回调配置', children: <ProTable<DeviceCallbackConfigRecord> cardBordered rowKey="id" columns={callbackColumns} dataSource={callbacks} loading={callbacksQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1400 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('callback')}>新增回调配置</Button>]} /> },
-          { key: 'log', label: '通信日志', children: <Tabs items={[{ key: 'commandLog', label: '设备回执日志', children: <ProTable<DeviceCommandLogRecord> cardBordered rowKey="id" columns={logColumns} dataSource={commandLogs} loading={commandLogsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1300 }} /> }, { key: 'apiLog', label: '接口调用日志', children: <ProTable<OpenApiCallLogRecord> cardBordered rowKey="id" columns={callLogColumns} dataSource={callLogs} loading={callLogsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1200 }} /> }]} /> },
         ]}
       />
 

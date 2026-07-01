@@ -56,7 +56,6 @@ const normalizePickerInitialValues = (record: Record<string, any>) => {
   });
   return next;
 };
-const capabilityMap = buildValueEnum(storeServiceCapabilityOptions);
 const storeProfilePublishStatusOptions = [
   { value: 'PUBLISHED', label: '已发布' },
   { value: 'DISABLED', label: '已禁用' },
@@ -170,15 +169,10 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
   const imageQuery = useQuery({ queryKey: ['storeImages', storeId], queryFn: async () => (await api.storeImage.page(storeProfileQueryParams)).data });
   const businessQuery = useQuery({ queryKey: ['storeBusinessHours', storeId], queryFn: async () => (await api.storeBusinessHours.page(storeProfileQueryParams)).data });
   const tempCloseQuery = useQuery({ queryKey: ['storeTempCloseRecords', storeId], queryFn: async () => (await api.storeTempCloseRecord.page(storeProfileQueryParams)).data });
-  const capabilityQuery = useQuery({ queryKey: ['storeServiceCapabilities', storeId], queryFn: async () => (await api.storeServiceCapability.page(storeProfileQueryParams)).data });
 
   const images = withStoreName(imageQuery.data?.records);
   const businessHours = withStoreName(businessQuery.data?.records);
   const tempCloses = withStoreName(tempCloseQuery.data?.records);
-  const capabilities = withStoreName(capabilityQuery.data?.records).map((record) => ({
-    ...record,
-    ...parseCapabilityConfig(record.configJson),
-  }));
 
   const invalidateTab = (tab: StoreProfileTab) => {
     if (tab === 'image') queryClient.invalidateQueries({ queryKey: ['storeImages'] });
@@ -293,25 +287,14 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, tempCloseStatusMap) },
     actionColumn('tempClose') as ProColumns<StoreTempCloseRecord>,
   ];
-  const capabilityColumns: ProColumns<StoreServiceCapabilityRecord>[] = [
-    { title: '门店', dataIndex: 'storeName', width: 180 },
-    { title: '能力', dataIndex: 'capabilityCode', width: 130, render: (_, record) => renderStatusTag(record.capabilityCode, capabilityMap) },
-    { title: '开放限制', dataIndex: 'limitMode', width: 140, render: (_, record) => optionLabel(capabilityLimitOptions, record.limitMode) || '-' },
-    { title: '适用点位', dataIndex: 'pointScope', width: 140, render: (_, record) => optionLabel(capabilityPointOptions, record.pointScope) || '-' },
-    { title: '补充限制', dataIndex: 'extraLimit', width: 220, ellipsis: true },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, storeProfilePublishStatusMap) },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
-    actionColumn('capability') as ProColumns<StoreServiceCapabilityRecord>,
-  ];
   return (
     <div style={{ padding: embedded ? 0 : 24 }}>
-      {!embedded ? <PageBanner title="门店档案中心" subtitle="维护门店图片、营业时间、临停记录和服务能力。" icon={<HomeOutlined />} /> : null}
+      {!embedded ? <PageBanner title="门店档案中心" subtitle="维护门店图片、营业时间和临停记录。" icon={<HomeOutlined />} /> : null}
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="门店图片" value={images.length} suffix="张" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="营业时间" value={businessHours.length} suffix="条" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="临停中" value={tempCloses.filter((item) => item.status === 'PROCESSING').length} suffix="家" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="服务能力" value={capabilities.length} suffix="项" /></Card></Col>
       </Row>
 
       <Form
@@ -344,7 +327,6 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
           { key: 'image', label: '门店图片', children: <ProTable<StoreImageRecord> cardBordered rowKey="id" columns={imageColumns} dataSource={filter(images)} loading={imageQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1320 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('image')}>新增图片</Button>]} /> },
           { key: 'business', label: '营业时间', children: <ProTable<StoreBusinessHoursRecord> cardBordered rowKey="id" columns={businessColumns} dataSource={filter(businessHours)} loading={businessQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 980 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('business')}>配置时间</Button>]} /> },
           { key: 'tempClose', label: '临停记录', children: <ProTable<StoreTempCloseRecord> cardBordered rowKey="id" columns={tempCloseColumns} dataSource={filter(tempCloses)} loading={tempCloseQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1260 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('tempClose')}>新增临停</Button>]} /> },
-          { key: 'capability', label: '服务能力', children: <ProTable<StoreServiceCapabilityRecord> cardBordered rowKey="id" columns={capabilityColumns} dataSource={filter(capabilities)} loading={capabilityQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('capability')}>配置能力</Button>]} /> },
         ]}
       />
 

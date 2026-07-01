@@ -6,7 +6,6 @@ import {
   merchantContractStatusOptions,
   merchantTypeOptions,
   qualificationTypeOptions,
-  settlementCycleOptions,
   statusOptions,
 } from '@/constants/businessCatalog';
 import type {
@@ -30,7 +29,6 @@ interface MerchantFullProfileDrawerProps {
 const merchantTypeMap = buildValueEnum(merchantTypeOptions);
 const contractStatusMap = buildValueEnum(merchantContractStatusOptions);
 const qualificationTypeMap = buildValueEnum(qualificationTypeOptions);
-const settlementCycleMap = buildValueEnum(settlementCycleOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
 const statusMap = buildValueEnum(statusOptions);
 const primaryFlagMap = {
@@ -75,7 +73,6 @@ const MerchantFullProfileDrawer: React.FC<MerchantFullProfileDrawerProps> = ({ o
   const contractColumns: ColumnsType<MerchantContractRecord> = [
     { title: '合同编号', dataIndex: 'contractNo' },
     { title: '合同名称', dataIndex: 'contractName' },
-    { title: '结算周期', dataIndex: 'settlementCycle', render: (_, record) => renderStatusTag(record.settlementCycle, settlementCycleMap) },
     { title: '合同状态', dataIndex: 'contractStatus', render: (_, record) => renderStatusTag(record.contractStatus, contractStatusMap) },
     { title: '审核状态', dataIndex: 'status', render: (_, record) => renderStatusTag(record.status, auditStatusMap) },
     { title: '周期', render: (_, record) => `${record.startAt || '-'} ~ ${record.endAt || '-'}` },
@@ -136,10 +133,8 @@ const MerchantFullProfileDrawer: React.FC<MerchantFullProfileDrawerProps> = ({ o
                   <Descriptions bordered column={2} size="small">
                     <Descriptions.Item label="商户编号">{merchant.merchantCode}</Descriptions.Item>
                     <Descriptions.Item label="主体类型">{renderStatusTag(merchant.merchantType, merchantTypeMap)}</Descriptions.Item>
-                    <Descriptions.Item label="合同状态">{renderStatusTag(merchant.contractStatus, contractStatusMap)}</Descriptions.Item>
                     <Descriptions.Item label="商户状态">{renderStatusTag(merchant.status, statusMap)}</Descriptions.Item>
-                    <Descriptions.Item label="联系人">{merchant.contactName || '-'}</Descriptions.Item>
-                    <Descriptions.Item label="联系电话">{merchant.contactPhone || '-'}</Descriptions.Item>
+                    <Descriptions.Item label="创建时间">{formatDateTime(merchant.createdAt || merchant.createTime)}</Descriptions.Item>
                   </Descriptions>
                   <List
                     header="档案风险提示"
@@ -158,11 +153,8 @@ const MerchantFullProfileDrawer: React.FC<MerchantFullProfileDrawerProps> = ({ o
                   <Descriptions.Item label="商户名称">{merchant.merchantName}</Descriptions.Item>
                   <Descriptions.Item label="简称">{merchant.shortName || '-'}</Descriptions.Item>
                   <Descriptions.Item label="统一信用代码">{merchant.creditCode || '-'}</Descriptions.Item>
-                  <Descriptions.Item label="覆盖城市">{merchant.cityCoverage || '-'}</Descriptions.Item>
-                  <Descriptions.Item label="结算周期">{merchant.settlementCycle || '-'}</Descriptions.Item>
-                  <Descriptions.Item label="结算户名">{merchant.settlementAccountName || '-'}</Descriptions.Item>
-                  <Descriptions.Item label="结算账号">{maskAccountNo(merchant.settlementAccountNo)}</Descriptions.Item>
                   <Descriptions.Item label="创建时间">{formatDateTime(merchant.createdAt || merchant.createTime)}</Descriptions.Item>
+                  <Descriptions.Item label="更新时间">{formatDateTime(merchant.updatedAt || merchant.updateTime)}</Descriptions.Item>
                   <Descriptions.Item label="备注" span={2}>{merchant.remark || '-'}</Descriptions.Item>
                 </Descriptions>
               ),

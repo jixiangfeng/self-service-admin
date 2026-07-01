@@ -2,12 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { DeleteOutlined, EditOutlined, EnvironmentOutlined, FieldTimeOutlined, NotificationOutlined, PlusOutlined, ShopOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, EnvironmentOutlined, FieldTimeOutlined, PlusOutlined, ShopOutlined } from '@ant-design/icons';
 import { Button, Form, Input, InputNumber, Select, Space, Tabs, message } from 'antd';
 import type { CascaderProps } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
-  marketingOptions,
   storeStatusOptions,
 } from '@/constants/businessCatalog';
 import api from '@/services/backendService';
@@ -15,7 +14,7 @@ import type { SelectOptionRecord, StoreFullProfileRecord, StoreRecord } from '@/
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import PageBanner from '@/components/PageBanner';
-import { buildValueEnum, CoreFlowPanel, formatDateTime, OperatorTips, renderBooleanTag, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, CoreFlowPanel, formatDateTime, OperatorTips, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import { RegionCascader } from '@/utils/formControls';
 import StoreFullProfileDrawer from './StoreFullProfileDrawer';
@@ -115,7 +114,6 @@ const StoreManagement: React.FC = () => {
     setEditingRecord(null);
     form.resetFields();
     form.setFieldsValue({
-      marketingEnabled: 1,
       status: 'OPEN',
     });
     setModalVisible(true);
@@ -159,8 +157,6 @@ const StoreManagement: React.FC = () => {
       { title: '城市', dataIndex: 'city', width: 140, render: (_, record) => record.city || '-', hideInSearch: true },
       { title: '城市筛选', dataIndex: 'cityKeyword', hideInTable: true, fieldProps: { placeholder: '输入城市，例如上海' } },
       { title: '店长', dataIndex: 'managerName', width: 140, search: false, render: (_, record) => record.managerName || '-' },
-      { title: '服务半径', dataIndex: 'serviceRadius', width: 110, search: false, render: (_, record) => record.serviceRadius ? `${record.serviceRadius}km` : '-' },
-      { title: '营销开关', dataIndex: 'marketingEnabled', width: 120, search: false, render: (_, record) => renderBooleanTag(record.marketingEnabled) },
       {
         title: '门店状态',
         dataIndex: 'status',
@@ -384,8 +380,8 @@ const StoreManagement: React.FC = () => {
 
             <BusinessEditorSection
               icon={<EnvironmentOutlined />}
-              title="位置与服务范围"
-              desc="补齐行政区、详细地址、经纬度和服务半径，支撑门店检索、导航、附近门店和服务范围控制。"
+              title="位置与导航"
+              desc="补齐行政区、详细地址和经纬度，支撑门店检索、导航和附近门店展示。"
             >
               <div className="merchant-editor-fields">
                 <Form.Item className="merchant-editor-field-span-all" name="region" label="省 / 市 / 区">
@@ -408,21 +404,15 @@ const StoreManagement: React.FC = () => {
                 <Form.Item name="latitude" label="纬度">
                   <InputNumber min={-90} max={90} precision={6} step={0.000001} style={{ width: '100%' }} placeholder="例如：31.230416" />
                 </Form.Item>
-                <Form.Item name="serviceRadius" label="服务半径 km">
-                  <InputNumber min={0} precision={2} step={0.1} style={{ width: '100%' }} placeholder="例如：3" />
-                </Form.Item>
               </div>
             </BusinessEditorSection>
 
             <BusinessEditorSection
               icon={<FieldTimeOutlined />}
               title="营业设置"
-              desc="维护营销开关和门店启停状态；营业时段和临停记录在档案维护中维护。"
+              desc="维护门店启停状态；营业时段和临停记录在档案维护中维护。"
             >
               <div className="merchant-editor-fields">
-                <Form.Item name="marketingEnabled" label="营销开关">
-                  <Select options={marketingOptions} placeholder="是否参与营销活动" />
-                </Form.Item>
                 <Form.Item name="status" label="门店状态">
                   <Select options={storeStatusOptions} placeholder="请选择门店状态" />
                 </Form.Item>
@@ -430,14 +420,11 @@ const StoreManagement: React.FC = () => {
             </BusinessEditorSection>
 
             <BusinessEditorSection
-              icon={<NotificationOutlined />}
-              title="展示与公告"
-              desc="维护门店公告和介绍；门店图片在档案维护中统一管理。"
+              icon={<ShopOutlined />}
+              title="展示介绍"
+              desc="维护门店介绍；门店图片和公告类运营信息在档案或活动配置中统一管理。"
             >
               <div className="merchant-editor-fields merchant-editor-fields--two">
-                <Form.Item name="notice" label="门店公告">
-                  <Input.TextArea rows={3} placeholder="例如：夜间洗车请按现场引导停车" />
-                </Form.Item>
                 <Form.Item name="intro" label="门店介绍">
                   <Input.TextArea rows={3} placeholder="描述门店定位、设备组合和经营重点" />
                 </Form.Item>

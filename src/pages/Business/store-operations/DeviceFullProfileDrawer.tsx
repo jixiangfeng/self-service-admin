@@ -136,8 +136,6 @@ const DeviceFullProfileDrawer: React.FC<DeviceFullProfileDrawerProps> = ({ open,
                     <Descriptions.Item label="厂商">{device.vendorName || '-'}</Descriptions.Item>
                     <Descriptions.Item label="门店">{profile.store?.storeName || device.storeName || '-'}</Descriptions.Item>
                     <Descriptions.Item label="点位">{profile.servicePoint?.pointCode || device.pointCode || '-'}</Descriptions.Item>
-                    <Descriptions.Item label="故障级别">{formatEnumText(device.faultLevel, 'faultLevel', '故障级别')}</Descriptions.Item>
-                    <Descriptions.Item label="信号强度">{device.signalStrength != null ? `${device.signalStrength}%` : '-'}</Descriptions.Item>
                     <Descriptions.Item label="最近心跳">{formatDateTime(profile.latestHeartbeatAt || device.lastHeartbeatAt)}</Descriptions.Item>
                     <Descriptions.Item label="安装时间">{formatDateTime(device.installTime)}</Descriptions.Item>
                     <Descriptions.Item label="能力标签" span={2}>{device.abilityTags || '-'}</Descriptions.Item>

@@ -148,15 +148,8 @@ export interface MerchantRecord {
   merchantCode: string;
   merchantType: string;
   creditCode?: string;
-  contactName?: string;
-  contactPhone?: string;
-  settlementAccountName?: string;
-  settlementAccountNo?: string;
-  settlementCycle?: string;
   licenseUrl?: string;
   shortName?: string;
-  contractStatus?: string;
-  cityCoverage?: string;
   storeCount?: number;
   remark?: string;
   status: number;
@@ -369,9 +362,7 @@ export interface StoreRecord {
   latitude?: number | string;
   businessHours?: string;
   holidayHours?: string;
-  marketingEnabled?: number;
   status: string;
-  notice?: string;
   storePhone?: string;
   managerName?: string;
   managerPhone?: string;
@@ -383,7 +374,6 @@ export interface StoreRecord {
   closeTime?: string;
   tempClosedReason?: string;
   tempClosedUntil?: string;
-  serviceRadius?: number | string;
   createdAt?: string;
   updatedAt?: string;
   createTime?: string;
@@ -477,8 +467,6 @@ export interface DeviceRecord {
   protocolType?: string;
   protocolVersion?: string;
   controlMode?: string;
-  faultLevel?: string;
-  signalStrength?: number;
   abilityTags?: string;
   lastHeartbeatAt?: string;
   installTime?: string;
@@ -697,7 +685,12 @@ export interface RechargeActivityRecord {
   activityName: string;
   rechargeMode?: string;
   scope?: string;
+  scopeMode?: string;
+  scopeIds?: string;
   costOwner?: string;
+  rewardType?: string;
+  couponTemplateId?: number;
+  serviceCardId?: number;
   tierAmounts?: string;
   minAmount?: number;
   bannerImageUrl?: string;
@@ -707,6 +700,8 @@ export interface RechargeActivityRecord {
 
 export interface RechargeActivityFullProfileRecord {
   activity: RechargeActivityRecord;
+  couponTemplate?: CouponTemplateRecord;
+  serviceCard?: ServiceCardRecord;
   rechargeOrders: RechargeOrderRecord[];
   rechargeRewards: RechargeRewardRecord[];
   participations: MarketingParticipationRecord[];
@@ -1455,6 +1450,7 @@ export interface ServiceCardRecord {
   cardName: string;
   cardType: string;
   scopeMode?: string;
+  scopeIds?: string;
   scopeNote?: string;
   salePrice?: number | string;
   validityMode?: string;

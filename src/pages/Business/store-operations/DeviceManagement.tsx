@@ -2,11 +2,10 @@ import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { DeleteOutlined, DeploymentUnitOutlined, EditOutlined, LinkOutlined, PlusOutlined, ToolOutlined } from '@ant-design/icons';
-import { Button, Form, Input, InputNumber, Select, Space, Tabs, message } from 'antd';
+import { DeleteOutlined, DeploymentUnitOutlined, EditOutlined, LinkOutlined, PlusOutlined } from '@ant-design/icons';
+import { Button, Form, Input, Select, Space, Tabs, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
-  deviceFaultLevelOptions,
   deviceStatusOptions,
   deviceTypeOptions,
 } from '@/constants/businessCatalog';
@@ -19,7 +18,6 @@ import { buildValueEnum, CoreFlowPanel, formatDateTime, OperatorTips, renderStat
 import WorkflowGuide from '@/pages/Business/shared';
 import { DateField, fromDatePickerValue, toDatePickerValue } from '@/utils/formControls';
 import DeviceFullProfileDrawer from './DeviceFullProfileDrawer';
-import DeviceProfileManagement from './DeviceProfileManagement';
 
 const normalizeDeviceValues = (values: Record<string, any>) => ({ ...values, installTime: fromDatePickerValue(values.installTime) || values.installTime });
 const normalizeDeviceInitialValues = (record: DeviceRecord) => ({ ...record, installTime: toDatePickerValue(record.installTime) || record.installTime }) as Record<string, unknown>;
@@ -102,8 +100,6 @@ const DeviceManagement: React.FC = () => {
     form.setFieldsValue({
       status: 'OFFLINE',
       deviceType: 'CAR_WASH_HIGH_PRESSURE',
-      faultLevel: 'LOW',
-      signalStrength: 80,
     });
     setModalVisible(true);
   };
@@ -152,8 +148,6 @@ const DeviceManagement: React.FC = () => {
         valueEnum: buildValueEnum(deviceTypeOptions),
         render: (_, record) => renderStatusTag(record.deviceType, buildValueEnum(deviceTypeOptions) as any),
       },
-      { title: '故障级别', dataIndex: 'faultLevel', width: 120, search: false, render: (_, record) => renderStatusTag(record.faultLevel, buildValueEnum(deviceFaultLevelOptions) as any) },
-      { title: '信号强度', dataIndex: 'signalStrength', width: 100, search: false, render: (_, record) => (record.signalStrength != null ? `${record.signalStrength}%` : '-') },
       { title: '最近心跳', dataIndex: 'lastHeartbeatAt', width: 180, search: false, render: (_, record) => formatDateTime(record.lastHeartbeatAt) },
       {
         title: '状态',
@@ -304,7 +298,6 @@ const DeviceManagement: React.FC = () => {
       />
             ),
           },
-          { key: 'device-profile', label: '接入档案', children: <DeviceProfileManagement embedded /> },
         ]}
       />
 
@@ -321,7 +314,7 @@ const DeviceManagement: React.FC = () => {
       <BusinessEditorModal
         eyebrow={editingRecord ? '设备台账维护' : '设备台账建档'}
         title={editingRecord ? `编辑设备 · ${editingRecord.deviceName}` : '新建设备'}
-        subtitle="主表单只维护设备资产、绑定关系和当前运行状态；协议、鉴权和能力模板在接入档案中维护。"
+        subtitle="主表单只维护设备资产、绑定关系和当前运行状态；厂商型号和协议在设备接入中维护，故障和信号由运行记录自动体现。"
         meta={['设备台账', editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
         width={1180}
@@ -408,23 +401,6 @@ const DeviceManagement: React.FC = () => {
               </div>
             </BusinessEditorSection>
 
-            <BusinessEditorSection
-              icon={<ToolOutlined />}
-              title="运行与告警"
-              desc="维护在线状态、信号强度和故障级别，支撑运营台巡检、设备告警和履约异常处理。"
-            >
-              <div className="merchant-editor-fields">
-                <Form.Item name="faultLevel" label="故障级别">
-                  <Select options={deviceFaultLevelOptions} placeholder="请选择故障级别" />
-                </Form.Item>
-                <Form.Item name="signalStrength" label="信号强度（%）">
-                  <InputNumber min={0} max={100} precision={0} addonAfter="%" style={{ width: '100%' }} placeholder="例如：80" />
-                </Form.Item>
-                <Form.Item name="status" label="设备状态">
-                  <Select options={deviceStatusOptions} placeholder="请选择设备状态" />
-                </Form.Item>
-              </div>
-            </BusinessEditorSection>
           </div>
         </Form>
       </BusinessEditorModal>

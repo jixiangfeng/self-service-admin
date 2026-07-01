@@ -35,7 +35,7 @@ const UserAssetFullProfileDrawer: React.FC<Props> = ({ open, loading, profile, o
 
   const vehicleColumns: ColumnsType<UserVehicleRecord> = [
     { title: '车牌号', dataIndex: 'plateNo', width: 140 },
-    { title: '车型', dataIndex: 'vehicleType', width: 120, render: (value) => value || '-' },
+    { title: '车型', dataIndex: 'vehicleType', width: 120, render: (value) => formatEnumText(value, 'vehicleType', '车型') },
     { title: '品牌', dataIndex: 'brand', width: 120, render: (value) => value || '-' },
     { title: '颜色', dataIndex: 'color', width: 100, render: (value) => value || '-' },
     { title: '默认', dataIndex: 'defaultFlag', width: 90, render: (value) => formatEnumText(value, 'defaultFlag', '默认') },
@@ -77,7 +77,7 @@ const UserAssetFullProfileDrawer: React.FC<Props> = ({ open, loading, profile, o
     { title: '券类型', dataIndex: 'couponType', width: 120, render: (value) => formatEnumText(value, 'couponType', '券类型') },
     { title: '状态', dataIndex: 'status', width: 120, render: (value) => formatEnumText(value, 'couponStatus', '状态') },
     { title: '抵扣金额', dataIndex: 'discountAmount', width: 120, render: (value) => formatAmount(value) },
-    { title: '来源', dataIndex: 'sourceType', width: 120, render: (value) => value || '-' },
+    { title: '来源', dataIndex: 'sourceType', width: 120, render: (value) => formatEnumText(value, 'sourceType', '来源') },
     { title: '有效期', width: 260, render: (_, record) => `${formatDateTime(record.validStart)} ~ ${formatDateTime(record.validEnd)}` },
   ];
 
@@ -85,7 +85,7 @@ const UserAssetFullProfileDrawer: React.FC<Props> = ({ open, loading, profile, o
     { title: '充值单号', dataIndex: 'rechargeNo', width: 180 },
     { title: '活动', dataIndex: 'activityName', width: 180, render: (value) => value || '-' },
     { title: '充值门店', dataIndex: 'storeName', width: 160, render: (value) => value || '-' },
-    { title: '可用范围', dataIndex: 'scopeType', width: 120, render: (value) => value || '-' },
+    { title: '可用范围', dataIndex: 'scopeType', width: 120, render: (value) => formatEnumText(value, 'scopeType', '可用范围') },
     { title: '实付金额', dataIndex: 'payAmount', width: 120, render: (value) => formatAmount(value) },
     { title: '赠送金额', dataIndex: 'giftAmount', width: 120, render: (value) => formatAmount(value) },
     { title: '状态', dataIndex: 'status', width: 120, render: (value) => formatEnumText(value, 'rechargeOrderStatus', '状态') },

@@ -19,7 +19,7 @@ import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
-import { buildValueEnum, containsKeyword, CoreFlowPanel, formatAmount, formatDateTime, OperatorTips, renderStatusTag } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, CoreFlowPanel, formatAmount, formatDateTime, formatEnumText, OperatorTips, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import { DateField, fromDatePickerValue } from '@/utils/formControls';
 import api, {
@@ -440,7 +440,7 @@ const SettlementManagement: React.FC = () => {
     { title: '合伙人', dataIndex: 'partnerName', width: 180, search: false },
     { title: '充值单号', dataIndex: 'rechargeNo', width: 180, search: false },
     { title: '门店组', dataIndex: 'merchantGroupName', width: 180, search: false },
-    { title: '结算模式', dataIndex: 'settlementMode', width: 140, search: false },
+    { title: '结算模式', dataIndex: 'settlementMode', width: 140, search: false, render: (_, record) => formatEnumText(record.settlementMode, 'settlementMode', '结算模式') },
     { title: '结算规则', dataIndex: 'settlementRule', width: 180, search: false },
     { title: '分润基数', dataIndex: 'baseAmount', width: 120, search: false, render: (_, record) => formatAmount(record.baseAmount) },
     { title: '比例', dataIndex: 'ratio', width: 100, search: false },
@@ -468,7 +468,7 @@ const SettlementManagement: React.FC = () => {
     { title: '充值单号', dataIndex: 'rechargeNo', width: 180, search: false },
     { title: '门店', dataIndex: 'storeName', width: 180, search: false },
     { title: '门店组', dataIndex: 'merchantGroupName', width: 180, search: false },
-    { title: '结算模式', dataIndex: 'settlementMode', width: 140, search: false },
+    { title: '结算模式', dataIndex: 'settlementMode', width: 140, search: false, render: (_, record) => formatEnumText(record.settlementMode, 'settlementMode', '结算模式') },
     { title: '结算规则', dataIndex: 'settlementRule', width: 180, search: false },
     { title: '收入', dataIndex: 'incomeAmount', width: 110, search: false, render: (_, record) => formatAmount(record.incomeAmount) },
     { title: '退款', dataIndex: 'refundAmount', width: 110, search: false, render: (_, record) => formatAmount(record.refundAmount) },

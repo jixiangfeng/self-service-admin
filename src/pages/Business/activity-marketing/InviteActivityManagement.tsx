@@ -164,7 +164,7 @@ const InviteActivityManagement: React.FC = () => {
     { title: '达标规则', dataIndex: 'qualifyCondition', width: 220, search: false, render: (_, record) => qualifyText(record) },
     { title: '邀请人奖励', dataIndex: 'inviterReward', width: 160, search: false },
     { title: '被邀请人奖励', dataIndex: 'inviteeReward', width: 160, search: false },
-    { title: '阶梯返利', dataIndex: 'tierRewardRules', width: 220, search: false, ellipsis: true },
+    { title: '阶梯返利', dataIndex: 'tierRewardRules', width: 220, search: false, ellipsis: true, render: (_, record) => record.tierRewardRules || '-' },
     { title: '邀请人奖励配置', dataIndex: 'inviterRewardType', width: 180, search: false, render: (_, record) => rewardSummary(record.inviterRewardType, record.inviterRewardAmount, record.inviterCouponTemplateId, record.inviterServiceCardId) },
     { title: '被邀请人奖励配置', dataIndex: 'inviteeRewardType', width: 180, search: false, render: (_, record) => rewardSummary(record.inviteeRewardType, record.inviteeRewardAmount, record.inviteeCouponTemplateId, record.inviteeServiceCardId) },
     { title: '邀请数', dataIndex: 'inviteCount', width: 100, search: false },

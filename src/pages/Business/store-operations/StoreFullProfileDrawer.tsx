@@ -113,10 +113,8 @@ const StoreFullProfileDrawer: React.FC<StoreFullProfileDrawerProps> = ({ open, l
                     <Descriptions.Item label="门店电话">{store.storePhone || '-'}</Descriptions.Item>
                     <Descriptions.Item label="负责人">{store.managerName || '-'}</Descriptions.Item>
                     <Descriptions.Item label="负责人电话">{store.managerPhone || '-'}</Descriptions.Item>
-                    <Descriptions.Item label="服务半径">{store.serviceRadius ? `${store.serviceRadius}km` : '-'}</Descriptions.Item>
                     <Descriptions.Item label="城市">{[store.province, store.city, store.district].filter(Boolean).join(' / ') || '-'}</Descriptions.Item>
                     <Descriptions.Item label="详细地址">{store.address || '-'}</Descriptions.Item>
-                    <Descriptions.Item label="公告" span={2}>{store.notice || '-'}</Descriptions.Item>
                     <Descriptions.Item label="今日核销金额">￥{formatMoney(profile.todayWriteOffAmount)}</Descriptions.Item>
                     <Descriptions.Item label="累计完成订单">{profile.completedOrderCount || 0}</Descriptions.Item>
                     <Descriptions.Item label="介绍" span={2}>{store.intro || '-'}</Descriptions.Item>

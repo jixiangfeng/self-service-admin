@@ -6,14 +6,11 @@ import {
   ApartmentOutlined,
   DeleteOutlined,
   EditOutlined,
-  PhoneOutlined,
   PlusOutlined,
-  WalletOutlined,
 } from '@ant-design/icons';
 import { Button, Form, Input, Select, Space, Tabs, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
-  merchantContractStatusOptions,
   merchantTypeOptions,
   statusOptions,
 } from '@/constants/businessCatalog';
@@ -32,12 +29,9 @@ const merchantStatusMap = {
   0: { color: 'default', text: '停用' },
 };
 
-const merchantContractStatusMap = buildValueEnum(merchantContractStatusOptions);
-
 const merchantFormDefaults = {
   status: 1,
   merchantType: 'DIRECT',
-  contractStatus: 'ACTIVE',
 };
 
 const MerchantManagement: React.FC = () => {
@@ -151,7 +145,7 @@ const MerchantManagement: React.FC = () => {
         title: '关键词',
         dataIndex: 'keyword',
         hideInTable: true,
-        fieldProps: { placeholder: '商户名称 / 编号 / 联系人 / 联系电话' },
+        fieldProps: { placeholder: '商户名称 / 编号' },
       },
       { title: '商户编号', dataIndex: 'merchantCode', width: 140, search: false },
       {
@@ -162,16 +156,6 @@ const MerchantManagement: React.FC = () => {
         valueEnum: buildValueEnum(merchantTypeOptions),
         render: (_, record) => renderStatusTag(record.merchantType, buildValueEnum(merchantTypeOptions) as any),
       },
-      {
-        title: '合同状态',
-        dataIndex: 'contractStatus',
-        width: 120,
-        search: false,
-        render: (_, record) => renderStatusTag(record.contractStatus, merchantContractStatusMap),
-      },
-      { title: '联系人', dataIndex: 'contactName', width: 120, search: false, render: (_, record) => record.contactName || '-' },
-      { title: '联系电话', dataIndex: 'contactPhone', width: 140, search: false, render: (_, record) => record.contactPhone || '-' },
-      { title: '覆盖城市', dataIndex: 'cityCoverage', width: 160, search: false, render: (_, record) => record.cityCoverage || '-' },
       { title: '门店数', dataIndex: 'storeCount', width: 100, search: false, render: (_, record) => record.storeCount ?? 0 },
       {
         title: '状态',
@@ -233,12 +217,12 @@ const MerchantManagement: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="商户管理" subtitle="维护商户主体、主联系人快照和启停状态。" icon={<ApartmentOutlined />} />
+      <PageBanner title="商户管理" subtitle="维护商户主体基础资料和启停状态。" icon={<ApartmentOutlined />} />
       <WorkflowGuide
         title="商户开店闭环"
         summary="商户建档只是第一步。录完主体后，应继续开门店、分配门店组、配置商品活动，最终再进入商户后台看经营情况。"
         steps={[
-          { title: '主体建档', description: '录入主体和主联系人快照', status: 'finish', tag: '当前页' },
+          { title: '主体建档', description: '录入主体基础资料', status: 'finish', tag: '当前页' },
           { title: '门店开设', description: '为商户创建门店并配置营业策略', status: 'process', tag: '下一步：门店管理' },
           { title: '门店组范围', description: '分配活动、核销、统计门店组', status: 'wait', tag: '门店组管理' },
           { title: '经营后台', description: '切换到商户视角跟进待办和经营数据', status: 'wait', tag: '商户后台' },
@@ -333,7 +317,7 @@ const MerchantManagement: React.FC = () => {
       <BusinessEditorModal
         eyebrow={editingRecord ? '商户档案维护' : '商户入驻建档'}
         title={modalTitle}
-        subtitle="主表单只维护商户建档必需信息；联系人明细、资质、合同和结算账户在档案维护中补齐。"
+        subtitle="主表单只维护商户建档必需信息；联系人、资质、合同和结算账户在档案维护中补齐。"
         meta={['主体建档', editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
         width={1220}
@@ -350,11 +334,20 @@ const MerchantManagement: React.FC = () => {
           className="merchant-editor-form"
           preserve={false}
           onFinish={(values) => {
+            const payload = {
+              merchantName: values.merchantName,
+              shortName: values.shortName,
+              merchantCode: values.merchantCode,
+              merchantType: values.merchantType,
+              creditCode: values.creditCode,
+              status: values.status,
+              remark: values.remark,
+            };
             if (editingRecord) {
-              updateMutation.mutate({ id: editingRecord.id, ...values });
+              updateMutation.mutate({ id: editingRecord.id, ...payload });
               return;
             }
-            createMutation.mutate(values);
+            createMutation.mutate(payload);
           }}
         >
           <div className="merchant-editor-shell">
@@ -366,7 +359,7 @@ const MerchantManagement: React.FC = () => {
                   </div>
                   <div>
                     <div className="merchant-editor-section__title">主体基础信息</div>
-                    <div className="merchant-editor-section__desc">明确经营主体和合同状态，资质文件在档案维护中统一归档。</div>
+                    <div className="merchant-editor-section__desc">明确经营主体基础资料，资质文件、合同和结算账户在档案维护中统一归档。</div>
                   </div>
                 </div>
                 <div className="merchant-editor-fields">
@@ -382,9 +375,6 @@ const MerchantManagement: React.FC = () => {
                   <Form.Item name="merchantType" label="主体类型" rules={[{ required: true, message: '请选择主体类型' }]}>
                     <Select options={merchantTypeOptions} placeholder="请选择主体类型" />
                   </Form.Item>
-                  <Form.Item name="contractStatus" label="合同状态" rules={[{ required: true, message: '请选择合同状态' }]}>
-                    <Select options={merchantContractStatusOptions} placeholder="请选择合同状态" />
-                  </Form.Item>
                   <Form.Item name="creditCode" label="统一信用代码">
                     <Input placeholder="用于对接资质、发票与风控核验" />
                   </Form.Item>
@@ -394,27 +384,7 @@ const MerchantManagement: React.FC = () => {
               <section className="merchant-editor-section">
                 <div className="merchant-editor-section__head">
                   <div className="merchant-editor-section__icon">
-                    <PhoneOutlined />
-                  </div>
-                  <div>
-                    <div className="merchant-editor-section__title">联系人与响应信息</div>
-                    <div className="merchant-editor-section__desc">沉淀运营联系人，方便处理活动配置、异常售后和日常经营通知。</div>
-                  </div>
-                </div>
-                <div className="merchant-editor-fields">
-                  <Form.Item name="contactName" label="联系人">
-                    <Input placeholder="例如：王敏" />
-                  </Form.Item>
-                  <Form.Item name="contactPhone" label="联系电话">
-                    <Input placeholder="用于运营通知和售后联系" />
-                  </Form.Item>
-                </div>
-              </section>
-
-              <section className="merchant-editor-section">
-                <div className="merchant-editor-section__head">
-                  <div className="merchant-editor-section__icon">
-                    <WalletOutlined />
+                    <ApartmentOutlined />
                   </div>
                   <div>
                     <div className="merchant-editor-section__title">状态与备注</div>
