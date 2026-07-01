@@ -21,7 +21,6 @@ import {
   DollarOutlined,
   FileSearchOutlined,
   GiftOutlined,
-  FundProjectionScreenOutlined,
   IdcardOutlined,
   MenuOutlined,
   MobileOutlined,
@@ -132,8 +131,6 @@ const BasicLayout: React.FC = () => {
         { key: '/marketing', path: '/marketing', name: '活动总览', icon: <GiftOutlined /> },
         { key: '/marketing/recharge-activities', path: '/marketing/recharge-activities', name: '充值活动', icon: <DollarOutlined /> },
         { key: '/marketing/invite-activities', path: '/marketing/invite-activities', name: '邀请活动', icon: <ShareAltOutlined /> },
-        { key: '/marketing/cross-store', path: '/marketing/cross-store', name: '跨店经营', icon: <PartitionOutlined /> },
-        { key: '/marketing/execution', path: '/marketing/execution', name: '营销执行台', icon: <FundProjectionScreenOutlined /> },
       ],
     },
     {

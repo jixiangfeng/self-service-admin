@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button, Card, Checkbox, Col, Form, Input, InputNumber, Radio, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Checkbox, Col, Form, Input, InputNumber, Row, Select, Space, Statistic, Tabs, message } from 'antd';
 import { WalletOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -55,6 +55,11 @@ const issueChannelOptions = [
   { value: 'RECHARGE', label: '充值赠送' },
 ];
 
+const validityModeOptions = [
+  { value: 'DAYS', label: '按天数' },
+  { value: 'PERMANENT', label: '长期有效' },
+];
+
 const issueReasonOptions = [
   { value: 'PURCHASE', label: '用户购买' },
   { value: 'ACTIVITY', label: '活动奖励' },
@@ -91,6 +96,13 @@ const buildServiceCardPayload = (values: Record<string, any>) => {
   if (payload.scopeMode === 'PLATFORM') {
     payload.scopeIds = '';
   }
+  if (payload.validityMode === 'PERMANENT') {
+    payload.validityDays = 0;
+    payload.validityText = '长期有效';
+  } else {
+    payload.validityMode = 'DAYS';
+    payload.validityText = payload.validityDays ? `${payload.validityDays}天有效` : '';
+  }
   return payload;
 };
 
@@ -100,7 +112,7 @@ const formatServiceScope = (record: ServiceCardRecord) => compactJoin([
 ]) || '-';
 
 const formatServiceValidity = (record: ServiceCardRecord) =>
-  record.validityMode === 'DAYS' ? `${record.validityDays || 0}天` : (record.validityText || '-');
+  record.validityMode === 'PERMANENT' ? '长期有效' : `${record.validityDays || 0}天`;
 
 const formatServiceRights = (record: ServiceCardRecord) => compactJoin([
   record.rightsServiceTimes ? `${record.rightsServiceTimes}次` : undefined,
@@ -322,6 +334,7 @@ const ServiceCardManagement: React.FC = () => {
     label: item.label,
   }));
   const scopeMode = Form.useWatch('scopeMode', form);
+  const validityMode = Form.useWatch('validityMode', form);
   const scopeTargetOptions = scopeMode === 'STORE'
     ? storeOptions
     : scopeMode === 'STORE_GROUP'
@@ -657,26 +670,6 @@ const ServiceCardManagement: React.FC = () => {
                     }}
                   />
                 </Form.Item>
-                <Form.Item name="salePrice" label="售价">
-                  <InputNumber style={{ width: '100%' }} min={0} precision={2} addonBefore="￥" placeholder="0.00" />
-                </Form.Item>
-                <Form.Item name="validityMode" label="有效期方式">
-                  <Radio.Group optionType="button" options={[{ value: 'DAYS', label: '按天数' }, { value: 'TEXT', label: '固定说明' }]} />
-                </Form.Item>
-                <Form.Item name="stock" label="库存">
-                  <InputNumber style={{ width: '100%' }} min={0} precision={0} placeholder="可售库存" />
-                </Form.Item>
-                <Form.Item noStyle shouldUpdate={(prev, next) => prev.validityMode !== next.validityMode}>
-                  {({ getFieldValue }) => getFieldValue('validityMode') === 'TEXT' ? (
-                    <Form.Item name="validityText" label="有效期说明">
-                      <Input placeholder="例如：2026-12-31 前有效" />
-                    </Form.Item>
-                  ) : (
-                    <Form.Item name="validityDays" label="有效天数">
-                      <InputNumber style={{ width: '100%' }} min={1} precision={0} addonAfter="天" placeholder="365" />
-                    </Form.Item>
-                  )}
-                </Form.Item>
                 <Form.Item noStyle shouldUpdate={(prev, next) => prev.scopeMode !== next.scopeMode}>
                   {({ getFieldValue }) => {
                     const currentScopeMode = getFieldValue('scopeMode') || 'PLATFORM';
@@ -702,6 +695,34 @@ const ServiceCardManagement: React.FC = () => {
                     );
                   }}
                 </Form.Item>
+                <Form.Item name="salePrice" label="售价">
+                  <InputNumber style={{ width: '100%' }} min={0} precision={2} addonBefore="￥" placeholder="0.00" />
+                </Form.Item>
+                <Form.Item name="stock" label="库存">
+                  <InputNumber style={{ width: '100%' }} min={0} precision={0} placeholder="可售库存" />
+                </Form.Item>
+                <Form.Item name="validityMode" label="有效期方式">
+                  <Select
+                    options={validityModeOptions}
+                    placeholder="请选择有效期方式"
+                    onChange={(value) => {
+                      if (value === 'PERMANENT') {
+                        form.setFieldsValue({ validityDays: 0, validityText: '长期有效' });
+                      } else if (!form.getFieldValue('validityDays')) {
+                        form.setFieldsValue({ validityDays: 365, validityText: '365天有效' });
+                      }
+                    }}
+                  />
+                </Form.Item>
+                {validityMode !== 'PERMANENT' ? (
+                  <Form.Item name="validityDays" label="有效天数" rules={[{ required: true, message: '请输入有效天数' }]}>
+                    <InputNumber style={{ width: '100%' }} min={1} precision={0} addonAfter="天" placeholder="365" />
+                  </Form.Item>
+                ) : (
+                  <Form.Item label="有效天数">
+                    <Input disabled value="长期有效，无需填写天数" />
+                  </Form.Item>
+                )}
                 <Form.Item name="scopeNote" label="范围补充">
                   <Input placeholder="例如：仅限工作日核销、跨店扣次需提前预约" />
                 </Form.Item>

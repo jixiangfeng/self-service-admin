@@ -24,10 +24,8 @@ const OrderDetailManagement = lazy(() => import('./pages/Business/trade-fulfillm
 const ServiceCardManagement = lazy(() => import('./pages/Business/user-assets').then((module) => ({ default: module.ServiceCardManagement })));
 const AssetFlowManagement = lazy(() => import('./pages/Business/user-assets').then((module) => ({ default: module.AssetFlowManagement })));
 const UserProfileManagement = lazy(() => import('./pages/Business/user-assets').then((module) => ({ default: module.UserProfileManagement })));
-const CrossStoreActivityManagement = lazy(() => import('./pages/Business/activity-marketing').then((module) => ({ default: module.CrossStoreActivityManagement })));
 const InviteActivityManagement = lazy(() => import('./pages/Business/activity-marketing').then((module) => ({ default: module.InviteActivityManagement })));
 const RechargeActivityManagement = lazy(() => import('./pages/Business/activity-marketing').then((module) => ({ default: module.RechargeActivityManagement })));
-const MarketingExecutionManagement = lazy(() => import('./pages/Business/activity-marketing').then((module) => ({ default: module.MarketingExecutionManagement })));
 const SettlementManagement = lazy(() => import('./pages/Business/finance-settlement').then((module) => ({ default: module.SettlementManagement })));
 const ProfitSharingManagement = lazy(() => import('./pages/Business/finance-settlement').then((module) => ({ default: module.ProfitSharingManagement })));
 const SettlementDetailManagement = lazy(() => import('./pages/Business/finance-settlement').then((module) => ({ default: module.SettlementDetailManagement })));
@@ -129,10 +127,8 @@ const AppContent = () => {
               <Route path="asset/flows" element={<AssetFlowManagement />} />
               <Route path="marketing" element={<Navigate to="/marketing/recharge-activities" replace />} />
               <Route path="marketing/invite" element={<Navigate to="/marketing/invite-activities" replace />} />
-              <Route path="marketing/cross-store" element={<CrossStoreActivityManagement />} />
               <Route path="marketing/invite-activities" element={<InviteActivityManagement />} />
               <Route path="marketing/recharge-activities" element={<RechargeActivityManagement />} />
-              <Route path="marketing/execution" element={<MarketingExecutionManagement />} />
               <Route path="fulfillment" element={<FulfillmentManagement />} />
               <Route path="settlement" element={<SettlementManagement />} />
               <Route path="settlement/profit-sharing" element={<ProfitSharingManagement />} />

@@ -144,7 +144,7 @@ const contentFieldGroups: Record<string, ContentFieldConfig[]> = {
     { name: 'contentDesc', label: '页面副标题', placeholder: '热门福利都在这里' },
     { name: 'contentInviteText', label: '邀请活动文案' },
     { name: 'contentRechargeText', label: '充值活动文案' },
-    { name: 'contentCrossStoreText', label: '跨店活动文案' },
+    { name: 'contentCrossStoreText', label: '门店活动文案' },
     { name: 'contentDefaultText', label: '默认活动文案' },
   ],
   VISUAL_ASSET: [
@@ -186,7 +186,7 @@ const pageModuleTemplates: Record<string, Record<string, unknown>> = {
   },
   HELP_CENTER: { categories: ['新手指南', '订单支付', '充值余额', '设备异常', '商户服务'], hot: [{ q: '如何开始自助洗车？', a: '到店后点击首页“扫码洗车”，扫描设备二维码并确认订单即可启动。' }] },
   FEEDBACK_TYPES: { types: ['设备故障', '订单支付', '充值余额', '功能建议'], balanceTabs: ['全部', '充值', '消费', '退款'] },
-  ACTIVITY_COPY: { title: '活动广场', desc: '热门福利都在这里，选择活动直接参与', inviteText: '邀请好友，达标返现', rechargeText: '充值满赠，余额更划算', crossStoreText: '跨店活动，更多门店可用', defaultText: '限时福利，点击查看' },
+  ACTIVITY_COPY: { title: '活动广场', desc: '热门福利都在这里，选择活动直接参与', inviteText: '邀请好友，达标返现', rechargeText: '充值满赠，余额更划算', crossStoreText: '门店活动，更多福利可用', defaultText: '限时福利，点击查看' },
   VISUAL_ASSET: {},
 };
 

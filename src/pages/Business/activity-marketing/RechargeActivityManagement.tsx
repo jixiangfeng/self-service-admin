@@ -251,24 +251,23 @@ const RechargeActivityManagement: React.FC = () => {
         ]}
         landing={[
           { label: '用户资产', desc: '支付成功后会沉淀余额流水或用户服务卡。' },
-          { label: '营销执行', desc: '参与记录、奖励状态、预算消耗和异常补发在执行台复盘。' },
+          { label: '充值订单', desc: '支付、赠送和到账结果以充值订单和资产流水为准。' },
           { label: '结算清分', desc: '跨店充值和消费会进入结算明细、分润明细或清分台账。' },
         ]}
         verify={[
           { label: '启动前', desc: '确认档位、赠送金额、成本承担、门店范围和有效期都已配置。' },
-          { label: '用户充值后', desc: '去资产总览和营销执行台核对余额、服务卡和奖励记录是否落地。' },
+          { label: '用户充值后', desc: '去用户资产和充值订单核对余额、服务卡和奖励记录是否落地。' },
           { label: '活动复盘', desc: '重点看充值单、奖励失败、预算异常和服务卡核销结果。' },
         ]}
         actions={[
           { key: 'cards', label: '维护权益产品', onClick: () => navigate('/asset/service-cards') },
-          { key: 'execution', label: '营销执行台', type: 'primary', onClick: () => navigate('/marketing/execution') },
         ]}
       />
       <OperatorTips
         items={[
           { label: '先建草稿', desc: '先配置充值档位、赠送规则和适用范围，确认成本承担后再启动。', tag: '配置' },
           { label: '启动活动', desc: '活动启动前会二次确认；启动后用户端可见，尽量避免直接改金额档位。', tag: '上线' },
-          { label: '查看效果', desc: '用营销执行台看参与、奖励、预算和券核销，活动页只负责规则和状态。', tag: '复盘' },
+          { label: '查看效果', desc: '用充值订单、资产流水和服务卡记录核对支付、赠送和核销结果。', tag: '复盘' },
         ]}
       />
 

@@ -617,15 +617,9 @@ export interface InviteActivityRecord {
   inviterRewardType?: string;
   inviterServiceCardId?: number;
   inviterRewardAmount?: number | string;
-  inviteeReward?: string;
-  inviteeRewardType?: string;
-  inviteeServiceCardId?: number;
-  inviteeRewardAmount?: number | string;
   tierRewardRules?: string;
   inviteCount?: number;
   qualifiedCount?: number;
-  rewardStatus?: string;
-  recordStatus?: string;
   fraudChecks?: string;
   recoveryMode?: string;
   recoveryDays?: number;
@@ -671,20 +665,6 @@ export interface RechargeActivityFullProfileRecord {
   issuedMarketingRewardCount?: number;
   budgetTotalAmount?: number | string;
   budgetUsedAmount?: number | string;
-}
-
-export interface CrossStoreActivityRecord {
-  id: number;
-  activityCode: string;
-  activityName: string;
-  activityType: string;
-  storeGroup?: string;
-  writeoffMode?: string;
-  costOwner?: string;
-  cycle?: string;
-  bannerImageUrl?: string;
-  status: string;
-  updatedAt?: string;
 }
 
 export interface MarketingParticipationRecord {
@@ -2413,13 +2393,6 @@ export const marketingApi = {
     edit: async (data: Record<string, unknown>) => httpPut<void>(`/recharge-activities/${data.id}`, data),
     changeStatus: async (id: number, status: string) => httpPut<void>(`/recharge-activities/${id}/status`, { status }),
     remove: async (id: number) => httpDelete<void>(`/recharge-activities/${id}`),
-  },
-  crossStoreActivities: {
-    page: async (params: Record<string, unknown>) => httpPage<CrossStoreActivityRecord>('/cross-store-activities', params),
-    add: async (data: Record<string, unknown>) => httpPost<CrossStoreActivityRecord>('/cross-store-activities', data),
-    edit: async (data: Record<string, unknown>) => httpPut<void>(`/cross-store-activities/${data.id}`, data),
-    changeStatus: async (id: number, status: string) => httpPut<void>(`/cross-store-activities/${id}/status`, { status }),
-    remove: async (id: number) => httpDelete<void>(`/cross-store-activities/${id}`),
   },
   participations: {
     page: async (params: Record<string, unknown>) => httpPage<MarketingParticipationRecord>('/marketing-participations', params),

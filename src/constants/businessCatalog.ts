@@ -63,7 +63,6 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'SCAN', label: '扫码消费' },
   { value: 'POINT_SELECT', label: '点位选择' },
   { value: 'BALANCE', label: '余额支付' },
-  { value: 'COUPON', label: '优惠券' },
   { value: 'POINTS', label: '积分抵扣' },
   { value: 'RECHARGE', label: '充值活动' },
   { value: 'NIGHT_PRICE', label: '夜间价格' },
@@ -85,7 +84,6 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'POINT_SELECT', label: '自主选位' },
   { value: 'NIGHT_PRICE', label: '夜间价格' },
   { value: 'QUEUE_HINT', label: '排队提示' },
-  { value: 'COUPON_VERIFY', label: '券核销' },
 ],
   deviceTypeOptions: [
   { value: 'CAR_WASH_HIGH_PRESSURE', label: '高压冲洗设备' },
@@ -148,7 +146,6 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'FAST_ENTRY', label: '快速开洗' },
   { value: 'NIGHT_DISCOUNT', label: '夜洗优惠' },
   { value: 'MULTI_DEVICE', label: '多设备联动' },
-  { value: 'COUPON_STACK', label: '支持叠券' },
   { value: 'BALANCE_DEDUCT', label: '余额抵扣' },
 ],
   activityStatusOptions: [
@@ -160,18 +157,9 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'DISABLED', label: '已停用' },
 ],
   activityTypeOptions: [
-  { value: 'COUPON', label: '优惠券活动' },
   { value: 'INVITE', label: '邀请活动' },
   { value: 'RECHARGE', label: '充值活动' },
-  { value: 'CROSS_STORE', label: '跨店活动' },
   { value: 'JOINT', label: '联名活动' },
-],
-  couponTypeOptions: [
-  { value: 'FULL_REDUCTION', label: '满减券' },
-  { value: 'DIRECT', label: '立减券' },
-  { value: 'DISCOUNT', label: '折扣券' },
-  { value: 'FREE_SERVICE', label: '免费服务券' },
-  { value: 'DURATION', label: '时长抵扣券' },
 ],
   templateStatusOptions: [
   { value: 'ENABLED', label: '启用' },
@@ -201,7 +189,6 @@ export const FALLBACK_BUSINESS_ENUMS = {
 ],
   rewardTypeOptions: [
   { value: 'BALANCE', label: '余额' },
-  { value: 'COUPON', label: '优惠券' },
   { value: 'SERVICE_CARD', label: '服务卡' },
   { value: 'MIXED', label: '组合奖励' },
 ],
@@ -283,7 +270,6 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'REFUNDED', label: '已退款' },
 ],
   writeOffObjectTypeOptions: [
-  { value: 'COUPON', label: '优惠券' },
   { value: 'SERVICE_RIGHT', label: '服务权益' },
   { value: 'SERVICE_CARD', label: '服务卡' },
   { value: 'PICKUP', label: '自提资格' },
@@ -442,7 +428,6 @@ export const FALLBACK_BUSINESS_ENUMS = {
   compensationTypeOptions: [
   { value: 'NONE', label: '无补偿' },
   { value: 'BALANCE', label: '余额补偿' },
-  { value: 'COUPON', label: '优惠券补偿' },
   { value: 'SERVICE_CARD', label: '服务卡补偿' },
 ],
   activityRewardStatusOptions: [
@@ -493,7 +478,6 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'LOGIN', label: '登录风控' },
   { value: 'PAYMENT', label: '支付风控' },
   { value: 'ORDER', label: '订单风控' },
-  { value: 'COUPON', label: '优惠券风控' },
   { value: 'DEVICE', label: '设备异常' },
   { value: 'REFUND', label: '退款风控' },
 ],
@@ -518,7 +502,6 @@ export const FALLBACK_BUSINESS_ENUMS = {
 ],
   rewardMethodOptions: [
   { value: 'BALANCE', label: '赠送余额' },
-  { value: 'COUPON', label: '赠送优惠券' },
   { value: 'POINTS', label: '赠送积分' },
   { value: 'CARD', label: '赠送服务卡' },
 ],
@@ -769,7 +752,6 @@ export const scopeTypeOptions = getBusinessEnumOptions('scopeTypeOptions');
 export const serviceSellingPointOptions = getBusinessEnumOptions('serviceSellingPointOptions');
 export const activityStatusOptions = getBusinessEnumOptions('activityStatusOptions');
 export const activityTypeOptions = getBusinessEnumOptions('activityTypeOptions');
-export const couponTypeOptions = getBusinessEnumOptions('couponTypeOptions');
 export const templateStatusOptions = getBusinessEnumOptions('templateStatusOptions');
 export const merchantGroupTypeOptions = getBusinessEnumOptions('merchantGroupTypeOptions');
 export const scopeLevelOptions = getBusinessEnumOptions('scopeLevelOptions');

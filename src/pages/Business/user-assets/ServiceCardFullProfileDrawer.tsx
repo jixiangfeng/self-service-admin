@@ -75,7 +75,7 @@ const ServiceCardFullProfileDrawer: React.FC<Props> = ({ open, loading, profile,
                 <Descriptions.Item label="库存">{card.stock ?? 0}</Descriptions.Item>
                 <Descriptions.Item label="权益次数">{card.rightsServiceTimes ?? 0} 次</Descriptions.Item>
                 <Descriptions.Item label="适用范围">{card.scopeNote || card.scopeMode || '-'}</Descriptions.Item>
-                <Descriptions.Item label="有效期">{card.validityMode === 'DAYS' ? `${card.validityDays || 0} 天` : card.validityText || '-'}</Descriptions.Item>
+                <Descriptions.Item label="有效期">{card.validityMode === 'PERMANENT' ? '长期有效' : `${card.validityDays || 0} 天`}</Descriptions.Item>
                 <Descriptions.Item label="发放渠道">{card.issueChannels || '-'}</Descriptions.Item>
                 <Descriptions.Item label="每人限领">{card.issueLimitPerUser || '不限'}</Descriptions.Item>
                 <Descriptions.Item label="权益说明" span={2}>{card.rightsNote || '-'}</Descriptions.Item>
