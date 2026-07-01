@@ -6,6 +6,7 @@ import {
   merchantContractStatusOptions,
   merchantTypeOptions,
   qualificationTypeOptions,
+  settlementCycleOptions,
   statusOptions,
 } from '@/constants/businessCatalog';
 import type {
@@ -30,6 +31,7 @@ const merchantTypeMap = buildValueEnum(merchantTypeOptions);
 const contractStatusMap = buildValueEnum(merchantContractStatusOptions);
 const qualificationTypeMap = buildValueEnum(qualificationTypeOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
+const settlementCycleMap = buildValueEnum(settlementCycleOptions);
 const statusMap = buildValueEnum(statusOptions);
 const primaryFlagMap = {
   1: { color: 'success', text: '是' },
@@ -40,6 +42,20 @@ const maskAccountNo = (value?: string) => {
   if (!value) return '-';
   if (value.length <= 4) return value;
   return `${'*'.repeat(Math.min(value.length - 4, 8))}${value.slice(-4)}`;
+};
+
+const renderQualificationExpireAt = (record: MerchantQualificationRecord) => {
+  const value = (
+    record.expireAt ??
+    (record as unknown as Record<string, unknown>).expireDate ??
+    (record as unknown as Record<string, unknown>).expireTime ??
+    (record as unknown as Record<string, unknown>).expiryDate ??
+    (record as unknown as Record<string, unknown>).validEnd ??
+    (record as unknown as Record<string, unknown>).validTo ??
+    (record as unknown as Record<string, unknown>).endAt ??
+    (record as unknown as Record<string, unknown>).expire_at
+  );
+  return String(value || '-').match(/\d{4}-\d{2}-\d{2}/)?.[0] || String(value || '-');
 };
 
 
@@ -60,22 +76,29 @@ const MerchantFullProfileDrawer: React.FC<MerchantFullProfileDrawerProps> = ({ o
     { title: '邮箱', dataIndex: 'email', render: (value) => value || '-' },
     { title: '主联系人', dataIndex: 'primaryFlag', render: (_, record) => renderStatusTag(record.primaryFlag, primaryFlagMap) },
     { title: '状态', dataIndex: 'status', render: (_, record) => renderStatusTag(record.status, auditStatusMap) },
+    { title: '备注', dataIndex: 'remark', render: (value) => value || '-' },
   ];
 
   const qualificationColumns: ColumnsType<MerchantQualificationRecord> = [
     { title: '资质类型', dataIndex: 'qualificationType', render: (_, record) => renderStatusTag(record.qualificationType, qualificationTypeMap) },
     { title: '资质编号', dataIndex: 'qualificationNo' },
     { title: '文件', dataIndex: 'fileName', render: (value) => value || '-' },
+    { title: '文件地址', dataIndex: 'fileUrl', ellipsis: true, render: (value) => value || '-' },
     { title: '审核状态', dataIndex: 'auditStatus', render: (_, record) => renderStatusTag(record.auditStatus, auditStatusMap) },
-    { title: '到期日', dataIndex: 'expireAt', render: (value) => value || '-' },
+    { title: '状态', dataIndex: 'status', render: (value) => formatEnumText(value, 'status', '状态') },
+    { title: '到期日', dataIndex: 'expireAt', render: (_, record) => renderQualificationExpireAt(record) },
+    { title: '备注', dataIndex: 'remark', render: (value) => value || '-' },
   ];
 
   const contractColumns: ColumnsType<MerchantContractRecord> = [
     { title: '合同编号', dataIndex: 'contractNo' },
     { title: '合同名称', dataIndex: 'contractName' },
+    { title: '结算周期', dataIndex: 'settlementCycle', render: (_, record) => renderStatusTag(record.settlementCycle, settlementCycleMap) },
     { title: '合同状态', dataIndex: 'contractStatus', render: (_, record) => renderStatusTag(record.contractStatus, contractStatusMap) },
     { title: '审核状态', dataIndex: 'status', render: (_, record) => renderStatusTag(record.status, auditStatusMap) },
+    { title: '合同文件', dataIndex: 'fileUrl', ellipsis: true, render: (value) => value || '-' },
     { title: '周期', render: (_, record) => `${record.startAt || '-'} ~ ${record.endAt || '-'}` },
+    { title: '备注', dataIndex: 'remark', render: (value) => value || '-' },
   ];
 
   const settlementColumns: ColumnsType<MerchantSettlementAccountRecord> = [
@@ -85,6 +108,7 @@ const MerchantFullProfileDrawer: React.FC<MerchantFullProfileDrawerProps> = ({ o
     { title: '审核状态', dataIndex: 'auditStatus', render: (_, record) => renderStatusTag(record.auditStatus, auditStatusMap) },
     { title: '账户状态', dataIndex: 'status', render: (value) => formatEnumText(value, 'status', '账户状态') },
     { title: '生效日期', dataIndex: 'effectiveAt', render: (value) => value || '-' },
+    { title: '备注', dataIndex: 'remark', render: (value) => value || '-' },
   ];
 
   const accountColumns: ColumnsType<MerchantAccountRecord> = [

@@ -72,20 +72,36 @@ export const fromDateRangePickerValue = (value: unknown) => {
   return startValue && endValue ? `${startValue} 至 ${endValue}` : undefined;
 };
 
-export const DateTimeField: React.FC<{ placeholder?: string }> = ({ placeholder = '请选择日期时间' }) => (
-  <DatePicker showTime format={DATE_TIME_FORMAT} placeholder={placeholder} style={{ width: '100%' }} />
+type DatePickerFieldProps = React.ComponentProps<typeof DatePicker>;
+type RangePickerFieldProps = React.ComponentProps<typeof DatePicker.RangePicker>;
+type TimePickerFieldProps = React.ComponentProps<typeof TimePicker>;
+type RegionCascaderValue = string[];
+type RegionCascaderProps = {
+  value?: RegionCascaderValue;
+  onChange?: (value: RegionCascaderValue, selectedOptions: RegionOption[]) => void;
+  placeholder?: string;
+  style?: React.CSSProperties;
+  className?: string;
+  disabled?: boolean;
+  id?: string;
+  allowClear?: boolean;
+  showSearch?: CascaderProps<RegionOption>['showSearch'];
+};
+
+export const DateTimeField: React.FC<DatePickerFieldProps> = ({ placeholder = '请选择日期时间', style, ...props }) => (
+  <DatePicker {...props} showTime format={props.format ?? DATE_TIME_FORMAT} placeholder={placeholder} style={{ width: '100%', ...style }} />
 );
 
-export const DateField: React.FC<{ placeholder?: string }> = ({ placeholder = '请选择日期' }) => (
-  <DatePicker format={DATE_FORMAT} placeholder={placeholder} style={{ width: '100%' }} />
+export const DateField: React.FC<DatePickerFieldProps> = ({ placeholder = '请选择日期', style, ...props }) => (
+  <DatePicker {...props} format={props.format ?? DATE_FORMAT} placeholder={placeholder} style={{ width: '100%', ...style }} />
 );
 
-export const DateRangeField: React.FC = () => (
-  <DatePicker.RangePicker format={DATE_FORMAT} style={{ width: '100%' }} />
+export const DateRangeField: React.FC<RangePickerFieldProps> = ({ style, ...props }) => (
+  <DatePicker.RangePicker {...props} format={props.format ?? DATE_FORMAT} style={{ width: '100%', ...style }} />
 );
 
-export const TimeField: React.FC<{ placeholder?: string }> = ({ placeholder = '请选择时间' }) => (
-  <TimePicker format={TIME_FORMAT} placeholder={placeholder} style={{ width: '100%' }} />
+export const TimeField: React.FC<TimePickerFieldProps> = ({ placeholder = '请选择时间', style, ...props }) => (
+  <TimePicker {...props} format={props.format ?? TIME_FORMAT} placeholder={placeholder} style={{ width: '100%', ...style }} />
 );
 
 export interface RegionOption {
@@ -136,16 +152,14 @@ export const regionOptions: RegionOption[] = [
   },
 ];
 
-export const RegionCascader: React.FC<{
-  onChange?: CascaderProps<RegionOption>['onChange'];
-  placeholder?: string;
-}> = ({ onChange, placeholder = '请选择省 / 市 / 区' }) => (
+export const RegionCascader: React.FC<RegionCascaderProps> = ({ allowClear = true, showSearch = true, onChange, placeholder = '请选择省 / 市 / 区', style, ...props }) => (
   <Cascader
-    allowClear
-    showSearch
+    {...props}
+    allowClear={allowClear}
+    showSearch={showSearch}
     options={regionOptions}
     onChange={onChange}
     placeholder={placeholder}
-    style={{ width: '100%' }}
+    style={{ width: '100%', ...style }}
   />
 );

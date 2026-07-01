@@ -55,7 +55,17 @@ const StoreManagement: React.FC = () => {
     queryFn: async () => (await api.merchant.options()).data,
   });
 
-  const merchantOptions = merchantOptionsData || [];
+  const merchantOptions = useMemo(() => {
+    const options = [...(merchantOptionsData || [])];
+    if (
+      editingRecord?.merchantId &&
+      editingRecord.merchantName &&
+      !options.some((item) => item.value === editingRecord.merchantId)
+    ) {
+      options.push({ value: editingRecord.merchantId, label: editingRecord.merchantName });
+    }
+    return options;
+  }, [editingRecord, merchantOptionsData]);
   const merchantOptionMap = useMemo(() => new Map(merchantOptions.map((item) => [item.value, item.label])), [merchantOptions]);
 
   const closeDrawer = () => {

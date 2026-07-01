@@ -253,13 +253,17 @@ const DeviceProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = 
 
   const actionColumn = (tab: DeviceProfileTab): ProColumns<EditableRecord> => ({
     title: '操作',
-    width: 170,
+    width: tab === 'bind' ? 90 : 170,
     fixed: 'right',
     render: (_, record) => (
       <>
         <Button size="small" type="link" onClick={() => openDetail(tab, record)}>详情</Button>
-        <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openModal(tab, record)}>编辑</Button>
-        <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => confirmRemove(tab, record.id)}>删除</Button>
+        {tab === 'bind' ? null : (
+          <>
+            <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openModal(tab, record)}>编辑</Button>
+            <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => confirmRemove(tab, record.id)}>删除</Button>
+          </>
+        )}
       </>
     ),
   });
@@ -349,7 +353,7 @@ const DeviceProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = 
           { key: 'vendor', label: '设备厂商', children: <ProTable<DeviceVendorRecord> cardBordered rowKey="id" columns={vendorColumns} dataSource={filter(vendors)} loading={vendorQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('vendor')}>新增厂商</Button>]} /> },
           { key: 'model', label: '设备型号', children: <ProTable<DeviceModelRecord> cardBordered rowKey="id" columns={modelColumns} dataSource={filter(models)} loading={modelQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('model')}>新增型号</Button>]} /> },
           { key: 'protocol', label: '设备协议', children: <ProTable<DeviceProtocolRecord> cardBordered rowKey="id" columns={protocolColumns} dataSource={filter(protocols)} loading={protocolQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1220 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('protocol')}>新增协议</Button>]} /> },
-          { key: 'bind', label: '绑定日志', children: <ProTable<DeviceBindLogRecord> cardBordered rowKey="id" columns={bindColumns} dataSource={filter(bindLogs)} loading={bindQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('bind')}>新增绑定</Button>]} /> },
+          { key: 'bind', label: '绑定日志', children: <ProTable<DeviceBindLogRecord> cardBordered rowKey="id" columns={bindColumns} dataSource={filter(bindLogs)} loading={bindQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} /> },
         ]}
       />
 

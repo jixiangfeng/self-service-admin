@@ -377,6 +377,9 @@ const DeviceManagement: React.FC = () => {
                 <Form.Item name="deviceType" label="设备类型" rules={[{ required: true, message: '请选择设备类型' }]}>
                   <Select options={deviceTypeOptions} placeholder="请选择设备类型" />
                 </Form.Item>
+                <Form.Item name="status" label="设备状态">
+                  <Select options={deviceStatusOptions} placeholder="请选择设备状态" />
+                </Form.Item>
               </div>
             </BusinessEditorSection>
 

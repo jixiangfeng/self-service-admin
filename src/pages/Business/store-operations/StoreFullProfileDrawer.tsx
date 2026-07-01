@@ -10,7 +10,7 @@ import type {
   StoreServiceCapabilityRecord,
   StoreTempCloseRecord,
 } from '@/services/backendService';
-import { formatDateTime, formatEnumText } from '@/pages/Business/shared';
+import { formatDateTime, formatEnumText, safeJsonParse } from '@/pages/Business/shared';
 
 interface StoreFullProfileDrawerProps {
   open: boolean;
@@ -24,8 +24,25 @@ const formatMoney = (value?: number | string) => {
   return Number.isFinite(amount) ? amount.toFixed(2) : '0.00';
 };
 
+const capabilityLimitOptions = [
+  { value: 'ALL_DAY', label: '全天开放' },
+  { value: 'BUSINESS_HOURS', label: '营业时间内开放' },
+  { value: 'APPOINTMENT_ONLY', label: '仅预约可用' },
+];
+
+const capabilityPointOptions = [
+  { value: 'ALL_POINTS', label: '全部点位' },
+  { value: 'CAR_WASH_ONLY', label: '洗车点位' },
+  { value: 'RETAIL_ONLY', label: '零售点位' },
+];
+
+const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
+const parseCapabilityConfig = (configJson?: string) =>
+  safeJsonParse<{ limitMode?: string; pointScope?: string; extraLimit?: string }>(configJson, {});
+
 const StoreFullProfileDrawer: React.FC<StoreFullProfileDrawerProps> = ({ open, loading, profile, onClose }) => {
   const store = profile?.store;
+  const capabilities = (profile?.capabilities || []).map((record) => ({ ...record, ...parseCapabilityConfig(record.configJson) }));
   const risks = (profile?.operationWarnings && profile.operationWarnings.length ? profile.operationWarnings : [
     !store?.address ? '未配置详细地址' : null,
     !(profile?.businessHours || []).some((item) => item.status === 'PUBLISHED') ? '暂无已发布营业时间' : null,
@@ -59,7 +76,9 @@ const StoreFullProfileDrawer: React.FC<StoreFullProfileDrawerProps> = ({ open, l
 
   const capabilityColumns: ColumnsType<StoreServiceCapabilityRecord> = [
     { title: '能力', dataIndex: 'capabilityCode', render: (value) => formatEnumText(value, 'capabilityCode', '能力') },
-    { title: '配置', dataIndex: 'configJson', ellipsis: true, render: (value) => value || '-' },
+    { title: '开放限制', dataIndex: 'limitMode', render: (_, record) => optionLabel(capabilityLimitOptions, record.limitMode) || '-' },
+    { title: '适用点位', dataIndex: 'pointScope', render: (_, record) => optionLabel(capabilityPointOptions, record.pointScope) || '-' },
+    { title: '补充限制', dataIndex: 'extraLimit', render: (_, record) => record.extraLimit || '-' },
     { title: '状态', dataIndex: 'status', render: (value) => formatEnumText(value, 'status', '状态') },
   ];
 
@@ -109,12 +128,15 @@ const StoreFullProfileDrawer: React.FC<StoreFullProfileDrawerProps> = ({ open, l
                   </Space>
                   <Descriptions bordered column={2} size="small">
                     <Descriptions.Item label="门店编号">{store.storeCode}</Descriptions.Item>
+                    <Descriptions.Item label="所属商户">{store.merchantName || '-'}</Descriptions.Item>
                     <Descriptions.Item label="门店状态">{formatEnumText(store.status, 'storeStatus', '门店状态')}</Descriptions.Item>
                     <Descriptions.Item label="门店电话">{store.storePhone || '-'}</Descriptions.Item>
                     <Descriptions.Item label="负责人">{store.managerName || '-'}</Descriptions.Item>
                     <Descriptions.Item label="负责人电话">{store.managerPhone || '-'}</Descriptions.Item>
                     <Descriptions.Item label="城市">{[store.province, store.city, store.district].filter(Boolean).join(' / ') || '-'}</Descriptions.Item>
                     <Descriptions.Item label="详细地址">{store.address || '-'}</Descriptions.Item>
+                    <Descriptions.Item label="经度">{store.longitude ?? '-'}</Descriptions.Item>
+                    <Descriptions.Item label="纬度">{store.latitude ?? '-'}</Descriptions.Item>
                     <Descriptions.Item label="今日核销金额">￥{formatMoney(profile.todayWriteOffAmount)}</Descriptions.Item>
                     <Descriptions.Item label="累计完成订单">{profile.completedOrderCount || 0}</Descriptions.Item>
                     <Descriptions.Item label="介绍" span={2}>{store.intro || '-'}</Descriptions.Item>
@@ -128,7 +150,7 @@ const StoreFullProfileDrawer: React.FC<StoreFullProfileDrawerProps> = ({ open, l
             { key: 'images', label: '图片', children: <Table rowKey="id" size="small" columns={imageColumns} dataSource={profile.images || []} pagination={false} /> },
             { key: 'hours', label: '营业时间', children: <Table rowKey="id" size="small" columns={hoursColumns} dataSource={profile.businessHours || []} pagination={false} /> },
             { key: 'tempClose', label: '临停', children: <Table rowKey="id" size="small" columns={tempCloseColumns} dataSource={profile.tempCloseRecords || []} pagination={false} /> },
-            { key: 'capabilities', label: '服务能力', children: <Table rowKey="id" size="small" columns={capabilityColumns} dataSource={profile.capabilities || []} pagination={false} /> },
+            { key: 'capabilities', label: '服务能力', children: <Table rowKey="id" size="small" columns={capabilityColumns} dataSource={capabilities} pagination={false} /> },
             { key: 'points', label: '点位', children: <Table rowKey="id" size="small" columns={pointColumns} dataSource={profile.servicePoints || []} pagination={false} /> },
             { key: 'devices', label: '设备', children: <Table rowKey="id" size="small" columns={deviceColumns} dataSource={profile.devices || []} pagination={false} /> },
           ]}

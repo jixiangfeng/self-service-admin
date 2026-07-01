@@ -64,7 +64,18 @@
 
 .dashboard-kpi-row,
 .dashboard-section-row {
+  align-items: stretch;
   margin-bottom: 18px;
+}
+
+.dashboard-kpi-row > .ant-col,
+.dashboard-section-row > .ant-col {
+  display: flex;
+}
+
+.dashboard-kpi-row > .ant-col > .ant-card,
+.dashboard-section-row > .ant-col > .ant-card {
+  width: 100%;
 }
 
 .dashboard-page .page-banner {
@@ -196,6 +207,8 @@
 .dashboard-list-card,
 .dashboard-entry-panel,
 .dashboard-health-card {
+  display: flex;
+  flex-direction: column;
   border: 1px solid #e5edf5;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.96);
@@ -206,6 +219,7 @@
 .dashboard-list-card .ant-card-head,
 .dashboard-entry-panel .ant-card-head,
 .dashboard-health-card .ant-card-head {
+  flex: none;
   border-bottom: 1px solid rgba(229, 237, 245, 0.8);
 }
 
@@ -223,20 +237,20 @@
 }
 
 .dashboard-chart-card .ant-card-body {
-  height: calc(100% - 57px);
+  flex: 1;
+  min-height: 0;
   padding: 18px 20px 16px;
 }
 
-.dashboard-chart-card--compact {
-  height: 318px;
-}
-
+.dashboard-chart-card--compact,
+.dashboard-balance-card,
 .dashboard-list-card {
   height: 344px;
 }
 
 .dashboard-list-card .ant-card-body {
-  height: calc(100% - 57px);
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: 8px 16px 12px;
 }
@@ -281,7 +295,12 @@
 }
 
 .dashboard-entry-panel {
+  height: 100%;
   min-height: 250px;
+}
+
+.dashboard-entry-panel .ant-card-body {
+  flex: 1;
 }
 
 .dashboard-entry-card {
@@ -303,10 +322,12 @@
 }
 
 .dashboard-health-card {
+  height: 100%;
   min-height: 250px;
 }
 
 .dashboard-health-card .ant-card-body {
+  flex: 1;
   padding-top: 18px;
 }
 
@@ -369,7 +390,10 @@
   .dashboard-kpi-card,
   .dashboard-chart-card,
   .dashboard-chart-card--compact,
-  .dashboard-list-card {
+  .dashboard-balance-card,
+  .dashboard-list-card,
+  .dashboard-entry-panel,
+  .dashboard-health-card {
     height: auto;
     min-height: 220px;
   }
@@ -383,6 +407,62 @@
 
 .merchant-workbench-table .ant-table-cell {
   white-space: nowrap;
+}
+
+.ant-table-cell-fix-right,
+.ant-table-cell-fix-right-first,
+.ant-table-cell-fix-right-last {
+  white-space: nowrap;
+}
+
+.ant-table-cell-fix-right .ant-space,
+.ant-table-cell-fix-right-first .ant-space,
+.ant-table-cell-fix-right-last .ant-space {
+  flex-wrap: nowrap;
+}
+
+.ant-table-cell-fix-right .ant-space-item,
+.ant-table-cell-fix-right-first .ant-space-item,
+.ant-table-cell-fix-right-last .ant-space-item {
+  flex: none;
+}
+
+.ant-table-cell-fix-right .ant-btn,
+.ant-table-cell-fix-right-first .ant-btn,
+.ant-table-cell-fix-right-last .ant-btn,
+.ant-table-cell-fix-right a,
+.ant-table-cell-fix-right-first a,
+.ant-table-cell-fix-right-last a {
+  white-space: nowrap;
+}
+
+.ant-table-cell-fix-right a,
+.ant-table-cell-fix-right-first a,
+.ant-table-cell-fix-right-last a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ant-table-tbody > tr > td.ant-table-cell:last-child:has(.ant-btn),
+.ant-table-tbody > tr > td.ant-table-cell:last-child:has(a) {
+  white-space: nowrap;
+}
+
+.ant-table-tbody > tr > td.ant-table-cell:last-child:has(.ant-space) .ant-space {
+  flex-wrap: nowrap;
+}
+
+.ant-table-tbody > tr > td.ant-table-cell:last-child:has(.ant-space) .ant-space-item {
+  flex: none;
+}
+
+.merchant-profile-row-actions {
+  white-space: nowrap;
+}
+
+.merchant-profile-row-actions .ant-btn {
+  padding-inline: 6px;
 }
 
 .page-banner {

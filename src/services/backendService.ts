@@ -182,6 +182,7 @@ export interface MerchantContractRecord {
   contractName: string;
   settlementCycle?: string;
   contractStatus: string;
+  fileUrl?: string;
   startAt?: string;
   endAt?: string;
   status: string;
@@ -2159,8 +2160,8 @@ export const dictApi = {
 export const merchantApi = {
   page: async (params: Record<string, unknown>) =>
     httpPage<MerchantRecord>('/merchants', params),
-  options: async () =>
-    httpGet<SelectOptionRecord[]>('/merchants/options'),
+  options: async (params?: { includeDisabled?: boolean }) =>
+    httpGet<SelectOptionRecord[]>('/merchants/options', params),
   fullProfile: async (id: number) =>
     httpGet<MerchantFullProfileRecord>(`/merchants/${id}/full-profile`),
   add: async (data: Record<string, unknown>) =>
@@ -2214,6 +2215,8 @@ export const merchantSettlementAccountApi = {
 export const merchantQualificationApi = {
   page: async (params: Record<string, unknown>) =>
     httpPage<MerchantQualificationRecord>('/merchant-qualifications', params),
+  detail: async (id: number) =>
+    httpGet<MerchantQualificationRecord>(`/merchant-qualifications/${id}`),
   add: async (data: Record<string, unknown>) =>
     httpPost<MerchantQualificationRecord>('/merchant-qualifications', data),
   edit: async (data: Record<string, unknown>) =>

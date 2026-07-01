@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Row, Select, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Col, Form, Input, Row, Select, Space, Statistic, Tabs, message } from 'antd';
 import { AuditOutlined, BankOutlined, ContactsOutlined, DeleteOutlined, EditOutlined, FileProtectOutlined, PlusOutlined, SolutionOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -24,7 +24,7 @@ import type {
   MerchantQualificationRecord,
   MerchantSettlementAccountRecord,
 } from '@/services/backendService';
-import { buildValueEnum, containsKeyword, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, renderStatusTag, formatEnumText, formatDateTime } from '@/pages/Business/shared';
 import { DateField, fromDatePickerValue, toDatePickerValue } from '@/utils/formControls';
 
 type ProfileTab = 'contact' | 'qualification' | 'contract' | 'account';
@@ -46,6 +46,38 @@ const accountStatusOptions = [
   { value: 'ACTIVE', label: '启用' },
   { value: 'DISABLED', label: '停用' },
 ];
+
+const normalizeDateText = (value: unknown) => {
+  if (!value) {
+    return undefined;
+  }
+  const pickerValue = toDatePickerValue(value);
+  if (pickerValue) {
+    return fromDatePickerValue(pickerValue);
+  }
+  const match = String(value).match(/\d{4}-\d{2}-\d{2}/);
+  return match?.[0];
+};
+
+const getQualificationExpireAt = (record: Record<string, unknown>) =>
+  normalizeDateText(
+    record.expireAt ??
+    record.expireDate ??
+    record.expireTime ??
+    record.expiryDate ??
+    record.validEnd ??
+    record.validTo ??
+    record.endAt ??
+    record.expire_at
+  );
+
+const normalizeQualificationRecord = (record: MerchantQualificationRecord) => ({
+  ...record,
+  expireAt: getQualificationExpireAt(record as unknown as Record<string, unknown>),
+});
+
+const renderQualificationExpireAt = (record: Record<string, unknown>) =>
+  getQualificationExpireAt(record) || '-';
 
 const profileTabMeta: Record<ProfileTab, { eyebrow: string; createTitle: string; editTitle: string; subtitle: string; sectionTitle: string; sectionDesc: string; icon: React.ReactNode; meta: string }> = {
   contact: {
@@ -94,7 +126,12 @@ const profileTabMeta: Record<ProfileTab, { eyebrow: string; createTitle: string;
 const normalizeProfilePayload = (payload: Record<string, unknown>, tab: ProfileTab) => {
   const next = { ...payload };
   if (tab === 'qualification') {
-    next.expireAt = fromDatePickerValue(next.expireAt as any) || next.expireAt;
+    const expireAt = normalizeDateText(next.expireAt) || getQualificationExpireAt(next);
+    if (expireAt) {
+      next.expireAt = expireAt;
+    } else {
+      delete next.expireAt;
+    }
   }
   if (tab === 'contract') {
     next.startAt = fromDatePickerValue(next.startAt as any) || next.startAt;
@@ -108,7 +145,7 @@ const normalizeProfilePayload = (payload: Record<string, unknown>, tab: ProfileT
 
 const normalizeProfileFormRecord = (record: EditableRecord, tab: ProfileTab) => {
   const next = { ...(record as unknown as Record<string, unknown>) };
-  if (tab === 'qualification') next.expireAt = toDatePickerValue(next.expireAt) || next.expireAt;
+  if (tab === 'qualification') next.expireAt = toDatePickerValue(getQualificationExpireAt(next));
   if (tab === 'contract') {
     next.startAt = toDatePickerValue(next.startAt) || next.startAt;
     next.endAt = toDatePickerValue(next.endAt) || next.endAt;
@@ -126,6 +163,7 @@ const profileDetailFields: Record<ProfileTab, DetailField<any>[]> = {
     { name: 'email', label: '邮箱' },
     { name: 'primaryFlag', label: '主联系人' },
     { name: 'status', label: '状态' },
+    { name: 'remark', label: '备注' },
   ],
   qualification: [
     { name: 'merchantName', label: '商户' },
@@ -134,7 +172,11 @@ const profileDetailFields: Record<ProfileTab, DetailField<any>[]> = {
     { name: 'fileName', label: '文件名称' },
     { name: 'fileUrl', label: '文件地址' },
     { name: 'auditStatus', label: '审核状态' },
-    { name: 'expireAt', label: '到期日' },
+    { name: 'status', label: '状态' },
+    { name: 'expireAt', label: '到期日', render: (_value, record) => renderQualificationExpireAt(record) },
+    { name: 'createdAt', label: '创建时间', render: (value) => formatDateTime(value) },
+    { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
+    { name: 'remark', label: '备注' },
   ],
   contract: [
     { name: 'merchantName', label: '商户' },
@@ -143,8 +185,10 @@ const profileDetailFields: Record<ProfileTab, DetailField<any>[]> = {
     { name: 'settlementCycle', label: '结算周期' },
     { name: 'contractStatus', label: '合同状态' },
     { name: 'status', label: '审核状态' },
+    { name: 'fileUrl', label: '合同文件' },
     { name: 'startAt', label: '开始日期' },
     { name: 'endAt', label: '结束日期' },
+    { name: 'remark', label: '备注' },
   ],
   account: [
     { name: 'merchantName', label: '商户' },
@@ -154,6 +198,7 @@ const profileDetailFields: Record<ProfileTab, DetailField<any>[]> = {
     { name: 'auditStatus', label: '审核状态' },
     { name: 'status', label: '账户状态' },
     { name: 'effectiveAt', label: '生效日期' },
+    { name: 'remark', label: '备注' },
   ],
 };
 
@@ -166,12 +211,12 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
   const [detailTab, setDetailTab] = useState<ProfileTab>('contact');
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<EditableRecord | null>(null);
-  const [form] = Form.useForm<Record<string, unknown>>();
+  const [form] = Form.useForm<Record<string, any>>();
   const [searchForm] = Form.useForm<ProfileSearchValues>();
 
   const { data: merchantOptions } = useQuery({
-    queryKey: ['merchantOptionsForProfiles'],
-    queryFn: async () => (await api.merchant.options()).data,
+    queryKey: ['merchantOptionsForProfiles', 'includeDisabled'],
+    queryFn: async () => (await api.merchant.options({ includeDisabled: true })).data,
   });
 
   const merchantMap = useMemo(() => new Map((merchantOptions || []).map((item) => [item.value, item.label])), [merchantOptions]);
@@ -185,9 +230,16 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
   const accountQuery = useQuery({ queryKey: ['merchantSettlementAccounts', profileMerchantId], queryFn: async () => (await api.merchantSettlementAccount.page(profileQueryParams)).data as { records: MerchantSettlementAccountRecord[] } });
 
   const contacts = enrichMerchantName(contactQuery.data?.records);
-  const qualifications = enrichMerchantName(qualificationQuery.data?.records);
+  const qualifications = enrichMerchantName((qualificationQuery.data?.records || []).map(normalizeQualificationRecord));
   const contracts = enrichMerchantName(contractQuery.data?.records);
   const settlementAccounts = enrichMerchantName(accountQuery.data?.records);
+
+  useEffect(() => {
+    if (!modalVisible || !editingRecord) {
+      return;
+    }
+    form.setFieldsValue(normalizeProfileFormRecord(editingRecord, activeTab) as Record<string, unknown>);
+  }, [activeTab, editingRecord, form, modalVisible]);
 
   const invalidateTab = (tab: ProfileTab) => {
     if (tab === 'contact') queryClient.invalidateQueries({ queryKey: ['merchantContacts'] });
@@ -241,27 +293,43 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
     });
   };
 
-  const openModal = (tab: ProfileTab, record?: EditableRecord) => {
-    setActiveTab(tab);
-    setEditingRecord(record || null);
-    form.resetFields();
-    if (record) {
-      form.setFieldsValue(normalizeProfileFormRecord(record, tab) as Record<string, string | number | undefined>);
-    } else if (tab === 'contact') {
-      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, contactType: 'BUSINESS', primaryFlag: 0, status: 'APPROVED' });
-    } else if (tab === 'contract') {
-      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, settlementCycle: 'WEEK', contractStatus: 'PENDING', status: 'PENDING' });
-    } else if (tab === 'qualification') {
-      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, auditStatus: 'PENDING', status: 'ACTIVE' });
-    } else if (tab === 'account') {
-      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, auditStatus: 'PENDING', status: 'ACTIVE' });
+  const loadEditableRecord = async (tab: ProfileTab, record: EditableRecord) => {
+    if (tab !== 'qualification') {
+      return record;
     }
-    setModalVisible(true);
+    const res = await api.merchantQualification.detail(record.id);
+    return normalizeQualificationRecord({ ...record, ...res.data } as MerchantQualificationRecord) as EditableRecord;
   };
 
-  const openDetail = (tab: ProfileTab, record: EditableRecord) => {
+  const openModal = async (tab: ProfileTab, record?: EditableRecord) => {
+    setActiveTab(tab);
+    form.resetFields();
+    if (record) {
+      setEditingRecord(null);
+      setModalVisible(true);
+      const fullRecord = await loadEditableRecord(tab, record);
+      setEditingRecord(fullRecord);
+    } else if (tab === 'contact') {
+      setEditingRecord(null);
+      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, contactType: 'BUSINESS', primaryFlag: 0, status: 'APPROVED' });
+    } else if (tab === 'contract') {
+      setEditingRecord(null);
+      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, settlementCycle: 'WEEK', contractStatus: 'PENDING', status: 'PENDING' });
+    } else if (tab === 'qualification') {
+      setEditingRecord(null);
+      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, auditStatus: 'PENDING', status: 'ACTIVE' });
+    } else if (tab === 'account') {
+      setEditingRecord(null);
+      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, auditStatus: 'PENDING', status: 'ACTIVE' });
+    }
+    if (!record) {
+      setModalVisible(true);
+    }
+  };
+
+  const openDetail = async (tab: ProfileTab, record: EditableRecord) => {
     setDetailTab(tab);
-    setDetail(record);
+    setDetail(await loadEditableRecord(tab, record));
   };
 
   const contactColumns: ProColumns<MerchantContactRecord>[] = [
@@ -292,17 +360,17 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
     { title: '资质编号', dataIndex: 'qualificationNo', width: 180 },
     { title: '文件', dataIndex: 'fileName', width: 220 },
     { title: '审核状态', dataIndex: 'auditStatus', width: 120, render: (_, record) => renderStatusTag(record.auditStatus, auditStatusMap) },
-    { title: '到期日', dataIndex: 'expireAt', width: 130 },
+    { title: '到期日', dataIndex: 'expireAt', width: 130, render: (_, record) => renderQualificationExpireAt(record as unknown as Record<string, unknown>) },
     {
       title: '操作',
-      width: 130,
+      width: 190,
       fixed: 'right',
       render: (_, record) => (
-        <>
+        <Space size={0} wrap={false} className="merchant-profile-row-actions">
           <Button size="small" type="link" onClick={() => openDetail('qualification', record)}>详情</Button>
           <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openModal('qualification', record)}>编辑</Button>
           <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => confirmRemove('qualification', record.id)}>删除</Button>
-        </>
+        </Space>
       ),
     },
   ];
