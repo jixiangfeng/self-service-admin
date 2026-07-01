@@ -33,6 +33,7 @@ const profitActionOptions = [
 ];
 const compactJoin = (items: Array<string | undefined | false>) => items.filter(Boolean).join('；');
 const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
+const ownerText = (type?: string, id?: number | string) => [type, id !== undefined && id !== null ? `#${id}` : undefined].filter(Boolean).join('');
 
 const profitShareCenterDetailFields: Record<'relation' | 'version' | 'detail' | 'chargeback' | 'confirm', DetailField<any>[]> = {
   relation: [
@@ -58,6 +59,14 @@ const profitShareCenterDetailFields: Record<'relation' | 'version' | 'detail' | 
     { name: 'settlementBillNo', label: '结算单' },
     { name: 'serviceOrderNo', label: '订单号' },
     { name: 'partnerName', label: '合伙人' },
+    { name: 'balanceScopeType', label: '余额范围', render: (_value, record) => ownerText(record.balanceScopeType, record.balanceScopeId) || '-' },
+    { name: 'fundOwnerType', label: '资金归属', render: (_value, record) => ownerText(record.fundOwnerType, record.fundOwnerId) || '-' },
+    { name: 'revenueOwnerType', label: '收入归属', render: (_value, record) => ownerText(record.revenueOwnerType, record.revenueOwnerId) || '-' },
+    { name: 'giftCostBearerType', label: '赠送成本', render: (_value, record) => ownerText(record.giftCostBearerType, record.giftCostBearerId) || '-' },
+    { name: 'cashAmount', label: '本金抵扣', render: (value) => formatAmount(value || 0) },
+    { name: 'giftAmount', label: '赠送抵扣', render: (value) => formatAmount(value || 0) },
+    { name: 'settlementBaseAmount', label: '结算基准', render: (value) => formatAmount(value || 0) },
+    { name: 'settlementRule', label: '清分规则' },
     { name: 'baseAmount', label: '分润基数', render: (value) => formatAmount(value) },
     { name: 'shareAmount', label: '分润金额', render: (value) => formatAmount(value) },
     { name: 'refundAmount', label: '退款回冲', render: (value) => formatAmount(value) },
@@ -205,6 +214,10 @@ const ProfitShareDetailManagement: React.FC = () => {
     { title: '结算单', dataIndex: 'settlementBillNo', width: 180 },
     { title: '订单号', dataIndex: 'serviceOrderNo', width: 180 },
     { title: '合伙人', dataIndex: 'partnerName', width: 180 },
+    { title: '余额范围', dataIndex: 'balanceScopeType', width: 130, render: (_, record) => ownerText(record.balanceScopeType, record.balanceScopeId) || '-' },
+    { title: '资金归属', dataIndex: 'fundOwnerType', width: 130, render: (_, record) => ownerText(record.fundOwnerType, record.fundOwnerId) || '-' },
+    { title: '收入归属', dataIndex: 'revenueOwnerType', width: 130, render: (_, record) => ownerText(record.revenueOwnerType, record.revenueOwnerId) || '-' },
+    { title: '分润基数', dataIndex: 'baseAmount', width: 120, render: (_, record) => formatAmount(record.baseAmount) },
     { title: '分润金额', dataIndex: 'shareAmount', width: 120, render: (_, record) => formatAmount(record.shareAmount) },
     { title: '退款回冲', dataIndex: 'refundAmount', width: 120, render: (_, record) => formatAmount(record.refundAmount) },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, auditStatusMap) },

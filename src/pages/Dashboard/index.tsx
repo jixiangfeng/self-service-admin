@@ -73,6 +73,10 @@ const statusLabels: Record<string, string> = {
   DISABLED: '停用',
   OPEN: '营业',
   CLOSED: '关闭',
+  STORE: '门店',
+  STORE_GROUP: '门店组',
+  MERCHANT: '商户',
+  PLATFORM: '平台',
 };
 
 const cardIcon = (key: string) => {
@@ -99,8 +103,14 @@ const renderStatus = (status?: string) => (
 const toNumber = (value?: number | string) => Number(value || 0);
 
 const renderValue = (card: PlatformDashboardCardRecord) => (
-  card.key === 'revenue' && typeof card.value === 'number' ? formatAmount(card.value) : card.value
+  card.key === 'revenue' || card.key.startsWith('balance') ? formatAmount(card.value) : card.value
 );
+
+const renderDistributionName = (name: string) => {
+  const [type, id] = name.split('#');
+  const label = statusLabels[type] || type;
+  return id && id !== '-' ? `${label} #${id}` : label;
+};
 
 const itemMeta = (item: PlatformDashboardItemRecord) => [
   item.category ? statusLabels[item.category] || item.category : undefined,
@@ -111,6 +121,9 @@ const itemMeta = (item: PlatformDashboardItemRecord) => [
 
 const normalizeDistribution = (items: PlatformDashboardDistributionItemRecord[] = []) =>
   items.map((item) => ({ ...item, name: statusLabels[item.name] || item.name }));
+
+const normalizeFinanceDistribution = (items: PlatformDashboardDistributionItemRecord[] = []) =>
+  items.map((item) => ({ ...item, name: renderDistributionName(item.name), amount: toNumber(item.amount) }));
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -127,6 +140,7 @@ const Dashboard: React.FC = () => {
   const quickEntries = data?.quickEntries || [];
   const trend = data?.trend || [];
   const storeRevenueRank = data?.storeRevenueRank || [];
+  const balanceClearingCards = data?.balanceClearingCards || [];
 
   const trendData = useMemo(() => trend.flatMap((item) => [
     { date: item.date, type: '订单数', value: toNumber(item.orders) },
@@ -137,6 +151,9 @@ const Dashboard: React.FC = () => {
   const orderDistribution = useMemo(() => normalizeDistribution(data?.orderStatusDistribution), [data?.orderStatusDistribution]);
   const storeDistribution = useMemo(() => normalizeDistribution(data?.storeStatusDistribution), [data?.storeStatusDistribution]);
   const settlementDistribution = useMemo(() => normalizeDistribution(data?.settlementStatusDistribution), [data?.settlementStatusDistribution]);
+  const balanceScopeDistribution = useMemo(() => normalizeFinanceDistribution(data?.balanceScopeDistribution), [data?.balanceScopeDistribution]);
+  const revenueOwnerDistribution = useMemo(() => normalizeFinanceDistribution(data?.revenueOwnerDistribution), [data?.revenueOwnerDistribution]);
+  const giftCostBearerDistribution = useMemo(() => normalizeFinanceDistribution(data?.giftCostBearerDistribution), [data?.giftCostBearerDistribution]);
   const maxRankRevenue = Math.max(...storeRevenueRank.map((item) => toNumber(item.revenue)), 1);
 
   const lineConfig = {
@@ -177,6 +194,17 @@ const Dashboard: React.FC = () => {
     innerRadius: 0.62,
     label: { text: 'value', position: 'spider' as const },
     legend: { color: { position: 'bottom' as const } },
+  });
+
+  const financePieConfig = (items: PlatformDashboardDistributionItemRecord[]) => ({
+    ...pieConfig(items),
+    angleField: 'amount',
+    tooltip: {
+      items: [
+        { field: 'amount', name: '金额', valueFormatter: (value: number) => formatAmount(value) },
+        { field: 'value', name: '笔数' },
+      ],
+    },
   });
 
   const renderItemList = (items: PlatformDashboardItemRecord[], emptyText: string) => (
@@ -262,6 +290,37 @@ const Dashboard: React.FC = () => {
         </Row>
 
         <Row gutter={[16, 16]} className="dashboard-section-row">
+          <Col xs={24} xl={8}>
+            <Card title="余额清分概览" className="dashboard-chart-card dashboard-balance-card">
+              {balanceClearingCards.length ? (
+                <Row gutter={[12, 12]}>
+                  {balanceClearingCards.map((item) => (
+                    <Col xs={24} sm={8} xl={24} key={item.key}>
+                      <Statistic title={item.title} value={renderValue(item)} suffix={item.suffix} />
+                    </Col>
+                  ))}
+                </Row>
+              ) : <Empty description="暂无余额清分数据" />}
+            </Card>
+          </Col>
+          <Col xs={24} xl={8}>
+            <Card title="余额适用范围分布" className="dashboard-chart-card dashboard-chart-card--compact">
+              {balanceScopeDistribution.length ? <Pie {...financePieConfig(balanceScopeDistribution)} /> : <Empty description="暂无范围分布" />}
+            </Card>
+          </Col>
+          <Col xs={24} xl={8}>
+            <Card title="收入归属分布" className="dashboard-chart-card dashboard-chart-card--compact">
+              {revenueOwnerDistribution.length ? <Pie {...financePieConfig(revenueOwnerDistribution)} /> : <Empty description="暂无收入归属" />}
+            </Card>
+          </Col>
+        </Row>
+
+        <Row gutter={[16, 16]} className="dashboard-section-row">
+          <Col xs={24} xl={8}>
+            <Card title="赠送余额成本承担" className="dashboard-chart-card dashboard-chart-card--compact">
+              {giftCostBearerDistribution.length ? <Pie {...financePieConfig(giftCostBearerDistribution)} /> : <Empty description="暂无赠送成本数据" />}
+            </Card>
+          </Col>
           <Col xs={24} xl={8}>
             <Card className="dashboard-list-card" title="统一待办" extra={<Button size="small" onClick={() => navigate('/merchant-console')}>待办中心 <RightOutlined /></Button>}>
               {renderItemList(todos, '暂无待办')}

@@ -259,18 +259,10 @@ export interface MerchantGroupRecord {
   settlementCycle?: string;
   cashHolder?: string;
   revenueOwner?: string;
-  principalBearer?: string;
-  giftCostBearer?: string;
-  couponCostBearer?: string;
-  paymentFeeBearer?: string;
   clearingBase?: string;
   rechargeMerchantRate?: number | string;
   consumeMerchantRate?: number | string;
   platformRate?: number | string;
-  rechargeCommissionRate?: number | string;
-  platformFeeRate?: number | string;
-  arrearsLimit?: number | string;
-  overdueFreezeDays?: number | string;
   clearingRemark?: string;
   owner?: string;
   status: string;
@@ -652,6 +644,9 @@ export interface InviteActivityRecord {
   id: number;
   activityCode: string;
   activityName: string;
+  scope?: string;
+  scopeMode?: string;
+  scopeIds?: string;
   qualifyCondition?: string;
   qualifyAmount?: number | string;
   qualifyDays?: number;
@@ -985,6 +980,15 @@ export interface SettlementBillDetailRecord {
   balanceScopeId?: number;
   merchantGroupId?: number;
   merchantGroupName?: string;
+  fundOwnerType?: string;
+  fundOwnerId?: number;
+  revenueOwnerType?: string;
+  revenueOwnerId?: number;
+  giftCostBearerType?: string;
+  giftCostBearerId?: number;
+  cashAmount?: number | string;
+  giftAmount?: number | string;
+  settlementBaseAmount?: number | string;
   settlementMode?: string;
   settlementRule?: string;
   settlementRuleSnapshot?: string;
@@ -1078,6 +1082,15 @@ export interface ProfitShareDetailRecord {
   balanceScopeId?: number;
   merchantGroupId?: number;
   merchantGroupName?: string;
+  fundOwnerType?: string;
+  fundOwnerId?: number;
+  revenueOwnerType?: string;
+  revenueOwnerId?: number;
+  giftCostBearerType?: string;
+  giftCostBearerId?: number;
+  cashAmount?: number | string;
+  giftAmount?: number | string;
+  settlementBaseAmount?: number | string;
   settlementMode?: string;
   settlementRule?: string;
   settlementRuleSnapshot?: string;
@@ -1760,6 +1773,7 @@ export interface PlatformDashboardChartPointRecord {
 export interface PlatformDashboardDistributionItemRecord {
   name: string;
   value: number;
+  amount?: number | string;
 }
 
 export interface PlatformDashboardRankItemRecord {
@@ -1780,6 +1794,10 @@ export interface PlatformDashboardOverviewRecord {
   storeStatusDistribution?: PlatformDashboardDistributionItemRecord[];
   settlementStatusDistribution?: PlatformDashboardDistributionItemRecord[];
   storeRevenueRank?: PlatformDashboardRankItemRecord[];
+  balanceClearingCards?: PlatformDashboardCardRecord[];
+  balanceScopeDistribution?: PlatformDashboardDistributionItemRecord[];
+  revenueOwnerDistribution?: PlatformDashboardDistributionItemRecord[];
+  giftCostBearerDistribution?: PlatformDashboardDistributionItemRecord[];
 }
 
 export interface FileAssetRecord {

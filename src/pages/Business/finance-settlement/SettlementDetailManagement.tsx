@@ -79,6 +79,7 @@ const confirmSceneOptions = [
 ];
 const compactJoin = (items: Array<string | undefined | false>) => items.filter(Boolean).join('；');
 const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
+const ownerText = (type?: string, id?: number | string) => [type, id !== undefined && id !== null ? `#${id}` : undefined].filter(Boolean).join('');
 
 const settlementDetailFields: Record<'bill' | 'cost' | 'payout' | 'reconciliation' | 'confirm', DetailField<any>[]> = {
   bill: [
@@ -88,6 +89,14 @@ const settlementDetailFields: Record<'bill' | 'cost' | 'payout' | 'reconciliatio
     { name: 'amount', label: '金额', render: (value) => formatAmount(value) },
     { name: 'merchantName', label: '商户' },
     { name: 'storeName', label: '门店' },
+    { name: 'balanceScopeType', label: '余额范围', render: (_value, record) => ownerText(record.balanceScopeType, record.balanceScopeId) || '-' },
+    { name: 'fundOwnerType', label: '资金归属', render: (_value, record) => ownerText(record.fundOwnerType, record.fundOwnerId) || '-' },
+    { name: 'revenueOwnerType', label: '收入归属', render: (_value, record) => ownerText(record.revenueOwnerType, record.revenueOwnerId) || '-' },
+    { name: 'giftCostBearerType', label: '赠送成本', render: (_value, record) => ownerText(record.giftCostBearerType, record.giftCostBearerId) || '-' },
+    { name: 'cashAmount', label: '本金抵扣', render: (value) => formatAmount(value || 0) },
+    { name: 'giftAmount', label: '赠送抵扣', render: (value) => formatAmount(value || 0) },
+    { name: 'settlementBaseAmount', label: '结算基准', render: (value) => formatAmount(value || 0) },
+    { name: 'settlementRule', label: '清分规则' },
     { name: 'occurredAt', label: '发生时间', render: (value) => formatDateTime(value) },
   ],
   cost: [
@@ -315,6 +324,10 @@ const SettlementDetailManagement: React.FC = () => {
     { title: '金额', dataIndex: 'amount', width: 120, render: (_, record) => formatAmount(record.amount) },
     { title: '商户', dataIndex: 'merchantName', width: 160 },
     { title: '门店', dataIndex: 'storeName', width: 180 },
+    { title: '余额范围', dataIndex: 'balanceScopeType', width: 130, render: (_, record) => ownerText(record.balanceScopeType, record.balanceScopeId) || '-' },
+    { title: '资金归属', dataIndex: 'fundOwnerType', width: 130, render: (_, record) => ownerText(record.fundOwnerType, record.fundOwnerId) || '-' },
+    { title: '收入归属', dataIndex: 'revenueOwnerType', width: 130, render: (_, record) => ownerText(record.revenueOwnerType, record.revenueOwnerId) || '-' },
+    { title: '结算基准', dataIndex: 'settlementBaseAmount', width: 120, render: (_, record) => formatAmount(record.settlementBaseAmount || record.amount) },
     { title: '发生时间', dataIndex: 'occurredAt', width: 180, render: (_, record) => formatDateTime(record.occurredAt) },
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
