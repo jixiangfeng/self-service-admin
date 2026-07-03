@@ -74,9 +74,8 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'RETAIL_SLOT', label: '零售点位' },
 ],
   pointStatusOptions: [
-  { value: 'IDLE', label: '空闲' },
-  { value: 'RUNNING', label: '使用中' },
-  { value: 'MAINTENANCE', label: '维护中' },
+  { value: 'ENABLED', label: '可用' },
+  { value: 'MAINTENANCE', label: '维修中' },
   { value: 'DISABLED', label: '停用' },
 ],
   pointAbilityOptions: [

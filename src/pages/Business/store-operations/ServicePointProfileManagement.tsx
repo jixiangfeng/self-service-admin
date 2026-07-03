@@ -1,12 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Col, Form, Input, Row, Select, Statistic, Tabs, message } from 'antd';
-import { DeleteOutlined, EditOutlined, LinkOutlined, PlusOutlined, QrcodeOutlined, SwapOutlined, ToolOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, LinkOutlined, PlusOutlined, QrcodeOutlined, ToolOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
   auditStatusOptions,
-  pointStatusOptions,
   pointTypeOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
@@ -19,14 +18,17 @@ import type {
   PointDeviceBindLogRecord,
   ServicePointMaintainRecord,
   ServicePointQrRecord,
-  ServicePointStatusLogRecord,
 } from '@/services/backendService';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import { DateTimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue, toDatePickerValue, toDateTimePickerValue, toTimePickerValue } from '@/utils/formControls';
 
-type PointProfileTab = 'qr' | 'maintain' | 'bind' | 'status';
-type EditableRecord = ServicePointQrRecord | ServicePointMaintainRecord | PointDeviceBindLogRecord | ServicePointStatusLogRecord;
+type PointProfileTab = 'qr' | 'maintain' | 'bind';
+type EditableRecord = ServicePointQrRecord | ServicePointMaintainRecord | PointDeviceBindLogRecord;
 type PointProfileSearchValues = { keyword?: string; servicePointId?: number };
+
+const QR_LINK_BASE = `${window.location.origin}/h5/`;
+
+const buildPointQrLink = (pointCode: string) => `${QR_LINK_BASE}?qrCode=${encodeURIComponent(pointCode)}`;
 
 
 const normalizePickerValues = (values: Record<string, any>) => {
@@ -58,7 +60,6 @@ const normalizePickerInitialValues = (record: Record<string, any>) => {
   return next;
 };
 const auditStatusMap = buildValueEnum(auditStatusOptions);
-const pointStatusMap = buildValueEnum(pointStatusOptions);
 const pointTypeMap = buildValueEnum(pointTypeOptions);
 const pointMaintainStatusOptions = [
   { value: 'PENDING', label: '待处理' },
@@ -72,14 +73,12 @@ const pointProfileModalTitleMap: Record<PointProfileTab, string> = {
   qr: '点位二维码',
   maintain: '维护记录',
   bind: '设备绑定',
-  status: '状态流转',
 };
 
 const pointProfileModalDescMap: Record<PointProfileTab, string> = {
   qr: '生成或维护点位二维码，保证扫码入口和点位一一对应。',
   maintain: '记录点位维护计划、负责人和状态，支撑现场保养闭环。',
   bind: '记录点位设备绑定前后变化，保证履约设备可追溯。',
-  status: '记录点位状态从空闲、占用、维护到关闭的流转原因。',
 };
 
 const pointProfileDetailFields: Record<PointProfileTab, DetailField<any>[]> = {
@@ -108,14 +107,6 @@ const pointProfileDetailFields: Record<PointProfileTab, DetailField<any>[]> = {
     { name: 'operator', label: '操作人' },
     { name: 'boundAt', label: '绑定时间' },
   ],
-  status: [
-    { name: 'logNo', label: '日志编号' },
-    { name: 'pointCode', label: '点位编号' },
-    { name: 'beforeStatus', label: '原状态' },
-    { name: 'afterStatus', label: '新状态' },
-    { name: 'reason', label: '原因' },
-    { name: 'changedAt', label: '变更时间' },
-  ],
 };
 
 const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
@@ -136,26 +127,22 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
   const qrQuery = useQuery({ queryKey: ['servicePointQrRecords', servicePointId], queryFn: async () => (await api.servicePointQrRecord.page(pointProfileQueryParams)).data });
   const maintainQuery = useQuery({ queryKey: ['servicePointMaintainRecords', servicePointId], queryFn: async () => (await api.servicePointMaintainRecord.page(pointProfileQueryParams)).data });
   const bindQuery = useQuery({ queryKey: ['pointDeviceBindLogs', servicePointId], queryFn: async () => (await api.pointDeviceBindLog.page(pointProfileQueryParams)).data });
-  const statusQuery = useQuery({ queryKey: ['servicePointStatusLogs', servicePointId], queryFn: async () => (await api.servicePointStatusLog.page(pointProfileQueryParams)).data });
 
   const qrRecords = qrQuery.data?.records || [];
   const maintainRecords = maintainQuery.data?.records || [];
   const bindLogs = bindQuery.data?.records || [];
-  const statusLogs = statusQuery.data?.records || [];
 
   const invalidateTab = (tab: PointProfileTab) => {
     if (tab === 'qr') queryClient.invalidateQueries({ queryKey: ['servicePointQrRecords'] });
     if (tab === 'maintain') queryClient.invalidateQueries({ queryKey: ['servicePointMaintainRecords'] });
     if (tab === 'bind') queryClient.invalidateQueries({ queryKey: ['pointDeviceBindLogs'] });
-    if (tab === 'status') queryClient.invalidateQueries({ queryKey: ['servicePointStatusLogs'] });
   };
 
   const saveMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) => {
       if (activeTab === 'qr') return payload.id ? api.servicePointQrRecord.edit(payload) : api.servicePointQrRecord.add(payload);
       if (activeTab === 'maintain') return payload.id ? api.servicePointMaintainRecord.edit(payload) : api.servicePointMaintainRecord.add(payload);
-      if (activeTab === 'bind') return payload.id ? api.pointDeviceBindLog.edit(payload) : api.pointDeviceBindLog.add(payload);
-      return payload.id ? api.servicePointStatusLog.edit(payload) : api.servicePointStatusLog.add(payload);
+      return payload.id ? api.pointDeviceBindLog.edit(payload) : api.pointDeviceBindLog.add(payload);
     },
     onSuccess: () => {
       message.success('点位档案已保存');
@@ -170,8 +157,7 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
     mutationFn: async ({ tab, id }: { tab: PointProfileTab; id: number }) => {
       if (tab === 'qr') return api.servicePointQrRecord.remove(id);
       if (tab === 'maintain') return api.servicePointMaintainRecord.remove(id);
-      if (tab === 'bind') return api.pointDeviceBindLog.remove(id);
-      return api.servicePointStatusLog.remove(id);
+      return api.pointDeviceBindLog.remove(id);
     },
     onSuccess: (_, variables) => {
       message.success('点位档案已删除');
@@ -181,6 +167,24 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
 
   const filter = <T extends object>(items: T[]) =>
     items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
+
+  const selectedPoint = (id?: number) => pointOptions?.find((item) => item.value === id);
+
+  const fillPointFields = (id?: number) => {
+    const point = selectedPoint(id);
+    if (!point?.code) return;
+    form.setFieldsValue({ pointCode: point.code });
+  };
+
+  const generateQrContent = () => {
+    const pointId = form.getFieldValue('servicePointId') as number | undefined;
+    const pointCode = String(form.getFieldValue('pointCode') || selectedPoint(pointId)?.code || '').trim();
+    if (!pointCode) {
+      message.warning('请先选择所属点位');
+      return;
+    }
+    form.setFieldsValue({ pointCode, qrCode: buildPointQrLink(pointCode) });
+  };
 
   const confirmRemove = (tab: PointProfileTab, id: number) => {
     showBusinessConfirm({
@@ -202,8 +206,6 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
       form.setFieldsValue({ servicePointId, status: 'PENDING' });
     } else if (tab === 'bind') {
       form.setFieldsValue({ servicePointId, pointType: 'CAR_WASH_BAY' });
-    } else {
-      form.setFieldsValue({ servicePointId, afterStatus: 'IDLE' });
     }
     setModalVisible(true);
   };
@@ -256,25 +258,14 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
     actionColumn('bind') as ProColumns<PointDeviceBindLogRecord>,
   ], []);
 
-  const statusColumns = useMemo<ProColumns<ServicePointStatusLogRecord>[]>(() => [
-    { title: '日志编号', dataIndex: 'logNo', width: 180 },
-    { title: '点位编号', dataIndex: 'pointCode', width: 140 },
-    { title: '原状态', dataIndex: 'beforeStatus', width: 120, render: (_, record) => renderStatusTag(record.beforeStatus, pointStatusMap) },
-    { title: '新状态', dataIndex: 'afterStatus', width: 120, render: (_, record) => renderStatusTag(record.afterStatus, pointStatusMap) },
-    { title: '原因', dataIndex: 'reason', width: 180 },
-    { title: '变更时间', dataIndex: 'changedAt', width: 180, render: (_, record) => formatDateTime(record.changedAt) },
-    actionColumn('status') as ProColumns<ServicePointStatusLogRecord>,
-  ], []);
-
   return (
     <div style={{ padding: embedded ? 0 : 24 }}>
-      {!embedded ? <PageBanner title="点位档案中心" subtitle="维护点位二维码、维护记录、设备绑定日志和状态流转。" icon={<QrcodeOutlined />} /> : null}
+      {!embedded ? <PageBanner title="点位档案中心" subtitle="维护点位二维码、维护记录和设备绑定日志；运行状态统一在设备管理中处理。" icon={<QrcodeOutlined />} /> : null}
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="二维码" value={qrRecords.length} suffix="个" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="待维护" value={maintainRecords.filter((item) => item.status === 'PENDING').length} suffix="单" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="绑定日志" value={bindLogs.length} suffix="条" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="状态流转" value={statusLogs.length} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={8}><Card><Statistic title="二维码" value={qrRecords.length} suffix="个" /></Card></Col>
+        <Col xs={24} sm={12} xl={8}><Card><Statistic title="待维护" value={maintainRecords.filter((item) => item.status === 'PENDING').length} suffix="单" /></Card></Col>
+        <Col xs={24} sm={12} xl={8}><Card><Statistic title="绑定日志" value={bindLogs.length} suffix="条" /></Card></Col>
       </Row>
 
       <Form
@@ -307,7 +298,6 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
           { key: 'qr', label: '二维码', children: <ProTable<ServicePointQrRecord> cardBordered rowKey="id" columns={qrColumns} dataSource={filter(qrRecords)} loading={qrQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1260 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('qr')}>生成二维码</Button>]} /> },
           { key: 'maintain', label: '维护记录', children: <ProTable<ServicePointMaintainRecord> cardBordered rowKey="id" columns={maintainColumns} dataSource={filter(maintainRecords)} loading={maintainQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('maintain')}>新增维护</Button>]} /> },
           { key: 'bind', label: '绑定日志', children: <ProTable<PointDeviceBindLogRecord> cardBordered rowKey="id" columns={bindColumns} dataSource={filter(bindLogs)} loading={bindQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1320 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('bind')}>新增绑定</Button>]} /> },
-          { key: 'status', label: '状态流转', children: <ProTable<ServicePointStatusLogRecord> cardBordered rowKey="id" columns={statusColumns} dataSource={filter(statusLogs)} loading={statusQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('status')}>新增状态</Button>]} /> },
         ]}
       />
 
@@ -337,11 +327,11 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
             <BusinessEditorSection
               icon={<QrcodeOutlined />}
               title="归属点位"
-              desc="所有二维码、维护、绑定和状态记录都需要落到具体点位，便于现场追踪和扫码履约。"
+              desc="所有二维码、维护和绑定记录都需要落到具体点位，便于现场追踪和扫码履约。"
             >
               <div className="merchant-editor-fields merchant-editor-fields--two">
                 <Form.Item name="servicePointId" label="所属点位" rules={[{ required: true, message: '请选择点位' }]}>
-                  <Select showSearch optionFilterProp="label" options={pointOptions || []} placeholder="请选择点位" />
+                  <Select showSearch optionFilterProp="label" options={pointOptions || []} placeholder="请选择点位" onChange={(value) => fillPointFields(value)} />
                 </Form.Item>
                 <Form.Item name="pointCode" label="点位编号"><Input placeholder="选择点位后可回填或手动记录" /></Form.Item>
               </div>
@@ -350,7 +340,9 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
             {activeTab === 'qr' ? (
               <BusinessEditorSection icon={<QrcodeOutlined />} title="二维码信息" desc="维护二维码内容、版本和审核状态，保证扫码入口有效。">
                 <div className="merchant-editor-fields">
-                  <Form.Item className="merchant-editor-field-span-all" name="qrCode" label="二维码" rules={[{ required: true, message: '请输入二维码' }]}><Input placeholder="二维码内容或资源地址" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="qrCode" label="二维码" rules={[{ required: true, message: '请输入二维码' }]}>
+                    <Input.Search enterButton="生成二维码内容" onSearch={generateQrContent} placeholder="二维码内容或资源地址" />
+                  </Form.Item>
                   <Form.Item name="qrVersion" label="版本"><Input placeholder="例如：v1.0" /></Form.Item>
                   <Form.Item name="status" label="状态"><Select options={auditStatusOptions} placeholder="请选择状态" /></Form.Item>
                 </div>
@@ -378,18 +370,6 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
                   <Form.Item name="beforeDevice" label="原设备"><Input placeholder="原设备编号或名称" /></Form.Item>
                   <Form.Item name="afterDevice" label="新设备"><Input placeholder="新设备编号或名称" /></Form.Item>
                   <Form.Item name="boundAt" label="绑定时间"><DateTimeField /></Form.Item>
-                </div>
-              </BusinessEditorSection>
-            ) : null}
-
-            {activeTab === 'status' ? (
-              <BusinessEditorSection icon={<SwapOutlined />} title="状态变更" desc="记录点位状态变化、变更时间和原因，支撑异常复盘和用户端展示一致。">
-                <div className="merchant-editor-fields">
-                  <Form.Item name="logNo" label="日志编号" rules={[{ required: true, message: '请输入日志编号' }]}><Input placeholder="例如：LOG-BAY-20260510-001" /></Form.Item>
-                  <Form.Item name="beforeStatus" label="原状态"><Select options={pointStatusOptions} placeholder="请选择原状态" /></Form.Item>
-                  <Form.Item name="afterStatus" label="新状态"><Select options={pointStatusOptions} placeholder="请选择新状态" /></Form.Item>
-                  <Form.Item name="changedAt" label="变更时间"><DateTimeField /></Form.Item>
-                  <Form.Item className="merchant-editor-field-span-all" name="reason" label="原因"><Input.TextArea rows={3} placeholder="记录状态变更原因、异常说明或人工处理备注" /></Form.Item>
                 </div>
               </BusinessEditorSection>
             ) : null}

@@ -428,7 +428,6 @@ export interface ServicePointRecord {
 export interface ServicePointQrRecord { id: number; servicePointId: number; pointCode?: string; qrCode: string; qrVersion?: string; status: string; createdAt?: string; updatedAt?: string; }
 export interface ServicePointMaintainRecord { id: number; servicePointId: number; maintainNo: string; pointCode?: string; maintainType: string; owner?: string; status: string; plannedAt?: string; createdAt?: string; updatedAt?: string; }
 export interface PointDeviceBindLogRecord { id: number; bindNo: string; servicePointId: number; pointCode?: string; pointType?: string; beforeDevice?: string; afterDevice?: string; operator?: string; boundAt?: string; createdAt?: string; updatedAt?: string; }
-export interface ServicePointStatusLogRecord { id: number; servicePointId: number; logNo: string; pointCode?: string; beforeStatus?: string; afterStatus: string; reason?: string; changedAt?: string; createdAt?: string; updatedAt?: string; }
 
 export interface DeviceRecord {
   id: number;
@@ -584,7 +583,7 @@ export interface DeviceVendorRecord { id: number; vendorCode: string; vendorName
 export interface DeviceModelRecord { id: number; vendorName?: string; modelCode: string; modelName: string; deviceType: string; protocolCode?: string; status: string; createdAt?: string; updatedAt?: string; }
 export interface DeviceCommandTemplateRecord { id: number; templateCode: string; templateName: string; protocolCode?: string; deviceType?: string; commandType: string; commandPayload?: string; description?: string; status: string; createdAt?: string; updatedAt?: string; }
 export interface DeviceStatusMappingRecord { id: number; mappingCode: string; protocolCode?: string; statusGroup: string; vendorStatusCode: string; platformStatusCode: string; statusName: string; description?: string; status: string; createdAt?: string; updatedAt?: string; }
-export interface DeviceCallbackConfigRecord { id: number; callbackCode: string; callbackName: string; protocolCode?: string; vendorCode?: string; callbackType: string; callbackUrl: string; appKey?: string; appSecret?: string; signatureMethod?: string; ipWhitelist?: string; status: string; createdAt?: string; updatedAt?: string; }
+export interface DeviceCallbackConfigRecord { id: number; callbackCode: string; callbackName: string; protocolCode?: string; vendorCode?: string; callbackType: string; callbackUrl: string; appKey?: string; appSecret?: string; signatureMethod?: string; ipWhitelist?: string; parserConfig?: string; status: string; createdAt?: string; updatedAt?: string; }
 export interface DeviceProtocolRecord {
   id: number;
   protocolCode: string;
@@ -1213,20 +1212,6 @@ export interface OpenApiCallLogRecord {
   responseCode?: number;
   callStatus?: string;
   costMs?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface MiniProgramPageConfigRecord {
-  id: number;
-  pageCode: string;
-  moduleCode: string;
-  moduleName: string;
-  configJson?: string;
-  displayMode?: string;
-  jumpValue?: string;
-  sortNo?: number;
-  status?: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -2176,15 +2161,12 @@ export const servicePointApi = {
   add: async (data: Record<string, unknown>) =>
     httpPost<ServicePointRecord>('/service-points', data),
   edit: async (data: Record<string, unknown>) => httpPut<void>(`/service-points/${data.id}`, data),
-  changeStatus: async (id: number, status: string) =>
-    httpPut<void>(`/service-points/${id}/status`, { status }),
   remove: async (id: number) => httpDelete<void>(`/service-points/${id}`),
 };
 
 export const servicePointQrRecordApi = crudApi<ServicePointQrRecord>('/service-point-qr-records');
 export const servicePointMaintainRecordApi = crudApi<ServicePointMaintainRecord>('/service-point-maintain-records');
 export const pointDeviceBindLogApi = crudApi<PointDeviceBindLogRecord>('/point-device-bind-logs');
-export const servicePointStatusLogApi = crudApi<ServicePointStatusLogRecord>('/service-point-status-logs');
 
 export const deviceApi = {
   page: async (params: Record<string, unknown>) =>
@@ -2196,8 +2178,6 @@ export const deviceApi = {
   add: async (data: Record<string, unknown>) =>
     httpPost<DeviceRecord>('/devices', data),
   edit: async (data: Record<string, unknown>) => httpPut<void>(`/devices/${data.id}`, data),
-  changeStatus: async (id: number, status: string) =>
-    httpPut<void>(`/devices/${id}/status`, { status }),
   remove: async (id: number) => httpDelete<void>(`/devices/${id}`),
 };
 
@@ -2541,7 +2521,6 @@ export const openApi = {
 
 
 export const miniProgramOpsApi = {
-  pageConfigs: crudApi<MiniProgramPageConfigRecord>('/mini-program-page-configs'),
   banners: crudApi<BannerConfigRecord>('/banner-configs'),
   agreements: crudApi<AgreementContentRecord>('/agreement-contents'),
 };
@@ -2629,7 +2608,6 @@ export default {
   servicePointQrRecord: servicePointQrRecordApi,
   servicePointMaintainRecord: servicePointMaintainRecordApi,
   pointDeviceBindLog: pointDeviceBindLogApi,
-  servicePointStatusLog: servicePointStatusLogApi,
   device: deviceApi,
   deviceVendor: deviceVendorApi,
   deviceModel: deviceModelApi,

@@ -116,7 +116,7 @@ const ServicePointManagement: React.FC = () => {
       { title: '能力标签', dataIndex: 'abilityTags', width: 240, search: false, render: (_, record) => renderOptionTags(record.abilityTags, pointAbilityOptions) },
       { title: '排序', dataIndex: 'sortNo', width: 100, search: false, render: (_, record) => record.sortNo ?? 0 },
       {
-        title: '状态',
+        title: '工位状态',
         dataIndex: 'status',
         width: 120,
         valueType: 'select',
@@ -167,10 +167,10 @@ const ServicePointManagement: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="点位管理" subtitle="维护点位基础档案。二维码、维护记录、设备绑定和状态流转在档案维护中处理。" icon={<CarOutlined />} />
+      <PageBanner title="点位管理" subtitle="维护点位基础档案。二维码、维护记录和设备绑定在档案维护中处理，运行状态统一在设备管理中维护。" icon={<CarOutlined />} />
       <WorkflowGuide
         title="点位建档闭环"
-        summary="主表单只创建点位基础资料；二维码、维护记录、设备绑定和状态流转进入档案维护，避免建档和运营记录混在一起。"
+        summary="主表单只创建点位基础资料；二维码、维护记录和设备绑定进入档案维护，设备运行状态在设备管理中统一处理。"
         steps={[
           { title: '定义点位', description: '给门店创建点位编号、名称和类型', status: 'finish', tag: '当前页' },
           { title: '配置能力', description: '标记点位支持扫码、选位或夜间价格等能力', status: 'process', tag: '基础能力' },
@@ -187,7 +187,7 @@ const ServicePointManagement: React.FC = () => {
               form.resetFields();
               form.setFieldsValue({
                 pointType: 'CAR_WASH_BAY',
-                status: 'IDLE',
+                status: 'ENABLED',
                 sortNo: 0,
                 capacity: 1,
                 abilityTags: ['SCAN', 'POINT_SELECT'],
@@ -229,7 +229,7 @@ const ServicePointManagement: React.FC = () => {
               form.resetFields();
               form.setFieldsValue({
                 pointType: 'CAR_WASH_BAY',
-                status: 'IDLE',
+                status: 'ENABLED',
                 sortNo: 0,
                 capacity: 1,
                 abilityTags: ['SCAN', 'POINT_SELECT'],
@@ -263,7 +263,7 @@ const ServicePointManagement: React.FC = () => {
       <BusinessEditorModal
         eyebrow={editingRecord ? '点位档案维护' : '点位投放配置'}
         title={editingRecord ? `编辑点位 · ${editingRecord.pointCode}` : '新建点位'}
-        subtitle="主表单只维护点位基础档案；二维码、维护、设备绑定和状态流转在档案维护中处理。"
+        subtitle="主表单只维护点位基础档案；运行状态统一在设备管理中处理。"
         meta={['点位闭环', editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
         width={1120}
@@ -322,8 +322,8 @@ const ServicePointManagement: React.FC = () => {
                 <Form.Item name="sortNo" label="排序">
                   <InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="数字越小越靠前" />
                 </Form.Item>
-                <Form.Item name="status" label="点位状态">
-                  <Select options={pointStatusOptions} placeholder="请选择点位状态" />
+                <Form.Item name="status" label="工位状态">
+                  <Select options={pointStatusOptions} placeholder="请选择工位状态" />
                 </Form.Item>
               </div>
             </BusinessEditorSection>

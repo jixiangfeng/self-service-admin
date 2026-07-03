@@ -98,7 +98,6 @@ const DeviceManagement: React.FC = () => {
     setEditingRecord(null);
     form.resetFields();
     form.setFieldsValue({
-      status: 'OFFLINE',
       deviceType: 'CAR_WASH_HIGH_PRESSURE',
     });
     setModalVisible(true);
@@ -150,7 +149,7 @@ const DeviceManagement: React.FC = () => {
       },
       { title: '最近心跳', dataIndex: 'lastHeartbeatAt', width: 180, search: false, render: (_, record) => formatDateTime(record.lastHeartbeatAt) },
       {
-        title: '状态',
+        title: '运行状态',
         dataIndex: 'status',
         width: 120,
         valueType: 'select',
@@ -200,10 +199,10 @@ const DeviceManagement: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="设备管理" subtitle="维护设备台账、门店点位绑定和运行状态。" icon={<DeploymentUnitOutlined />} />
+      <PageBanner title="设备管理" subtitle="维护设备台账和门店点位绑定；运行状态由设备心跳、回调和订单自动判断。" icon={<DeploymentUnitOutlined />} />
       <WorkflowGuide
         title="设备管理流程"
-        summary="主设备页只处理设备资产、门店点位绑定和运行状态；厂商、型号和协议放在接入档案中维护。"
+        summary="主设备页只处理设备资产和门店点位绑定；在线、离线、使用中、故障等运行态由设备侧和系统记录自动产生。"
         steps={[
           { title: '设备建档', description: '录设备名称、编号、类型和厂商', status: 'finish', tag: '当前页' },
           { title: '绑定门店点位', description: '决定设备服务于哪个门店和点位', status: 'process', tag: '门店 / 点位' },
@@ -224,7 +223,7 @@ const DeviceManagement: React.FC = () => {
         title="设备履约闭环"
         subtitle="设备要从资产建档、门店点位绑定、协议接入、状态监控一路串到订单履约，运营才能快速判断故障影响范围。"
         config={[
-          { label: '设备主档', desc: '设备编号、类型、厂商和状态用于识别资产与售后责任。', tag: '资产' },
+          { label: '设备主档', desc: '设备编号、类型和厂商用于识别资产与售后责任。', tag: '资产' },
           { label: '门店点位', desc: '绑定门店和点位后，订单才知道从哪个设备执行服务。', tag: '绑定' },
           { label: '接入资料', desc: '型号、协议、指令模板和回调配置放在设备接入管理维护。', tag: '技术' },
         ]}
@@ -234,7 +233,7 @@ const DeviceManagement: React.FC = () => {
           { label: '结算影响', desc: '设备不可用会影响门店履约、退款原因和结算复盘。' },
         ]}
         verify={[
-          { label: '新建后', desc: '确认设备已绑定门店点位，状态不是停用或离线。' },
+          { label: '新建后', desc: '确认设备已绑定门店点位，并等待设备心跳或回调同步运行态。' },
           { label: '异常时', desc: '先看最近心跳、故障级别和交易中心的失败订单。' },
           { label: '更换点位', desc: '换绑前确认旧点位没有进行中订单，并保留换绑记录。' },
         ]}
@@ -314,7 +313,7 @@ const DeviceManagement: React.FC = () => {
       <BusinessEditorModal
         eyebrow={editingRecord ? '设备台账维护' : '设备台账建档'}
         title={editingRecord ? `编辑设备 · ${editingRecord.deviceName}` : '新建设备'}
-        subtitle="主表单只维护设备资产、绑定关系和当前运行状态；厂商型号和协议在设备接入中维护，故障和信号由运行记录自动体现。"
+        subtitle="主表单只维护设备资产和绑定关系；运行状态由设备侧心跳、回调和订单履约自动体现。"
         meta={['设备台账', editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
         width={1180}
@@ -376,9 +375,6 @@ const DeviceManagement: React.FC = () => {
                 <Form.Item name="pointCode" hidden><Input /></Form.Item>
                 <Form.Item name="deviceType" label="设备类型" rules={[{ required: true, message: '请选择设备类型' }]}>
                   <Select options={deviceTypeOptions} placeholder="请选择设备类型" />
-                </Form.Item>
-                <Form.Item name="status" label="设备状态">
-                  <Select options={deviceStatusOptions} placeholder="请选择设备状态" />
                 </Form.Item>
               </div>
             </BusinessEditorSection>

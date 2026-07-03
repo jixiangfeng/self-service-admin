@@ -9,7 +9,11 @@ import PageBanner from '@/components/PageBanner';
 import { publishStatusOptions } from '@/constants/businessCatalog';
 import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api, {
+  type DeviceCallbackConfigRecord,
+  type DeviceCommandTemplateRecord,
   type DeviceModelRecord,
+  type DeviceProtocolRecord,
+  type DeviceStatusMappingRecord,
   type DeviceVendorRecord,
 } from '@/services/backendService';
 
@@ -21,6 +25,7 @@ type DeviceAccessFormValues = {
   version?: string;
   authMethod?: string;
   signatureMethod?: string;
+  authConfig?: string;
   callbackRequired?: string;
   securityOwner?: string;
   vendorCode?: string;
@@ -36,6 +41,7 @@ type DeviceAccessFormValues = {
   deviceCode?: string;
   commandType?: string;
   commandPayload?: string;
+  description?: string;
   mappingCode?: string;
   statusGroup?: string;
   vendorStatusCode?: string;
@@ -45,7 +51,10 @@ type DeviceAccessFormValues = {
   callbackName?: string;
   callbackType?: string;
   callbackUrl?: string;
+  appKey?: string;
+  appSecret?: string;
   ipWhitelist?: string;
+  parserConfig?: string;
   status?: string | number;
 };
 
@@ -58,6 +67,7 @@ const protocolTypeOptions = [
 
 const deviceTypeOptions = [
   { value: 'WASHER', label: '洗车机' },
+  { value: 'AUTO', label: '全自动设备' },
   { value: 'GATE', label: '闸机' },
   { value: 'WATER_GUN', label: '高压水枪' },
   { value: 'VACUUM', label: '吸尘设备' },
@@ -65,7 +75,10 @@ const deviceTypeOptions = [
 
 const commandTypeOptions = [
   { value: 'START_WASH', label: '启动洗车' },
-  { value: 'STOP_WASH', label: '停止洗车' },
+  { value: 'POWER_ON', label: '设备上电' },
+  { value: 'POWER_OFF', label: '设备断电' },
+  { value: 'FINISH_ORDER', label: '结束订单' },
+  { value: 'OPEN_DOOR', label: '开门' },
   { value: 'QUERY_STATUS', label: '查询状态' },
   { value: 'RESET_DEVICE', label: '设备复位' },
 ];
@@ -84,11 +97,19 @@ const DeviceAccessManagement: React.FC = () => {
   const [form] = Form.useForm<DeviceAccessFormValues>();
   const queryParams = useMemo(() => ({ keyword, current: 1, size: 80 }), [keyword]);
 
+  const protocolsQuery = useQuery({ queryKey: ['device-access-protocols', queryParams], queryFn: () => api.deviceProtocol.page(queryParams) });
   const vendorsQuery = useQuery({ queryKey: ['device-access-vendors', queryParams], queryFn: () => api.deviceVendor.page(queryParams) });
   const modelsQuery = useQuery({ queryKey: ['device-access-models', queryParams], queryFn: () => api.deviceModel.page(queryParams) });
+  const commandTemplatesQuery = useQuery({ queryKey: ['device-access-command-templates', queryParams], queryFn: () => api.deviceCommandTemplate.page(queryParams) });
+  const statusMappingsQuery = useQuery({ queryKey: ['device-access-status-mappings', queryParams], queryFn: () => api.deviceStatusMapping.page(queryParams) });
+  const callbackConfigsQuery = useQuery({ queryKey: ['device-access-callback-configs', queryParams], queryFn: () => api.deviceCallbackConfig.page(queryParams) });
 
+  const protocols = protocolsQuery.data?.data.records ?? [];
   const vendors = vendorsQuery.data?.data.records ?? [];
   const models = modelsQuery.data?.data.records ?? [];
+  const commandTemplates = commandTemplatesQuery.data?.data.records ?? [];
+  const statusMappings = statusMappingsQuery.data?.data.records ?? [];
+  const callbackConfigs = callbackConfigsQuery.data?.data.records ?? [];
 
   const openModal = (kind: ModalKind) => {
     setModalKind(kind);
@@ -126,6 +147,16 @@ const DeviceAccessManagement: React.FC = () => {
     setModalKind(null);
   };
 
+  const protocolColumns = useMemo<ProColumns<DeviceProtocolRecord>[]>(() => [
+    { title: '协议编码', dataIndex: 'protocolCode', width: 180, fixed: 'left' },
+    { title: '协议名称', dataIndex: 'protocolName', width: 200 },
+    { title: '协议类型', dataIndex: 'protocolType', width: 110 },
+    { title: '版本', dataIndex: 'version', width: 100 },
+    { title: '鉴权配置', dataIndex: 'authConfig', width: 320, ellipsis: true },
+    { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
+  ], []);
+
   const vendorColumns = useMemo<ProColumns<DeviceVendorRecord>[]>(() => [
     { title: '厂商编码', dataIndex: 'vendorCode', width: 150, fixed: 'left' },
     { title: '厂商名称', dataIndex: 'vendorName', width: 180 },
@@ -146,6 +177,40 @@ const DeviceAccessManagement: React.FC = () => {
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
   ], []);
 
+  const commandColumns = useMemo<ProColumns<DeviceCommandTemplateRecord>[]>(() => [
+    { title: '模板编码', dataIndex: 'templateCode', width: 220, fixed: 'left' },
+    { title: '模板名称', dataIndex: 'templateName', width: 220 },
+    { title: '协议编码', dataIndex: 'protocolCode', width: 180 },
+    { title: '设备类型', dataIndex: 'deviceType', width: 120, render: (value) => formatEnumText(value, 'deviceType', '设备类型') },
+    { title: '指令类型', dataIndex: 'commandType', width: 140 },
+    { title: '模板内容', dataIndex: 'commandPayload', width: 360, ellipsis: true },
+    { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
+  ], []);
+
+  const statusColumns = useMemo<ProColumns<DeviceStatusMappingRecord>[]>(() => [
+    { title: '映射编码', dataIndex: 'mappingCode', width: 220, fixed: 'left' },
+    { title: '协议编码', dataIndex: 'protocolCode', width: 180 },
+    { title: '状态分组', dataIndex: 'statusGroup', width: 140 },
+    { title: '厂商状态码', dataIndex: 'vendorStatusCode', width: 140 },
+    { title: '平台状态码', dataIndex: 'platformStatusCode', width: 140 },
+    { title: '状态名称', dataIndex: 'statusName', width: 140 },
+    { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
+  ], []);
+
+  const callbackColumns = useMemo<ProColumns<DeviceCallbackConfigRecord>[]>(() => [
+    { title: '回调编码', dataIndex: 'callbackCode', width: 220, fixed: 'left' },
+    { title: '回调名称', dataIndex: 'callbackName', width: 220 },
+    { title: '协议编码', dataIndex: 'protocolCode', width: 180 },
+    { title: '厂商编码', dataIndex: 'vendorCode', width: 150 },
+    { title: '回调类型', dataIndex: 'callbackType', width: 140 },
+    { title: '回调地址', dataIndex: 'callbackUrl', width: 280, ellipsis: true },
+    { title: '解析配置', dataIndex: 'parserConfig', width: 280, ellipsis: true },
+    { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
+  ], []);
+
   const modalTitleMap: Record<ModalKind, string> = {
     protocol: '新增设备协议',
     vendor: '新增设备厂商',
@@ -157,19 +222,27 @@ const DeviceAccessManagement: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="设备接入" subtitle="默认只维护设备厂商和型号；协议、指令、状态映射、回调和通信日志作为真实硬件接入后的高级能力暂不开放。" icon={<ApiOutlined />} />
+      <PageBanner title="设备接入" subtitle="维护设备厂商、型号、协议、指令模板、状态码映射和回调解析配置。" icon={<ApiOutlined />} />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="厂商" value={vendors.length} suffix="家" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="型号" value={models.length} suffix="个" /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card><Statistic title="协议" value={protocols.length} suffix="个" /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card><Statistic title="厂商" value={vendors.length} suffix="家" /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card><Statistic title="型号" value={models.length} suffix="个" /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card><Statistic title="指令模板" value={commandTemplates.length} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card><Statistic title="状态映射" value={statusMappings.length} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card><Statistic title="回调配置" value={callbackConfigs.length} suffix="条" /></Card></Col>
       </Row>
 
-      <KeywordSearchBar value={keyword} placeholder="厂商 / 型号关键词" onSearch={setKeyword} />
+      <KeywordSearchBar value={keyword} placeholder="协议 / 厂商 / 型号 / 指令 / 回调关键词" onSearch={setKeyword} />
 
       <Tabs
         items={[
+          { key: 'protocol', label: '设备协议', children: <ProTable<DeviceProtocolRecord> cardBordered rowKey="id" columns={protocolColumns} dataSource={protocols} loading={protocolsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1400 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('protocol')}>新增协议</Button>]} /> },
           { key: 'vendor', label: '设备厂商', children: <ProTable<DeviceVendorRecord> cardBordered rowKey="id" columns={vendorColumns} dataSource={vendors} loading={vendorsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1200 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('vendor')}>新增厂商</Button>]} /> },
           { key: 'model', label: '设备型号', children: <ProTable<DeviceModelRecord> cardBordered rowKey="id" columns={modelColumns} dataSource={models} loading={modelsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1200 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('model')}>新增型号</Button>]} /> },
+          { key: 'command', label: '指令模板', children: <ProTable<DeviceCommandTemplateRecord> cardBordered rowKey="id" columns={commandColumns} dataSource={commandTemplates} loading={commandTemplatesQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1700 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('command')}>新增指令模板</Button>]} /> },
+          { key: 'status', label: '状态映射', children: <ProTable<DeviceStatusMappingRecord> cardBordered rowKey="id" columns={statusColumns} dataSource={statusMappings} loading={statusMappingsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1500 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('status')}>新增状态映射</Button>]} /> },
+          { key: 'callback', label: '回调配置', children: <ProTable<DeviceCallbackConfigRecord> cardBordered rowKey="id" columns={callbackColumns} dataSource={callbackConfigs} loading={callbackConfigsQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1800 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('callback')}>新增回调配置</Button>]} /> },
         ]}
       />
 
@@ -198,6 +271,7 @@ const DeviceAccessManagement: React.FC = () => {
                   <Form.Item name="callbackRequired" label="回调要求"><Select options={callbackRequiredOptions} /></Form.Item>
                   <Form.Item name="securityOwner" label="安全负责人"><Input placeholder="例如：设备接入-张三" /></Form.Item>
                   <Form.Item name="status" label="状态"><Select options={publishStatusOptions} /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="authConfig" label="鉴权配置"><Input.TextArea rows={5} placeholder='例如：{"authParams":["appid","timeStamp","version","sign"],"signMethod":"MD5"}' /></Form.Item>
                 </div>
               </BusinessEditorSection>
             ) : null}
@@ -257,7 +331,7 @@ const DeviceAccessManagement: React.FC = () => {
             ) : null}
 
             {modalKind === 'callback' ? (
-              <BusinessEditorSection icon={<CloudSyncOutlined />} title="回调配置" desc="维护设备厂商回调客户端、密钥、地址和白名单。">
+              <BusinessEditorSection icon={<CloudSyncOutlined />} title="回调配置" desc="维护设备厂商回调地址、验签字段、解析规则和白名单。">
                 <div className="merchant-editor-fields">
                   <Form.Item name="callbackCode" label="回调编码" rules={[{ required: true, message: '请输入回调编码' }]}><Input placeholder="CALLBACK-WASH-001" /></Form.Item>
                   <Form.Item name="callbackName" label="回调名称" rules={[{ required: true, message: '请输入回调名称' }]}><Input placeholder="鲸洗设备回调" /></Form.Item>
@@ -265,7 +339,10 @@ const DeviceAccessManagement: React.FC = () => {
                   <Form.Item name="vendorCode" label="厂商编码"><Input placeholder="VENDOR-WASH-001" /></Form.Item>
                   <Form.Item name="callbackType" label="回调类型" rules={[{ required: true, message: '请输入回调类型' }]}><Input placeholder="STATUS_NOTIFY" /></Form.Item>
                   <Form.Item name="signatureMethod" label="签名算法"><Input placeholder="HMAC-SHA256" /></Form.Item>
+                  <Form.Item name="appKey" label="AppKey"><Input placeholder="厂商回调 AppKey" /></Form.Item>
+                  <Form.Item name="appSecret" label="AppSecret"><Input.Password placeholder="厂商回调 AppSecret" /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="callbackUrl" label="回调地址" rules={[{ required: true, message: '请输入回调地址' }]}><Input placeholder="https://admin.example.com/device/callback" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="parserConfig" label="解析配置"><Input.TextArea rows={5} placeholder='例如：{"deviceNoPath":"device_sn","callbackTypePath":"type","successPath":"code","successCodes":["0"]}' /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="ipWhitelist" label="IP 白名单"><Input.TextArea rows={3} placeholder="多个 IP 用逗号或换行分隔" /></Form.Item>
                   <Form.Item name="status" label="状态"><Select options={publishStatusOptions} /></Form.Item>
                 </div>
