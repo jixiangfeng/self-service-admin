@@ -257,6 +257,7 @@ const SettlementManagement: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settlementBills'] });
       queryClient.invalidateQueries({ queryKey: ['settlementOverviewDetails'] });
+      queryClient.invalidateQueries({ queryKey: ['settlementAllocationsCenter'] });
       message.success('结算单已按清分明细生成');
     },
   });
@@ -264,6 +265,7 @@ const SettlementManagement: React.FC = () => {
     mutationFn: (record: SettlementRecord) => api.settlementBill.edit({ ...record, billStatus: 'SETTLED', status: 'SETTLED' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settlementBills'] });
+      queryClient.invalidateQueries({ queryKey: ['settlementAllocationsCenter'] });
       message.success('结算单已确认');
     },
   });
