@@ -6,6 +6,20 @@ import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useNavigate } from 'react-router-dom';
 import { auditStatusOptions, partnerRoleOptions, profitRelationStatusOptions } from '@/constants/businessCatalog';
+
+const partnerSubjectTypeOptions = [
+  { value: 'MERCHANT', label: '商户主体' },
+  { value: 'STORE', label: '门店主体' },
+  { value: 'PLATFORM', label: '平台主体' },
+  { value: 'EXTERNAL', label: '外部合伙人' },
+];
+
+const distributionModeOptions = [
+  { value: 'REVENUE_RATIO', label: '收入比例' },
+  { value: 'GROSS_PROFIT_RATIO', label: '毛利比例' },
+  { value: 'NET_PROFIT_RATIO', label: '净利比例' },
+  { value: 'FIXED_PLUS_RATIO', label: '固定+比例' },
+];
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
@@ -19,10 +33,17 @@ import { DateField, DateTimeField, fromDatePickerValue, fromDateTimePickerValue,
 const roleMap = buildValueEnum(partnerRoleOptions);
 const statusMap = buildValueEnum(profitRelationStatusOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
+const partnerSubjectTypeMap = buildValueEnum(partnerSubjectTypeOptions);
+const distributionModeMap = buildValueEnum(distributionModeOptions);
 
 const profitRelationDetailFields: DetailField<ProfitPartnerRelationRecord>[] = [
+  { name: 'storeId', label: '门店ID' },
   { name: 'storeName', label: '门店' },
   { name: 'partnerName', label: '合伙人' },
+  { name: 'partnerSubjectType', label: '主体类型', render: (value) => partnerSubjectTypeMap[value as keyof typeof partnerSubjectTypeMap]?.text || value },
+  { name: 'partnerSubjectId', label: '主体ID' },
+  { name: 'partnerSubjectName', label: '主体名称' },
+  { name: 'distributionMode', label: '分配模式', render: (value) => distributionModeMap[value as keyof typeof distributionModeMap]?.text || value },
   { name: 'partnerRole', label: '角色', render: (value) => roleMap[value as keyof typeof roleMap]?.text || value },
   { name: 'shareRatio', label: '分润比例' },
   { name: 'settleAccount', label: '收款账户' },
@@ -71,6 +92,10 @@ const ProfitSharingManagement: React.FC = () => {
       const payload = {
         ...values,
         partnerRole: values.partnerRole || values.role,
+        partnerSubjectType: values.partnerSubjectType || 'EXTERNAL',
+        partnerSubjectName: values.partnerSubjectName || values.partnerName,
+        partnerName: values.partnerSubjectName || values.partnerName,
+        distributionMode: values.distributionMode || 'REVENUE_RATIO',
         shareRatio: Number(String(values.shareRatio ?? values.ratio ?? '0').replace('%', '')),
         relationNo: values.relationNo,
       };
@@ -130,13 +155,16 @@ const ProfitSharingManagement: React.FC = () => {
   const relations = (relationQuery.data?.records || []) as ProfitPartnerRelationRecord[];
   const details = (detailQuery.data?.records || []) as ProfitShareDetailRecord[];
   const versions = (versionQuery.data?.records || []) as ProfitRatioVersionRecord[];
-  const filteredRelations = useMemo(() => relations.filter((item) => containsKeyword(keyword, [item.storeName, item.partnerName, item.ratio, item.settleAccount])), [keyword, relations]);
+  const filteredRelations = useMemo(() => relations.filter((item) => containsKeyword(keyword, [item.storeName, item.partnerName, item.partnerSubjectName, item.ratio, item.settleAccount])), [keyword, relations]);
   const filteredDetails = useMemo(() => details.filter((item) => containsKeyword(keyword, [item.orderNo, item.serviceOrderNo, item.storeName, item.partnerName])), [keyword, details]);
 
   const relationColumns: ProColumns<ProfitPartnerRelationRecord>[] = [
+    { title: '门店ID', dataIndex: 'storeId', width: 100, search: false },
     { title: '门店', dataIndex: 'storeName', width: 180, hideInSearch: true },
     { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '门店 / 合伙人 / 比例 / 收款账户' } },
-    { title: '合伙人', dataIndex: 'partnerName', width: 180, search: false },
+    { title: '合伙主体', dataIndex: 'partnerSubjectName', width: 180, search: false },
+    { title: '主体类型', dataIndex: 'partnerSubjectType', width: 130, valueType: 'select', valueEnum: partnerSubjectTypeMap, render: (_, record) => renderStatusTag(record.partnerSubjectType, partnerSubjectTypeMap) },
+    { title: '分配模式', dataIndex: 'distributionMode', width: 130, valueType: 'select', valueEnum: distributionModeMap, render: (_, record) => renderStatusTag(record.distributionMode, distributionModeMap) },
     {
       title: '角色',
       dataIndex: 'partnerRole',
@@ -315,9 +343,12 @@ const ProfitSharingManagement: React.FC = () => {
           <div className="merchant-editor-shell">
             <BusinessEditorSection icon={<TeamOutlined />} title="关系基础" desc="定义门店、合伙人和合伙人角色。">
               <div className="merchant-editor-fields">
+                <Form.Item name="storeId" label="门店ID" rules={[{ required: true, message: '请输入门店ID' }]}><InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder="例如：100" /></Form.Item>
                 <Form.Item name="storeName" label="门店" rules={[{ required: true, message: '请输入门店' }]}><Input placeholder="例如：浦东旗舰店" /></Form.Item>
                 <Form.Item name="relationNo" label="关系编号" rules={[{ required: true, message: '请输入关系编号' }]}><Input placeholder="例如：REL-20260628-001" /></Form.Item>
-                <Form.Item name="partnerName" label="合伙人" rules={[{ required: true, message: '请输入合伙人' }]}><Input placeholder="例如：张三" /></Form.Item>
+                <Form.Item name="partnerSubjectType" label="主体类型" rules={[{ required: true, message: '请选择主体类型' }]} initialValue="EXTERNAL"><Select options={partnerSubjectTypeOptions} placeholder="请选择主体类型" /></Form.Item>
+                <Form.Item name="partnerSubjectId" label="主体ID"><InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder="商户/门店主体ID" /></Form.Item>
+                <Form.Item name="partnerSubjectName" label="合伙主体名称" rules={[{ required: true, message: '请输入合伙主体名称' }]}><Input placeholder="例如：张三 / XX商户" /></Form.Item>
                 <Form.Item name="partnerRole" label="角色" rules={[{ required: true, message: '请选择角色' }]}><Select options={partnerRoleOptions} placeholder="请选择角色" /></Form.Item>
                 <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={profitRelationStatusOptions} placeholder="请选择状态" /></Form.Item>
               </div>
@@ -325,6 +356,7 @@ const ProfitSharingManagement: React.FC = () => {
             <BusinessEditorSection icon={<AccountBookOutlined />} title="分润与账户" desc="配置分润比例和收款账户。">
               <div className="merchant-editor-fields">
                 <Form.Item name="shareRatio" label="分润比例" rules={[{ required: true, message: '请输入分润比例' }]}><InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} placeholder="30" /></Form.Item>
+                <Form.Item name="distributionMode" label="分配模式" rules={[{ required: true, message: '请选择分配模式' }]} initialValue="REVENUE_RATIO"><Select options={distributionModeOptions} placeholder="请选择分配模式" /></Form.Item>
                 <Form.Item className="merchant-editor-field-span-all" name="settleAccount" label="收款账户" rules={[{ required: true, message: '请输入收款账户' }]}><Input placeholder="例如：招商银行 6222 **** 8888 / 张三" /></Form.Item>
               </div>
             </BusinessEditorSection>
@@ -463,3 +495,4 @@ const ProfitSharingManagement: React.FC = () => {
 };
 
 export default ProfitSharingManagement;
+

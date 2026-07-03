@@ -31,6 +31,12 @@ const serviceCardProductStatusMap = buildValueEnum(serviceCardProductStatusOptio
 const userServiceCardStatusMap = buildValueEnum(serviceCardStatusOptions);
 const usageStatusMap = buildValueEnum(writeOffStatusOptions);
 const userLevelMap = buildValueEnum(userLevelOptions);
+const balanceLotStatusMap = buildValueEnum([
+  { value: 'ACTIVE', label: '可用' },
+  { value: 'DEDUCTED', label: '已扣完' },
+  { value: 'EXPIRED', label: '已过期' },
+  { value: 'FROZEN', label: '冻结' },
+]);
 const serviceCardScopeMap: Record<string, string> = {
   ALL_STORE: '全部门店可用',
   SELECTED_STORE: '指定门店可用',
@@ -243,12 +249,12 @@ const AssetFlowManagement: React.FC = () => {
     { title: '资金主体', dataIndex: 'fundOwnerUnitId', width: 120, renderText: (_, record) => record.fundOwnerUnitId ? `#${record.fundOwnerUnitId}` : '-' },
     { title: '成本主体', dataIndex: 'promotionCostUnitId', width: 120, renderText: (_, record) => record.promotionCostUnitId ? `#${record.promotionCostUnitId}` : '-' },
     { title: '清分规则', dataIndex: 'settlementRule', width: 180, renderText: (_, record) => record.settlementRule || (record.settlementRuleId ? `规则#${record.settlementRuleId}` : '-') },
-    { title: '结算模式', dataIndex: 'settlementMode', width: 140 },
+    { title: '结算模式', dataIndex: 'settlementMode', width: 140, render: (value) => formatEnumText(value, 'settlementMode', '结算模式') },
     { title: '本金总额', dataIndex: 'principalAmount', width: 120, render: (_, record) => formatAmount(record.principalAmount || 0) },
     { title: '赠送总额', dataIndex: 'giftAmount', width: 120, render: (_, record) => formatAmount(record.giftAmount || 0) },
     { title: '剩余本金', dataIndex: 'remainingPrincipal', width: 120, render: (_, record) => formatAmount(record.remainingPrincipal || 0) },
     { title: '剩余赠送', dataIndex: 'remainingGift', width: 120, render: (_, record) => formatAmount(record.remainingGift || 0) },
-    { title: '状态', dataIndex: 'status', width: 120 },
+    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, balanceLotStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
@@ -384,3 +390,4 @@ const AssetFlowManagement: React.FC = () => {
 };
 
 export default AssetFlowManagement;
+

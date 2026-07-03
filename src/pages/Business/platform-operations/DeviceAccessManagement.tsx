@@ -150,9 +150,9 @@ const DeviceAccessManagement: React.FC = () => {
   const protocolColumns = useMemo<ProColumns<DeviceProtocolRecord>[]>(() => [
     { title: '协议编码', dataIndex: 'protocolCode', width: 180, fixed: 'left' },
     { title: '协议名称', dataIndex: 'protocolName', width: 200 },
-    { title: '协议类型', dataIndex: 'protocolType', width: 110 },
+    { title: '协议类型', dataIndex: 'protocolType', width: 110, render: (value) => formatEnumText(value, 'deviceProtocolType', '协议类型') },
     { title: '版本', dataIndex: 'version', width: 100 },
-    { title: '鉴权配置', dataIndex: 'authConfig', width: 320, ellipsis: true },
+    { title: '鉴权配置', dataIndex: 'authConfig', width: 320, ellipsis: true, render: (value) => formatEnumText(value, 'deviceAuthConfig', '鉴权配置') },
     { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
   ], []);
@@ -182,7 +182,7 @@ const DeviceAccessManagement: React.FC = () => {
     { title: '模板名称', dataIndex: 'templateName', width: 220 },
     { title: '协议编码', dataIndex: 'protocolCode', width: 180 },
     { title: '设备类型', dataIndex: 'deviceType', width: 120, render: (value) => formatEnumText(value, 'deviceType', '设备类型') },
-    { title: '指令类型', dataIndex: 'commandType', width: 140 },
+    { title: '指令类型', dataIndex: 'commandType', width: 140, render: (value) => formatEnumText(value, 'deviceCommandType', '指令类型') },
     { title: '模板内容', dataIndex: 'commandPayload', width: 360, ellipsis: true },
     { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
@@ -191,7 +191,7 @@ const DeviceAccessManagement: React.FC = () => {
   const statusColumns = useMemo<ProColumns<DeviceStatusMappingRecord>[]>(() => [
     { title: '映射编码', dataIndex: 'mappingCode', width: 220, fixed: 'left' },
     { title: '协议编码', dataIndex: 'protocolCode', width: 180 },
-    { title: '状态分组', dataIndex: 'statusGroup', width: 140 },
+    { title: '状态分组', dataIndex: 'statusGroup', width: 140, render: (value) => formatEnumText(value, 'deviceStatusGroup', '状态分组') },
     { title: '厂商状态码', dataIndex: 'vendorStatusCode', width: 140 },
     { title: '平台状态码', dataIndex: 'platformStatusCode', width: 140 },
     { title: '状态名称', dataIndex: 'statusName', width: 140 },
@@ -204,7 +204,7 @@ const DeviceAccessManagement: React.FC = () => {
     { title: '回调名称', dataIndex: 'callbackName', width: 220 },
     { title: '协议编码', dataIndex: 'protocolCode', width: 180 },
     { title: '厂商编码', dataIndex: 'vendorCode', width: 150 },
-    { title: '回调类型', dataIndex: 'callbackType', width: 140 },
+    { title: '回调类型', dataIndex: 'callbackType', width: 140, render: (value) => formatEnumText(value, 'deviceCallbackType', '回调类型') },
     { title: '回调地址', dataIndex: 'callbackUrl', width: 280, ellipsis: true },
     { title: '解析配置', dataIndex: 'parserConfig', width: 280, ellipsis: true },
     { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, publishStatusMap) },
@@ -360,3 +360,4 @@ const DeviceAccessManagement: React.FC = () => {
 };
 
 export default DeviceAccessManagement;
+

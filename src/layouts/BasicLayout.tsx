@@ -102,6 +102,7 @@ const BasicLayout: React.FC = () => {
       icon: <AppstoreOutlined />,
       children: [
         { key: '/asset/service-cards', path: '/asset/service-cards', name: '次卡/月卡', icon: <IdcardOutlined /> },
+        { key: '/asset/service-cards-coupon-template', path: '/asset/service-cards', name: '优惠券模板', icon: <GiftOutlined /> },
       ],
     },
     {
@@ -120,6 +121,8 @@ const BasicLayout: React.FC = () => {
       icon: <WalletOutlined />,
       children: [
         { key: '/asset/profiles', path: '/asset/profiles', name: '用户档案', icon: <ContactsOutlined /> },
+        { key: '/asset/overview', path: '/asset/flows', name: '资产总览', icon: <WalletOutlined /> },
+        { key: '/asset/coupons', path: '/asset/flows', name: '优惠券明细', icon: <GiftOutlined /> },
         { key: '/asset/flows', path: '/asset/flows', name: '资产流水', icon: <TransactionOutlined /> },
       ],
     },
@@ -131,6 +134,8 @@ const BasicLayout: React.FC = () => {
         { key: '/marketing', path: '/marketing', name: '活动总览', icon: <GiftOutlined /> },
         { key: '/marketing/recharge-activities', path: '/marketing/recharge-activities', name: '充值活动', icon: <DollarOutlined /> },
         { key: '/marketing/invite-activities', path: '/marketing/invite-activities', name: '邀请活动', icon: <ShareAltOutlined /> },
+        { key: '/marketing/cross-store', path: '/marketing', name: '跨店经营', icon: <AppstoreOutlined /> },
+        { key: '/marketing/execution', path: '/marketing', name: '营销执行台', icon: <AuditOutlined /> },
       ],
     },
     {
@@ -335,3 +340,4 @@ const BasicLayout: React.FC = () => {
 };
 
 export default BasicLayout;
+

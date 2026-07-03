@@ -993,9 +993,14 @@ export interface SettlementConfirmRecord {
 export interface ProfitPartnerRelationRecord {
   id: number;
   relationNo: string;
+  storeId?: number;
   storeName: string;
   partnerName: string;
+  partnerSubjectType?: string;
+  partnerSubjectId?: number;
+  partnerSubjectName?: string;
   partnerRole: string;
+  distributionMode?: string;
   role?: string;
   shareRatio: number | string;
   ratio?: string;
@@ -1047,6 +1052,10 @@ export interface ProfitShareDetailRecord {
   settlementRule?: string;
   settlementRuleSnapshot?: string;
   partnerName: string;
+  partnerSubjectType?: string;
+  partnerSubjectId?: number;
+  partnerSubjectName?: string;
+  distributionMode?: string;
   baseAmount: number | string;
   shareRatio?: number | string;
   ratio?: string;
@@ -1994,6 +2003,7 @@ const formatRatio = (value: unknown) => {
 const toProfitPartnerRelationRecord = (record: Record<string, any>): ProfitPartnerRelationRecord => ({
   ...normalizeTimeFields(record),
   role: record.role ?? record.partnerRole,
+  partnerName: record.partnerSubjectName ?? record.partnerName,
   ratio: record.ratio ?? formatRatio(record.shareRatio),
   period: record.period ?? [record.effectiveStart, record.effectiveEnd].filter(Boolean).join(' ~ '),
 } as unknown as ProfitPartnerRelationRecord);
