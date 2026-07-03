@@ -29,6 +29,8 @@ const relationStatusMap = buildValueEnum(profitRelationStatusOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
 const payableStatusMap = buildValueEnum([
   { value: 'WAIT_PAY', label: '待打款' },
+  { value: 'PAID', label: '已打款' },
+  { value: 'FAILED', label: '打款失败' },
   { value: 'NO_PAYABLE', label: '无应付' },
 ]);
 const profitActionOptions = [
@@ -94,6 +96,8 @@ const profitShareCenterDetailFields: Record<'relation' | 'version' | 'detail' | 
     { name: 'confirmer', label: '确认人' },
     { name: 'confirmStatus', label: '确认状态' },
     { name: 'confirmedAt', label: '确认时间', render: (value) => formatDateTime(value) },
+    { name: 'payoutStatus', label: '打款状态', render: (value) => payableStatusMap[value as keyof typeof payableStatusMap]?.text || value },
+    { name: 'paidAt', label: '打款时间', render: (value) => formatDateTime(value) },
   ],
 };
 
@@ -189,6 +193,14 @@ const ProfitShareDetailManagement: React.FC = () => {
       message.success('分润操作已保存');
     },
   });
+  const payoutMutation = useMutation<unknown, Error, ProfitConfirmRecord>({
+    mutationFn: (record) => api.profitConfirm.updatePayoutStatus(record.id, { payoutStatus: 'PAID' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profitDetailConfirms'] });
+      queryClient.invalidateQueries({ queryKey: ['profitPartnerPayables'] });
+      message.success('已标记合伙人打款');
+    },
+  });
 
   const relations = (relationQuery.data?.records || []) as ProfitPartnerRelationRecord[];
   const versions = (versionQuery.data?.records || []) as ProfitRatioVersionRecord[];
@@ -249,15 +261,36 @@ const ProfitShareDetailManagement: React.FC = () => {
     { title: '合伙人', dataIndex: 'partnerName', width: 180 },
     { title: '确认金额', dataIndex: 'confirmAmount', width: 120, render: (_, record) => formatAmount(record.confirmAmount) },
     { title: '确认人', dataIndex: 'confirmer', width: 130 },
+    { title: '确认状态', dataIndex: 'confirmStatus', width: 120, render: (_, record) => renderStatusTag(record.confirmStatus, auditStatusMap) },
     { title: '确认时间', dataIndex: 'confirmedAt', width: 180, render: (_, record) => formatDateTime(record.confirmedAt) },
-    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
-  ], []);
+    { title: '打款状态', dataIndex: 'payoutStatus', width: 120, render: (_, record) => renderStatusTag(record.payoutStatus, payableStatusMap) },
+    { title: '打款时间', dataIndex: 'paidAt', width: 180, render: (_, record) => formatDateTime(record.paidAt) },
+    {
+      title: '操作',
+      width: 180,
+      render: (_, record) => (
+        <Space size={6}>
+          <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+          <Button
+            size="small"
+            type="primary"
+            disabled={record.confirmStatus !== 'APPROVED' || record.payoutStatus === 'PAID'}
+            loading={payoutMutation.isPending}
+            onClick={() => payoutMutation.mutate(record)}
+          >
+            标记打款
+          </Button>
+        </Space>
+      ),
+    },
+  ], [payoutMutation]);
 
   const payableColumns = useMemo<ProColumns<PartnerPayableSummaryRecord>[]>(() => [
     { title: '合伙人', dataIndex: 'partnerName', width: 180 },
     { title: '确认单数', dataIndex: 'confirmCount', width: 100 },
     { title: '待确认', dataIndex: 'pendingAmount', width: 120, render: (_, record) => formatAmount(record.pendingAmount) },
     { title: '待打款', dataIndex: 'payableAmount', width: 120, render: (_, record) => formatAmount(record.payableAmount) },
+    { title: '已打款', dataIndex: 'paidAmount', width: 120, render: (_, record) => formatAmount(record.paidAmount || 0) },
     { title: '已驳回', dataIndex: 'rejectedAmount', width: 120, render: (_, record) => formatAmount(record.rejectedAmount) },
     { title: '累计确认', dataIndex: 'totalAmount', width: 120, render: (_, record) => formatAmount(record.totalAmount) },
     { title: '最近结算单', dataIndex: 'latestSettlementBillNo', width: 180 },
@@ -315,8 +348,8 @@ const ProfitShareDetailManagement: React.FC = () => {
           { key: 'version', label: '比例版本', children: <ProTable<ProfitRatioVersionRecord> cardBordered rowKey="id" columns={versionColumns} dataSource={filter(versions) as ProfitRatioVersionRecord[]} loading={versionQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="audit" type="primary" onClick={() => openAction('审核比例版本')}>审核版本</Button>]} /> },
           { key: 'detail', label: '分润明细', children: <ProTable<ProfitShareDetailRecord> cardBordered rowKey="id" columns={detailColumns} dataSource={filter(details) as ProfitShareDetailRecord[]} loading={detailQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1380 }} /> },
           { key: 'chargeback', label: '退款回冲', children: <ProTable<ProfitChargebackRecord> cardBordered rowKey="id" columns={chargebackColumns} dataSource={filter(chargebacks) as ProfitChargebackRecord[]} loading={chargebackQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1220 }} /> },
-          { key: 'confirm', label: '分润确认', children: <ProTable<ProfitConfirmRecord> cardBordered rowKey="id" columns={confirmColumns} dataSource={filter(confirms) as ProfitConfirmRecord[]} loading={confirmQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="confirm" type="primary" onClick={() => openAction('确认分润')}>确认分润</Button>]} /> },
-          { key: 'payable', label: '合伙人应付', children: <ProTable<PartnerPayableSummaryRecord> cardBordered rowKey="partnerName" columns={payableColumns} dataSource={filter(payables) as PartnerPayableSummaryRecord[]} loading={payableQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1240 }} /> },
+          { key: 'confirm', label: '分润确认', children: <ProTable<ProfitConfirmRecord> cardBordered rowKey="id" columns={confirmColumns} dataSource={filter(confirms) as ProfitConfirmRecord[]} loading={confirmQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1480 }} toolBarRender={() => [<Button key="confirm" type="primary" onClick={() => openAction('确认分润')}>确认分润</Button>]} /> },
+          { key: 'payable', label: '合伙人应付', children: <ProTable<PartnerPayableSummaryRecord> cardBordered rowKey="partnerName" columns={payableColumns} dataSource={filter(payables) as PartnerPayableSummaryRecord[]} loading={payableQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1360 }} /> },
         ]}
       />
 

@@ -1080,6 +1080,8 @@ export interface ProfitConfirmRecord {
   confirmStatus?: string;
   confirmRemark?: string;
   confirmedAt?: string;
+  payoutStatus?: string;
+  paidAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1089,6 +1091,7 @@ export interface PartnerPayableSummaryRecord {
   confirmCount: number;
   pendingAmount: number | string;
   payableAmount: number | string;
+  paidAmount?: number | string;
   rejectedAmount: number | string;
   totalAmount: number | string;
   latestSettlementBillNo?: string;
@@ -2482,6 +2485,7 @@ export const profitChargebackApi = crudApi<ProfitChargebackRecord>('/profit-char
 export const profitConfirmApi = {
   ...crudApi<ProfitConfirmRecord>('/profit-confirms'),
   generate: async (data: Record<string, unknown>) => httpPost<GenerateProfitConfirmResponse>('/profit-confirms/generate', data),
+  updatePayoutStatus: async (id: number, data: Record<string, unknown>) => httpPut<void>(`/profit-confirms/${id}/payout-status`, data),
   payableSummary: async (params: Record<string, unknown>) => httpGet<PartnerPayableSummaryRecord[]>('/profit-confirms/payable-summary', params),
 };
 export const marketingApi = {
