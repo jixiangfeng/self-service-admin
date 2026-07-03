@@ -15,6 +15,7 @@ import BusinessEditorModal, { BusinessEditorSection } from '@/components/Busines
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import api, {
+  type PartnerPayableSummaryRecord,
   type ProfitChargebackRecord,
   type ProfitConfirmRecord,
   type ProfitPartnerRelationRecord,
@@ -26,6 +27,10 @@ import { DateTimeField, fromDateTimePickerValue } from '@/utils/formControls';
 const partnerRoleMap = buildValueEnum(partnerRoleOptions);
 const relationStatusMap = buildValueEnum(profitRelationStatusOptions);
 const auditStatusMap = buildValueEnum(auditStatusOptions);
+const payableStatusMap = buildValueEnum([
+  { value: 'WAIT_PAY', label: '待打款' },
+  { value: 'NO_PAYABLE', label: '无应付' },
+]);
 const profitActionOptions = [
   { value: 'ADD_RELATION', label: '新增合伙关系' },
   { value: 'AUDIT_VERSION', label: '审核比例版本' },
@@ -156,6 +161,7 @@ const ProfitShareDetailManagement: React.FC = () => {
   const detailQuery = useQuery({ queryKey: ['profitDetailDetails', keyword, detailStatusFilter], queryFn: async () => (await api.profitShareDetail.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: detailStatusFilter })).data });
   const chargebackQuery = useQuery({ queryKey: ['profitDetailChargebacks', keyword, chargebackStatusFilter], queryFn: async () => (await api.profitChargeback.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: chargebackStatusFilter })).data });
   const confirmQuery = useQuery({ queryKey: ['profitDetailConfirms', keyword, confirmStatusFilter], queryFn: async () => (await api.profitConfirm.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, confirmStatus: confirmStatusFilter })).data });
+  const payableQuery = useQuery({ queryKey: ['profitPartnerPayables', keyword], queryFn: async () => (await api.profitConfirm.payableSummary({ keyword: keyword || undefined })).data });
   const actionMutation = useMutation<unknown, Error, Record<string, unknown>>({
     mutationFn: (values: Record<string, unknown>) => {
       const remark = compactJoin([
@@ -172,12 +178,14 @@ const ProfitShareDetailManagement: React.FC = () => {
       if (values.action === 'AUDIT_VERSION') {
         return api.profitRatioVersion.add({ versionNo: values.versionNo, relationNo: values.relationNo, beforeRatio: values.beforeRatio, afterRatio: values.afterRatio, effectiveAt: fromDateTimePickerValue(values.effectiveAt as any) || values.effectiveAt, auditStatus: values.auditStatus, remark });
       }
-      return api.profitConfirm.add({ confirmNo: values.confirmNo, settlementBillNo: values.settlementBillNo, partnerName: values.partnerName, confirmAmount: values.confirmAmount, confirmer: values.confirmer, confirmStatus: values.confirmStatus, confirmRemark: remark });
+      return api.profitConfirm.generate({ settlementBillNo: values.settlementBillNo, confirmer: values.confirmer, confirmStatus: values.confirmStatus, confirmRemark: remark });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profitDetailRelations'] });
       queryClient.invalidateQueries({ queryKey: ['profitDetailVersions'] });
+      queryClient.invalidateQueries({ queryKey: ['profitDetailDetails'] });
       queryClient.invalidateQueries({ queryKey: ['profitDetailConfirms'] });
+      queryClient.invalidateQueries({ queryKey: ['profitPartnerPayables'] });
       message.success('分润操作已保存');
     },
   });
@@ -187,6 +195,7 @@ const ProfitShareDetailManagement: React.FC = () => {
   const details = (detailQuery.data?.records || []) as ProfitShareDetailRecord[];
   const chargebacks = (chargebackQuery.data?.records || []) as ProfitChargebackRecord[];
   const confirms = (confirmQuery.data?.records || []) as ProfitConfirmRecord[];
+  const payables = (payableQuery.data || []) as PartnerPayableSummaryRecord[];
 
   const relationColumns = useMemo<ProColumns<ProfitPartnerRelationRecord>[]>(() => [
     { title: '关系编号', dataIndex: 'relationNo', width: 180 },
@@ -244,6 +253,18 @@ const ProfitShareDetailManagement: React.FC = () => {
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
+  const payableColumns = useMemo<ProColumns<PartnerPayableSummaryRecord>[]>(() => [
+    { title: '合伙人', dataIndex: 'partnerName', width: 180 },
+    { title: '确认单数', dataIndex: 'confirmCount', width: 100 },
+    { title: '待确认', dataIndex: 'pendingAmount', width: 120, render: (_, record) => formatAmount(record.pendingAmount) },
+    { title: '待打款', dataIndex: 'payableAmount', width: 120, render: (_, record) => formatAmount(record.payableAmount) },
+    { title: '已驳回', dataIndex: 'rejectedAmount', width: 120, render: (_, record) => formatAmount(record.rejectedAmount) },
+    { title: '累计确认', dataIndex: 'totalAmount', width: 120, render: (_, record) => formatAmount(record.totalAmount) },
+    { title: '最近结算单', dataIndex: 'latestSettlementBillNo', width: 180 },
+    { title: '最近确认', dataIndex: 'latestConfirmedAt', width: 180, render: (_, record) => formatDateTime(record.latestConfirmedAt) },
+    { title: '打款状态', dataIndex: 'payoutStatus', width: 120, render: (_, record) => renderStatusTag(record.payoutStatus, payableStatusMap) },
+  ], []);
+
   return (
     <div style={{ padding: 24 }}>
       <PageBanner title="分润明细中心" subtitle="维护合伙关系、比例版本、分润明细、退款回冲和分润确认记录。" icon={<SplitCellsOutlined />} />
@@ -253,7 +274,7 @@ const ProfitShareDetailManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="待审版本" value={versions.filter((item) => item.auditStatus === 'PENDING').length} suffix="个" /></Card></Col>
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="分润金额" value={formatAmount(details.reduce((sum, item) => sum + Number(item.shareAmount || 0), 0))} /></Card></Col>
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="回冲金额" value={formatAmount(chargebacks.reduce((sum, item) => sum + Number(item.chargebackAmount || 0), 0))} /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="确认记录" value={confirms.length} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card><Statistic title="合伙人待打款" value={formatAmount(payables.reduce((sum, item) => sum + Number(item.payableAmount || 0), 0))} /></Card></Col>
       </Row>
 
       <Form
@@ -295,6 +316,7 @@ const ProfitShareDetailManagement: React.FC = () => {
           { key: 'detail', label: '分润明细', children: <ProTable<ProfitShareDetailRecord> cardBordered rowKey="id" columns={detailColumns} dataSource={filter(details) as ProfitShareDetailRecord[]} loading={detailQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1380 }} /> },
           { key: 'chargeback', label: '退款回冲', children: <ProTable<ProfitChargebackRecord> cardBordered rowKey="id" columns={chargebackColumns} dataSource={filter(chargebacks) as ProfitChargebackRecord[]} loading={chargebackQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1220 }} /> },
           { key: 'confirm', label: '分润确认', children: <ProTable<ProfitConfirmRecord> cardBordered rowKey="id" columns={confirmColumns} dataSource={filter(confirms) as ProfitConfirmRecord[]} loading={confirmQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="confirm" type="primary" onClick={() => openAction('确认分润')}>确认分润</Button>]} /> },
+          { key: 'payable', label: '合伙人应付', children: <ProTable<PartnerPayableSummaryRecord> cardBordered rowKey="partnerName" columns={payableColumns} dataSource={filter(payables) as PartnerPayableSummaryRecord[]} loading={payableQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1240 }} /> },
         ]}
       />
 
@@ -344,7 +366,6 @@ const ProfitShareDetailManagement: React.FC = () => {
                 ) : null}
                 {action === 'CONFIRM_SHARE' ? (
                   <>
-                    <Form.Item name="confirmNo" label="确认单号" rules={[{ required: true, message: '请输入确认单号' }]}><Input placeholder="例如：PCF-20260510-001" /></Form.Item>
                     <Form.Item name="settlementBillNo" label="结算单号" rules={[{ required: true, message: '请输入结算单号' }]}><Input placeholder="例如：SETTLE-20260510-001" /></Form.Item>
                     <Form.Item name="confirmStatus" label="确认状态" rules={[{ required: true, message: '请选择确认状态' }]}><Select options={auditStatusOptions} placeholder="请选择确认状态" /></Form.Item>
                   </>
@@ -371,10 +392,8 @@ const ProfitShareDetailManagement: React.FC = () => {
               </BusinessEditorSection>
             ) : null}
             {action === 'CONFIRM_SHARE' ? (
-              <BusinessEditorSection icon={<CheckCircleOutlined />} title="确认信息" desc="分润确认必须绑定结算单，确认金额和确认人单独填写。">
+              <BusinessEditorSection icon={<CheckCircleOutlined />} title="确认信息" desc="按结算单自动汇总合伙人分润，确认金额由后端分润明细生成。">
                 <div className="merchant-editor-fields">
-                  <Form.Item name="partnerName" label="合伙人" rules={[{ required: true, message: '请输入合伙人' }]}><Input placeholder="例如：张三" /></Form.Item>
-                  <Form.Item name="confirmAmount" label="确认金额" rules={[{ required: true, message: '请输入确认金额' }]}><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
                   <Form.Item name="confirmer" label="确认人" rules={[{ required: true, message: '请输入确认人' }]}><Input placeholder="例如：财务管理员" /></Form.Item>
                 </div>
               </BusinessEditorSection>

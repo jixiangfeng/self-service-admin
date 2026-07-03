@@ -16,9 +16,9 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api from '@/services/backendService';
-import type { AppUserProfileRecord, BalanceFlowRecord, ServiceCardRecord, ServiceCardUsageRecord, UserRiskRecord, UserServiceCardRecord } from '@/services/backendService';
+import type { AppUserProfileRecord, BalanceFlowRecord, BalanceLotRecord, ServiceCardRecord, ServiceCardUsageRecord, UserRiskRecord, UserServiceCardRecord } from '@/services/backendService';
 
-type DetailRecord = BalanceFlowRecord | AppUserProfileRecord | UserServiceCardRecord | ServiceCardRecord | ServiceCardUsageRecord | UserRiskRecord;
+type DetailRecord = BalanceFlowRecord | BalanceLotRecord | AppUserProfileRecord | UserServiceCardRecord | ServiceCardRecord | ServiceCardUsageRecord | UserRiskRecord;
 
 const serviceCardProductStatusOptions = [
   { value: 'DRAFT', label: '草稿' },
@@ -64,7 +64,7 @@ const formatServiceRights = (record: ServiceCardRecord) => compactJoin([
   record.rightsNote,
 ]) || '-';
 
-const assetFlowDetailFields: Record<'balance' | 'profile' | 'serviceCard' | 'userCard' | 'usage' | 'risk', DetailField<any>[]> = {
+const assetFlowDetailFields: Record<'balance' | 'lot' | 'profile' | 'serviceCard' | 'userCard' | 'usage' | 'risk', DetailField<any>[]> = {
   balance: [
     { name: 'flowNo', label: '流水号' },
     { name: 'userName', label: '用户' },
@@ -72,8 +72,26 @@ const assetFlowDetailFields: Record<'balance' | 'profile' | 'serviceCard' | 'use
     { name: 'changeAmount', label: '变动金额', render: (value) => formatAmount(value) },
     { name: 'balanceAfter', label: '变动后' , render: (value) => formatAmount(value) },
     { name: 'relatedNo', label: '关联单号' },
+    { name: 'balanceLotId', label: '余额批次ID' },
+    { name: 'principalAmount', label: '本金金额', render: (value) => formatAmount(value || 0) },
+    { name: 'giftAmount', label: '赠送金额', render: (value) => formatAmount(value || 0) },
     { name: 'operator', label: '操作人' },
     { name: 'createdAt', label: '创建时间', render: (value) => formatDateTime(value) },
+  ],
+  lot: [
+    { name: 'lotNo', label: '批次号' },
+    { name: 'userName', label: '用户' },
+    { name: 'sourceType', label: '来源类型' },
+    { name: 'sourceNo', label: '来源单号' },
+    { name: 'rechargeNo', label: '充值单号' },
+    { name: 'sourceScopeType', label: '余额范围', render: (_value, record) => [record.sourceScopeType, record.sourceScopeId ? `#${record.sourceScopeId}` : undefined].filter(Boolean).join('') || '-' },
+    { name: 'principalAmount', label: '本金总额', render: (value) => formatAmount(value || 0) },
+    { name: 'giftAmount', label: '赠送总额', render: (value) => formatAmount(value || 0) },
+    { name: 'remainingPrincipal', label: '剩余本金', render: (value) => formatAmount(value || 0) },
+    { name: 'remainingGift', label: '剩余赠送', render: (value) => formatAmount(value || 0) },
+    { name: 'settlementRule', label: '清分规则' },
+    { name: 'status', label: '状态' },
+    { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
   ],
   profile: [
     { name: 'userName', label: '用户' },
@@ -133,6 +151,7 @@ const assetFlowDetailFields: Record<'balance' | 'profile' | 'serviceCard' | 'use
 const resolveAssetFlowDetailTitle = (detail: DetailRecord | null) => {
   if (!detail) return '详情查看';
   if ('flowNo' in detail) return '余额流水详情';
+  if ('lotNo' in detail) return '余额批次详情';
   if ('cardCode' in detail) return '服务卡产品详情';
   if ('usageNo' in detail) return '扣次流水详情';
   if ('cardNo' in detail) return '用户服务卡详情';
@@ -152,6 +171,10 @@ const AssetFlowManagement: React.FC = () => {
   const balanceFlowQuery = useQuery({
     queryKey: ['assetFlowBalanceFlows', keyword, flowTypeFilter],
     queryFn: async () => (await api.asset.balanceFlows.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, flowType: flowTypeFilter })).data,
+  });
+  const balanceLotQuery = useQuery({
+    queryKey: ['assetFlowBalanceLots', keyword],
+    queryFn: async () => (await api.asset.balanceLots.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
   });
   const profileQuery = useQuery({
     queryKey: ['assetFlowProfiles', keyword, profileRiskStatusFilter],
@@ -174,6 +197,7 @@ const AssetFlowManagement: React.FC = () => {
     queryFn: async () => (await api.asset.riskRecords.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, riskStatus: riskStatusFilter })).data,
   });
   const balanceFlows = balanceFlowQuery.data?.records || [];
+  const balanceLots = balanceLotQuery.data?.records || [];
   const profiles = profileQuery.data?.records || [];
   const serviceCards = serviceCardQuery.data?.records || [];
   const userServiceCards = userServiceCardQuery.data?.records || [];
@@ -185,10 +209,27 @@ const AssetFlowManagement: React.FC = () => {
     { title: '用户', dataIndex: 'userName', width: 120 },
     { title: '类型', dataIndex: 'flowType', width: 120, render: (_, record) => renderStatusTag(record.flowType, balanceFlowTypeMap) },
     { title: '变动金额', dataIndex: 'changeAmount', width: 120, render: (_, record) => formatAmount(record.changeAmount) },
+    { title: '批次ID', dataIndex: 'balanceLotId', width: 100, render: (_, record) => record.balanceLotId ? `#${record.balanceLotId}` : '-' },
+    { title: '本金/赠送', dataIndex: 'principalAmount', width: 150, renderText: (_, record) => `${formatAmount(record.principalAmount || 0)} / ${formatAmount(record.giftAmount || 0)}` },
     { title: '变动后', dataIndex: 'balanceAfter', width: 120, render: (_, record) => formatAmount(record.balanceAfter) },
     { title: '关联单号', dataIndex: 'relatedNo', width: 180 },
     { title: '操作人', dataIndex: 'operator', width: 120 },
     { title: '创建时间', dataIndex: 'createdAt', width: 180, render: (_, record) => formatDateTime(record.createdAt) },
+    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
+  ], []);
+
+  const balanceLotColumns = useMemo<ProColumns<BalanceLotRecord>[]>(() => [
+    { title: '批次号', dataIndex: 'lotNo', width: 180 },
+    { title: '用户', dataIndex: 'userName', width: 120 },
+    { title: '来源', dataIndex: 'sourceNo', width: 180 },
+    { title: '充值单号', dataIndex: 'rechargeNo', width: 170 },
+    { title: '范围', dataIndex: 'sourceScopeType', width: 130, renderText: (_, record) => [record.sourceScopeType, record.sourceScopeId ? `#${record.sourceScopeId}` : undefined].filter(Boolean).join('') || '-' },
+    { title: '本金总额', dataIndex: 'principalAmount', width: 120, render: (_, record) => formatAmount(record.principalAmount || 0) },
+    { title: '赠送总额', dataIndex: 'giftAmount', width: 120, render: (_, record) => formatAmount(record.giftAmount || 0) },
+    { title: '剩余本金', dataIndex: 'remainingPrincipal', width: 120, render: (_, record) => formatAmount(record.remainingPrincipal || 0) },
+    { title: '剩余赠送', dataIndex: 'remainingGift', width: 120, render: (_, record) => formatAmount(record.remainingGift || 0) },
+    { title: '状态', dataIndex: 'status', width: 120 },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
@@ -259,10 +300,10 @@ const AssetFlowManagement: React.FC = () => {
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="余额流水" value={balanceFlowQuery.data?.total ?? balanceFlows.length} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card><Statistic title="余额批次" value={balanceLotQuery.data?.total ?? balanceLots.length} suffix="批" /></Card></Col>
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="用户档案" value={profileQuery.data?.total ?? profiles.length} suffix="个" /></Card></Col>
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="卡产品" value={serviceCardQuery.data?.total ?? serviceCards.length} suffix="个" /></Card></Col>
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="用户服务卡" value={userServiceCardQuery.data?.total ?? userServiceCards.length} suffix="张" /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="扣次流水" value={serviceCardUsageQuery.data?.total ?? serviceCardUsages.length} suffix="条" /></Card></Col>
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="风控记录" value={riskQuery.data?.total ?? riskRecords.length} suffix="条" /></Card></Col>
       </Row>
 
@@ -283,6 +324,7 @@ const AssetFlowManagement: React.FC = () => {
       <Tabs
         items={[
           { key: 'balance', label: '余额流水', children: <ProTable<BalanceFlowRecord> cardBordered rowKey="id" columns={balanceColumns} dataSource={balanceFlows} loading={balanceFlowQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1480 }} /> },
+          { key: 'lot', label: '余额批次', children: <ProTable<BalanceLotRecord> cardBordered rowKey="id" columns={balanceLotColumns} dataSource={balanceLots} loading={balanceLotQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1580 }} /> },
           { key: 'profile', label: '用户档案', children: <ProTable<AppUserProfileRecord> cardBordered rowKey="id" columns={profileColumns} dataSource={profiles} loading={profileQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} /> },
           { key: 'serviceCard', label: '服务卡产品', children: <ProTable<ServiceCardRecord> cardBordered rowKey="id" columns={serviceCardColumns} dataSource={serviceCards} loading={serviceCardQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1480 }} /> },
           { key: 'userCard', label: '用户服务卡', children: <ProTable<UserServiceCardRecord> cardBordered rowKey="id" columns={userCardColumns} dataSource={userServiceCards} loading={userServiceCardQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1500 }} /> },
@@ -302,7 +344,7 @@ const AssetFlowManagement: React.FC = () => {
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
-            fields={('flowNo' in detail ? assetFlowDetailFields.balance : 'cardCode' in detail ? assetFlowDetailFields.serviceCard : 'usageNo' in detail ? assetFlowDetailFields.usage : 'cardNo' in detail ? assetFlowDetailFields.userCard : 'riskScene' in detail ? assetFlowDetailFields.risk : assetFlowDetailFields.profile) as DetailField<Record<string, any>>[]}
+            fields={('flowNo' in detail ? assetFlowDetailFields.balance : 'lotNo' in detail ? assetFlowDetailFields.lot : 'cardCode' in detail ? assetFlowDetailFields.serviceCard : 'usageNo' in detail ? assetFlowDetailFields.usage : 'cardNo' in detail ? assetFlowDetailFields.userCard : 'riskScene' in detail ? assetFlowDetailFields.risk : assetFlowDetailFields.profile) as DetailField<Record<string, any>>[]}
             column={2}
             labelWidth={110}
           />

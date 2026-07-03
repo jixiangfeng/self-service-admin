@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Statistic, Tabs, message } from 'antd';
-import { AccountBookOutlined, CalculatorOutlined, CalendarOutlined, DollarOutlined, TeamOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, InputNumber, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import { AccountBookOutlined, CalculatorOutlined, CalendarOutlined, TeamOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useNavigate } from 'react-router-dom';
@@ -230,7 +230,7 @@ const SettlementManagement: React.FC = () => {
   const [costVisible, setCostVisible] = useState(false);
   const [shareDetail, setShareDetail] = useState<ProfitShareRecord | null>(null);
   const [costForm] = Form.useForm<{ couponCost: number; rechargeCost: number; inviteCost: number; owner: string }>();
-  const [generateForm] = Form.useForm<{ billNo: string; billType: string; subjectId: number; cycleType: string; periodStart: string; periodEnd: string; incomeAmount: number; refundAmount: number; costAmount: number; settlementAmount: number }>();
+  const [generateForm] = Form.useForm<{ cycleType: string; periodStart: string; periodEnd: string; allocationStatus: string }>();
 
   const billQuery = useQuery({
     queryKey: ['settlementBills', billKeyword, billStatusFilter],
@@ -252,11 +252,12 @@ const SettlementManagement: React.FC = () => {
     queryKey: ['profitShareOverview', shareKeyword, shareStatusFilter],
     queryFn: async () => (await api.profitShareDetail.page({ pageNum: 1, pageSize: 200, keyword: shareKeyword || undefined, status: shareStatusFilter })).data,
   });
-  const createBillMutation = useMutation({
-    mutationFn: (values: Record<string, unknown>) => api.settlementBill.add(values),
+  const generateBillMutation = useMutation({
+    mutationFn: (values: Record<string, unknown>) => api.settlementBill.generateFromAllocations(values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settlementBills'] });
-      message.success('结算单已生成');
+      queryClient.invalidateQueries({ queryKey: ['settlementOverviewDetails'] });
+      message.success('结算单已按清分明细生成');
     },
   });
   const confirmBillMutation = useMutation({
@@ -553,16 +554,11 @@ const SettlementManagement: React.FC = () => {
 
   const handleGenerate = async () => {
     const values = await generateForm.validateFields();
-    await createBillMutation.mutateAsync({
+    await generateBillMutation.mutateAsync({
       ...values,
-      subjectId: Number(values.subjectId),
       periodStart: fromDatePickerValue(values.periodStart as any) || values.periodStart,
       periodEnd: fromDatePickerValue(values.periodEnd as any) || values.periodEnd,
-      incomeAmount: Number(values.incomeAmount || 0),
-      refundAmount: Number(values.refundAmount || 0),
-      costAmount: Number(values.costAmount || 0),
-      settlementAmount: Number(values.settlementAmount || 0),
-      billStatus: 'PENDING',
+      billStatus: 'WAIT_CONFIRM',
     });
     setGenerateVisible(false);
     generateForm.resetFields();
@@ -651,7 +647,18 @@ const SettlementManagement: React.FC = () => {
                   >
                     成本分摊配置
                   </Button>,
-                  <Button key="generate" type="primary" onClick={() => setGenerateVisible(true)}>生成结算单</Button>,
+                  <Button
+                    key="generate"
+                    type="primary"
+                    icon={<CalculatorOutlined />}
+                    loading={generateBillMutation.isPending}
+                    onClick={() => {
+                      generateForm.setFieldsValue({ cycleType: 'DAY', allocationStatus: 'PENDING' });
+                      setGenerateVisible(true);
+                    }}
+                  >
+                    按清分生成结算单
+                  </Button>,
                 ]}
                 onSubmit={(values) => { setBillKeyword(String(values.keyword || '')); setBillStatusFilter(values.status ? String(values.status) : undefined); }}
                 onReset={() => { setBillKeyword(''); setBillStatusFilter(undefined); }}
@@ -813,32 +820,19 @@ const SettlementManagement: React.FC = () => {
 
       <BusinessEditorModal
         eyebrow="生成结算单"
-        title="新建结算单"
-        subtitle="按结算主体、账期周期、收入、退款、成本和应结金额生成结算单。"
+        title="按清分明细生成结算单"
+        subtitle="系统会读取待清分余额明细，按履约商户或门店自动分组生成结算单和账单明细。"
         meta={['结算总览', '生成']}
         open={generateVisible}
         onOk={handleGenerate}
-        confirmLoading={createBillMutation.isPending}
+        confirmLoading={generateBillMutation.isPending}
         onCancel={() => { setGenerateVisible(false); generateForm.resetFields(); }}
-        width={1120}
+        width={920}
         okText="生成结算单"
       >
         <Form form={generateForm} layout="vertical" className="merchant-editor-form">
           <div className="merchant-editor-shell">
-            <BusinessEditorSection icon={<AccountBookOutlined />} title="结算主体" desc="配置结算层级、主体 ID 和结算单号。">
-              <div className="merchant-editor-fields">
-                <Form.Item name="billType" label="结算层级" rules={[{ required: true, message: '请选择结算层级' }]}>
-                  <Select options={settlementSubjectTypeOptions} placeholder="请选择结算层级" />
-                </Form.Item>
-                <Form.Item name="subjectId" label="结算主体ID" rules={[{ required: true, message: '请输入结算主体ID' }]}>
-                  <InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder="例如：1001" />
-                </Form.Item>
-                <Form.Item name="billNo" label="结算单号" rules={[{ required: true, message: '请输入结算单号' }]}>
-                  <Input placeholder="例如：SETTLE-20260510-001" />
-                </Form.Item>
-              </div>
-            </BusinessEditorSection>
-            <BusinessEditorSection icon={<CalendarOutlined />} title="账期周期" desc="配置周期类型和起止日期。">
+            <BusinessEditorSection icon={<CalendarOutlined />} title="账期周期" desc="选择要归集的清分发生时间，系统按清分明细自动生成结算主体和金额。">
               <div className="merchant-editor-fields">
                 <Form.Item name="cycleType" label="周期类型" rules={[{ required: true, message: '请选择周期类型' }]}>
                   <Select options={settlementCycleOptions} placeholder="请选择周期类型" />
@@ -851,19 +845,10 @@ const SettlementManagement: React.FC = () => {
                 </Form.Item>
               </div>
             </BusinessEditorSection>
-            <BusinessEditorSection icon={<DollarOutlined />} title="金额归集" desc="录入收入、退款、成本和最终应结金额。">
+            <BusinessEditorSection icon={<AccountBookOutlined />} title="清分来源" desc="只归集指定状态的清分明细，生成后清分状态会进入待确认。">
               <div className="merchant-editor-fields">
-                <Form.Item name="incomeAmount" label="收入金额" rules={[{ required: true, message: '请输入收入金额' }]}>
-                  <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" />
-                </Form.Item>
-                <Form.Item name="refundAmount" label="退款冲减" rules={[{ required: true, message: '请输入退款金额' }]}>
-                  <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" />
-                </Form.Item>
-                <Form.Item name="costAmount" label="成本金额" rules={[{ required: true, message: '请输入成本金额' }]}>
-                  <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" />
-                </Form.Item>
-                <Form.Item name="settlementAmount" label="应结金额" rules={[{ required: true, message: '请输入应结金额' }]}>
-                  <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" />
+                <Form.Item name="allocationStatus" label="清分状态" rules={[{ required: true, message: '请选择清分状态' }]}>
+                  <Select options={settlementStatusOptions} placeholder="请选择清分状态" />
                 </Form.Item>
               </div>
             </BusinessEditorSection>

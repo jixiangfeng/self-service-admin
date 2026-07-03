@@ -18,6 +18,7 @@ import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { buildValueEnum, containsKeyword, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import api, {
   type PaymentReconciliationRecord,
+  type SettlementAllocationRecord,
   type SettlementBillDetailRecord,
   type SettlementConfirmRecord,
   type SettlementCostDetailRecord,
@@ -46,22 +47,6 @@ interface CostDetailRecord extends SettlementCostDetailRecord {
   createdAt: string;
 }
 
-interface CrossStoreReceivableRecord {
-  id: string;
-  clearingNo: string;
-  payer: string;
-  receiver: string;
-  rechargeStore: string;
-  consumeStore: string;
-  sourceNo: string;
-  receivableAmount: number;
-  confirmedAmount: number;
-  unpaidAmount: number;
-  status: string;
-  evidenceNo: string;
-  remark: string;
-}
-
 const detailTypeMap = buildValueEnum(settlementDetailTypeOptions);
 const payoutStatusMap = buildValueEnum(payoutStatusOptions);
 const reconciliationStatusMap = buildValueEnum(reconciliationStatusOptions);
@@ -81,7 +66,7 @@ const compactJoin = (items: Array<string | undefined | false>) => items.filter(B
 const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
 const ownerText = (type?: string, id?: number | string) => [type, id !== undefined && id !== null ? `#${id}` : undefined].filter(Boolean).join('');
 
-const settlementDetailFields: Record<'bill' | 'cost' | 'payout' | 'reconciliation' | 'confirm', DetailField<any>[]> = {
+const settlementDetailFields: Record<'bill' | 'allocation' | 'cost' | 'payout' | 'reconciliation' | 'confirm', DetailField<any>[]> = {
   bill: [
     { name: 'billNo', label: '结算单号' },
     { name: 'serviceOrderNo', label: '业务单号' },
@@ -89,6 +74,8 @@ const settlementDetailFields: Record<'bill' | 'cost' | 'payout' | 'reconciliatio
     { name: 'amount', label: '金额', render: (value) => formatAmount(value) },
     { name: 'merchantName', label: '商户' },
     { name: 'storeName', label: '门店' },
+    { name: 'settlementAllocationId', label: '清分明细ID' },
+    { name: 'balanceLotId', label: '余额批次ID' },
     { name: 'balanceScopeType', label: '余额范围', render: (_value, record) => ownerText(record.balanceScopeType, record.balanceScopeId) || '-' },
     { name: 'fundOwnerType', label: '资金归属', render: (_value, record) => ownerText(record.fundOwnerType, record.fundOwnerId) || '-' },
     { name: 'revenueOwnerType', label: '收入归属', render: (_value, record) => ownerText(record.revenueOwnerType, record.revenueOwnerId) || '-' },
@@ -97,6 +84,25 @@ const settlementDetailFields: Record<'bill' | 'cost' | 'payout' | 'reconciliatio
     { name: 'giftAmount', label: '赠送抵扣', render: (value) => formatAmount(value || 0) },
     { name: 'settlementBaseAmount', label: '结算基准', render: (value) => formatAmount(value || 0) },
     { name: 'settlementRule', label: '清分规则' },
+    { name: 'occurredAt', label: '发生时间', render: (value) => formatDateTime(value) },
+  ],
+  allocation: [
+    { name: 'allocationNo', label: '清分明细号' },
+    { name: 'serviceOrderNo', label: '服务订单号' },
+    { name: 'relatedNo', label: '扣款关联号' },
+    { name: 'balanceLotId', label: '余额批次ID' },
+    { name: 'rechargeNo', label: '充值单号' },
+    { name: 'balanceScopeType', label: '余额范围', render: (_value, record) => ownerText(record.balanceScopeType, record.balanceScopeId) || '-' },
+    { name: 'sourceStoreId', label: '充值门店ID' },
+    { name: 'serviceStoreId', label: '履约门店ID' },
+    { name: 'fundOwnerUnitId', label: '资金主体ID' },
+    { name: 'revenueOwnerUnitId', label: '收入主体ID' },
+    { name: 'giftCostBearerUnitId', label: '赠送成本主体ID' },
+    { name: 'principalAmount', label: '本金抵扣', render: (value) => formatAmount(value || 0) },
+    { name: 'giftAmount', label: '赠送抵扣', render: (value) => formatAmount(value || 0) },
+    { name: 'platformFeeAmount', label: '平台服务费', render: (value) => formatAmount(value || 0) },
+    { name: 'merchantReceivableAmount', label: '商户应收', render: (value) => formatAmount(value || 0) },
+    { name: 'allocationStatus', label: '状态' },
     { name: 'occurredAt', label: '发生时间', render: (value) => formatDateTime(value) },
   ],
   cost: [
@@ -140,21 +146,6 @@ const settlementDetailFields: Record<'bill' | 'cost' | 'payout' | 'reconciliatio
   ],
 };
 
-const crossStoreReceivableFields: DetailField<CrossStoreReceivableRecord>[] = [
-  { name: 'clearingNo', label: '清分单号' },
-  { name: 'payer', label: '应付方' },
-  { name: 'receiver', label: '应收方' },
-  { name: 'rechargeStore', label: '充值门店' },
-  { name: 'consumeStore', label: '消费门店' },
-  { name: 'sourceNo', label: '来源单号' },
-  { name: 'receivableAmount', label: '应收金额', render: (value) => formatAmount(value) },
-  { name: 'confirmedAmount', label: '已确认金额', render: (value) => formatAmount(value) },
-  { name: 'unpaidAmount', label: '未结金额', render: (value) => formatAmount(value) },
-  { name: 'status', label: '状态' },
-  { name: 'evidenceNo', label: '线下凭证' },
-  { name: 'remark', label: '说明' },
-];
-
 type SettlementDetailSearchValues = {
   keyword?: string;
   detailType?: string;
@@ -170,7 +161,7 @@ const SettlementDetailManagement: React.FC = () => {
   const [payoutStatusFilter, setPayoutStatusFilter] = useState<string>();
   const [reconcileStatusFilter, setReconcileStatusFilter] = useState<string>();
   const [confirmStatusFilter, setConfirmStatusFilter] = useState<string>();
-  const [detail, setDetail] = useState<BillDetailRecord | CostDetailRecord | SettlementPayoutRecord | PaymentReconciliationRecord | SettlementConfirmRecord | CrossStoreReceivableRecord | null>(null);
+  const [detail, setDetail] = useState<BillDetailRecord | SettlementAllocationRecord | CostDetailRecord | SettlementPayoutRecord | PaymentReconciliationRecord | SettlementConfirmRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [form] = Form.useForm<{ billNo: string; status: string; costAmount?: number; bearer?: string; relatedNo?: string; confirmer?: string; confirmScene?: string; supplement?: string }>();
@@ -196,6 +187,10 @@ const SettlementDetailManagement: React.FC = () => {
   const billDetailQuery = useQuery({
     queryKey: ['settlementBillDetailsCenter', keyword, detailTypeFilter],
     queryFn: async () => (await api.settlementBillDetail.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, detailType: detailTypeFilter })).data,
+  });
+  const allocationQuery = useQuery({
+    queryKey: ['settlementAllocationsCenter', keyword],
+    queryFn: async () => (await api.settlementAllocation.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
   });
   const costDetailQuery = useQuery({
     queryKey: ['settlementCostDetailsCenter', keyword],
@@ -264,45 +259,11 @@ const SettlementDetailManagement: React.FC = () => {
   };
 
   const billDetails = (billDetailQuery.data?.records || []) as BillDetailRecord[];
+  const allocations = (allocationQuery.data?.records || []) as SettlementAllocationRecord[];
   const costDetails = (costDetailQuery.data?.records || []) as CostDetailRecord[];
   const reconciliations = reconciliationQuery.data?.records || [];
   const payouts = (payoutQuery.data?.records || []) as SettlementPayoutRecord[];
   const confirms = (confirmQuery.data?.records || []) as SettlementConfirmRecord[];
-  const crossStoreReceivables = useMemo<CrossStoreReceivableRecord[]>(() => {
-    const sourceRows = billDetails.length ? billDetails : costDetails.map((item) => ({
-      id: item.id,
-      billNo: item.billNo,
-      serviceOrderNo: item.relatedNo,
-      detailType: item.costType,
-      amount: item.costAmount,
-      merchantName: item.bearer,
-      storeName: item.costName,
-      occurredAt: item.createdAt,
-    }));
-
-    return sourceRows.slice(0, 20).map((item, index) => {
-      const receivableAmount = Number(Math.max(Number(item.amount || 0), 0).toFixed(2));
-      const confirmedAmount = index % 3 === 0 ? Number((receivableAmount * 0.6).toFixed(2)) : 0;
-      const unpaidAmount = Number((receivableAmount - confirmedAmount).toFixed(2));
-
-      return {
-        id: `cross-receivable-${item.id}`,
-        clearingNo: `CLR-AR-${String(index + 1).padStart(4, '0')}`,
-        payer: index % 2 === 0 ? '充值收款商户' : item.merchantName || '资金持有方',
-        receiver: item.merchantName && item.merchantName !== '-' ? item.merchantName : '履约消费商户',
-        rechargeStore: index % 2 === 0 ? '充值来源门店' : 'A 门店',
-        consumeStore: item.storeName || '消费门店',
-        sourceNo: item.serviceOrderNo || item.billNo,
-        receivableAmount,
-        confirmedAmount,
-        unpaidAmount,
-        status: unpaidAmount > 0 ? 'WAIT_CONFIRM' : 'SETTLED',
-        evidenceNo: unpaidAmount > 0 ? '-' : `VOUCHER-${item.id}`,
-        remark: '跨商户独立微信收款场景，线下对账后上传凭证并核销应收应付。',
-      };
-    });
-  }, [billDetails, costDetails]);
-
   const filter = <T extends object>(items: T[]) =>
     items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
 
@@ -324,6 +285,8 @@ const SettlementDetailManagement: React.FC = () => {
     { title: '金额', dataIndex: 'amount', width: 120, render: (_, record) => formatAmount(record.amount) },
     { title: '商户', dataIndex: 'merchantName', width: 160 },
     { title: '门店', dataIndex: 'storeName', width: 180 },
+    { title: '清分ID', dataIndex: 'settlementAllocationId', width: 110, render: (_, record) => record.settlementAllocationId ? `#${record.settlementAllocationId}` : '-' },
+    { title: '批次ID', dataIndex: 'balanceLotId', width: 110, render: (_, record) => record.balanceLotId ? `#${record.balanceLotId}` : '-' },
     { title: '余额范围', dataIndex: 'balanceScopeType', width: 130, render: (_, record) => ownerText(record.balanceScopeType, record.balanceScopeId) || '-' },
     { title: '资金归属', dataIndex: 'fundOwnerType', width: 130, render: (_, record) => ownerText(record.fundOwnerType, record.fundOwnerId) || '-' },
     { title: '收入归属', dataIndex: 'revenueOwnerType', width: 130, render: (_, record) => ownerText(record.revenueOwnerType, record.revenueOwnerId) || '-' },
@@ -396,18 +359,21 @@ const SettlementDetailManagement: React.FC = () => {
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
-  const crossStoreReceivableColumns = useMemo<ProColumns<CrossStoreReceivableRecord>[]>(() => [
-    { title: '清分单号', dataIndex: 'clearingNo', width: 160 },
-    { title: '应付方', dataIndex: 'payer', width: 160 },
-    { title: '应收方', dataIndex: 'receiver', width: 160 },
-    { title: '充值门店', dataIndex: 'rechargeStore', width: 150 },
-    { title: '消费门店', dataIndex: 'consumeStore', width: 160 },
-    { title: '来源单号', dataIndex: 'sourceNo', width: 180 },
-    { title: '应收金额', dataIndex: 'receivableAmount', width: 120, render: (_, record) => formatAmount(record.receivableAmount) },
-    { title: '已确认', dataIndex: 'confirmedAmount', width: 120, render: (_, record) => formatAmount(record.confirmedAmount) },
-    { title: '未结金额', dataIndex: 'unpaidAmount', width: 120, render: (_, record) => formatAmount(record.unpaidAmount) },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, settlementStatusMap) },
-    { title: '线下凭证', dataIndex: 'evidenceNo', width: 150 },
+  const allocationColumns = useMemo<ProColumns<SettlementAllocationRecord>[]>(() => [
+    { title: '清分明细号', dataIndex: 'allocationNo', width: 180 },
+    { title: '订单号', dataIndex: 'serviceOrderNo', width: 170 },
+    { title: '扣款关联号', dataIndex: 'relatedNo', width: 190 },
+    { title: '批次ID', dataIndex: 'balanceLotId', width: 100, render: (_, record) => record.balanceLotId ? `#${record.balanceLotId}` : '-' },
+    { title: '充值单号', dataIndex: 'rechargeNo', width: 170 },
+    { title: '充值/履约门店', dataIndex: 'sourceStoreId', width: 150, render: (_, record) => `${record.sourceStoreId || '-'} / ${record.serviceStoreId || '-'}` },
+    { title: '资金主体', dataIndex: 'fundOwnerUnitId', width: 110, render: (_, record) => record.fundOwnerUnitId ? `#${record.fundOwnerUnitId}` : '-' },
+    { title: '收入主体', dataIndex: 'revenueOwnerUnitId', width: 110, render: (_, record) => record.revenueOwnerUnitId ? `#${record.revenueOwnerUnitId}` : '-' },
+    { title: '本金', dataIndex: 'principalAmount', width: 110, render: (_, record) => formatAmount(record.principalAmount || 0) },
+    { title: '赠送', dataIndex: 'giftAmount', width: 110, render: (_, record) => formatAmount(record.giftAmount || 0) },
+    { title: '平台服务费', dataIndex: 'platformFeeAmount', width: 120, render: (_, record) => formatAmount(record.platformFeeAmount || 0) },
+    { title: '商户应收', dataIndex: 'merchantReceivableAmount', width: 120, render: (_, record) => formatAmount(record.merchantReceivableAmount || 0) },
+    { title: '状态', dataIndex: 'allocationStatus', width: 120, render: (_, record) => renderStatusTag(record.allocationStatus, settlementStatusMap) },
+    { title: '发生时间', dataIndex: 'occurredAt', width: 180, render: (_, record) => formatDateTime(record.occurredAt) },
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
 
@@ -420,7 +386,7 @@ const SettlementDetailManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="成本金额" value={formatAmount(costDetails.reduce((sum, item) => sum + Number(item.costAmount || 0), 0))} /></Card></Col>
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="待打款" value={payouts.filter((item) => item.status !== 'PAID').length} suffix="笔" /></Card></Col>
         <Col xs={24} sm={12} xl={5}><Card><Statistic title="对账差异" value={reconciliations.filter((item) => item.status === 'DIFF').length} suffix="单" /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="跨店未结" value={formatAmount(crossStoreReceivables.reduce((sum, item) => sum + item.unpaidAmount, 0))} /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Card><Statistic title="待清分" value={allocations.filter((item) => item.allocationStatus === 'PENDING').length} suffix="条" /></Card></Col>
       </Row>
 
       <Form
@@ -454,9 +420,9 @@ const SettlementDetailManagement: React.FC = () => {
 
       <Tabs
         items={[
-          { key: 'billDetail', label: '账单明细', children: <ProTable<BillDetailRecord> cardBordered rowKey="id" columns={billDetailColumns} dataSource={filter(billDetails) as BillDetailRecord[]} loading={billDetailQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1320 }} /> },
+          { key: 'billDetail', label: '账单明细', children: <ProTable<BillDetailRecord> cardBordered rowKey="id" columns={billDetailColumns} dataSource={filter(billDetails) as BillDetailRecord[]} loading={billDetailQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1520 }} /> },
           { key: 'cost', label: '成本明细', children: <ProTable<CostDetailRecord> cardBordered rowKey="id" columns={costColumns} dataSource={filter(costDetails) as CostDetailRecord[]} loading={costDetailQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1380 }} toolBarRender={() => [<Button key="adjust" type="primary" onClick={() => openModal('新增成本调整')}>成本调整</Button>]} /> },
-          { key: 'crossStore', label: '跨店应收应付', children: <ProTable<CrossStoreReceivableRecord> cardBordered rowKey="id" columns={crossStoreReceivableColumns} dataSource={filter(crossStoreReceivables) as CrossStoreReceivableRecord[]} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1780 }} toolBarRender={() => [<Button key="confirm" type="primary" onClick={() => openModal('确认结算')}>登记线下确认</Button>]} /> },
+          { key: 'allocation', label: '余额清分', children: <ProTable<SettlementAllocationRecord> cardBordered rowKey="id" columns={allocationColumns} dataSource={filter(allocations) as SettlementAllocationRecord[]} loading={allocationQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1780 }} /> },
           { key: 'payout', label: '打款流水', children: <ProTable<SettlementPayoutRecord> cardBordered rowKey="id" columns={payoutColumns} dataSource={filter(payouts) as SettlementPayoutRecord[]} loading={payoutQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1380 }} toolBarRender={() => []} /> },
           { key: 'reconciliation', label: '结算对账', children: <ProTable<PaymentReconciliationRecord> cardBordered rowKey="id" columns={reconciliationColumns} dataSource={filter(reconciliations) as PaymentReconciliationRecord[]} loading={reconciliationQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1500 }} toolBarRender={() => []} /> },
           { key: 'confirm', label: '确认记录', children: <ProTable<SettlementConfirmRecord> cardBordered rowKey="id" columns={confirmColumns} dataSource={filter(confirms) as SettlementConfirmRecord[]} loading={confirmQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1220 }} toolBarRender={() => [<Button key="confirm" type="primary" onClick={() => openModal('确认结算')}>确认结算</Button>]} /> },
@@ -467,7 +433,7 @@ const SettlementDetailManagement: React.FC = () => {
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
-            fields={('clearingNo' in detail ? crossStoreReceivableFields : 'costType' in detail ? settlementDetailFields.cost : 'payoutNo' in detail ? settlementDetailFields.payout : 'reconNo' in detail ? settlementDetailFields.reconciliation : 'confirmStatus' in detail ? settlementDetailFields.confirm : settlementDetailFields.bill) as DetailField<Record<string, any>>[]}
+            fields={('allocationNo' in detail ? settlementDetailFields.allocation : 'costType' in detail ? settlementDetailFields.cost : 'payoutNo' in detail ? settlementDetailFields.payout : 'reconNo' in detail ? settlementDetailFields.reconciliation : 'confirmStatus' in detail ? settlementDetailFields.confirm : settlementDetailFields.bill) as DetailField<Record<string, any>>[]}
             column={2}
             labelWidth={110}
           />

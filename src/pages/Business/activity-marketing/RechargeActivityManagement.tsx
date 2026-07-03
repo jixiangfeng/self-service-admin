@@ -70,6 +70,10 @@ const rechargeDetailFields: DetailField<RechargeActivityRecord>[] = [
   { name: 'rewardType', label: '奖励类型', render: (value) => value ? rewardTypeMap[value as keyof typeof rewardTypeMap]?.text || value : '-' },
   { name: 'serviceCardId', label: '服务卡ID' },
   { name: 'costOwner', label: '成本承担', render: (value) => value ? costBearerMap[value as keyof typeof costBearerMap]?.text || value : '-' },
+  { name: 'usageScopePolicyId', label: '范围策略ID' },
+  { name: 'settlementRuleId', label: '清分规则ID' },
+  { name: 'fundOwnerUnitId', label: '资金主体ID' },
+  { name: 'promotionCostUnitId', label: '成本主体ID' },
   { name: 'tierAmounts', label: '固定档位', render: (value) => formatRechargeTierAmounts(value as string | undefined) },
   { name: 'minAmount', label: '最低充值金额' },
   { name: 'bannerImageUrl', label: '活动条Banner' },
@@ -202,6 +206,7 @@ const RechargeActivityManagement: React.FC = () => {
     { title: '适用范围', dataIndex: 'scopeMode', width: 180, search: false, render: (_, record) => record.scope || renderStatusTag(record.scopeMode, scopeModeMap) },
     { title: '奖励类型', dataIndex: 'rewardType', width: 140, search: false, render: (_, record) => renderStatusTag(record.rewardType || 'BALANCE', rewardTypeMap) },
     { title: '成本承担', dataIndex: 'costOwner', width: 160, valueType: 'select', valueEnum: costBearerMap, render: (_, record) => renderStatusTag(record.costOwner, costBearerMap) },
+    { title: '清分配置', dataIndex: 'settlementRuleId', width: 150, search: false, render: (_, record) => record.settlementRuleId ? `规则#${record.settlementRuleId}` : '-' },
     { title: '固定档位', dataIndex: 'tierAmounts', width: 160, search: false, render: (value) => formatRechargeTierAmounts(value as string | undefined) },
     { title: '最低充值', dataIndex: 'minAmount', width: 100, search: false },
     { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
@@ -362,6 +367,7 @@ const RechargeActivityManagement: React.FC = () => {
                   }}
                 </Form.Item>
                 <Form.Item name="costOwner" label="成本承担" rules={[{ required: true, message: '请选择成本承担方' }]}><Select options={costBearerOptions} placeholder="请选择成本承担方" /></Form.Item>
+                <Form.Item label="清分规则"><Input disabled value="按适用范围和成本承担自动生成" /></Form.Item>
                 <Form.Item name="rewardType" label="奖励类型" rules={[{ required: true, message: '请选择奖励类型' }]}><Select options={rechargeRewardTypeOptions} placeholder="请选择奖励类型" /></Form.Item>
                 {rewardType === 'SERVICE_CARD' ? (
                   <Form.Item name="serviceCardId" label="服务卡产品" rules={[{ required: true, message: '请选择服务卡产品' }]}>
