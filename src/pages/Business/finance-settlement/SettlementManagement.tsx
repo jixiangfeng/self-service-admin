@@ -26,6 +26,7 @@ import api, {
   type PaymentReconciliationRecord,
   type ProfitShareDetailRecord,
   type SettlementBillDetailRecord,
+  type SettlementAllocationRecord,
   type SettlementBillRecord,
   type SettlementPayoutRecord,
 } from '@/services/backendService';
@@ -114,7 +115,13 @@ const payoutStatusMap = buildValueEnum(payoutStatusOptions);
 const subjectTypeMap = buildValueEnum(settlementSubjectTypeOptions);
 const detailTypeMap = buildValueEnum(settlementDetailTypeOptions);
 const reconciliationStatusMap = buildValueEnum(reconciliationStatusOptions);
-const clearingStatusMap = buildValueEnum(settlementStatusOptions);
+const settlementAllocationStatusOptions = [
+  { value: 'PENDING', label: '待清分' },
+  { value: 'WAIT_CONFIRM', label: '待确认' },
+  { value: 'CONFIRMED', label: '已确认' },
+  { value: 'CANCELLED', label: '已取消' },
+];
+const clearingStatusMap = buildValueEnum(settlementAllocationStatusOptions);
 const clearingRiskMap = buildValueEnum([
   { value: 'NORMAL', label: '正常' },
   { value: 'NEAR_LIMIT', label: '接近额度' },
@@ -252,6 +259,10 @@ const SettlementManagement: React.FC = () => {
     queryKey: ['profitShareOverview', shareKeyword, shareStatusFilter],
     queryFn: async () => (await api.profitShareDetail.page({ pageNum: 1, pageSize: 200, keyword: shareKeyword || undefined, status: shareStatusFilter })).data,
   });
+  const allocationQuery = useQuery({
+    queryKey: ['settlementAllocationOverview', clearingKeyword],
+    queryFn: async () => (await api.settlementAllocation.page({ pageNum: 1, pageSize: 200, keyword: clearingKeyword || undefined })).data,
+  });
   const generateBillMutation = useMutation({
     mutationFn: (values: Record<string, unknown>) => api.settlementBill.generateFromAllocations(values),
     onSuccess: () => {
@@ -344,62 +355,41 @@ const SettlementManagement: React.FC = () => {
   const filteredPayouts = useMemo(() => payouts.filter((item) => containsKeyword(payoutKeyword, [item.payoutNo, item.billNo, item.accountName, item.bankName, item.failureReason])), [payoutKeyword, payouts]);
   const filteredReconciliations = useMemo(() => reconciliations.filter((item) => containsKeyword(reconcileKeyword, [item.reconNo, item.channelCode, item.handleRemark])), [reconcileKeyword, reconciliations]);
   const crossStoreClearings = useMemo<CrossStoreClearingRecord[]>(() => {
-    const sourceRows = settlementDetails.length ? settlementDetails : bills.map((bill) => ({
-      id: bill.id,
-      billNo: bill.billNo,
-      detailType: 'ORDER_INCOME',
-      sourceNo: bill.billNo,
-      storeName: bill.subjectName || '-',
-      incomeAmount: bill.incomeAmount,
-      refundAmount: bill.refundAmount,
-      costAmount: bill.costAmount,
-      settlementAmount: bill.settlementAmount,
-      remark: bill.subjectName || '-',
-    }));
-
-    return sourceRows.slice(0, 20).map((item, index) => {
-      const amount = Math.max(Number(item.settlementAmount || item.incomeAmount || 0), 0);
-      const principalAmount = Number((amount * 0.9).toFixed(2));
-      const giftAmount = Number((amount * 0.08).toFixed(2));
-      const couponAmount = Number((amount * 0.05).toFixed(2));
+    const rows = (allocationQuery.data?.records || []) as SettlementAllocationRecord[];
+    return rows.map((item) => {
+      const principalAmount = Number(item.principalAmount || 0);
+      const giftAmount = Number(item.giftAmount || 0);
+      const platformFee = Number(item.platformFeeAmount || 0);
+      const payableAmount = Number(item.merchantReceivableAmount || 0);
       const clearingBase = Number((principalAmount + giftAmount).toFixed(2));
-      const rechargeMerchantRate = index % 2 === 0 ? 5 : 0;
-      const consumeMerchantRate = index % 2 === 0 ? 92 : 97;
-      const platformRate = 100 - rechargeMerchantRate - consumeMerchantRate;
-      const rechargeMerchantAmount = Number((clearingBase * rechargeMerchantRate / 100).toFixed(2));
-      const consumeMerchantAmount = Number((clearingBase * consumeMerchantRate / 100).toFixed(2));
-      const platformFee = Number((clearingBase * platformRate / 100).toFixed(2));
-      const payableAmount = consumeMerchantAmount;
-      const formula = `履约商户应收 = 清分基数 ${clearingBase} * 履约比例 ${consumeMerchantRate}%；充值商户留存 ${rechargeMerchantRate}%，平台 ${platformRate}%`;
-
       return {
-        id: `clearing-${item.id}`,
-        clearingNo: `CLR-${String(index + 1).padStart(4, '0')}-${String(item.billNo || item.sourceNo || 'TEMP').replace(/[^a-zA-Z0-9]/g, '').slice(-8)}`,
-        merchantGroupName: index % 2 === 0 ? '跨商户通用核销组' : '区域加盟清分组',
-        rechargeMerchant: index % 2 === 0 ? 'A 加盟商' : '充值收款商户',
-        consumeMerchant: item.remark && item.remark !== '-' ? item.remark : '履约消费商户',
-        rechargeStore: index % 2 === 0 ? 'A 门店' : '充值来源门店',
-        consumeStore: item.storeName || '消费门店',
-        sourceNo: item.sourceNo || item.billNo,
+        id: `allocation-${item.id}`,
+        clearingNo: item.allocationNo,
+        merchantGroupName: item.merchantGroupName || item.balanceScopeType || '-',
+        rechargeMerchant: item.fundOwnerUnitId ? `资金主体#${item.fundOwnerUnitId}` : (item.sourceMerchantId ? `充值商户#${item.sourceMerchantId}` : '-'),
+        consumeMerchant: item.revenueOwnerUnitId ? `收入主体#${item.revenueOwnerUnitId}` : (item.serviceMerchantId ? `履约商户#${item.serviceMerchantId}` : '-'),
+        rechargeStore: item.sourceStoreId ? `充值门店#${item.sourceStoreId}` : '-',
+        consumeStore: item.serviceStoreId ? `消费门店#${item.serviceStoreId}` : '-',
+        sourceNo: item.serviceOrderNo || item.relatedNo || item.rechargeNo || '-',
         principalAmount,
         giftAmount,
-        couponAmount,
+        couponAmount: 0,
         clearingBase,
-        rechargeMerchantRate,
-        consumeMerchantRate,
-        platformRate,
-        rechargeMerchantAmount,
-        consumeMerchantAmount,
+        rechargeMerchantRate: 0,
+        consumeMerchantRate: clearingBase > 0 ? Number((payableAmount * 100 / clearingBase).toFixed(2)) : 0,
+        platformRate: clearingBase > 0 ? Number((platformFee * 100 / clearingBase).toFixed(2)) : 0,
+        rechargeMerchantAmount: 0,
+        consumeMerchantAmount: payableAmount,
         platformFee,
         payableAmount,
-        formula,
-        settlementCycle: '周结',
-        status: index % 3 === 0 ? 'WAIT_CONFIRM' : 'PENDING',
-        riskStatus: index % 5 === 0 ? 'NEAR_LIMIT' : 'NORMAL',
-        remark: '资金已进入充值商户微信商户号，系统生成线下应收应付清分台账。',
+        formula: item.settlementRuleSnapshot || item.settlementRule || '按后端清分明细计算',
+        settlementCycle: item.settlementMode || '-',
+        status: item.allocationStatus || 'PENDING',
+        riskStatus: 'NORMAL',
+        remark: `余额批次#${item.balanceLotId || '-'} / 清分规则#${item.settlementRuleId || '-'}`,
       };
     });
-  }, [bills, settlementDetails]);
+  }, [allocationQuery.data]);
   const filteredCrossStoreClearings = useMemo(
     () => crossStoreClearings.filter((item) => containsKeyword(clearingKeyword, [item.clearingNo, item.merchantGroupName, item.rechargeMerchant, item.consumeMerchant, item.rechargeStore, item.consumeStore, item.sourceNo])),
     [clearingKeyword, crossStoreClearings]
@@ -694,6 +684,7 @@ const SettlementManagement: React.FC = () => {
                 rowKey="id"
                 columns={clearingColumns}
                 dataSource={filteredCrossStoreClearings}
+                loading={allocationQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 2500 }}
@@ -850,7 +841,7 @@ const SettlementManagement: React.FC = () => {
             <BusinessEditorSection icon={<AccountBookOutlined />} title="清分来源" desc="只归集指定状态的清分明细，生成后清分状态会进入待确认。">
               <div className="merchant-editor-fields">
                 <Form.Item name="allocationStatus" label="清分状态" rules={[{ required: true, message: '请选择清分状态' }]}>
-                  <Select options={settlementStatusOptions} placeholder="请选择清分状态" />
+                  <Select options={settlementAllocationStatusOptions} placeholder="请选择清分状态" />
                 </Form.Item>
               </div>
             </BusinessEditorSection>

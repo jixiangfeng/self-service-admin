@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Col, Form, Input, InputNumber, Modal, Row, Select, Space, Statistic, Tabs, message } from 'antd';
 import { CheckCircleOutlined, ReloadOutlined, SearchOutlined, SplitCellsOutlined, TeamOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -184,23 +184,42 @@ const ProfitShareDetailManagement: React.FC = () => {
       }
       return api.profitConfirm.generate({ settlementBillNo: values.settlementBillNo, confirmer: values.confirmer, confirmStatus: values.confirmStatus, confirmRemark: remark });
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['profitDetailRelations'] });
       queryClient.invalidateQueries({ queryKey: ['profitDetailVersions'] });
       queryClient.invalidateQueries({ queryKey: ['profitDetailDetails'] });
       queryClient.invalidateQueries({ queryKey: ['profitDetailConfirms'] });
       queryClient.invalidateQueries({ queryKey: ['profitPartnerPayables'] });
+      const result = (response as any)?.data || response;
+      if (result && typeof result.generatedCount === 'number') {
+        if (result.generatedCount === 0) {
+          message.warning('未生成分润确认，请检查结算单是否存在可确认分润明细');
+        } else {
+          message.success(`已生成 ${result.generatedCount} 条分润确认，合计 ${formatAmount(result.totalConfirmAmount || 0)}`);
+        }
+        return;
+      }
       message.success('分润操作已保存');
     },
   });
   const payoutMutation = useMutation<unknown, Error, ProfitConfirmRecord>({
-    mutationFn: (record) => api.profitConfirm.updatePayoutStatus(record.id, { payoutStatus: 'PAID' }),
+    mutationFn: (record) => api.profitConfirm.updatePayoutStatus(record.id, { payoutStatus: 'PAID', paidAt: new Date().toISOString() }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profitDetailConfirms'] });
       queryClient.invalidateQueries({ queryKey: ['profitPartnerPayables'] });
       message.success('已标记合伙人打款');
     },
   });
+
+  const confirmPayout = (record: ProfitConfirmRecord) => {
+    Modal.confirm({
+      title: '确认标记打款',
+      content: `确定将分润确认单「${record.confirmNo || record.id}」标记为已打款吗？系统会记录当前时间作为打款时间。`,
+      okText: '确认打款',
+      cancelText: '取消',
+      onOk: () => payoutMutation.mutate(record),
+    });
+  };
 
   const relations = (relationQuery.data?.records || []) as ProfitPartnerRelationRecord[];
   const versions = (versionQuery.data?.records || []) as ProfitRatioVersionRecord[];
@@ -276,7 +295,7 @@ const ProfitShareDetailManagement: React.FC = () => {
             type="primary"
             disabled={record.confirmStatus !== 'APPROVED' || record.payoutStatus === 'PAID'}
             loading={payoutMutation.isPending}
-            onClick={() => payoutMutation.mutate(record)}
+            onClick={() => confirmPayout(record)}
           >
             标记打款
           </Button>
