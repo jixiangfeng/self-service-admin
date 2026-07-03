@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Col, Row, Select, Space, Statistic, Tabs } from 'antd';
-import { TransactionOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Input, Row, Select, Space, Statistic, Tabs } from 'antd';
+import { ReloadOutlined, SearchOutlined, TransactionOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
@@ -14,7 +14,7 @@ import {
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, formatAmount, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
+import { buildValueEnum, formatAmount, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import api from '@/services/backendService';
 import type { AppUserProfileRecord, BalanceFlowRecord, BalanceLotRecord, ServiceCardRecord, ServiceCardUsageRecord, UserRiskRecord, UserServiceCardRecord } from '@/services/backendService';
 
@@ -160,6 +160,7 @@ const resolveAssetFlowDetailTitle = (detail: DetailRecord | null) => {
 };
 
 const AssetFlowManagement: React.FC = () => {
+  const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [flowTypeFilter, setFlowTypeFilter] = useState<string>();
   const [profileRiskStatusFilter, setProfileRiskStatusFilter] = useState<string>();
@@ -203,6 +204,21 @@ const AssetFlowManagement: React.FC = () => {
   const userServiceCards = userServiceCardQuery.data?.records || [];
   const serviceCardUsages = serviceCardUsageQuery.data?.records || [];
   const riskRecords = riskQuery.data?.records || [];
+
+  const handleSearch = () => {
+    setKeyword(keywordInput.trim());
+  };
+
+  const handleReset = () => {
+    setKeywordInput('');
+    setKeyword('');
+    setFlowTypeFilter(undefined);
+    setProfileRiskStatusFilter(undefined);
+    setServiceCardStatusFilter(undefined);
+    setUserCardStatusFilter(undefined);
+    setUsageStatusFilter(undefined);
+    setRiskStatusFilter(undefined);
+  };
 
   const balanceColumns = useMemo<ProColumns<BalanceFlowRecord>[]>(() => [
     { title: '流水号', dataIndex: 'flowNo', width: 180 },
@@ -311,19 +327,27 @@ const AssetFlowManagement: React.FC = () => {
         <Col xs={24} sm={12} xl={4}><Card><Statistic title="风控记录" value={riskQuery.data?.total ?? riskRecords.length} suffix="条" /></Card></Col>
       </Row>
 
-      <Space size={12} wrap style={{ marginBottom: 16 }}>
-        <KeywordSearchBar
-          value={keyword}
-          placeholder="输入用户、流水、卡号、风控关键词"
-          onSearch={setKeyword}
-        />
-        <Select allowClear placeholder="流水类型" style={{ width: 140 }} options={balanceFlowTypeOptions} value={flowTypeFilter} onChange={setFlowTypeFilter} />
-        <Select allowClear placeholder="档案风控" style={{ width: 140 }} options={riskStatusOptions} value={profileRiskStatusFilter} onChange={setProfileRiskStatusFilter} />
-        <Select allowClear placeholder="卡产品状态" style={{ width: 140 }} options={serviceCardProductStatusOptions} value={serviceCardStatusFilter} onChange={setServiceCardStatusFilter} />
-        <Select allowClear placeholder="用户卡状态" style={{ width: 140 }} options={serviceCardStatusOptions} value={userCardStatusFilter} onChange={setUserCardStatusFilter} />
-        <Select allowClear placeholder="扣次状态" style={{ width: 140 }} options={writeOffStatusOptions} value={usageStatusFilter} onChange={setUsageStatusFilter} />
-        <Select allowClear placeholder="风控状态" style={{ width: 140 }} options={riskStatusOptions} value={riskStatusFilter} onChange={setRiskStatusFilter} />
-      </Space>
+      <Card style={{ marginBottom: 16 }}>
+        <Space size={12} wrap>
+          <Input
+            allowClear
+            prefix={<SearchOutlined />}
+            placeholder="输入用户、流水、卡号、风控关键词"
+            style={{ width: 280 }}
+            value={keywordInput}
+            onChange={(event) => setKeywordInput(event.target.value)}
+            onPressEnter={handleSearch}
+          />
+          <Select allowClear placeholder="流水类型" style={{ width: 140 }} options={balanceFlowTypeOptions} value={flowTypeFilter} onChange={setFlowTypeFilter} />
+          <Select allowClear placeholder="档案风控" style={{ width: 140 }} options={riskStatusOptions} value={profileRiskStatusFilter} onChange={setProfileRiskStatusFilter} />
+          <Select allowClear placeholder="卡产品状态" style={{ width: 140 }} options={serviceCardProductStatusOptions} value={serviceCardStatusFilter} onChange={setServiceCardStatusFilter} />
+          <Select allowClear placeholder="用户卡状态" style={{ width: 140 }} options={serviceCardStatusOptions} value={userCardStatusFilter} onChange={setUserCardStatusFilter} />
+          <Select allowClear placeholder="扣次状态" style={{ width: 140 }} options={writeOffStatusOptions} value={usageStatusFilter} onChange={setUsageStatusFilter} />
+          <Select allowClear placeholder="风控状态" style={{ width: 140 }} options={riskStatusOptions} value={riskStatusFilter} onChange={setRiskStatusFilter} />
+          <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>查询</Button>
+          <Button icon={<ReloadOutlined />} onClick={handleReset}>重置</Button>
+        </Space>
+      </Card>
 
       <Tabs
         items={[
