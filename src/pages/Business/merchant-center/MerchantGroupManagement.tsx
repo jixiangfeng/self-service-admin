@@ -218,8 +218,8 @@ const MerchantGroupManagement: React.FC = () => {
   const summary = useMemo(
     () => ({
       total: records.length,
-      activity: records.filter((item) => item.groupType === 'ACTIVITY').length,
-      writeoff: records.filter((item) => item.groupType === 'WRITEOFF').length,
+      operating: records.filter((item) => item.groupType === 'OPERATING').length,
+      storedValue: records.filter((item) => item.groupType === 'STORED_VALUE').length,
       stores: records.reduce((sum, item) => sum + Number(item.storeCount || 0), 0),
     }),
     [records]
@@ -249,6 +249,13 @@ const MerchantGroupManagement: React.FC = () => {
       render: (_, record) => renderStatusTag(record.groupType, groupTypeMap),
     },
     { title: '门店数', dataIndex: 'storeCount', width: 100, search: false },
+    {
+      title: '清分规则',
+      dataIndex: 'linkedSettlementRuleCode',
+      width: 150,
+      search: false,
+      render: (_, record) => (record.groupType === 'STORED_VALUE' ? record.linkedSettlementRuleCode || '未同步' : '-'),
+    },
     { title: '负责人', dataIndex: 'owner', width: 140, search: false },
     {
       title: '状态',
@@ -277,6 +284,19 @@ const MerchantGroupManagement: React.FC = () => {
             编辑
           </Button>
           <Button size="small" onClick={() => openMemberModal(record)}>成员</Button>
+          {record.groupType === 'STORED_VALUE' ? (
+            <Button
+              size="small"
+              onClick={async () => {
+                const result = await api.merchantGroup.syncSettlementRule(record.id);
+                const rule = 'data' in result ? result.data : result;
+                message.success(rule ? `已同步清分规则：${rule.ruleCode}` : '已停用关联清分规则');
+                await fetchRecords();
+              }}
+            >
+              同步规则
+            </Button>
+          ) : null}
           <Button size="small" onClick={() => confirmGroupStatus(record)}>{record.status === 'ENABLED' ? '停用' : '启用'}</Button>
         </Space>
       ),
@@ -332,8 +352,8 @@ const MerchantGroupManagement: React.FC = () => {
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="门店组总量" value={summary.total} suffix="组" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="活动门店组" value={summary.activity} suffix="组" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="跨店核销组" value={summary.writeoff} suffix="组" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="经营门店组" value={summary.operating} suffix="组" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="储值通用组" value={summary.storedValue} suffix="组" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="覆盖门店" value={summary.stores} suffix="家" /></Card></Col>
       </Row>
 
@@ -371,7 +391,7 @@ const MerchantGroupManagement: React.FC = () => {
               setEditingRecord(null);
               form.resetFields();
               form.setFieldsValue({
-                groupType: 'ACTIVITY',
+                groupType: 'STORED_VALUE',
                 status: 'DRAFT',
                 storeCount: 0,
                 settlementMode: 'NONE',
@@ -394,7 +414,7 @@ const MerchantGroupManagement: React.FC = () => {
       <BusinessEditorModal
         eyebrow={editingRecord ? '门店组配置维护' : '门店组建档'}
         title={editingRecord ? `编辑门店组 · ${editingRecord.groupName}` : '新建门店组'}
-        subtitle="用于活动投放、跨店核销、区域运营和统计分析；作用范围通过门店成员维护。"
+        subtitle="用于经营管理或储值通用范围配置；储值通用组可在高级清分协议中配置跨结算主体消费后的清分规则。"
         meta={['门店组', editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
         onOk={handleSubmit}
@@ -412,11 +432,11 @@ const MerchantGroupManagement: React.FC = () => {
               desc="定义门店组编码、名称、归属商户和当前状态，支撑后续成员维护和业务引用。"
             >
               <div className="merchant-editor-fields">
-                <Form.Item name="groupCode" label="门店组编码" rules={[{ required: true, message: '请输入门店组编码' }]}>
-                  <Input placeholder="例如：GRP-ACT-001" />
+                <Form.Item name="groupCode" label="门店组编码">
+                  <Input readOnly placeholder="保存后由系统自动生成" />
                 </Form.Item>
                 <Form.Item name="groupName" label="门店组名称" rules={[{ required: true, message: '请输入门店组名称' }]}>
-                  <Input placeholder="例如：五一活动核心门店组" />
+                  <Input placeholder="例如：西安直营储值通用组" />
                 </Form.Item>
                 <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}>
                   <Select options={templateStatusOptions} placeholder="请选择状态" />
@@ -444,7 +464,7 @@ const MerchantGroupManagement: React.FC = () => {
             <BusinessEditorSection
               icon={<AuditOutlined />}
               title="高级清分配置"
-              desc="默认收起，仅在门店组涉及跨店余额或跨商户线下清分时维护资金持有方、收入归属和协议比例。"
+              desc="默认收起，作为储值通用组的高级协议：同结算主体可不清分，跨结算主体消费时维护资金持有方、收入归属和协议比例。"
             >
               <Collapse
                 ghost
@@ -506,6 +526,7 @@ const MerchantGroupManagement: React.FC = () => {
             <Descriptions.Item label="收入归属">{optionLabel(revenueOwnerOptions, detail.revenueOwner)}</Descriptions.Item>
             <Descriptions.Item label="清分基数">{optionLabel(clearingBaseOptions, detail.clearingBase)}</Descriptions.Item>
             <Descriptions.Item label="协议比例">{buildRatioText(detail)}</Descriptions.Item>
+            <Descriptions.Item label="关联清分规则">{detail.linkedSettlementRuleCode || '未同步'}</Descriptions.Item>
             <Descriptions.Item label="充值商户留存">{formatPercent(detail.rechargeMerchantRate)}</Descriptions.Item>
             <Descriptions.Item label="履约商户分得">{formatPercent(detail.consumeMerchantRate)}</Descriptions.Item>
             <Descriptions.Item label="平台服务费">{formatPercent(detail.platformRate)}</Descriptions.Item>

@@ -5,7 +5,6 @@ import { useQuery } from '@tanstack/react-query';
 import {
   merchantTodoCategoryOptions,
   settlementStatusOptions,
-  storeStatusOptions,
   ticketPriorityOptions,
   todoStatusOptions,
 } from '@/constants/businessCatalog';
@@ -27,7 +26,6 @@ const priorityMap = buildValueEnum(ticketPriorityOptions);
 const todoStatusMap = buildValueEnum(todoStatusOptions);
 const todoCategoryMap = buildValueEnum(merchantTodoCategoryOptions);
 const settlementStatusMap = buildValueEnum(settlementStatusOptions);
-const storeStatusMap = buildValueEnum(storeStatusOptions);
 const pageData = <T,>(result: any) => ('data' in result ? result.data : result) as { records: T[]; total: number };
 
 const todoDetailFields: DetailField<MerchantTodoRecord>[] = [
@@ -51,7 +49,6 @@ const storeOverviewDetailFields: DetailField<MerchantWorkbenchStoreOverviewRecor
   { name: 'activeCampaigns', label: '活动数' },
   { name: 'afterSaleCount', label: '售后数' },
   { name: 'settlementStatus', label: '结算状态' },
-  { name: 'status', label: '门店状态' },
 ];
 
 const MerchantWorkbench: React.FC = () => {
@@ -217,7 +214,6 @@ const MerchantWorkbench: React.FC = () => {
                 { title: '活动数', dataIndex: 'activeCampaigns', width: 80 },
                 { title: '售后数', dataIndex: 'afterSaleCount', width: 80 },
                 { title: '结算状态', dataIndex: 'settlementStatus', width: 110, render: (value: string) => renderStatusTag(value, settlementStatusMap) },
-                { title: '状态', dataIndex: 'status', width: 110, render: (value: string) => renderStatusTag(value, storeStatusMap) },
                 { title: '操作', width: 100, render: (_, record: MerchantWorkbenchStoreOverviewRecord) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
               ]}
             />

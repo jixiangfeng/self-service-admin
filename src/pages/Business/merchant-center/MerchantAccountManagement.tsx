@@ -285,7 +285,6 @@ const MerchantAccountManagement: React.FC = () => {
               desc="录入平台用户、账号类型、手机号和启停状态，用于商户后台登录身份识别。"
             >
               <div className="merchant-editor-fields merchant-editor-fields--two">
-                <Form.Item name="userId" label="平台用户ID"><Input placeholder="可选，已有平台用户时填写" /></Form.Item>
                 <Form.Item name="userName" label="账号名称" rules={[{ required: true, message: '请输入账号名称' }]}><Input placeholder="例如：merchant_direct_admin" /></Form.Item>
                 <Form.Item name="mobile" label="手机号"><Input placeholder="用于登录校验和通知" /></Form.Item>
                 <Form.Item name="accountType" label="账号类型" rules={[{ required: true, message: '请选择账号类型' }]}><Select options={merchantAccountTypeOptions} placeholder="请选择账号类型" /></Form.Item>

@@ -130,7 +130,7 @@ const clearingRiskMap = buildValueEnum([
 
 const settlementBillDetailFields: DetailField<SettlementRecord>[] = [
   { name: 'billNo', label: '结算单号' },
-  { name: 'billType', label: '结算层级' },
+  { name: 'billType', label: '结算层级', render: (value) => formatEnumText(value, 'billType', '结算层级') },
   { name: 'subjectName', label: '结算主体' },
   { name: 'cycle', label: '周期' },
   { name: 'incomeAmount', label: '收入金额', render: (value) => formatAmount(value) },
@@ -158,9 +158,9 @@ const settlementOverviewDetailFields: DetailField<SettlementDetailRecord>[] = [
   { name: 'sourceNo', label: '来源单号' },
   { name: 'storeName', label: '门店' },
   { name: 'rechargeNo', label: '充值单号' },
-  { name: 'balanceScopeType', label: '可用范围' },
+  { name: 'balanceScopeType', label: '可用范围', render: (value, record) => record.balanceScopeType ? formatEnumText(value, 'scopeType', '可用范围') : '-' },
   { name: 'merchantGroupName', label: '门店组' },
-  { name: 'settlementMode', label: '结算模式' },
+  { name: 'settlementMode', label: '结算模式', render: (value) => formatEnumText(value, 'settlementMode', '结算模式') },
   { name: 'settlementRule', label: '结算规则' },
   { name: 'settlementRuleSnapshot', label: '规则快照' },
   { name: 'incomeAmount', label: '收入', render: (value) => formatAmount(value) },
@@ -212,7 +212,7 @@ const crossStoreClearingDetailFields: DetailField<CrossStoreClearingRecord>[] = 
   { name: 'platformFee', label: '平台服务费', render: (value) => formatAmount(value) },
   { name: 'payableAmount', label: '应线下清分', render: (value) => formatAmount(value) },
   { name: 'formula', label: '计算公式' },
-  { name: 'settlementCycle', label: '账期' },
+  { name: 'settlementCycle', label: '账期', render: (value) => formatEnumText(value, 'settlementMode', '结算模式') },
   { name: 'status', label: '状态', render: (value) => clearingStatusMap[value as keyof typeof clearingStatusMap]?.text || value },
   { name: 'riskStatus', label: '风控状态', render: (value) => clearingRiskMap[value as keyof typeof clearingRiskMap]?.text || value },
   { name: 'remark', label: '清分说明' },
@@ -447,7 +447,7 @@ const SettlementManagement: React.FC = () => {
       render: (_, record) => (
         <Space>
           <Button size="small" onClick={() => setShareDetail(record)}>明细</Button>
-          <Button size="small" onClick={() => navigate('/settlement/profit-details')}>调整</Button>
+          <Button size="small" onClick={() => navigate('/settlement/profit-sharing')}>调整</Button>
         </Space>
       ),
     },
@@ -538,7 +538,7 @@ const SettlementManagement: React.FC = () => {
     { title: '履约方应收', dataIndex: 'consumeMerchantAmount', width: 120, search: false, render: (_, record) => formatAmount(record.consumeMerchantAmount) },
     { title: '平台服务费', dataIndex: 'platformFee', width: 120, search: false, render: (_, record) => formatAmount(record.platformFee) },
     { title: '应线下清分', dataIndex: 'payableAmount', width: 130, search: false, render: (_, record) => formatAmount(record.payableAmount) },
-    { title: '账期', dataIndex: 'settlementCycle', width: 100, search: false },
+    { title: '账期', dataIndex: 'settlementCycle', width: 140, search: false, render: (value) => formatEnumText(value, 'settlementMode', '结算模式') },
     { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: clearingStatusMap, render: (_, record) => renderStatusTag(record.status, clearingStatusMap) },
     { title: '风控', dataIndex: 'riskStatus', width: 120, search: false, render: (_, record) => renderStatusTag(record.riskStatus, clearingRiskMap) },
     { title: '操作', width: 100, search: false, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
@@ -595,8 +595,7 @@ const SettlementManagement: React.FC = () => {
           { label: '归档后', desc: '去分润明细和结算明细抽查订单级金额是否一致。' },
         ]}
         actions={[
-          { key: 'profit', label: '合伙人分润', onClick: () => navigate('/settlement/profit-sharing') },
-          { key: 'details', label: '结算明细', type: 'primary', onClick: () => navigate('/settlement/details') },
+          { key: 'profit', label: '合伙人分润', type: 'primary', onClick: () => navigate('/settlement/profit-sharing') },
         ]}
       />
       <OperatorTips
@@ -747,7 +746,7 @@ const SettlementManagement: React.FC = () => {
                 scroll={{ x: 1440 }}
                 toolBarRender={() => [
                   <Button key="partner" onClick={() => navigate('/settlement/profit-sharing')}>合伙关系配置</Button>,
-                  <Button key="rule" type="primary" onClick={() => navigate('/settlement/profit-details')}>分润规则</Button>,
+                  <Button key="rule" type="primary" onClick={() => navigate('/settlement/profit-sharing')}>分润规则</Button>,
                 ]}
                 onSubmit={(values) => { setShareKeyword(String(values.keyword || '')); setShareStatusFilter(values.status ? String(values.status) : undefined); }}
                 onReset={() => { setShareKeyword(''); setShareStatusFilter(undefined); }}

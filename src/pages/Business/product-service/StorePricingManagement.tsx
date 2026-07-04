@@ -278,7 +278,7 @@ const StorePricingManagement: React.FC = () => {
           <div className="merchant-editor-shell">
             <BusinessEditorSection icon={<TagsOutlined />} title="规则归属" desc="选择适用门店。门店计费规则只绑定门店，用于用户端列表起步价和扫码洗车扣费。">
               <div className="merchant-editor-fields">
-                <Form.Item name="ruleCode" label="规则编码" rules={[{ required: true, message: '请输入规则编码' }]}><Input placeholder="例如：STORE-001-TIME" /></Form.Item>
+                <Form.Item name="ruleCode" label="规则编码"><Input readOnly placeholder="保存后由系统自动生成" /></Form.Item>
                 <Form.Item name="ruleName" label="规则名称" rules={[{ required: true, message: '请输入规则名称' }]}><Input placeholder="例如：吉祥门店001按分钟计费" /></Form.Item>
                 <Form.Item name="storeId" label="适用门店" rules={[{ required: true, message: '请选择适用门店' }]}><Select showSearch optionFilterProp="label" options={storeOptionList as SelectOptionRecord[]} placeholder="请选择门店" onChange={handleStoreChange} /></Form.Item>
                 <Form.Item name="storeName" label="门店名称"><Input disabled placeholder="选择门店后自动回填" /></Form.Item>

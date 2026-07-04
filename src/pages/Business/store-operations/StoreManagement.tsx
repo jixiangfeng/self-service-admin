@@ -227,7 +227,7 @@ const StoreManagement: React.FC = () => {
         title="门店经营闭环"
         summary="门店不是地址条目，而是点位、设备、商品、活动和门店运营的统一承载主体。"
         steps={[
-          { title: '门店建档', description: '补齐地址、营业时间、公告和联系方式', status: 'finish', tag: '当前页' },
+          { title: '门店建档', description: '补齐地址、公告和联系方式', status: 'finish', tag: '当前页' },
           { title: '点位设备', description: '配置点位、二维码和设备绑定', status: 'process', tag: '下一步：点位 / 设备' },
           { title: '商品活动', description: '决定商品适用范围和营销开关', status: 'wait', tag: '商品与服务 / 活动营销' },
         ]}
@@ -237,7 +237,7 @@ const StoreManagement: React.FC = () => {
       />
       <CoreFlowPanel
         title="门店上线闭环"
-        subtitle="门店要同时满足商户归属、地理位置、营业策略、点位设备和商品适用范围，开业后用户端才会稳定展示和下单。"
+        subtitle="门店要同时满足商户归属、地理位置、经营状态、点位设备和商品适用范围，开业后用户端才会稳定展示和下单。"
         config={[
           { label: '商户归属', desc: '新建门店必须先选择商户，后续订单、结算和活动都按这个归属流转。', tag: '必填' },
           { label: '地址与营业', desc: '省市区、详细地址、营业状态和公告决定用户端展示与接单。', tag: '上线' },
@@ -262,7 +262,7 @@ const StoreManagement: React.FC = () => {
         items={[
           { label: '新增门店', desc: '先选商户，再填门店名称、编号、地址和负责人，创建后再维护点位和图片。', tag: '建档' },
           { label: '暂停营业', desc: '列表行内点“暂停”，会影响用户端可见性和接单，提交前会二次确认。', tag: '状态' },
-          { label: '完善档案', desc: '营业时间、临停、图片和服务能力放在“档案维护”，避免主表单过长。', tag: '档案' },
+          { label: '完善档案', desc: '图片和服务能力放在“档案维护”，避免主表单过长。', tag: '档案' },
         ]}
       />
 
@@ -326,7 +326,7 @@ const StoreManagement: React.FC = () => {
       <BusinessEditorModal
         eyebrow={editingRecord ? '门店档案维护' : '门店建档配置'}
         title={editingRecord ? `编辑门店 · ${editingRecord.storeName}` : '新建门店'}
-        subtitle="主表单只维护门店基础建档和当前经营状态；图片、营业时间明细、临停记录和服务能力在档案维护中配置。"
+        subtitle="主表单只维护门店基础建档和当前经营状态；图片和服务能力在档案维护中配置。"
         meta={['门店闭环', editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
         width={1220}
@@ -343,7 +343,8 @@ const StoreManagement: React.FC = () => {
           className="merchant-editor-form"
           preserve={false}
           onFinish={(values) => {
-            const { region, ...payload } = values;
+            const { region, ...rawPayload } = values;
+            const payload = editingRecord ? rawPayload : Object.fromEntries(Object.entries(rawPayload).filter(([key]) => key !== 'storeCode'));
             if (editingRecord) {
               updateMutation.mutate({ id: editingRecord.id, ...payload });
               return;
@@ -355,7 +356,7 @@ const StoreManagement: React.FC = () => {
             <BusinessEditorSection
               icon={<ShopOutlined />}
               title="基础归属"
-              desc="明确门店属于哪个商户，并沉淀门店名称、编号和负责人。"
+              desc="明确门店属于哪个商户，并沉淀门店名称和负责人；门店编号由后台自动生成。"
             >
               <div className="merchant-editor-fields">
                 <Form.Item name="merchantId" label="所属商户" rules={[{ required: true, message: '请选择所属商户' }]}>
@@ -373,8 +374,8 @@ const StoreManagement: React.FC = () => {
                 <Form.Item name="storeName" label="门店名称" rules={[{ required: true, message: '请输入门店名称' }]}>
                   <Input placeholder="例如：鲸洗虹桥枢纽店" />
                 </Form.Item>
-                <Form.Item name="storeCode" label="门店编号" rules={[{ required: true, message: '请输入门店编号' }]}>
-                  <Input placeholder="例如：STORE-SH-HQ-001" />
+                <Form.Item name="storeCode" label="门店编号">
+                  <Input disabled placeholder={editingRecord ? '门店编号不可编辑' : '系统自动生成，无需运营输入'} />
                 </Form.Item>
                 <Form.Item name="storePhone" label="门店电话">
                   <Input placeholder="用于小程序展示和客服回访" />
@@ -420,7 +421,7 @@ const StoreManagement: React.FC = () => {
             <BusinessEditorSection
               icon={<FieldTimeOutlined />}
               title="营业设置"
-              desc="维护门店启停状态；营业时段和临停记录在档案维护中维护。"
+              desc="维护门店启停状态；门店默认 24 小时营业，不再单独配置营业时段。"
             >
               <div className="merchant-editor-fields">
                 <Form.Item name="status" label="门店状态">

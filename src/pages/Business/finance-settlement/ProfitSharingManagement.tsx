@@ -97,7 +97,7 @@ const ProfitSharingManagement: React.FC = () => {
         partnerName: values.partnerSubjectName || values.partnerName,
         distributionMode: values.distributionMode || 'REVENUE_RATIO',
         shareRatio: Number(String(values.shareRatio ?? values.ratio ?? '0').replace('%', '')),
-        relationNo: values.relationNo,
+        ...(editingRecord ? { relationNo: values.relationNo } : {}),
       };
       return editingRecord ? api.profitPartnerRelation.edit({ ...payload, id: editingRecord.id }) : api.profitPartnerRelation.add(payload);
     },
@@ -128,7 +128,7 @@ const ProfitSharingManagement: React.FC = () => {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['profitChargebacks'] });
       message.success('回冲记录已创建');
-      navigate('/settlement/profit-details');
+      navigate('/settlement/profit-sharing');
     },
   });
   const confirmChargeback = (record: ProfitShareDetailRecord) => {
@@ -345,7 +345,7 @@ const ProfitSharingManagement: React.FC = () => {
               <div className="merchant-editor-fields">
                 <Form.Item name="storeId" label="门店ID" rules={[{ required: true, message: '请输入门店ID' }]}><InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder="例如：100" /></Form.Item>
                 <Form.Item name="storeName" label="门店" rules={[{ required: true, message: '请输入门店' }]}><Input placeholder="例如：浦东旗舰店" /></Form.Item>
-                <Form.Item name="relationNo" label="关系编号" rules={[{ required: true, message: '请输入关系编号' }]}><Input placeholder="例如：REL-20260628-001" /></Form.Item>
+                <Form.Item name="relationNo" label="关系编号"><Input disabled placeholder={editingRecord ? '关系编号不可编辑' : '系统自动生成，无需运营输入'} /></Form.Item>
                 <Form.Item name="partnerSubjectType" label="主体类型" rules={[{ required: true, message: '请选择主体类型' }]} initialValue="EXTERNAL"><Select options={partnerSubjectTypeOptions} placeholder="请选择主体类型" /></Form.Item>
                 <Form.Item name="partnerSubjectId" label="主体ID"><InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder="商户/门店主体ID" /></Form.Item>
                 <Form.Item name="partnerSubjectName" label="合伙主体名称" rules={[{ required: true, message: '请输入合伙主体名称' }]}><Input placeholder="例如：张三 / XX商户" /></Form.Item>

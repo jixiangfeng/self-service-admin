@@ -224,7 +224,7 @@ const MerchantManagement: React.FC = () => {
         steps={[
           { title: '主体建档', description: '录入主体基础资料', status: 'finish', tag: '当前页' },
           { title: '门店开设', description: '为商户创建门店并配置营业策略', status: 'process', tag: '下一步：门店管理' },
-          { title: '门店组范围', description: '分配活动、核销、统计门店组', status: 'wait', tag: '门店组管理' },
+          { title: '门店组范围', description: '配置经营管理组或储值通用组，高级清分协议随储值范围维护', status: 'wait', tag: '门店组管理' },
           { title: '经营后台', description: '切换到商户视角跟进待办和经营数据', status: 'wait', tag: '商户后台' },
         ]}
         actions={[
@@ -337,7 +337,7 @@ const MerchantManagement: React.FC = () => {
             const payload = {
               merchantName: values.merchantName,
               shortName: values.shortName,
-              merchantCode: values.merchantCode,
+              ...(editingRecord ? { merchantCode: values.merchantCode } : {}),
               merchantType: values.merchantType,
               creditCode: values.creditCode,
               status: values.status,
@@ -369,8 +369,8 @@ const MerchantManagement: React.FC = () => {
                   <Form.Item name="shortName" label="商户简称" rules={[{ required: true, message: '请输入商户简称' }]}>
                     <Input placeholder="用于列表摘要和经营看板展示" />
                   </Form.Item>
-                  <Form.Item name="merchantCode" label="商户编号" rules={[{ required: true, message: '请输入商户编号' }]}>
-                    <Input placeholder="例如：MER-DIRECT-001" />
+                  <Form.Item name="merchantCode" label="商户编号">
+                    <Input disabled placeholder={editingRecord ? '商户编号不可编辑' : '系统自动生成，无需运营输入'} />
                   </Form.Item>
                   <Form.Item name="merchantType" label="主体类型" rules={[{ required: true, message: '请选择主体类型' }]}>
                     <Select options={merchantTypeOptions} placeholder="请选择主体类型" />

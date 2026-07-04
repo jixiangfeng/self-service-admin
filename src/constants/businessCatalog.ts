@@ -168,10 +168,8 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'DISABLED', label: '停用' },
 ],
   merchantGroupTypeOptions: [
-  { value: 'REGION', label: '区域分组' },
-  { value: 'ACTIVITY', label: '活动门店组' },
-  { value: 'WRITEOFF', label: '核销门店组' },
-  { value: 'REPORT', label: '统计门店组' },
+  { value: 'OPERATING', label: '经营门店组' },
+  { value: 'STORED_VALUE', label: '储值通用组' },
 ],
   scopeLevelOptions: [
   { value: 'MERCHANT', label: '商户级' },
@@ -197,6 +195,14 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'STORE', label: '门店承担' },
   { value: 'RATIO', label: '按比例分摊' },
 ],
+  orderTypeOptions: [
+  { value: 'SCAN', label: '扫码订单' },
+  { value: 'POINT_SELECT', label: '选点位订单' },
+  { value: 'PACKAGE', label: '套餐订单' },
+  { value: 'MIXED', label: '混合计费订单' },
+  { value: 'RECHARGE', label: '充值订单' },
+  { value: 'SERVICE_CARD', label: '服务卡订单' },
+],
   orderStatusOptions: [
   { value: 'PENDING_PAYMENT', label: '待支付' },
   { value: 'PAID', label: '待启动' },
@@ -209,6 +215,8 @@ export const FALLBACK_BUSINESS_ENUMS = {
   payModeOptions: [
   { value: 'WX', label: '微信支付' },
   { value: 'BALANCE', label: '余额支付' },
+  { value: 'PACKAGE_CARD', label: '次卡支付' },
+  { value: 'POST_PAY', label: '先用后付' },
   { value: 'MIXED', label: '混合支付' },
 ],
   refundStatusOptions: [
@@ -252,7 +260,24 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'WATCH', label: '观察名单' },
   { value: 'BLOCKED', label: '黑名单' },
 ],
+  balanceSourceTypeOptions: [
+  { value: 'RECHARGE', label: '充值来源' },
+  { value: 'GIFT', label: '赠送来源' },
+  { value: 'CONSUME', label: '消费扣减' },
+  { value: 'REFUND', label: '退款回退' },
+  { value: 'ADJUST', label: '人工调账' },
+  { value: 'ACTIVITY', label: '活动发放' },
+  { value: 'SERVICE_CARD', label: '服务卡' },
+],
   balanceFlowTypeOptions: [
+  { value: 'RECHARGE_PAY', label: '充值本金入账' },
+  { value: 'RECHARGE_REWARD', label: '充值赠送' },
+  { value: 'ORDER_PAY', label: '订单消费' },
+  { value: 'INVITE_REWARD', label: '邀请奖励' },
+  { value: 'MARKETING_REWARD', label: '营销奖励' },
+  { value: 'AFTER_SALE_COMPENSATION', label: '售后补偿' },
+  { value: 'RECHARGE_REFUND', label: '充值退款' },
+  { value: 'RECHARGE_REWARD_REFUND', label: '充值赠送回收' },
   { value: 'RECHARGE', label: '充值' },
   { value: 'GIFT', label: '赠送' },
   { value: 'CONSUME', label: '消费扣减' },
@@ -283,6 +308,7 @@ export const FALLBACK_BUSINESS_ENUMS = {
 ],
   writeOffStatusOptions: [
   { value: 'SUCCESS', label: '核销成功' },
+  { value: 'USED', label: '已核销' },
   { value: 'PENDING', label: '待核销' },
   { value: 'ROLLED_BACK', label: '已回滚' },
   { value: 'ROLLBACK', label: '已回滚' },
@@ -307,6 +333,10 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'REJECTED', label: '已驳回' },
 ],
   settlementModeOptions: [
+  { value: 'STORE_CLEARING', label: '门店清分' },
+  { value: 'MERCHANT_CLEARING', label: '商户清分' },
+  { value: 'GROUP_UNIFIED_SETTLEMENT', label: '门店组统一结算' },
+  { value: 'PLATFORM_CLEARING', label: '平台统一清分' },
   { value: 'OFFLINE_CLEARING', label: '线下清分' },
   { value: 'ONLINE_SETTLEMENT', label: '线上结算' },
   { value: 'PLATFORM_SETTLEMENT', label: '平台结算' },
@@ -442,6 +472,8 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'RISK_REJECTED', label: '风控拦截' },
 ],
   serviceCardStatusOptions: [
+  { value: 'VALID', label: '可使用' },
+  { value: 'LOCKED', label: '待支付' },
   { value: 'UNUSED', label: '未使用' },
   { value: 'USING', label: '使用中' },
   { value: 'USED_UP', label: '已用完' },
@@ -667,6 +699,8 @@ export const FALLBACK_BUSINESS_ENUMS = {
 
 export type BusinessEnumKey = keyof typeof FALLBACK_BUSINESS_ENUMS;
 
+const normalizeEnumValue = (value: unknown) => String(value ?? '');
+
 const normalizeOption = (option: BusinessOption): BusinessOption => ({
   value: option.value,
   label: option.label,
@@ -676,6 +710,17 @@ let cachedBusinessEnums: BusinessEnumMap = FALLBACK_BUSINESS_ENUMS;
 
 const replaceOptionsInPlace = (target: BusinessOption[], source: BusinessOption[]) => {
   target.splice(0, target.length, ...source.map(normalizeOption));
+};
+
+const mergeOptions = (fallbackOptions: BusinessOption[], sourceOptions: BusinessOption[]) => {
+  const merged = sourceOptions.map(normalizeOption);
+  const existingValues = new Set(merged.map((item) => normalizeEnumValue(item.value)));
+  fallbackOptions.forEach((item) => {
+    if (!existingValues.has(normalizeEnumValue(item.value))) {
+      merged.push(normalizeOption(item));
+    }
+  });
+  return merged;
 };
 
 const mergeBusinessEnums = (enums: BusinessEnumMap = {}) => {
@@ -688,7 +733,7 @@ const mergeBusinessEnums = (enums: BusinessEnumMap = {}) => {
 
     const fallbackOptions = FALLBACK_BUSINESS_ENUMS[key as BusinessEnumKey];
     if (fallbackOptions) {
-      replaceOptionsInPlace(fallbackOptions, options);
+      replaceOptionsInPlace(fallbackOptions, mergeOptions(fallbackOptions, options));
       merged[key] = fallbackOptions;
       return;
     }
@@ -758,6 +803,7 @@ export const serviceCardTypeOptions = getBusinessEnumOptions('serviceCardTypeOpt
 export const messageChannelOptions = getBusinessEnumOptions('messageChannelOptions');
 export const rewardTypeOptions = getBusinessEnumOptions('rewardTypeOptions');
 export const costBearerOptions = getBusinessEnumOptions('costBearerOptions');
+export const orderTypeOptions = getBusinessEnumOptions('orderTypeOptions');
 export const orderStatusOptions = getBusinessEnumOptions('orderStatusOptions');
 export const payModeOptions = getBusinessEnumOptions('payModeOptions');
 export const refundStatusOptions = getBusinessEnumOptions('refundStatusOptions');

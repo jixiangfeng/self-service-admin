@@ -4,11 +4,9 @@ import type { ColumnsType } from 'antd/es/table';
 import type {
   DeviceRecord,
   ServicePointRecord,
-  StoreBusinessHoursRecord,
   StoreFullProfileRecord,
   StoreImageRecord,
   StoreServiceCapabilityRecord,
-  StoreTempCloseRecord,
 } from '@/services/backendService';
 import { formatDateTime, formatEnumText, safeJsonParse } from '@/pages/Business/shared';
 
@@ -26,7 +24,7 @@ const formatMoney = (value?: number | string) => {
 
 const capabilityLimitOptions = [
   { value: 'ALL_DAY', label: '全天开放' },
-  { value: 'BUSINESS_HOURS', label: '营业时间内开放' },
+  { value: 'BUSINESS_HOURS', label: '营业中开放' },
   { value: 'APPOINTMENT_ONLY', label: '仅预约可用' },
 ];
 
@@ -45,11 +43,9 @@ const StoreFullProfileDrawer: React.FC<StoreFullProfileDrawerProps> = ({ open, l
   const capabilities = (profile?.capabilities || []).map((record) => ({ ...record, ...parseCapabilityConfig(record.configJson) }));
   const risks = (profile?.operationWarnings && profile.operationWarnings.length ? profile.operationWarnings : [
     !store?.address ? '未配置详细地址' : null,
-    !(profile?.businessHours || []).some((item) => item.status === 'PUBLISHED') ? '暂无已发布营业时间' : null,
     !(profile?.images || []).some((item) => item.status === 'PUBLISHED') ? '暂无已发布门店图片' : null,
     (profile?.servicePointCount || 0) === 0 ? '尚未配置服务点位' : null,
     (profile?.onlineDeviceCount || 0) === 0 ? '暂无在线设备' : null,
-    (profile?.processingTempCloseCount || 0) > 0 ? `当前有 ${profile?.processingTempCloseCount} 条临停进行中` : null,
   ].filter(Boolean)) as string[];
 
   const imageColumns: ColumnsType<StoreImageRecord> = [
@@ -57,21 +53,6 @@ const StoreFullProfileDrawer: React.FC<StoreFullProfileDrawerProps> = ({ open, l
     { title: '图片', dataIndex: 'imageUrl', width: 140, render: (value) => value ? <Image src={value} width={72} height={48} style={{ objectFit: 'cover' }} /> : '-' },
     { title: '排序', dataIndex: 'sortNo', width: 80 },
     { title: '状态', dataIndex: 'status', width: 100, render: (value) => formatEnumText(value, 'status', '状态') },
-  ];
-
-  const hoursColumns: ColumnsType<StoreBusinessHoursRecord> = [
-    { title: '星期', dataIndex: 'weekday' },
-    { title: '开门', dataIndex: 'openTime' },
-    { title: '闭店', dataIndex: 'closeTime' },
-    { title: '状态', dataIndex: 'status', render: (value) => formatEnumText(value, 'status', '状态') },
-  ];
-
-  const tempCloseColumns: ColumnsType<StoreTempCloseRecord> = [
-    { title: '原因', dataIndex: 'closeReason' },
-    { title: '开始', dataIndex: 'startAt', render: (value) => formatDateTime(value) },
-    { title: '结束', dataIndex: 'endAt', render: (value) => formatDateTime(value) },
-    { title: '操作人', dataIndex: 'operator', render: (value) => value || '-' },
-    { title: '状态', dataIndex: 'status', render: (value) => formatEnumText(value, 'status', '状态') },
   ];
 
   const capabilityColumns: ColumnsType<StoreServiceCapabilityRecord> = [
@@ -113,8 +94,6 @@ const StoreFullProfileDrawer: React.FC<StoreFullProfileDrawerProps> = ({ open, l
                 <Space direction="vertical" size="large" style={{ width: '100%' }}>
                   <Space wrap size="large">
                     <Statistic title="图片" value={profile.imageCount || 0} />
-                    <Statistic title="营业时段" value={profile.businessHourCount || 0} />
-                    <Statistic title="临停中" value={profile.processingTempCloseCount || 0} />
                     <Statistic title="服务能力" value={profile.publishedCapabilityCount || 0} />
                     <Statistic title="点位" value={profile.servicePointCount || 0} />
                     <Statistic title="在线设备" value={profile.onlineDeviceCount || 0} />
@@ -148,8 +127,6 @@ const StoreFullProfileDrawer: React.FC<StoreFullProfileDrawerProps> = ({ open, l
               ),
             },
             { key: 'images', label: '图片', children: <Table rowKey="id" size="small" columns={imageColumns} dataSource={profile.images || []} pagination={false} /> },
-            { key: 'hours', label: '营业时间', children: <Table rowKey="id" size="small" columns={hoursColumns} dataSource={profile.businessHours || []} pagination={false} /> },
-            { key: 'tempClose', label: '临停', children: <Table rowKey="id" size="small" columns={tempCloseColumns} dataSource={profile.tempCloseRecords || []} pagination={false} /> },
             { key: 'capabilities', label: '服务能力', children: <Table rowKey="id" size="small" columns={capabilityColumns} dataSource={capabilities} pagination={false} /> },
             { key: 'points', label: '点位', children: <Table rowKey="id" size="small" columns={pointColumns} dataSource={profile.servicePoints || []} pagination={false} /> },
             { key: 'devices', label: '设备', children: <Table rowKey="id" size="small" columns={deviceColumns} dataSource={profile.devices || []} pagination={false} /> },

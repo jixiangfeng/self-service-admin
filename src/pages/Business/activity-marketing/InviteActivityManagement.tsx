@@ -20,7 +20,7 @@ const rewardTypeMap = buildValueEnum(inviteRewardTypeOptions);
 const scopeModeMap = buildValueEnum(scopeTypeOptions);
 const inviteScopeOptions = scopeTypeOptions.map((item) => ({
   ...item,
-  label: item.value === 'PLATFORM' ? '平台通用' : item.value === 'STORE' ? '指定门店' : item.value === 'STORE_GROUP' ? '指定门店组' : item.value === 'MERCHANT' ? '指定商户' : item.label,
+  label: item.value === 'PLATFORM' ? '平台通用' : item.value === 'STORE' ? '指定门店' : item.value === 'STORE_GROUP' ? '指定储值通用组' : item.value === 'MERCHANT' ? '指定商户' : item.label,
 }));
 const closedRewardTypeOptions = inviteRewardTypeOptions;
 const qualifyConditionOptions = [
@@ -68,7 +68,7 @@ const buildInvitePayload = (values: Record<string, any>) => ({
   fraudChecks: joinMultiValue(values.fraudChecks),
 });
 const rewardSummary = (type?: string, amount?: number | string, cardId?: number) => {
-  if (type === 'CARD') return cardId ? `服务卡产品 #${cardId}` : '服务卡';
+  if (type === 'SERVICE_CARD') return cardId ? `服务卡产品 #${cardId}` : '服务卡';
   if (type === 'POINTS') return amount ? `${amount}积分` : '积分';
   return amount ? `${amount}元余额` : '余额';
 };
@@ -114,7 +114,10 @@ const InviteActivityManagement: React.FC = () => {
   const serviceCardOptionsQuery = useQuery({ queryKey: ['inviteActivityServiceCardOptions'], queryFn: async () => (await api.asset.serviceCards.options({ status: 'ENABLED' })).data });
   const storeQuery = useQuery({ queryKey: ['inviteActivityScopeStores'], queryFn: async () => (await api.store.page({ pageNum: 1, pageSize: 500 })).data });
   const merchantOptionsQuery = useQuery({ queryKey: ['inviteActivityScopeMerchants'], queryFn: async () => (await api.merchant.options()).data });
-  const merchantGroupOptionsQuery = useQuery({ queryKey: ['inviteActivityScopeMerchantGroups'], queryFn: async () => (await api.merchantGroup.options()).data });
+  const merchantGroupOptionsQuery = useQuery({
+    queryKey: ['inviteActivityScopeStoredValueGroups'],
+    queryFn: async () => (await api.merchantGroup.storedValueOptions()).data,
+  });
   const saveMutation = useMutation({
     mutationFn: async (values: Record<string, unknown>) => {
       if (values.id) {
@@ -282,7 +285,7 @@ const InviteActivityManagement: React.FC = () => {
           <div className="merchant-editor-shell">
             <BusinessEditorSection icon={<TeamOutlined />} title="活动基础" desc="定义邀请活动的编码、名称和运行状态。">
               <div className="merchant-editor-fields">
-                <Form.Item name="activityCode" label="活动编码" rules={[{ required: true, message: '请输入活动编码' }]}><Input placeholder="例如：INVITE-202605" /></Form.Item>
+                <Form.Item name="activityCode" label="活动编码"><Input readOnly placeholder="保存后由系统自动生成" /></Form.Item>
                 <Form.Item name="activityName" label="活动名称" rules={[{ required: true, message: '请输入活动名称' }]}><Input placeholder="例如：老带新首洗奖励" /></Form.Item>
                 <Form.Item name="status" label="活动状态"><Select options={activityStatusOptions} placeholder="请选择活动状态" /></Form.Item>
                 <Form.Item className="merchant-editor-field-span-all" name="bannerImageUrl" label="活动条Banner图片"><OssImageUpload prefix="activity/banners" placeholder="上传活动条Banner" /></Form.Item>
@@ -313,7 +316,7 @@ const InviteActivityManagement: React.FC = () => {
                           showSearch
                           optionFilterProp="label"
                           options={scopeTargetOptions}
-                          placeholder={currentScopeMode === 'STORE' ? '请选择门店' : currentScopeMode === 'STORE_GROUP' ? '请选择门店组' : '请选择商户'}
+                          placeholder={currentScopeMode === 'STORE' ? '请选择门店' : currentScopeMode === 'STORE_GROUP' ? '请选择储值通用组' : '请选择商户'}
                         />
                       </Form.Item>
                     );

@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Checkbox, Col, Form, Input, InputNumber, List, Radio, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Checkbox, Col, Empty, Form, Input, InputNumber, List, Radio, Row, Select, Space, Statistic, Tabs, Tag, message } from 'antd';
 import { AuditOutlined, FieldTimeOutlined, FileAddOutlined, ProfileOutlined, ReloadOutlined, SolutionOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useNavigate } from 'react-router-dom';
 import {
   orderStatusOptions,
+  orderTypeOptions,
   payModeOptions as catalogPayModeOptions,
   refundStatusOptions,
   ticketStatusOptions,
@@ -17,7 +18,7 @@ import BusinessDetailModal from '@/components/BusinessDetailModal';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
-import type { SelectOptionRecord } from '@/services/backendService';
+import type { OrderBalanceSettlementSnapshotRecord, ProfitShareDetailRecord, SelectOptionRecord, ServiceOrderFinancialTraceRecord, SettlementAllocationRecord, SettlementBillDetailRecord } from '@/services/backendService';
 import { buildValueEnum, containsKeyword, CoreFlowPanel, formatAmount, formatDateTime, OperatorTips, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
 import { DateTimeField } from '@/utils/formControls';
@@ -65,13 +66,6 @@ interface AfterSaleRecord {
 
 type ActionModalType = 'order' | 'refund' | 'afterSale' | null;
 type TradeDetailType = Exclude<ActionModalType, null>;
-
-const orderTypeOptions = [
-  { value: 'SCAN', label: '扫码订单' },
-  { value: 'POINT_SELECT', label: '选点位订单' },
-  { value: 'PACKAGE', label: '套餐订单' },
-  { value: 'MIXED', label: '混合计费订单' },
-];
 
 const payModeOptions = catalogPayModeOptions;
 const orderStatusMap = buildValueEnum(orderStatusOptions);
@@ -147,21 +141,21 @@ const buildSupplementNote = (values: Record<string, any>) => [
 const buildTradeReminderItems = (record: TradeOrderRecord | RefundRecord | AfterSaleRecord) => {
   if ('refundNo' in record) {
     return [
-      `退款状态：${record.status || '未记录'}`,
+      `退款状态：${formatEnumText(record.status, 'refundStatus', '退款状态')}` ,
       `退款金额：${formatAmount(record.amount)}`,
       record.auditNote ? `审核备注：${record.auditNote}` : `关联订单：${record.orderNo}`,
     ];
   }
   if ('ticketNo' in record) {
     return [
-      `工单状态：${record.status || '未记录'}`,
+      `工单状态：${formatEnumText(record.status, 'ticketStatus', '工单状态')}` ,
       record.compensation ? `补偿方案：${record.compensation}` : `处理人：${record.owner || '未分派'}`,
       record.result ? `处理结果：${record.result}` : `关联订单：${record.orderNo}`,
     ];
   }
   return [
-    `订单状态：${record.status || '未记录'}`,
-    `支付方式：${record.payMode || '未记录'}`,
+    `订单状态：${formatEnumText(record.status, 'orderStatus', '订单状态')}` ,
+    `支付方式：${formatEnumText(record.payMode, 'payMode', '支付方式')}` ,
     record.note ? `订单备注：${record.note}` : `订单金额：${formatAmount(record.amount)}`,
   ];
 };
@@ -169,36 +163,36 @@ const buildTradeReminderItems = (record: TradeOrderRecord | RefundRecord | After
 const tradeDetailFields: Record<'order' | 'refund' | 'afterSale', DetailField<any>[]> = {
   order: [
     { name: 'orderNo', label: '订单号' },
-    { name: 'orderType', label: '订单类型' },
+    { name: 'orderType', label: '订单类型', render: (value) => formatEnumText(value, 'orderType', '订单类型') },
     { name: 'storeName', label: '门店' },
     { name: 'pointCode', label: '点位' },
     { name: 'serviceName', label: '服务内容' },
-    { name: 'payMode', label: '支付方式' },
+    { name: 'payMode', label: '支付方式', render: (value) => formatEnumText(value, 'payMode', '支付方式') },
     { name: 'amount', label: '订单金额', render: (value) => formatAmount(value) },
     { name: 'userName', label: '用户' },
-    { name: 'status', label: '状态' },
+    { name: 'status', label: '状态', render: (value) => formatEnumText(value, 'orderStatus', '订单状态') },
     { name: 'note', label: '备注' },
     { name: 'createdAt', label: '创建时间', render: (value) => formatDateTime(value) },
   ],
   refund: [
     { name: 'refundNo', label: '退款单号' },
     { name: 'orderNo', label: '关联订单' },
-    { name: 'refundType', label: '退款类型' },
+    { name: 'refundType', label: '退款类型', render: (value) => formatEnumText(value, 'refundType', '退款类型') },
     { name: 'amount', label: '退款金额', render: (value) => formatAmount(value) },
     { name: 'reason', label: '退款原因' },
     { name: 'applicant', label: '申请来源' },
-    { name: 'status', label: '状态' },
+    { name: 'status', label: '状态', render: (value) => formatEnumText(value, 'refundStatus', '退款状态') },
     { name: 'auditNote', label: '审核备注' },
     { name: 'createdAt', label: '创建时间', render: (value) => formatDateTime(value) },
   ],
   afterSale: [
     { name: 'ticketNo', label: '售后单号' },
     { name: 'orderNo', label: '关联订单' },
-    { name: 'ticketType', label: '售后类型' },
+    { name: 'ticketType', label: '售后类型', render: (value) => formatEnumText(value, 'ticketType', '售后类型') },
     { name: 'content', label: '问题描述' },
     { name: 'owner', label: '处理人' },
     { name: 'compensation', label: '补偿方案' },
-    { name: 'status', label: '状态' },
+    { name: 'status', label: '状态', render: (value) => formatEnumText(value, 'ticketStatus', '工单状态') },
     { name: 'result', label: '处理结果' },
     { name: 'createdAt', label: '创建时间', render: (value) => formatDateTime(value) },
   ],
@@ -208,6 +202,7 @@ const TradeManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [detail, setDetail] = useState<TradeOrderRecord | RefundRecord | AfterSaleRecord | null>(null);
+  const [financialTraceOrder, setFinancialTraceOrder] = useState<TradeOrderRecord | null>(null);
   const [detailType, setDetailType] = useState<TradeDetailType | null>(null);
   const [actionModalType, setActionModalType] = useState<ActionModalType>(null);
   const [actionTargetId, setActionTargetId] = useState<string | null>(null);
@@ -227,6 +222,11 @@ const TradeManagement: React.FC = () => {
   const afterSaleQuery = useQuery({
     queryKey: ['afterSaleTickets', afterSaleFilters],
     queryFn: async () => (await api.afterSaleTicket.page({ pageNum: 1, pageSize: 200, ...afterSaleFilters })).data,
+  });
+  const financialTraceQuery = useQuery<ServiceOrderFinancialTraceRecord>({
+    queryKey: ['serviceOrderFinancialTrace', financialTraceOrder?.id],
+    queryFn: async () => (await api.serviceOrder.financialTrace(Number(financialTraceOrder?.id))).data,
+    enabled: !!financialTraceOrder?.id,
   });
   const orders = ((orderQuery.data as any)?.records || []) as TradeOrderRecord[];
   const refunds = ((refundQuery.data as any)?.records || []) as RefundRecord[];
@@ -347,7 +347,7 @@ const TradeManagement: React.FC = () => {
     const actionName = actionType === 'order' ? '订单处置' : actionType === 'refund' ? '退款审核' : '售后处理';
     showBusinessConfirm({
       title: `确认提交${actionName}`,
-      content: `确定将该记录更新为「${values.status}」吗？处理结果会回写到对应业务单据。`,
+      content: `确定将该记录更新为「${formatEnumText(values.status, actionType === 'order' ? 'orderStatus' : actionType === 'refund' ? 'refundStatus' : 'ticketStatus', '状态')}」吗？处理结果会回写到对应业务单据。`,
       okText: '确认提交',
       danger: actionType === 'refund',
       onOk: async () => {
@@ -387,6 +387,7 @@ const TradeManagement: React.FC = () => {
       render: (_, record) => (
         <Space>
           <Button size="small" onClick={() => openDetail('order', record)}>处置台</Button>
+          <Button size="small" onClick={() => setFinancialTraceOrder(record)}>财务链路</Button>
           <Button
             size="small"
             onClick={() => {
@@ -766,6 +767,102 @@ const TradeManagement: React.FC = () => {
             </Row>
           </>
         ) : null}
+      </BusinessDetailModal>
+
+      <BusinessDetailModal
+        title={financialTraceOrder ? `订单财务链路 · ${financialTraceOrder.orderNo}` : '订单财务链路'}
+        eyebrow="订单 / 钱包 / 清分 / 结算 / 分润"
+        subtitle="按订单号一次性串起余额快照、清分台账、结算明细和合伙人分润，避免在多个财务页面手工反查。"
+        meta={['统一钱包', '财务可追溯']}
+        open={!!financialTraceOrder}
+        width={1160}
+        onCancel={() => setFinancialTraceOrder(null)}
+        destroyOnClose
+      >
+        {financialTraceQuery.isLoading ? (
+          <Card loading />
+        ) : financialTraceQuery.data ? (
+          <Space direction="vertical" style={{ width: '100%' }} size={16}>
+            <Row gutter={[16, 16]}>
+              <Col xs={24} sm={12} xl={6}><Card><Statistic title="本金消耗" value={Number(financialTraceQuery.data.summary?.cashAmount || financialTraceQuery.data.summary?.principalAmount || 0)} precision={2} prefix="¥" /></Card></Col>
+              <Col xs={24} sm={12} xl={6}><Card><Statistic title="赠送消耗" value={Number(financialTraceQuery.data.summary?.giftAmount || 0)} precision={2} prefix="¥" /></Card></Col>
+              <Col xs={24} sm={12} xl={6}><Card><Statistic title="结算基数" value={Number(financialTraceQuery.data.summary?.settlementBaseAmount || financialTraceQuery.data.summary?.settlementBillAmount || 0)} precision={2} prefix="¥" /></Card></Col>
+              <Col xs={24} sm={12} xl={6}><Card><Statistic title="应分润" value={Number(financialTraceQuery.data.summary?.profitShareAmount || 0)} precision={2} prefix="¥" /></Card></Col>
+            </Row>
+            <Tabs
+              items={[
+                {
+                  key: 'snapshots',
+                  label: `余额快照(${financialTraceQuery.data.balanceSnapshots?.length || 0})`,
+                  children: financialTraceQuery.data.balanceSnapshots?.length ? (
+                    <List
+                      dataSource={financialTraceQuery.data.balanceSnapshots}
+                      renderItem={(item: OrderBalanceSettlementSnapshotRecord) => (
+                        <List.Item>
+                          <List.Item.Meta
+                            title={<Space><span>{item.rechargeNo || item.serviceOrderNo}</span><Tag>{item.scopeType || '-'}</Tag><Tag>{item.settlementMode || '-'}</Tag></Space>}
+                            description={`本金 ${formatAmount(item.cashAmount)} / 赠送 ${formatAmount(item.giftAmount)} / 结算基数 ${formatAmount(item.settlementBaseAmount)} / 资金方 ${item.fundOwnerType || '-'}#${item.fundOwnerId || '-'} / 收入方 ${item.revenueOwnerType || '-'}#${item.revenueOwnerId || '-'}`}
+                          />
+                        </List.Item>
+                      )}
+                    />
+                  ) : <Empty description="暂无余额结算快照" />,
+                },
+                {
+                  key: 'allocations',
+                  label: `清分台账(${financialTraceQuery.data.settlementAllocations?.length || 0})`,
+                  children: financialTraceQuery.data.settlementAllocations?.length ? (
+                    <List
+                      dataSource={financialTraceQuery.data.settlementAllocations}
+                      renderItem={(item: SettlementAllocationRecord) => (
+                        <List.Item>
+                          <List.Item.Meta
+                            title={<Space><span>{item.allocationNo}</span><Tag>{item.allocationStatus || '-'}</Tag><Tag>{item.merchantGroupName || item.balanceScopeType || '-'}</Tag></Space>}
+                            description={`本金 ${formatAmount(item.principalAmount)} / 赠送 ${formatAmount(item.giftAmount)} / 平台服务费 ${formatAmount(item.platformFeeAmount)} / 商户应收 ${formatAmount(item.merchantReceivableAmount)} / 规则 ${item.settlementRule || '-'}`}
+                          />
+                        </List.Item>
+                      )}
+                    />
+                  ) : <Empty description="暂无清分台账" />,
+                },
+                {
+                  key: 'billDetails',
+                  label: `结算明细(${financialTraceQuery.data.settlementBillDetails?.length || 0})`,
+                  children: financialTraceQuery.data.settlementBillDetails?.length ? (
+                    <List
+                      dataSource={financialTraceQuery.data.settlementBillDetails}
+                      renderItem={(item: SettlementBillDetailRecord) => (
+                        <List.Item>
+                          <List.Item.Meta
+                            title={<Space><span>{item.billNo}</span><Tag>{item.detailType || '-'}</Tag><Tag>{item.storeName || '-'}</Tag></Space>}
+                            description={`金额 ${formatAmount(item.amount)} / 充值 ${item.rechargeNo || '-'} / 本金 ${formatAmount(item.cashAmount || item.principalAmount)} / 赠送 ${formatAmount(item.giftAmount)} / 结算规则 ${item.settlementRule || '-'}`}
+                          />
+                        </List.Item>
+                      )}
+                    />
+                  ) : <Empty description="暂无结算明细" />,
+                },
+                {
+                  key: 'profit',
+                  label: `分润明细(${financialTraceQuery.data.profitShareDetails?.length || 0})`,
+                  children: financialTraceQuery.data.profitShareDetails?.length ? (
+                    <List
+                      dataSource={financialTraceQuery.data.profitShareDetails}
+                      renderItem={(item: ProfitShareDetailRecord) => (
+                        <List.Item>
+                          <List.Item.Meta
+                            title={<Space><span>{item.detailNo}</span><Tag>{item.status || '-'}</Tag><Tag>{item.partnerSubjectName || item.partnerName}</Tag></Space>}
+                            description={`分润基数 ${formatAmount(item.baseAmount)} / 比例 ${item.shareRatio || item.ratio || '-'} / 应分 ${formatAmount(item.shareAmount || item.actualAmount)} / 结算单 ${item.settlementBillNo || '-'}`}
+                          />
+                        </List.Item>
+                      )}
+                    />
+                  ) : <Empty description="暂无分润明细" />,
+                },
+              ]}
+            />
+          </Space>
+        ) : <Empty description="未查询到订单财务链路" />}
       </BusinessDetailModal>
 
     </div>

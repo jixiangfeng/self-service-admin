@@ -20,16 +20,14 @@ const DeviceManagement = lazy(() => import('./pages/Business/store-operations').
 const StorePricingManagement = lazy(() => import('./pages/Business/product-service').then((module) => ({ default: module.StorePricingManagement })));
 const TradeManagement = lazy(() => import('./pages/Business/trade-fulfillment').then((module) => ({ default: module.TradeManagement })));
 const FulfillmentManagement = lazy(() => import('./pages/Business/trade-fulfillment').then((module) => ({ default: module.FulfillmentManagement })));
-const OrderDetailManagement = lazy(() => import('./pages/Business/trade-fulfillment').then((module) => ({ default: module.OrderDetailManagement })));
 const ServiceCardManagement = lazy(() => import('./pages/Business/user-assets').then((module) => ({ default: module.ServiceCardManagement })));
 const AssetFlowManagement = lazy(() => import('./pages/Business/user-assets').then((module) => ({ default: module.AssetFlowManagement })));
 const UserProfileManagement = lazy(() => import('./pages/Business/user-assets').then((module) => ({ default: module.UserProfileManagement })));
 const InviteActivityManagement = lazy(() => import('./pages/Business/activity-marketing').then((module) => ({ default: module.InviteActivityManagement })));
 const RechargeActivityManagement = lazy(() => import('./pages/Business/activity-marketing').then((module) => ({ default: module.RechargeActivityManagement })));
 const SettlementManagement = lazy(() => import('./pages/Business/finance-settlement').then((module) => ({ default: module.SettlementManagement })));
+const SettlementRuleManagement = lazy(() => import('./pages/Business/finance-settlement').then((module) => ({ default: module.SettlementRuleManagement })));
 const ProfitSharingManagement = lazy(() => import('./pages/Business/finance-settlement').then((module) => ({ default: module.ProfitSharingManagement })));
-const SettlementDetailManagement = lazy(() => import('./pages/Business/finance-settlement').then((module) => ({ default: module.SettlementDetailManagement })));
-const ProfitShareDetailManagement = lazy(() => import('./pages/Business/finance-settlement').then((module) => ({ default: module.ProfitShareDetailManagement })));
 const AnalysisManagement = lazy(() => import('./pages/Business/data-reports').then((module) => ({ default: module.AnalysisManagement })));
 const ServiceDeskManagement = lazy(() => import('./pages/Business/service-messaging').then((module) => ({ default: module.ServiceDeskManagement })));
 const MessageCenterManagement = lazy(() => import('./pages/Business/service-messaging').then((module) => ({ default: module.MessageCenterManagement })));
@@ -119,7 +117,6 @@ const AppContent = () => {
               <Route path="service" element={<Navigate to="/asset/service-cards" replace />} />
               <Route path="service/pricing" element={<Navigate to="/store/pricing" replace />} />
               <Route path="trade" element={<TradeManagement />} />
-              <Route path="trade/details" element={<OrderDetailManagement />} />
               <Route path="order" element={<Navigate to="/trade" replace />} />
               <Route path="asset" element={<Navigate to="/asset/profiles" replace />} />
               <Route path="asset/profiles" element={<UserProfileManagement />} />
@@ -131,9 +128,8 @@ const AppContent = () => {
               <Route path="marketing/recharge-activities" element={<RechargeActivityManagement />} />
               <Route path="fulfillment" element={<FulfillmentManagement />} />
               <Route path="settlement" element={<SettlementManagement />} />
+              <Route path="settlement/rules" element={<SettlementRuleManagement />} />
               <Route path="settlement/profit-sharing" element={<ProfitSharingManagement />} />
-              <Route path="settlement/details" element={<SettlementDetailManagement />} />
-              <Route path="settlement/profit-details" element={<ProfitShareDetailManagement />} />
               <Route path="analysis" element={<AnalysisManagement />} />
               <Route path="service-desk" element={<ServiceDeskManagement />} />
               <Route path="service-desk/messages" element={<MessageCenterManagement />} />

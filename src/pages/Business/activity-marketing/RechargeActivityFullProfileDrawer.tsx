@@ -9,16 +9,18 @@ import type {
   RechargeOrderRecord,
   RechargeRewardRecord,
 } from '@/services/backendService';
-import { formatAmount, formatDateTime, formatEnumText } from '@/pages/Business/shared';
+import { formatAmount, formatClearingRuleText, formatDateTime, formatEnumText } from '@/pages/Business/shared';
 
 interface Props {
   open: boolean;
   loading?: boolean;
   profile?: RechargeActivityFullProfileRecord;
+  formatScope?: (activity: RechargeActivityFullProfileRecord['activity']) => React.ReactNode;
+  formatScopeObjects?: (activity: RechargeActivityFullProfileRecord['activity']) => React.ReactNode;
   onClose: () => void;
 }
 
-const RechargeActivityFullProfileDrawer: React.FC<Props> = ({ open, loading, profile, onClose }) => {
+const RechargeActivityFullProfileDrawer: React.FC<Props> = ({ open, loading, profile, formatScope, formatScopeObjects, onClose }) => {
   const activity = profile?.activity;
   const risks = [
     activity?.status !== 'RUNNING' ? '活动未运行，用户端不会正常参与' : null,
@@ -35,7 +37,7 @@ const RechargeActivityFullProfileDrawer: React.FC<Props> = ({ open, loading, pro
     { title: '实付', dataIndex: 'payAmount', width: 100, render: formatAmount },
     { title: '赠送', dataIndex: 'giftAmount', width: 100, render: formatAmount },
     { title: '支付方式', dataIndex: 'payMode', width: 120, render: (value) => formatEnumText(value, 'payMode', '支付方式') },
-    { title: '状态', dataIndex: 'status', width: 120, render: (value) => formatEnumText(value, 'status', '状态') },
+    { title: '状态', dataIndex: 'status', width: 120, render: (value) => formatEnumText(value, 'rechargeOrderStatus', '充值状态') },
     { title: '支付时间', dataIndex: 'paidAt', width: 180, render: (value) => formatDateTime(value) },
   ];
 
@@ -45,7 +47,7 @@ const RechargeActivityFullProfileDrawer: React.FC<Props> = ({ open, loading, pro
     { title: '用户', dataIndex: 'userName', width: 120, render: (value) => value || '-' },
     { title: '奖励类型', dataIndex: 'rewardType', width: 120, render: (value) => formatEnumText(value, 'rewardType', '奖励类型') },
     { title: '奖励金额', dataIndex: 'rewardAmount', width: 120, render: formatAmount },
-    { title: '状态', dataIndex: 'status', width: 120, render: (value) => formatEnumText(value, 'status', '状态') },
+    { title: '状态', dataIndex: 'status', width: 120, render: (value) => formatEnumText(value, 'rewardStatus', '奖励状态') },
     { title: '发放时间', dataIndex: 'issuedAt', width: 180, render: (value) => formatDateTime(value) },
     { title: '失败原因', dataIndex: 'failReason', width: 220, render: (value) => value || '-' },
   ];
@@ -65,7 +67,7 @@ const RechargeActivityFullProfileDrawer: React.FC<Props> = ({ open, loading, pro
     { title: '奖励类型', dataIndex: 'rewardType', width: 120, render: (value) => formatEnumText(value, 'rewardType', '奖励类型') },
     { title: '奖励内容', dataIndex: 'rewardValue', width: 180, render: (value) => value || '-' },
     { title: '成本', dataIndex: 'costAmount', width: 100, render: formatAmount },
-    { title: '状态', dataIndex: 'status', width: 120, render: (value) => formatEnumText(value, 'status', '状态') },
+    { title: '状态', dataIndex: 'status', width: 120, render: (value) => formatEnumText(value, 'rewardStatus', '奖励状态') },
     { title: '发放时间', dataIndex: 'issuedAt', width: 180, render: (value) => formatDateTime(value) },
   ];
 
@@ -75,7 +77,7 @@ const RechargeActivityFullProfileDrawer: React.FC<Props> = ({ open, loading, pro
     { title: '已用', dataIndex: 'usedAmount', width: 120, render: formatAmount },
     { title: '冻结', dataIndex: 'frozenAmount', width: 120, render: formatAmount },
     { title: '承担方', dataIndex: 'bearer', width: 120, render: (value) => value || '-' },
-    { title: '状态', dataIndex: 'status', width: 120, render: (value) => formatEnumText(value, 'status', '状态') },
+    { title: '状态', dataIndex: 'status', width: 120, render: (value) => formatEnumText(value, 'activityStatus', '预算状态') },
   ];
 
   return (
@@ -96,11 +98,14 @@ const RechargeActivityFullProfileDrawer: React.FC<Props> = ({ open, loading, pro
                 <Descriptions.Item label="活动编码">{activity.activityCode}</Descriptions.Item>
                 <Descriptions.Item label="状态">{formatEnumText(activity.status, 'activityStatus', '活动状态')}</Descriptions.Item>
                 <Descriptions.Item label="充值方式">{formatEnumText(activity.rechargeMode, 'rechargeMode', '充值方式')}</Descriptions.Item>
-                <Descriptions.Item label="适用范围">{activity.scope || formatEnumText(activity.scopeMode, 'scopeType', '适用范围')}</Descriptions.Item>
-                <Descriptions.Item label="范围对象">{activity.scopeIds || '-'}</Descriptions.Item>
+                <Descriptions.Item label="适用范围">{formatScope ? formatScope(activity) : activity.scope || formatEnumText(activity.scopeMode, 'scopeType', '适用范围')}</Descriptions.Item>
+                <Descriptions.Item label="范围对象">{formatScopeObjects ? formatScopeObjects(activity) : activity.scopeIds || '-'}</Descriptions.Item>
                 <Descriptions.Item label="奖励类型">{formatEnumText(activity.rewardType || 'BALANCE', 'rewardType', '奖励类型')}</Descriptions.Item>
                 <Descriptions.Item label="服务卡产品">{profile.serviceCard?.cardName || activity.serviceCardId || '-'}</Descriptions.Item>
                 <Descriptions.Item label="成本承担">{formatEnumText(activity.costOwner, 'costOwner', '成本承担')}</Descriptions.Item>
+                <Descriptions.Item label="清分规则" span={2}>{formatClearingRuleText(activity)}</Descriptions.Item>
+                <Descriptions.Item label="资金主体">{activity.fundOwnerUnitId ? `#${activity.fundOwnerUnitId}` : '-'}</Descriptions.Item>
+                <Descriptions.Item label="成本主体">{activity.promotionCostUnitId ? `#${activity.promotionCostUnitId}` : '-'}</Descriptions.Item>
                 <Descriptions.Item label="最低充值">{formatAmount(activity.minAmount)}</Descriptions.Item>
               </Descriptions>
               <Space wrap>{risks.length ? risks.map((risk) => <Tag key={risk} color="warning">{risk}</Tag>) : <Tag color="success">套餐配置与权益链路完整</Tag>}</Space>

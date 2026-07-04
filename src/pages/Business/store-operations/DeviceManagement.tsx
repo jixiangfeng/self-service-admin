@@ -388,8 +388,8 @@ const DeviceManagement: React.FC = () => {
                 <Form.Item name="deviceName" label="设备名称" rules={[{ required: true, message: '请输入设备名称' }]}>
                   <Input placeholder="例如：A 区 1 号高压水枪" />
                 </Form.Item>
-                <Form.Item name="deviceCode" label="设备编号" rules={[{ required: true, message: '请输入设备编号' }]}>
-                  <Input placeholder="例如：DEV-HP-A01" />
+                <Form.Item name="deviceCode" label="设备编号">
+                  <Input readOnly placeholder="保存后由系统自动生成" />
                 </Form.Item>
                 <Form.Item name="vendorName" label="厂商名称">
                   <Input placeholder="设备供应商或集成商名称" />

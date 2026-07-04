@@ -12,6 +12,7 @@ import {
   BarChartOutlined,
   BellOutlined,
   BookOutlined,
+  CalculatorOutlined,
   CarOutlined,
   CommentOutlined,
   ContactsOutlined,
@@ -19,7 +20,6 @@ import {
   DashboardOutlined,
   DeploymentUnitOutlined,
   DollarOutlined,
-  FileSearchOutlined,
   GiftOutlined,
   IdcardOutlined,
   MenuOutlined,
@@ -30,11 +30,9 @@ import {
   SafetyOutlined,
   ShareAltOutlined,
   ShopOutlined,
-  SplitCellsOutlined,
   TagsOutlined,
   TeamOutlined,
   TransactionOutlined,
-  UnorderedListOutlined,
   UserOutlined,
   UserSwitchOutlined,
   WalletOutlined,
@@ -102,7 +100,6 @@ const BasicLayout: React.FC = () => {
       icon: <AppstoreOutlined />,
       children: [
         { key: '/asset/service-cards', path: '/asset/service-cards', name: '次卡/月卡', icon: <IdcardOutlined /> },
-        { key: '/asset/service-cards-coupon-template', path: '/asset/service-cards', name: '优惠券模板', icon: <GiftOutlined /> },
       ],
     },
     {
@@ -110,9 +107,8 @@ const BasicLayout: React.FC = () => {
       name: '交易履约',
       icon: <ProfileOutlined />,
       children: [
-        { key: '/trade', path: '/trade', name: '交易订单', icon: <ProfileOutlined /> },
-        { key: '/trade/details', path: '/trade/details', name: '订单明细', icon: <UnorderedListOutlined /> },
-        { key: '/fulfillment', path: '/fulfillment', name: '核销履约', icon: <AuditOutlined /> },
+        { key: '/trade', path: '/trade', name: '订单中心', icon: <ProfileOutlined /> },
+        { key: '/fulfillment', path: '/fulfillment', name: '履约记录', icon: <AuditOutlined /> },
       ],
     },
     {
@@ -121,8 +117,6 @@ const BasicLayout: React.FC = () => {
       icon: <WalletOutlined />,
       children: [
         { key: '/asset/profiles', path: '/asset/profiles', name: '用户档案', icon: <ContactsOutlined /> },
-        { key: '/asset/overview', path: '/asset/flows', name: '资产总览', icon: <WalletOutlined /> },
-        { key: '/asset/coupons', path: '/asset/flows', name: '优惠券明细', icon: <GiftOutlined /> },
         { key: '/asset/flows', path: '/asset/flows', name: '资产流水', icon: <TransactionOutlined /> },
       ],
     },
@@ -131,11 +125,8 @@ const BasicLayout: React.FC = () => {
       name: '活动营销',
       icon: <GiftOutlined />,
       children: [
-        { key: '/marketing', path: '/marketing', name: '活动总览', icon: <GiftOutlined /> },
         { key: '/marketing/recharge-activities', path: '/marketing/recharge-activities', name: '充值活动', icon: <DollarOutlined /> },
         { key: '/marketing/invite-activities', path: '/marketing/invite-activities', name: '邀请活动', icon: <ShareAltOutlined /> },
-        { key: '/marketing/cross-store', path: '/marketing', name: '跨店经营', icon: <AppstoreOutlined /> },
-        { key: '/marketing/execution', path: '/marketing', name: '营销执行台', icon: <AuditOutlined /> },
       ],
     },
     {
@@ -143,10 +134,9 @@ const BasicLayout: React.FC = () => {
       name: '财务结算',
       icon: <AccountBookOutlined />,
       children: [
-        { key: '/settlement', path: '/settlement', name: '结算总览', icon: <AccountBookOutlined /> },
-        { key: '/settlement/details', path: '/settlement/details', name: '结算明细', icon: <FileSearchOutlined /> },
+        { key: '/settlement', path: '/settlement', name: '结算中心', icon: <AccountBookOutlined /> },
+        { key: '/settlement/rules', path: '/settlement/rules', name: '清分规则', icon: <CalculatorOutlined /> },
         { key: '/settlement/profit-sharing', path: '/settlement/profit-sharing', name: '合伙人分润', icon: <PercentageOutlined /> },
-        { key: '/settlement/profit-details', path: '/settlement/profit-details', name: '分润明细', icon: <SplitCellsOutlined /> },
       ],
     },
     {

@@ -257,6 +257,8 @@ export interface MerchantGroupRecord {
   consumeMerchantRate?: number | string;
   platformRate?: number | string;
   clearingRemark?: string;
+  linkedSettlementRuleId?: number;
+  linkedSettlementRuleCode?: string;
   owner?: string;
   status: string;
   remark?: string;
@@ -345,20 +347,13 @@ export interface StoreRecord {
   address?: string;
   longitude?: number | string;
   latitude?: number | string;
-  businessHours?: string;
-  holidayHours?: string;
   status: string;
   storePhone?: string;
   managerName?: string;
   managerPhone?: string;
   intro?: string;
-  tempClosed?: number;
   coverUrl?: string;
   imageUrls?: string;
-  openTime?: string;
-  closeTime?: string;
-  tempClosedReason?: string;
-  tempClosedUntil?: string;
   createdAt?: string;
   updatedAt?: string;
   createTime?: string;
@@ -368,14 +363,10 @@ export interface StoreRecord {
 export interface StoreFullProfileRecord {
   store: StoreRecord;
   images: StoreImageRecord[];
-  businessHours: StoreBusinessHoursRecord[];
-  tempCloseRecords: StoreTempCloseRecord[];
   capabilities: StoreServiceCapabilityRecord[];
   servicePoints: ServicePointRecord[];
   devices: DeviceRecord[];
   imageCount?: number;
-  businessHourCount?: number;
-  processingTempCloseCount?: number;
   publishedCapabilityCount?: number;
   servicePointCount?: number;
   onlineDeviceCount?: number;
@@ -392,8 +383,6 @@ export interface StoreFullProfileRecord {
 }
 
 export interface StoreImageRecord { id: number; storeId: number; storeName?: string; imageType: string; imageUrl: string; sortNo?: number; status: string; createdAt?: string; updatedAt?: string; }
-export interface StoreBusinessHoursRecord { id: number; storeId: number; storeName?: string; weekday: string; openTime: string; closeTime: string; status: string; createdAt?: string; updatedAt?: string; }
-export interface StoreTempCloseRecord { id: number; storeId: number; storeName?: string; closeReason: string; startAt?: string; endAt?: string; operator?: string; status: string; createdAt?: string; updatedAt?: string; }
 export interface StoreServiceCapabilityRecord {
   id: number;
   storeId: number;
@@ -735,6 +724,54 @@ export interface ServiceOrderRecord {
   note?: string;
 }
 
+export interface OrderBalanceSettlementSnapshotRecord {
+  id: number;
+  serviceOrderNo: string;
+  userId?: number;
+  consumeStoreId?: number;
+  rechargeNo?: string;
+  scopeType?: string;
+  scopeId?: number;
+  merchantGroupId?: number;
+  merchantGroupName?: string;
+  fundOwnerType?: string;
+  fundOwnerId?: number;
+  revenueOwnerType?: string;
+  revenueOwnerId?: number;
+  giftCostBearerType?: string;
+  giftCostBearerId?: number;
+  cashAmount?: number | string;
+  giftAmount?: number | string;
+  settlementBaseAmount?: number | string;
+  settlementMode?: string;
+  settlementRule?: string;
+  settlementRuleSnapshot?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ServiceOrderFinancialTraceRecord {
+  order: ServiceOrderRecord;
+  balanceSnapshots: OrderBalanceSettlementSnapshotRecord[];
+  settlementAllocations: SettlementAllocationRecord[];
+  settlementBillDetails: SettlementBillDetailRecord[];
+  profitShareDetails: ProfitShareDetailRecord[];
+  summary: {
+    cashAmount?: number | string;
+    giftAmount?: number | string;
+    settlementBaseAmount?: number | string;
+    principalAmount?: number | string;
+    platformFeeAmount?: number | string;
+    merchantReceivableAmount?: number | string;
+    settlementBillAmount?: number | string;
+    profitShareAmount?: number | string;
+    snapshotCount?: number;
+    allocationCount?: number;
+    settlementBillDetailCount?: number;
+    profitShareDetailCount?: number;
+  };
+}
+
 export interface RefundOrderRecord {
   id: number;
   refundNo: string;
@@ -904,6 +941,57 @@ export interface SettlementBillRecord {
   billStatus: string;
   payoutStatus?: string;
   status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SettlementRuleRecord {
+  id: number;
+  ruleCode: string;
+  ruleName: string;
+  ruleType: string;
+  settlementMode: string;
+  revenueOwnerType: string;
+  giftCostBearerType?: string;
+  ruleSnapshot?: string;
+  versionNo?: string;
+  status: string;
+  priority?: number;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+  balanceScopeType?: string;
+  activityId?: number;
+  issuerType?: string;
+  issuerId?: number;
+  sourceMerchantId?: number;
+  sourceStoreId?: number;
+  serviceMerchantId?: number;
+  serviceStoreId?: number;
+  merchantGroupId?: number;
+  crossMerchantFlag?: string;
+  revenueOwnerUnitType?: string;
+  revenueOwnerUnitId?: number;
+  principalCostBearerType?: string;
+  principalCostBearerUnitId?: number;
+  giftCostBearerUnitId?: number;
+  giftCostShareRule?: string;
+  platformFeeType?: string;
+  platformFeeRate?: number | string;
+  platformFeeFixedAmount?: number | string;
+  platformFeeBase?: string;
+  minPlatformFee?: number | string;
+  maxPlatformFee?: number | string;
+  platformFeeBearerType?: string;
+  settlementCycle?: string;
+  settlementDelayDays?: number;
+  refundFreezeDays?: number;
+  minSettlementAmount?: number | string;
+  autoSettlement?: string;
+  nettingEnabled?: string;
+  refundRule?: string;
+  serviceFeeRefundRule?: string;
+  principalRestoreRule?: string;
+  giftRestoreRule?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -2209,6 +2297,10 @@ export const merchantGroupApi = {
     httpPage<MerchantGroupRecord>('/merchant-groups', params),
   options: async () =>
     httpGet<SelectOptionRecord[]>('/merchant-groups/options'),
+  storedValueOptions: async () =>
+    httpGet<SelectOptionRecord[]>('/merchant-groups/stored-value-options'),
+  syncSettlementRule: async (id: number) =>
+    httpPost<SettlementRuleRecord | null>(`/merchant-groups/${id}/settlement-rule/sync`, {}),
   add: async (data: Record<string, unknown>) =>
     httpPost<MerchantGroupRecord>('/merchant-groups', data),
   edit: async (data: Record<string, unknown>) =>
@@ -2273,8 +2365,6 @@ export const storeApi = {
 };
 
 export const storeImageApi = crudApi<StoreImageRecord>('/store-images');
-export const storeBusinessHoursApi = crudApi<StoreBusinessHoursRecord>('/store-business-hours');
-export const storeTempCloseRecordApi = crudApi<StoreTempCloseRecord>('/store-temp-close-records');
 export const storeServiceCapabilityApi = crudApi<StoreServiceCapabilityRecord>('/store-service-capabilities');
 export const servicePointApi = {
   page: async (params: Record<string, unknown>) =>
@@ -2342,6 +2432,7 @@ export const serviceOrderApi = {
     httpPost<ServiceOrderRecord>('/service-orders', data),
   updateStatus: async (id: number, data: Record<string, unknown>) =>
     httpPut<void>(`/service-orders/${id}/status`, { ...data, orderStatus: data.orderStatus ?? data.status }),
+  financialTrace: async (id: number) => httpGet<ServiceOrderFinancialTraceRecord>(`/service-orders/${id}/financial-trace`),
 };
 
 export const refundOrderApi = {
@@ -2418,6 +2509,8 @@ export const performRecordApi = {
   updateStatus: async (id: number, data: Record<string, unknown>) =>
     httpPut<void>(`/perform-records/${id}/status`, data),
 };
+
+export const settlementRuleApi = crudApi<SettlementRuleRecord>('/settlement-rules');
 
 export const settlementBillApi = {
   page: async (params: Record<string, unknown>) => (async () => {
@@ -2743,8 +2836,6 @@ export default {
   merchantWorkbench: merchantWorkbenchApi,
   store: storeApi,
   storeImage: storeImageApi,
-  storeBusinessHours: storeBusinessHoursApi,
-  storeTempCloseRecord: storeTempCloseRecordApi,
   storeServiceCapability: storeServiceCapabilityApi,
   servicePoint: servicePointApi,
   servicePointQrRecord: servicePointQrRecordApi,
@@ -2771,6 +2862,7 @@ export default {
   orderStatusLog: orderStatusLogApi,
   writeOffRecord: writeOffRecordApi,
   performRecord: performRecordApi,
+  settlementRule: settlementRuleApi,
   settlementBill: settlementBillApi,
   settlementBillDetail: settlementBillDetailApi,
   settlementAllocation: settlementAllocationApi,

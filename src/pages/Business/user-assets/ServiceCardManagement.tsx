@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Button, Card, Checkbox, Col, Form, Input, InputNumber, Row, Select, Space, Statistic, Tabs, message } from 'antd';
 import { WalletOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
@@ -24,18 +24,19 @@ const cardProductStatusOptions = [
 ];
 const statusMap = buildValueEnum(cardProductStatusOptions);
 const userCardStatusMap = buildValueEnum(serviceCardStatusOptions);
+type ScopeNameMaps = Record<string, Map<string, string>>;
 
 const serviceScopeOptions = [
   { value: 'PLATFORM', label: '平台通用' },
   { value: 'STORE', label: '指定门店可用' },
-  { value: 'STORE_GROUP', label: '指定门店组可用' },
+  { value: 'STORE_GROUP', label: '指定储值通用组可用' },
   { value: 'MERCHANT', label: '指定商户可用' },
 ];
 
 const serviceScopeTargetLabels: Record<string, string> = {
   PLATFORM: '平台通用，无需选择范围对象',
   STORE: '选择一个或多个门店，扣次时仅这些门店可核销',
-  STORE_GROUP: '选择一个或多个门店组，组内门店均可核销',
+  STORE_GROUP: '选择一个或多个储值通用组，组内门店均可核销',
   MERCHANT: '选择一个或多个商户，商户旗下门店均可核销',
 };
 
@@ -86,6 +87,18 @@ const splitValues = (value?: unknown) => Array.isArray(value)
 
 const compactJoin = (items: Array<string | false | undefined>) => items.filter(Boolean).join('；');
 
+const isUsableUserCardStatus = (status?: string) => String(status || '').toUpperCase() === 'USING';
+
+const optionMap = (options: Array<{ value: string | number; label: string }>) =>
+  new Map(options.map((item) => [String(item.value), item.label]));
+
+const formatScopeObjectNames = (scopeMode: string | undefined, scopeIds: unknown, maps: ScopeNameMaps) => {
+  const ids = splitValues(scopeIds);
+  if (!scopeMode || scopeMode === 'PLATFORM') return '';
+  const map = maps[scopeMode] || new Map<string, string>();
+  return ids.map((id) => map.get(String(id)) || String(id)).join('、');
+};
+
 const buildServiceCardPayload = (values: Record<string, any>) => {
   const payload: Record<string, any> = {
     ...values,
@@ -106,10 +119,15 @@ const buildServiceCardPayload = (values: Record<string, any>) => {
   return payload;
 };
 
-const formatServiceScope = (record: ServiceCardRecord) => compactJoin([
-  optionLabel(serviceScopeOptions, record.scopeMode),
-  record.scopeNote,
-]) || '-';
+const formatServiceScope = (record: ServiceCardRecord, maps: ScopeNameMaps = {}) => {
+  const scopeMode = record.scopeMode || 'PLATFORM';
+  const modeText = optionLabel(serviceScopeOptions, scopeMode) || '平台通用';
+  if (scopeMode === 'PLATFORM') {
+    return modeText;
+  }
+  const objectNames = formatScopeObjectNames(scopeMode, record.scopeIds, maps);
+  return objectNames ? `${modeText}：${objectNames}` : compactJoin([modeText, record.scopeNote]) || '-';
+};
 
 const formatServiceValidity = (record: ServiceCardRecord) =>
   record.validityMode === 'PERMANENT' ? '长期有效' : `${record.validityDays || 0}天`;
@@ -173,11 +191,11 @@ const buildCardDefaults = (cardType: string) => ({
   issueAutoNotify: true,
 });
 
-const serviceCardDetailFields: DetailField<ServiceCardRecord>[] = [
+const getServiceCardDetailFields = (scopeNameMaps: ScopeNameMaps): DetailField<ServiceCardRecord>[] => [
   { name: 'cardCode', label: '编码' },
   { name: 'cardName', label: '名称' },
   { name: 'cardType', label: '类型', render: (value) => cardTypeMap[value as keyof typeof cardTypeMap]?.text || value },
-  { name: 'scopeMode', label: '作用范围', render: (_, record) => formatServiceScope(record) },
+  { name: 'scopeMode', label: '作用范围', render: (_, record) => formatServiceScope(record, scopeNameMaps) },
   { name: 'rightsServiceTimes', label: '权益内容', render: (_, record) => formatServiceRights(record) },
   { name: 'salePrice', label: '售价', render: (value) => formatAmount(value) },
   { name: 'validityMode', label: '有效期', render: (_, record) => formatServiceValidity(record) },
@@ -250,8 +268,8 @@ const ServiceCardManagement: React.FC = () => {
     queryFn: async () => (await api.merchant.options()).data,
   });
   const merchantGroupOptionsQuery = useQuery({
-    queryKey: ['serviceCardScopeMerchantGroups'],
-    queryFn: async () => (await api.merchantGroup.options()).data,
+    queryKey: ['serviceCardScopeStoredValueGroups'],
+    queryFn: async () => (await api.merchantGroup.storedValueOptions()).data,
   });
   const orderQuery = useQuery({
     queryKey: ['serviceCardDeductOrders'],
@@ -333,6 +351,12 @@ const ServiceCardManagement: React.FC = () => {
     value: item.value,
     label: item.label,
   }));
+  const scopeNameMaps = useMemo(() => ({
+    STORE: optionMap(storeOptions),
+    STORE_GROUP: optionMap(normalizeSelectOptions(merchantGroupOptions)),
+    MERCHANT: optionMap(normalizeSelectOptions(merchantOptions)),
+  }), [storeOptions, merchantGroupOptions, merchantOptions]);
+  const serviceCardDetailFields = useMemo(() => getServiceCardDetailFields(scopeNameMaps), [scopeNameMaps]);
   const scopeMode = Form.useWatch('scopeMode', form);
   const validityMode = Form.useWatch('validityMode', form);
   const scopeTargetOptions = scopeMode === 'STORE'
@@ -415,7 +439,7 @@ const ServiceCardManagement: React.FC = () => {
       valueEnum: cardTypeMap,
       render: (_, record) => renderStatusTag(record.cardType, cardTypeMap),
     },
-    { title: '作用范围', dataIndex: 'scopeMode', width: 190, search: false, render: (_, record) => formatServiceScope(record) },
+    { title: '作用范围', dataIndex: 'scopeMode', width: 240, search: false, render: (_, record) => formatServiceScope(record, scopeNameMaps) },
     { title: '权益内容', dataIndex: 'rightsServiceTimes', width: 260, search: false, render: (_, record) => formatServiceRights(record) },
     { title: '售价', dataIndex: 'salePrice', width: 120, search: false, render: (_, record) => formatAmount(record.salePrice) },
     { title: '有效期', dataIndex: 'validityMode', width: 120, search: false, render: (_, record) => formatServiceValidity(record) },
@@ -476,19 +500,28 @@ const ServiceCardManagement: React.FC = () => {
     { title: '有效期开始', dataIndex: 'validFrom', width: 120, search: false },
     { title: '有效期结束', dataIndex: 'validTo', width: 120, search: false },
     { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: userCardStatusMap, render: (_, record) => renderStatusTag(record.status, userCardStatusMap) },
-    { title: '操作', width: 150, search: false, render: (_, record) => (
-      <Space>
-        <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-        <Button
-          size="small"
-          disabled={record.status !== 'USING' || Number(record.remainTimes || 0) <= 0}
-          title={record.status !== 'USING' ? '使用中的服务卡才能扣次' : Number(record.remainTimes || 0) <= 0 ? '剩余次数不足，不能扣次' : undefined}
-          onClick={() => openDeduct(record)}
-        >
-          扣次
-        </Button>
-      </Space>
-    ) },
+    {
+      title: '操作',
+      width: 150,
+      search: false,
+      render: (_, record) => {
+        const usable = isUsableUserCardStatus(record.status);
+        const hasRemainTimes = Number(record.remainTimes || 0) > 0;
+        return (
+          <Space>
+            <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+            <Button
+              size="small"
+              disabled={!usable || !hasRemainTimes}
+              title={!usable ? '可使用的服务卡才能扣次' : !hasRemainTimes ? '剩余次数不足，不能扣次' : undefined}
+              onClick={() => openDeduct(record)}
+            >
+              扣次
+            </Button>
+          </Space>
+        );
+      },
+    },
   ];
 
   const usageColumns: ProColumns<ServiceCardUsageRecord>[] = [
@@ -642,8 +675,8 @@ const ServiceCardManagement: React.FC = () => {
           <div className="merchant-editor-shell">
             <BusinessEditorSection icon={<WalletOutlined />} title="卡产品基础" desc="维护卡产品编码、名称、类型和上下架状态，作为发卡和用户服务卡的统一来源。">
               <div className="merchant-editor-fields">
-                <Form.Item name="cardCode" label="卡产品编码" rules={[{ required: true, message: '请输入卡产品编码' }]}>
-                  <Input placeholder="例如：CARD-SERVICE-001" />
+                <Form.Item name="cardCode" label="卡产品编码">
+                  <Input readOnly placeholder="保存后由系统自动生成" />
                 </Form.Item>
                 <Form.Item name="cardName" label="卡名称" rules={[{ required: true, message: '请输入卡名称' }]}>
                   <Input placeholder="例如：10 次洗车卡" />
@@ -774,6 +807,7 @@ const ServiceCardManagement: React.FC = () => {
         open={profileVisible}
         loading={profileLoading}
         profile={fullProfile}
+        formatScope={(record) => formatServiceScope(record, scopeNameMaps)}
         onClose={() => {
           setProfileVisible(false);
           setFullProfile(undefined);

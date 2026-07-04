@@ -14,11 +14,12 @@ import {
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import { buildValueEnum, formatAmount, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
+import { buildValueEnum, formatAmount, formatClearingRuleText, formatDateTime, formatOwnerRef, renderStatusTag, formatEnumText, formatOperatorText } from '@/pages/Business/shared';
 import api from '@/services/backendService';
-import type { AppUserProfileRecord, BalanceFlowRecord, BalanceLotRecord, ServiceCardRecord, ServiceCardUsageRecord, UserRiskRecord, UserServiceCardRecord } from '@/services/backendService';
+import type { AppUserProfileRecord, BalanceFlowRecord, BalanceLotRecord, SelectOptionRecord, ServiceCardRecord, ServiceCardUsageRecord, StoreRecord, UserRiskRecord, UserServiceCardRecord } from '@/services/backendService';
 
 type DetailRecord = BalanceFlowRecord | BalanceLotRecord | AppUserProfileRecord | UserServiceCardRecord | ServiceCardRecord | ServiceCardUsageRecord | UserRiskRecord;
+type ScopeNameMaps = Record<string, Map<string, string>>;
 
 const serviceCardProductStatusOptions = [
   { value: 'DRAFT', label: '草稿' },
@@ -38,6 +39,10 @@ const balanceLotStatusMap = buildValueEnum([
   { value: 'FROZEN', label: '冻结' },
 ]);
 const serviceCardScopeMap: Record<string, string> = {
+  PLATFORM: '平台通用',
+  STORE: '指定门店',
+  STORE_GROUP: '指定储值通用组',
+  MERCHANT: '指定商户',
   ALL_STORE: '全部门店可用',
   SELECTED_STORE: '指定门店可用',
   SERVICE_PACKAGE: '指定服务/套餐可用',
@@ -57,10 +62,34 @@ const formatCsvLabels = (value?: string, labels: Record<string, string> = {}) =>
 
 const compactJoin = (items: Array<string | false | undefined>) => items.filter(Boolean).join('；');
 
-const formatServiceScope = (record: ServiceCardRecord) => compactJoin([
-  serviceCardScopeMap[record.scopeMode || ''] || record.scopeMode,
-  record.scopeNote,
-]) || '-';
+const splitValues = (value?: unknown) => Array.isArray(value)
+  ? value.map((item) => String(item).trim()).filter(Boolean)
+  : String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
+
+const normalizeSelectOptions = (options: SelectOptionRecord[]) => options.map((item) => ({
+  value: String(item.value),
+  label: item.label,
+}));
+
+const optionMap = (options: Array<{ value: string | number; label: string }>) =>
+  new Map(options.map((item) => [String(item.value), item.label]));
+
+const formatScopeObjectNames = (scopeMode: string | undefined, scopeIds: unknown, maps: ScopeNameMaps) => {
+  const ids = splitValues(scopeIds);
+  if (!scopeMode || scopeMode === 'PLATFORM') return '';
+  const map = maps[scopeMode] || new Map<string, string>();
+  return ids.map((id) => map.get(id) || id).join('、');
+};
+
+const formatServiceScope = (record: ServiceCardRecord, maps: ScopeNameMaps = {}) => {
+  const scopeMode = record.scopeMode || 'PLATFORM';
+  const modeText = serviceCardScopeMap[scopeMode] || scopeMode;
+  if (scopeMode === 'PLATFORM') {
+    return modeText;
+  }
+  const objectNames = formatScopeObjectNames(scopeMode, record.scopeIds, maps);
+  return objectNames ? `${modeText}：${objectNames}` : compactJoin([modeText, record.scopeNote]) || '-';
+};
 
 const formatServiceRights = (record: ServiceCardRecord) => compactJoin([
   record.rightsServiceTimes ? `${record.rightsServiceTimes}次` : undefined,
@@ -74,44 +103,44 @@ const assetFlowDetailFields: Record<'balance' | 'lot' | 'profile' | 'serviceCard
   balance: [
     { name: 'flowNo', label: '流水号' },
     { name: 'userName', label: '用户' },
-    { name: 'flowType', label: '类型' },
+    { name: 'flowType', label: '类型', render: (value) => formatEnumText(value, 'flowType', '流水类型') },
     { name: 'changeAmount', label: '变动金额', render: (value) => formatAmount(value) },
     { name: 'balanceAfter', label: '变动后' , render: (value) => formatAmount(value) },
     { name: 'relatedNo', label: '关联单号' },
     { name: 'balanceLotId', label: '余额批次ID' },
     { name: 'principalAmount', label: '本金金额', render: (value) => formatAmount(value || 0) },
     { name: 'giftAmount', label: '赠送金额', render: (value) => formatAmount(value || 0) },
-    { name: 'operator', label: '操作人' },
+    { name: 'operator', label: '操作人', render: (value) => formatOperatorText(value) },
     { name: 'createdAt', label: '创建时间', render: (value) => formatDateTime(value) },
   ],
   lot: [
     { name: 'lotNo', label: '批次号' },
     { name: 'userName', label: '用户' },
-    { name: 'sourceType', label: '来源类型' },
+    { name: 'sourceType', label: '来源类型', render: (value) => formatEnumText(value, 'sourceType', '来源类型') },
     { name: 'sourceNo', label: '来源单号' },
     { name: 'rechargeNo', label: '充值单号' },
-    { name: 'sourceScopeType', label: '余额范围', render: (_value, record) => [record.sourceScopeType, record.sourceScopeId ? `#${record.sourceScopeId}` : undefined].filter(Boolean).join('') || '-' },
+    { name: 'sourceScopeType', label: '余额范围', render: (_value, record) => formatOwnerRef(record.sourceScopeType, record.sourceScopeId) },
     { name: 'principalAmount', label: '本金总额', render: (value) => formatAmount(value || 0) },
     { name: 'giftAmount', label: '赠送总额', render: (value) => formatAmount(value || 0) },
     { name: 'remainingPrincipal', label: '剩余本金', render: (value) => formatAmount(value || 0) },
     { name: 'remainingGift', label: '剩余赠送', render: (value) => formatAmount(value || 0) },
-    { name: 'settlementRule', label: '清分规则' },
-    { name: 'status', label: '状态' },
+    { name: 'settlementRule', label: '清分规则', render: (_value, record) => formatClearingRuleText(record) },
+    { name: 'status', label: '状态', render: (value) => renderStatusTag(value, balanceLotStatusMap) },
     { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
   ],
   profile: [
     { name: 'userName', label: '用户' },
     { name: 'mobile', label: '手机号' },
-    { name: 'memberLevel', label: '会员等级' },
-    { name: 'realNameStatus', label: '实名状态' },
-    { name: 'riskStatus', label: '风控状态' },
+    { name: 'memberLevel', label: '会员等级', render: (value) => renderStatusTag(value, userLevelMap) },
+    { name: 'realNameStatus', label: '实名状态', render: (value) => formatEnumText(value, 'realNameStatus', '实名状态') },
+    { name: 'riskStatus', label: '风控状态', render: (value) => formatEnumText(value, 'riskStatus', '风控状态') },
     { name: 'registeredAt', label: '注册时间', render: (value) => formatDateTime(value) },
     { name: 'remark', label: '备注' },
   ],
   serviceCard: [
     { name: 'cardCode', label: '卡产品编码' },
     { name: 'cardName', label: '卡产品名称' },
-    { name: 'cardType', label: '卡类型' },
+    { name: 'cardType', label: '卡类型', render: (value) => formatEnumText(value, 'cardType', '卡类型') },
     { name: 'scopeMode', label: '适用范围', render: (_, record) => formatServiceScope(record) },
     { name: 'rightsServiceTimes', label: '权益', render: (_, record) => formatServiceRights(record) },
     { name: 'salePrice', label: '售价', render: (value) => formatAmount(value) },
@@ -145,10 +174,10 @@ const assetFlowDetailFields: Record<'balance' | 'lot' | 'profile' | 'serviceCard
   risk: [
     { name: 'userName', label: '用户' },
     { name: 'mobile', label: '手机号' },
-    { name: 'riskScene', label: '风控场景' },
+    { name: 'riskScene', label: '风控场景', render: (value) => formatEnumText(value, 'riskScene', '风控场景') },
     { name: 'riskReason', label: '风控原因' },
     { name: 'relatedNo', label: '关联单号' },
-    { name: 'riskStatus', label: '状态' },
+    { name: 'riskStatus', label: '状态', render: (value) => formatEnumText(value, 'riskStatus', '状态') },
     { name: 'owner', label: '负责人' },
     { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
   ],
@@ -203,6 +232,18 @@ const AssetFlowManagement: React.FC = () => {
     queryKey: ['assetFlowRiskRecords', keyword, riskStatusFilter],
     queryFn: async () => (await api.asset.riskRecords.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, riskStatus: riskStatusFilter })).data,
   });
+  const storeQuery = useQuery({
+    queryKey: ['assetFlowServiceCardScopeStores'],
+    queryFn: async () => (await api.store.page({ pageNum: 1, pageSize: 500 })).data,
+  });
+  const merchantOptionsQuery = useQuery({
+    queryKey: ['assetFlowServiceCardScopeMerchants'],
+    queryFn: async () => (await api.merchant.options()).data,
+  });
+  const merchantGroupOptionsQuery = useQuery({
+    queryKey: ['assetFlowServiceCardScopeStoredValueGroups'],
+    queryFn: async () => (await api.merchantGroup.storedValueOptions()).data,
+  });
   const balanceFlows = balanceFlowQuery.data?.records || [];
   const balanceLots = balanceLotQuery.data?.records || [];
   const profiles = profileQuery.data?.records || [];
@@ -210,6 +251,26 @@ const AssetFlowManagement: React.FC = () => {
   const userServiceCards = userServiceCardQuery.data?.records || [];
   const serviceCardUsages = serviceCardUsageQuery.data?.records || [];
   const riskRecords = riskQuery.data?.records || [];
+  const stores = storeQuery.data?.records || [];
+  const storeOptions = stores.map((item: StoreRecord) => ({ value: String(item.id), label: `${item.storeName}${item.storeCode ? `（${item.storeCode}）` : ''}` }));
+  const merchantOptions = normalizeSelectOptions(merchantOptionsQuery.data || []);
+  const merchantGroupOptions = normalizeSelectOptions(merchantGroupOptionsQuery.data || []);
+  const scopeNameMaps = useMemo(() => ({
+    STORE: optionMap(storeOptions),
+    STORE_GROUP: optionMap(merchantGroupOptions),
+    MERCHANT: optionMap(merchantOptions),
+  }), [storeOptions, merchantGroupOptions, merchantOptions]);
+  const serviceCardDetailFields = useMemo<DetailField<ServiceCardRecord>[]>(() => [
+    { name: 'cardCode', label: '卡产品编码' },
+    { name: 'cardName', label: '卡产品名称' },
+    { name: 'cardType', label: '卡类型', render: (value) => formatEnumText(value, 'cardType', '卡类型') },
+    { name: 'scopeMode', label: '适用范围', render: (_value, record) => formatServiceScope(record, scopeNameMaps) },
+    { name: 'rightsServiceTimes', label: '权益', render: (_value, record) => formatServiceRights(record) },
+    { name: 'salePrice', label: '售价', render: (value) => formatAmount(value) },
+    { name: 'stock', label: '库存' },
+    { name: 'status', label: '状态', render: (value) => renderStatusTag(value, serviceCardProductStatusMap) },
+    { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
+  ], [scopeNameMaps]);
 
   const handleSearch = () => {
     setKeyword(keywordInput.trim());
@@ -235,7 +296,7 @@ const AssetFlowManagement: React.FC = () => {
     { title: '本金/赠送', dataIndex: 'principalAmount', width: 150, renderText: (_, record) => `${formatAmount(record.principalAmount || 0)} / ${formatAmount(record.giftAmount || 0)}` },
     { title: '变动后', dataIndex: 'balanceAfter', width: 120, render: (_, record) => formatAmount(record.balanceAfter) },
     { title: '关联单号', dataIndex: 'relatedNo', width: 180 },
-    { title: '操作人', dataIndex: 'operator', width: 120 },
+    { title: '操作人', dataIndex: 'operator', width: 120, renderText: (value) => formatOperatorText(value) },
     { title: '创建时间', dataIndex: 'createdAt', width: 180, render: (_, record) => formatDateTime(record.createdAt) },
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ], []);
@@ -245,10 +306,10 @@ const AssetFlowManagement: React.FC = () => {
     { title: '用户', dataIndex: 'userName', width: 120 },
     { title: '来源', dataIndex: 'sourceNo', width: 180 },
     { title: '充值单号', dataIndex: 'rechargeNo', width: 170 },
-    { title: '范围', dataIndex: 'sourceScopeType', width: 130, renderText: (_, record) => [record.sourceScopeType, record.sourceScopeId ? `#${record.sourceScopeId}` : undefined].filter(Boolean).join('') || '-' },
+    { title: '范围', dataIndex: 'sourceScopeType', width: 140, renderText: (_, record) => formatOwnerRef(record.sourceScopeType, record.sourceScopeId) },
     { title: '资金主体', dataIndex: 'fundOwnerUnitId', width: 120, renderText: (_, record) => record.fundOwnerUnitId ? `#${record.fundOwnerUnitId}` : '-' },
     { title: '成本主体', dataIndex: 'promotionCostUnitId', width: 120, renderText: (_, record) => record.promotionCostUnitId ? `#${record.promotionCostUnitId}` : '-' },
-    { title: '清分规则', dataIndex: 'settlementRule', width: 180, renderText: (_, record) => record.settlementRule || (record.settlementRuleId ? `规则#${record.settlementRuleId}` : '-') },
+    { title: '清分规则', dataIndex: 'settlementRule', width: 280, renderText: (_, record) => formatClearingRuleText(record) },
     { title: '结算模式', dataIndex: 'settlementMode', width: 140, render: (value) => formatEnumText(value, 'settlementMode', '结算模式') },
     { title: '本金总额', dataIndex: 'principalAmount', width: 120, render: (_, record) => formatAmount(record.principalAmount || 0) },
     { title: '赠送总额', dataIndex: 'giftAmount', width: 120, render: (_, record) => formatAmount(record.giftAmount || 0) },
@@ -274,14 +335,14 @@ const AssetFlowManagement: React.FC = () => {
     { title: '卡产品编码', dataIndex: 'cardCode', width: 160 },
     { title: '卡产品名称', dataIndex: 'cardName', width: 180 },
     { title: '卡类型', dataIndex: 'cardType', width: 120 , render: (value) => formatEnumText(value, 'cardType', '卡类型') },
-    { title: '适用范围', dataIndex: 'scopeMode', width: 190, render: (_, record) => formatServiceScope(record) },
+    { title: '适用范围', dataIndex: 'scopeMode', width: 240, render: (_, record) => formatServiceScope(record, scopeNameMaps) },
     { title: '权益', dataIndex: 'rightsServiceTimes', width: 260, render: (_, record) => formatServiceRights(record) },
     { title: '售价', dataIndex: 'salePrice', width: 120, render: (_, record) => formatAmount(record.salePrice) },
     { title: '库存', dataIndex: 'stock', width: 90 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, serviceCardProductStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
     { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
-  ], []);
+  ], [scopeNameMaps]);
 
   const userCardColumns = useMemo<ProColumns<UserServiceCardRecord>[]>(() => [
     { title: '用户卡号', dataIndex: 'cardNo', width: 170 },
@@ -378,7 +439,7 @@ const AssetFlowManagement: React.FC = () => {
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
-            fields={('flowNo' in detail ? assetFlowDetailFields.balance : 'lotNo' in detail ? assetFlowDetailFields.lot : 'cardCode' in detail ? assetFlowDetailFields.serviceCard : 'usageNo' in detail ? assetFlowDetailFields.usage : 'cardNo' in detail ? assetFlowDetailFields.userCard : 'riskScene' in detail ? assetFlowDetailFields.risk : assetFlowDetailFields.profile) as DetailField<Record<string, any>>[]}
+            fields={('flowNo' in detail ? assetFlowDetailFields.balance : 'lotNo' in detail ? assetFlowDetailFields.lot : 'cardCode' in detail ? serviceCardDetailFields : 'usageNo' in detail ? assetFlowDetailFields.usage : 'cardNo' in detail ? assetFlowDetailFields.userCard : 'riskScene' in detail ? assetFlowDetailFields.risk : assetFlowDetailFields.profile) as DetailField<Record<string, any>>[]}
             column={2}
             labelWidth={110}
           />
@@ -390,4 +451,3 @@ const AssetFlowManagement: React.FC = () => {
 };
 
 export default AssetFlowManagement;
-

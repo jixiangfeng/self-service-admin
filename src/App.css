@@ -513,6 +513,91 @@
   line-height: 1.6;
 }
 
+.settlement-rule-page {
+  padding: 24px;
+}
+
+.settlement-rule-page__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: -4px 0 16px;
+}
+
+.settlement-rule-stats {
+  margin-bottom: 16px;
+}
+
+.settlement-rule-stats .ant-card {
+  height: 100%;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.settlement-rule-stats .ant-card-body {
+  padding: 16px 18px;
+}
+
+.settlement-rule-stats .ant-statistic-title {
+  color: rgba(15, 23, 42, 0.62);
+  font-size: 13px;
+}
+
+.settlement-rule-stats .ant-statistic-content {
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.settlement-rule-stats .ant-statistic-content-prefix {
+  margin-inline-end: 8px;
+  color: #0f766e;
+  font-size: 18px;
+}
+
+.settlement-rule-filter {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 180px 140px auto;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.settlement-rule-filter__actions {
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.settlement-rule-table__name,
+.settlement-rule-table__stack {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.settlement-rule-table__name strong {
+  overflow: hidden;
+  color: #0f172a;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settlement-rule-table__name span,
+.settlement-rule-table__muted,
+.settlement-rule-table__stack span {
+  color: rgba(15, 23, 42, 0.62);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settlement-rule-table__stack span:first-child {
+  color: #334155;
+}
+
 .workflow-guide {
   margin-bottom: 16px;
   background: #fff;
@@ -1250,6 +1335,15 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .settlement-rule-filter {
+    grid-template-columns: minmax(220px, 1fr) 180px 140px;
+  }
+
+  .settlement-rule-filter__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
   .merchant-editor-modal .ant-modal {
     max-width: calc(100vw - 40px);
   }
@@ -1266,6 +1360,31 @@
 
   .workflow-guide__actions {
     justify-content: flex-start;
+  }
+
+  .settlement-rule-page {
+    padding: 16px;
+  }
+
+  .settlement-rule-page__actions {
+    justify-content: stretch;
+  }
+
+  .settlement-rule-page__actions .ant-btn {
+    width: 100%;
+  }
+
+  .settlement-rule-filter {
+    grid-template-columns: 1fr;
+  }
+
+  .settlement-rule-filter__actions {
+    width: 100%;
+  }
+
+  .settlement-rule-filter__actions .ant-space-item,
+  .settlement-rule-filter__actions .ant-btn {
+    width: 100%;
   }
 
   .merchant-editor-modal .ant-modal {

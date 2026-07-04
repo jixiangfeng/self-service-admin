@@ -62,6 +62,19 @@ export const formatEnumText = (value: unknown, fieldName?: string, fieldLabel?: 
   return label || String(value ?? '-');
 };
 
+const operatorLabelMap: Record<string, string> = {
+  APP_PAY_CALLBACK: '支付回调',
+  APP_ORDER: '用户下单',
+};
+
+export const formatOperatorText = (value: unknown) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) {
+    return '-';
+  }
+  return operatorLabelMap[raw] || raw;
+};
+
 export const renderEnumTag = (value: unknown, fieldName?: string, fieldLabel?: string) => {
   const text = formatEnumText(value, fieldName, fieldLabel);
   return <Tag color={text === '-' ? 'default' : 'processing'}>{text}</Tag>;
@@ -83,6 +96,79 @@ export const formatAmount = (value?: string | number) => {
     return '-';
   }
   return typeof value === 'number' ? `￥${value.toFixed(2)}` : `￥${value}`;
+};
+
+const clearingModeLabelMap: Record<string, string> = {
+  STORE_CLEARING: '门店清分',
+  MERCHANT_CLEARING: '商户清分',
+  GROUP_UNIFIED_SETTLEMENT: '门店组统一结算',
+  PLATFORM_CLEARING: '平台统一清分',
+  OFFLINE_CLEARING: '线下清分',
+};
+
+const scopeLabelMap: Record<string, string> = {
+  PLATFORM: '平台通用',
+  MERCHANT: '商户',
+  STORE: '门店',
+  STORE_GROUP: '门店组',
+  CUSTOM_STORE_SET: '自定义门店集合',
+  SERVICE_STORE: '履约门店',
+  SOURCE_STORE: '充值门店',
+  ISSUER_MERCHANT: '发行商户',
+  FIXED_UNIT: '指定主体',
+  SHARED: '多方分摊',
+};
+
+const snapshotField = (snapshot: string | undefined, keys: string[]) => {
+  const parsed = safeJsonParse<Record<string, unknown> | null>(snapshot, null);
+  if (!parsed || typeof parsed !== 'object') {
+    return undefined;
+  }
+  const matchedKey = keys.find((key) => parsed[key] !== undefined && parsed[key] !== null && parsed[key] !== '');
+  return matchedKey ? String(parsed[matchedKey]) : undefined;
+};
+
+export const formatOwnerRef = (type?: string, id?: number | string) => {
+  const label = type ? scopeLabelMap[type] || type : undefined;
+  return [label, id !== undefined && id !== null ? `#${id}` : undefined].filter(Boolean).join('') || '-';
+};
+
+export const formatClearingRuleText = (record?: {
+  settlementRule?: string;
+  settlementRuleId?: number | string;
+  settlementMode?: string;
+  settlementRuleSnapshot?: string;
+  balanceScopeType?: string;
+  balanceScopeId?: number | string;
+  sourceScopeType?: string;
+  sourceScopeId?: number | string;
+  fundOwnerUnitId?: number | string;
+  revenueOwnerUnitId?: number | string;
+  giftCostBearerUnitId?: number | string;
+  promotionCostUnitId?: number | string;
+}) => {
+  if (!record) return '-';
+  const ruleName = record.settlementRule || snapshotField(record.settlementRuleSnapshot, ['ruleName', 'name']);
+  const ruleId = record.settlementRuleId ? `规则#${record.settlementRuleId}` : undefined;
+  const mode = record.settlementMode
+    ? clearingModeLabelMap[record.settlementMode] || record.settlementMode
+    : snapshotField(record.settlementRuleSnapshot, ['settlementMode', 'mode']);
+  const scopeType = record.balanceScopeType || record.sourceScopeType || snapshotField(record.settlementRuleSnapshot, ['balanceScopeType', 'scopeType']);
+  const scopeId = record.balanceScopeId || record.sourceScopeId || snapshotField(record.settlementRuleSnapshot, ['balanceScopeId', 'scopeId']);
+  const scope = scopeType ? formatOwnerRef(scopeType, scopeId) : undefined;
+  const platformFee = snapshotField(record.settlementRuleSnapshot, ['platformFeeRate', 'platformRate', 'feeRate']);
+  const cycle = snapshotField(record.settlementRuleSnapshot, ['settlementCycle', 'cycle']);
+  return [
+    ruleName || ruleId,
+    mode,
+    scope ? `范围：${scope}` : undefined,
+    record.fundOwnerUnitId ? `资金#${record.fundOwnerUnitId}` : undefined,
+    record.revenueOwnerUnitId ? `收入#${record.revenueOwnerUnitId}` : undefined,
+    record.giftCostBearerUnitId ? `赠送成本#${record.giftCostBearerUnitId}` : undefined,
+    record.promotionCostUnitId ? `成本#${record.promotionCostUnitId}` : undefined,
+    platformFee ? `平台费${platformFee}` : undefined,
+    cycle ? `周期${cycle}` : undefined,
+  ].filter(Boolean).join('；') || '-';
 };
 
 export const renderOptionTags = (

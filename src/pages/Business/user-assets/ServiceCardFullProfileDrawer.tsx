@@ -1,17 +1,18 @@
 import React from 'react';
 import { Descriptions, Drawer, Empty, Space, Statistic, Table, Tabs, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import type { RechargeActivityRecord, ServiceCardFullProfileRecord, ServiceCardUsageRecord, UserServiceCardRecord } from '@/services/backendService';
+import type { RechargeActivityRecord, ServiceCardFullProfileRecord, ServiceCardRecord, ServiceCardUsageRecord, UserServiceCardRecord } from '@/services/backendService';
 import { formatAmount, formatDateTime, formatEnumText } from '@/pages/Business/shared';
 
 interface Props {
   open: boolean;
   loading?: boolean;
   profile?: ServiceCardFullProfileRecord;
+  formatScope?: (record: ServiceCardRecord) => string;
   onClose: () => void;
 }
 
-const ServiceCardFullProfileDrawer: React.FC<Props> = ({ open, loading, profile, onClose }) => {
+const ServiceCardFullProfileDrawer: React.FC<Props> = ({ open, loading, profile, formatScope, onClose }) => {
   const card = profile?.card;
   const risks = [
     card?.status !== 'ENABLED' ? '卡产品未启用，不能继续售卖或发放' : null,
@@ -39,7 +40,7 @@ const ServiceCardFullProfileDrawer: React.FC<Props> = ({ open, loading, profile,
     { title: '服务订单', dataIndex: 'serviceOrderNo', width: 180, render: (value) => value || '-' },
     { title: '门店', dataIndex: 'storeName', width: 180, render: (value) => value || '-' },
     { title: '扣次', dataIndex: 'deductCount', width: 90, render: (_, record) => record.deductCount ?? record.useTimes ?? 0 },
-    { title: '状态', dataIndex: 'status', width: 120, render: (value) => formatEnumText(value, 'status', '状态') },
+    { title: '状态', dataIndex: 'status', width: 120, render: (value) => formatEnumText(value, 'writeOffStatus', '核销状态') },
     { title: '使用时间', dataIndex: 'usedAt', width: 180, render: (value) => formatDateTime(value) },
   ];
 
@@ -74,7 +75,7 @@ const ServiceCardFullProfileDrawer: React.FC<Props> = ({ open, loading, profile,
                 <Descriptions.Item label="售价">{formatAmount(card.salePrice)}</Descriptions.Item>
                 <Descriptions.Item label="库存">{card.stock ?? 0}</Descriptions.Item>
                 <Descriptions.Item label="权益次数">{card.rightsServiceTimes ?? 0} 次</Descriptions.Item>
-                <Descriptions.Item label="适用范围">{card.scopeNote || card.scopeMode || '-'}</Descriptions.Item>
+                <Descriptions.Item label="适用范围">{formatScope ? formatScope(card) : card.scopeNote || card.scopeMode || '-'}</Descriptions.Item>
                 <Descriptions.Item label="有效期">{card.validityMode === 'PERMANENT' ? '长期有效' : `${card.validityDays || 0} 天`}</Descriptions.Item>
                 <Descriptions.Item label="发放渠道">{card.issueChannels || '-'}</Descriptions.Item>
                 <Descriptions.Item label="每人限领">{card.issueLimitPerUser || '不限'}</Descriptions.Item>

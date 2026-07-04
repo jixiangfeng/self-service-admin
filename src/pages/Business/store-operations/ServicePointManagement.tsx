@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -19,15 +19,24 @@ import WorkflowGuide from '@/pages/Business/shared';
 import { joinCommaValues, splitCommaValues } from '@/utils/csv';
 import ServicePointProfileManagement from './ServicePointProfileManagement';
 
+const defaultPointInitialValues = {
+  pointType: 'CAR_WASH_BAY',
+  status: 'ENABLED',
+  sortNo: 0,
+  capacity: 1,
+  abilityTags: ['SCAN', 'POINT_SELECT'],
+};
+
 const normalizePointInitialValues = (record: ServicePointRecord) =>
   ({
     storeId: record.storeId,
+    storeName: record.storeName,
     pointCode: record.pointCode,
     pointName: record.pointName,
     pointType: record.pointType,
     locationDesc: record.locationDesc,
     capacity: record.capacity,
-    abilityTags: record.abilityTags,
+    abilityTags: splitCommaValues(record.abilityTags),
     sortNo: record.sortNo,
     status: record.status,
   }) as Record<string, unknown>;
@@ -57,8 +66,19 @@ const ServicePointManagement: React.FC = () => {
   });
 
   const storeOptions = useMemo(() => storeOptionsData || [], [storeOptionsData]);
+  const storeOptionMap = useMemo(() => new Map(storeOptions.map((item) => [item.value, item])), [storeOptions]);
   const pointTypeValueEnum = useMemo(() => buildValueEnum(pointTypeOptions), []);
   const pointStatusValueEnum = useMemo(() => buildValueEnum(pointStatusOptions), []);
+
+  useEffect(() => {
+    if (!modalVisible || !editingRecord || !storeOptions.length) {
+      return;
+    }
+    const currentStoreId = form.getFieldValue('storeId');
+    if (currentStoreId === undefined || currentStoreId === null) {
+      form.setFieldValue('storeId', editingRecord.storeId);
+    }
+  }, [editingRecord, form, modalVisible, storeOptions]);
 
   const closeDrawer = () => {
     setModalVisible(false);
@@ -135,10 +155,7 @@ const ServicePointManagement: React.FC = () => {
               icon={<EditOutlined />}
               onClick={() => {
                 setEditingRecord(record);
-                form.setFieldsValue({
-                  ...normalizePointInitialValues(record),
-                  abilityTags: splitCommaValues(record.abilityTags),
-                });
+                form.setFieldsValue(normalizePointInitialValues(record));
                 setModalVisible(true);
               }}
             >
@@ -167,14 +184,14 @@ const ServicePointManagement: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="点位管理" subtitle="维护点位基础档案。二维码、维护记录和设备绑定在档案维护中处理，运行状态统一在设备管理中维护。" icon={<CarOutlined />} />
+      <PageBanner title="点位管理" subtitle="维护点位基础档案。二维码在档案维护中处理，运行状态统一在设备管理中维护。" icon={<CarOutlined />} />
       <WorkflowGuide
         title="点位建档闭环"
-        summary="主表单只创建点位基础资料；二维码、维护记录和设备绑定进入档案维护，设备运行状态在设备管理中统一处理。"
+        summary="主表单只创建点位基础资料；二维码进入档案维护，设备运行状态在设备管理中统一处理。"
         steps={[
           { title: '定义点位', description: '给门店创建点位编号、名称和类型', status: 'finish', tag: '当前页' },
           { title: '配置能力', description: '标记点位支持扫码、选位或夜间价格等能力', status: 'process', tag: '基础能力' },
-          { title: '维护档案', description: '二维码、维护、绑定和状态记录在档案维护里追踪', status: 'wait', tag: '档案维护' },
+          { title: '维护档案', description: '二维码在档案维护里生成和预览', status: 'wait', tag: '档案维护' },
           { title: '进入交易', description: '到交易中心验证扫码 / 选点位下单体验', status: 'wait', tag: '交易中心' },
         ]}
         actions={[
@@ -185,13 +202,7 @@ const ServicePointManagement: React.FC = () => {
             onClick: () => {
               setEditingRecord(null);
               form.resetFields();
-              form.setFieldsValue({
-                pointType: 'CAR_WASH_BAY',
-                status: 'ENABLED',
-                sortNo: 0,
-                capacity: 1,
-                abilityTags: ['SCAN', 'POINT_SELECT'],
-              });
+              form.setFieldsValue(defaultPointInitialValues);
               setModalVisible(true);
             },
           },
@@ -227,13 +238,7 @@ const ServicePointManagement: React.FC = () => {
             onClick={() => {
               setEditingRecord(null);
               form.resetFields();
-              form.setFieldsValue({
-                pointType: 'CAR_WASH_BAY',
-                status: 'ENABLED',
-                sortNo: 0,
-                capacity: 1,
-                abilityTags: ['SCAN', 'POINT_SELECT'],
-              });
+              form.setFieldsValue(defaultPointInitialValues);
               setModalVisible(true);
             }}
           >
@@ -280,10 +285,11 @@ const ServicePointManagement: React.FC = () => {
           className="merchant-editor-form"
           preserve={false}
           onFinish={(values) => {
-            const payload = {
+            const rawPayload = {
               ...values,
               abilityTags: joinCommaValues(values.abilityTags),
             };
+            const payload = editingRecord ? rawPayload : Object.fromEntries(Object.entries(rawPayload).filter(([key]) => key !== 'pointCode'));
             if (editingRecord) {
               updateMutation.mutate({ id: editingRecord.id, ...payload });
               return;
@@ -295,14 +301,24 @@ const ServicePointManagement: React.FC = () => {
             <BusinessEditorSection
               icon={<CarOutlined />}
               title="点位基础"
-              desc="把点位绑定到具体门店，并明确工位编码、名称、类型和现场位置。二维码、维护和设备绑定在档案维护中补齐。"
+              desc="把点位绑定到具体门店，并明确工位名称、类型和现场位置；点位编号由后台自动生成。二维码在档案维护中补齐。"
             >
               <div className="merchant-editor-fields">
                 <Form.Item name="storeId" label="所属门店" rules={[{ required: true, message: '请选择所属门店' }]}>
-                  <Select showSearch optionFilterProp="label" options={storeOptions as SelectOptionRecord[]} placeholder="请选择门店" />
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    options={storeOptions as SelectOptionRecord[]}
+                    placeholder="请选择门店"
+                    onChange={(value) => {
+                      const store = storeOptionMap.get(value);
+                      form.setFieldValue('storeName', store?.label);
+                    }}
+                  />
                 </Form.Item>
-                <Form.Item name="pointCode" label="点位编号" rules={[{ required: true, message: '请输入点位编号' }]}>
-                  <Input placeholder="例如：BAY-A-01" />
+                <Form.Item name="storeName" hidden><Input /></Form.Item>
+                <Form.Item name="pointCode" label="点位编号">
+                  <Input disabled placeholder={editingRecord ? '点位编号不可编辑' : '系统自动生成，无需运营输入'} />
                 </Form.Item>
                 <Form.Item name="pointName" label="点位名称" rules={[{ required: true, message: '请输入点位名称' }]}>
                   <Input placeholder="例如：A 区 1 号洗车位" />

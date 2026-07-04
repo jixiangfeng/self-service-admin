@@ -12,7 +12,7 @@ import type {
   RechargeOrderRecord,
   ServiceOrderRecord,
 } from '@/services/backendService';
-import { formatAmount, formatDateTime, formatEnumText } from '@/pages/Business/shared';
+import { formatAmount, formatDateTime, formatEnumText, formatOperatorText } from '@/pages/Business/shared';
 
 interface Props {
   open: boolean;
@@ -65,7 +65,7 @@ const UserAssetFullProfileDrawer: React.FC<Props> = ({ open, loading, profile, o
     { title: '服务订单', dataIndex: 'serviceOrderNo', width: 180, render: (value) => value || '-' },
     { title: '门店', dataIndex: 'storeName', width: 180, render: (value) => value || '-' },
     { title: '扣次', dataIndex: 'deductCount', width: 90, render: (_, record) => record.deductCount ?? record.useTimes ?? 0 },
-    { title: '状态', dataIndex: 'status', width: 120, render: (value) => formatEnumText(value, 'status', '状态') },
+    { title: '状态', dataIndex: 'status', width: 120, render: (value) => formatEnumText(value, 'writeOffStatus', '核销状态') },
     { title: '使用时间', dataIndex: 'usedAt', width: 180, render: (value) => formatDateTime(value) },
   ];
 
@@ -97,7 +97,7 @@ const UserAssetFullProfileDrawer: React.FC<Props> = ({ open, loading, profile, o
     { title: '变动金额', dataIndex: 'changeAmount', width: 120, render: (value) => formatAmount(value) },
     { title: '变动后余额', dataIndex: 'balanceAfter', width: 130, render: (value) => formatAmount(value) },
     { title: '关联单号', dataIndex: 'relatedNo', width: 180, render: (value) => value || '-' },
-    { title: '操作人', dataIndex: 'operator', width: 120, render: (value) => value || '-' },
+    { title: '操作人', dataIndex: 'operator', width: 120, render: (value) => formatOperatorText(value) },
     { title: '创建时间', dataIndex: 'createdAt', width: 180, render: (value) => formatDateTime(value) },
   ];
 

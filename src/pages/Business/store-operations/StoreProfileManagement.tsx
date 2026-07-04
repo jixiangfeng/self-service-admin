@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
-import { DeleteOutlined, EditOutlined, FieldTimeOutlined, HomeOutlined, NotificationOutlined, PlusOutlined, ToolOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, HomeOutlined, NotificationOutlined, PlusOutlined, ToolOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
@@ -15,47 +15,14 @@ import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
 import type {
-  StoreBusinessHoursRecord,
   StoreImageRecord,
   StoreServiceCapabilityRecord,
-  StoreTempCloseRecord,
 } from '@/services/backendService';
 import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, safeJsonParse, formatEnumText } from '@/pages/Business/shared';
-import { DateTimeField, TimeField, fromDatePickerValue, fromDateTimePickerValue, fromTimePickerValue, toDatePickerValue, toDateTimePickerValue, toTimePickerValue } from '@/utils/formControls';
 
-type StoreProfileTab = 'image' | 'business' | 'tempClose' | 'capability';
-type EditableRecord = StoreImageRecord | StoreBusinessHoursRecord | StoreTempCloseRecord | StoreServiceCapabilityRecord;
+type StoreProfileTab = 'image' | 'capability';
+type EditableRecord = StoreImageRecord | StoreServiceCapabilityRecord;
 type StoreProfileSearchValues = { keyword?: string; storeId?: number };
-
-
-const normalizePickerValues = (values: Record<string, any>) => {
-  const next = { ...values };
-  Object.entries(next).forEach(([key, value]) => {
-    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
-      next[key] = fromTimePickerValue(value) || value;
-    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
-      next[key] = fromDatePickerValue(value) || value;
-    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
-      next[key] = fromDateTimePickerValue(value) || value;
-    }
-  });
-  return next;
-};
-
-const normalizePickerInitialValues = (record: Record<string, any>) => {
-  const next = { ...record };
-  Object.entries(next).forEach(([key, value]) => {
-    if (!value) return;
-    if (['timeStart', 'timeEnd', 'openTime', 'closeTime'].includes(key)) {
-      next[key] = toTimePickerValue(value) || value;
-    } else if (key.toLowerCase().includes('date') && !key.toLowerCase().includes('datetime')) {
-      next[key] = toDatePickerValue(value) || value;
-    } else if (key.endsWith('At') || key.endsWith('Time') || key === 'deadline' || key === 'effectiveStart' || key === 'effectiveEnd') {
-      next[key] = toDateTimePickerValue(value) || value;
-    }
-  });
-  return next;
-};
 const storeProfilePublishStatusOptions = [
   { value: 'PUBLISHED', label: '已发布' },
   { value: 'DISABLED', label: '已禁用' },
@@ -66,32 +33,21 @@ const storeImageTypeOptions = [
   { value: 'EQUIPMENT', label: '设备图' },
   { value: 'OTHER', label: '其他' },
 ];
-const tempCloseStatusOptions = [
-  { value: 'PENDING', label: '待开始' },
-  { value: 'PROCESSING', label: '进行中' },
-  { value: 'ENDED', label: '已结束' },
-  { value: 'CANCELLED', label: '已取消' },
-];
 const storeProfilePublishStatusMap = buildValueEnum(storeProfilePublishStatusOptions);
-const tempCloseStatusMap = buildValueEnum(tempCloseStatusOptions);
 
 const storeProfileModalTitleMap: Record<StoreProfileTab, string> = {
   image: '门店图片',
-  business: '营业时间',
-  tempClose: '临停记录',
   capability: '服务能力',
 };
 
 const storeProfileModalDescMap: Record<StoreProfileTab, string> = {
   image: '维护门店封面、环境图和展示排序，保证小程序门店页有可用素材。',
-  business: '配置门店每周营业时段和开放状态，支撑下单可用性判断。',
-  tempClose: '记录临时停业原因、起止时间和操作人，保证前端展示与运营动作一致。',
   capability: '配置门店可用能力和扩展参数，承接服务、活动和履约范围。',
 };
 
 const capabilityLimitOptions = [
   { value: 'ALL_DAY', label: '全天开放' },
-  { value: 'BUSINESS_HOURS', label: '营业时间内开放' },
+  { value: 'BUSINESS_HOURS', label: '营业中开放' },
   { value: 'APPOINTMENT_ONLY', label: '仅预约可用' },
 ];
 
@@ -121,21 +77,6 @@ const storeProfileDetailFields: Record<StoreProfileTab, DetailField<any>[]> = {
     { name: 'status', label: '状态' },
     { name: 'createdAt', label: '创建时间' },
     { name: 'updatedAt', label: '更新时间' },
-  ],
-  business: [
-    { name: 'storeName', label: '门店' },
-    { name: 'weekday', label: '星期' },
-    { name: 'openTime', label: '开门时间' },
-    { name: 'closeTime', label: '闭店时间' },
-    { name: 'status', label: '状态' },
-  ],
-  tempClose: [
-    { name: 'storeName', label: '门店' },
-    { name: 'closeReason', label: '临停原因' },
-    { name: 'startAt', label: '开始时间' },
-    { name: 'endAt', label: '结束时间' },
-    { name: 'operator', label: '操作人' },
-    { name: 'status', label: '状态' },
   ],
   capability: [
     { name: 'storeName', label: '门店' },
@@ -167,28 +108,20 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
 
   const storeProfileQueryParams = { current: 1, size: 200, storeId };
   const imageQuery = useQuery({ queryKey: ['storeImages', storeId], queryFn: async () => (await api.storeImage.page(storeProfileQueryParams)).data });
-  const businessQuery = useQuery({ queryKey: ['storeBusinessHours', storeId], queryFn: async () => (await api.storeBusinessHours.page(storeProfileQueryParams)).data });
-  const tempCloseQuery = useQuery({ queryKey: ['storeTempCloseRecords', storeId], queryFn: async () => (await api.storeTempCloseRecord.page(storeProfileQueryParams)).data });
   const capabilityQuery = useQuery({ queryKey: ['storeServiceCapabilities', storeId], queryFn: async () => (await api.storeServiceCapability.page(storeProfileQueryParams)).data });
 
   const images = withStoreName(imageQuery.data?.records);
-  const businessHours = withStoreName(businessQuery.data?.records);
-  const tempCloses = withStoreName(tempCloseQuery.data?.records);
   const capabilities = withStoreName(capabilityQuery.data?.records)
     .map((record) => ({ ...record, ...parseCapabilityConfig(record.configJson) }));
 
   const invalidateTab = (tab: StoreProfileTab) => {
     if (tab === 'image') queryClient.invalidateQueries({ queryKey: ['storeImages'] });
-    if (tab === 'business') queryClient.invalidateQueries({ queryKey: ['storeBusinessHours'] });
-    if (tab === 'tempClose') queryClient.invalidateQueries({ queryKey: ['storeTempCloseRecords'] });
     if (tab === 'capability') queryClient.invalidateQueries({ queryKey: ['storeServiceCapabilities'] });
   };
 
   const saveMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) => {
       if (activeTab === 'image') return payload.id ? api.storeImage.edit(payload) : api.storeImage.add(payload);
-      if (activeTab === 'business') return payload.id ? api.storeBusinessHours.edit(payload) : api.storeBusinessHours.add(payload);
-      if (activeTab === 'tempClose') return payload.id ? api.storeTempCloseRecord.edit(payload) : api.storeTempCloseRecord.add(payload);
       return payload.id ? api.storeServiceCapability.edit(payload) : api.storeServiceCapability.add(payload);
     },
     onSuccess: () => {
@@ -203,8 +136,6 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
   const removeMutation = useMutation({
     mutationFn: async ({ tab, id }: { tab: StoreProfileTab; id: number }) => {
       if (tab === 'image') return api.storeImage.remove(id);
-      if (tab === 'business') return api.storeBusinessHours.remove(id);
-      if (tab === 'tempClose') return api.storeTempCloseRecord.remove(id);
       return api.storeServiceCapability.remove(id);
     },
     onSuccess: (_, variables) => {
@@ -229,17 +160,12 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
     setEditingRecord(record || null);
     form.resetFields();
     if (record) {
-      const recordValues = normalizePickerInitialValues(record as unknown as Record<string, any>);
       form.setFieldsValue({
-        ...recordValues,
-        ...(tab === 'capability' ? parseCapabilityConfig(String((recordValues as any).configJson || '')) : {}),
+        ...record,
+        ...(tab === 'capability' ? parseCapabilityConfig(String((record as StoreServiceCapabilityRecord).configJson || '')) : {}),
       });
     } else if (tab === 'image') {
       form.setFieldsValue({ storeId, imageType: 'COVER', sortNo: 0, status: 'PUBLISHED' });
-    } else if (tab === 'business') {
-      form.setFieldsValue({ storeId, weekday: '周一至周日', status: 'PUBLISHED' });
-    } else if (tab === 'tempClose') {
-      form.setFieldsValue({ storeId, status: 'PROCESSING' });
     } else if (tab === 'capability') {
       form.setFieldsValue({ storeId, capabilityCode: 'SCAN', status: 'PUBLISHED' });
     }
@@ -273,23 +199,6 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
     actionColumn('image') as ProColumns<StoreImageRecord>,
   ];
-  const businessColumns: ProColumns<StoreBusinessHoursRecord>[] = [
-    { title: '门店', dataIndex: 'storeName', width: 180 },
-    { title: '星期', dataIndex: 'weekday', width: 140 },
-    { title: '开门时间', dataIndex: 'openTime', width: 120 },
-    { title: '闭店时间', dataIndex: 'closeTime', width: 120 },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, storeProfilePublishStatusMap) },
-    actionColumn('business') as ProColumns<StoreBusinessHoursRecord>,
-  ];
-  const tempCloseColumns: ProColumns<StoreTempCloseRecord>[] = [
-    { title: '门店', dataIndex: 'storeName', width: 180 },
-    { title: '临停原因', dataIndex: 'closeReason', width: 180 },
-    { title: '开始时间', dataIndex: 'startAt', width: 180, render: (_, record) => formatDateTime(record.startAt) },
-    { title: '结束时间', dataIndex: 'endAt', width: 180, render: (_, record) => formatDateTime(record.endAt) },
-    { title: '操作人', dataIndex: 'operator', width: 130 },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, tempCloseStatusMap) },
-    actionColumn('tempClose') as ProColumns<StoreTempCloseRecord>,
-  ];
   const capabilityColumns: ProColumns<StoreServiceCapabilityRecord>[] = [
     { title: '门店', dataIndex: 'storeName', width: 180 },
     { title: '能力', dataIndex: 'capabilityCode', width: 160, render: (value) => formatEnumText(value, 'capabilityCode', '能力') },
@@ -302,13 +211,11 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
   ];
   return (
     <div style={{ padding: embedded ? 0 : 24 }}>
-      {!embedded ? <PageBanner title="门店档案中心" subtitle="维护门店图片、营业时间和临停记录。" icon={<HomeOutlined />} /> : null}
+      {!embedded ? <PageBanner title="门店档案中心" subtitle="维护门店图片和服务能力。" icon={<HomeOutlined />} /> : null}
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="门店图片" value={images.length} suffix="张" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="营业时间" value={businessHours.length} suffix="条" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="临停中" value={tempCloses.filter((item) => item.status === 'PROCESSING').length} suffix="家" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="服务能力" value={capabilities.length} suffix="项" /></Card></Col>
+        <Col xs={24} sm={12} xl={12}><Card><Statistic title="门店图片" value={images.length} suffix="张" /></Card></Col>
+        <Col xs={24} sm={12} xl={12}><Card><Statistic title="服务能力" value={capabilities.length} suffix="项" /></Card></Col>
       </Row>
 
       <Form
@@ -324,7 +231,7 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
           <Select allowClear showSearch optionFilterProp="label" options={storeOptions || []} placeholder="全部门店" style={{ width: 240 }} />
         </Form.Item>
         <Form.Item name="keyword" label="关键词">
-          <Input allowClear placeholder="输入门店、图片、营业时间、能力关键词" style={{ width: 360 }} />
+          <Input allowClear placeholder="输入门店、图片、能力关键词" style={{ width: 360 }} />
         </Form.Item>
         <Form.Item>
           <Button type="primary" htmlType="submit">查询</Button>
@@ -339,8 +246,6 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
         onChange={(key) => setActiveTab(key as StoreProfileTab)}
         items={[
           { key: 'image', label: '门店图片', children: <ProTable<StoreImageRecord> cardBordered rowKey="id" columns={imageColumns} dataSource={filter(images)} loading={imageQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1320 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('image')}>新增图片</Button>]} /> },
-          { key: 'business', label: '营业时间', children: <ProTable<StoreBusinessHoursRecord> cardBordered rowKey="id" columns={businessColumns} dataSource={filter(businessHours)} loading={businessQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 980 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('business')}>配置时间</Button>]} /> },
-          { key: 'tempClose', label: '临停记录', children: <ProTable<StoreTempCloseRecord> cardBordered rowKey="id" columns={tempCloseColumns} dataSource={filter(tempCloses)} loading={tempCloseQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1260 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('tempClose')}>新增临停</Button>]} /> },
           { key: 'capability', label: '服务能力', children: <ProTable<StoreServiceCapabilityRecord> cardBordered rowKey="id" columns={capabilityColumns} dataSource={filter(capabilities)} loading={capabilityQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1440 }} toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal('capability')}>新增能力</Button>]} /> },
         ]}
       />
@@ -361,8 +266,8 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
           form.resetFields();
         }}
         onOk={async () => {
-          const values = normalizePickerValues(await form.validateFields());
-      saveMutation.mutate(activeTab === 'capability' ? { ...values, configJson: buildCapabilityConfig(values as Record<string, any>) } : values);
+          const values = await form.validateFields();
+          saveMutation.mutate(activeTab === 'capability' ? { ...values, configJson: buildCapabilityConfig(values as Record<string, any>) } : values);
         }}
         confirmLoading={saveMutation.isPending}
         width={980}
@@ -374,14 +279,13 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
             <BusinessEditorSection
               icon={<HomeOutlined />}
               title="归属门店"
-              desc="所有档案都必须挂到具体门店，保证展示、营业、临停和服务能力能回到同一个经营主体。"
+              desc="所有档案都必须挂到具体门店，保证展示和服务能力能回到同一个经营主体。"
             >
               <div className="merchant-editor-fields merchant-editor-fields--two">
                 <Form.Item name="storeId" label="所属门店" rules={[{ required: true, message: '请选择门店' }]}>
                   <Select showSearch optionFilterProp="label" options={storeOptions || []} placeholder="请选择门店" />
                 </Form.Item>
                 {activeTab === 'image' ? <Form.Item name="imageType" label="图片类型" rules={[{ required: true, message: '请选择图片类型' }]}><Select options={storeImageTypeOptions} placeholder="请选择图片类型" /></Form.Item> : null}
-                {activeTab === 'business' ? <Form.Item name="weekday" label="星期" rules={[{ required: true, message: '请输入星期' }]}><Input placeholder="例如：周一至周日" /></Form.Item> : null}
                 {activeTab === 'capability' ? <Form.Item name="capabilityCode" label="能力" rules={[{ required: true, message: '请选择能力' }]}><Select options={storeServiceCapabilityOptions} placeholder="请选择服务能力" /></Form.Item> : null}
               </div>
             </BusinessEditorSection>
@@ -392,28 +296,6 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
                   <Form.Item className="merchant-editor-field-span-all" name="imageUrl" label="图片" rules={[{ required: true, message: '请上传图片' }]}><OssImageUpload prefix="store/images" placeholder="上传图片" /></Form.Item>
                   <Form.Item name="sortNo" label="排序"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="数字越小越靠前" /></Form.Item>
                   <Form.Item name="status" label="状态"><Select options={storeProfilePublishStatusOptions} placeholder="请选择状态" /></Form.Item>
-                </div>
-              </BusinessEditorSection>
-            ) : null}
-
-            {activeTab === 'business' ? (
-              <BusinessEditorSection icon={<FieldTimeOutlined />} title="营业时段" desc="配置开门、闭店时间和状态，影响门店是否可下单。">
-                <div className="merchant-editor-fields">
-                  <Form.Item name="openTime" label="开门时间" rules={[{ required: true, message: '请选择开门时间' }]}><TimeField /></Form.Item>
-                  <Form.Item name="closeTime" label="闭店时间" rules={[{ required: true, message: '请选择闭店时间' }]}><TimeField /></Form.Item>
-                  <Form.Item name="status" label="状态"><Select options={storeProfilePublishStatusOptions} placeholder="请选择状态" /></Form.Item>
-                </div>
-              </BusinessEditorSection>
-            ) : null}
-
-            {activeTab === 'tempClose' ? (
-              <BusinessEditorSection icon={<FieldTimeOutlined />} title="临停安排" desc="记录临时停业原因、起止时间、操作人和状态，确保用户端和运营端同步。">
-                <div className="merchant-editor-fields">
-                  <Form.Item className="merchant-editor-field-span-all" name="closeReason" label="临停原因" rules={[{ required: true, message: '请输入临停原因' }]}><Input placeholder="例如：设备检修 / 场地施工 / 电力维护" /></Form.Item>
-                  <Form.Item name="startAt" label="开始时间"><DateTimeField /></Form.Item>
-                  <Form.Item name="endAt" label="结束时间"><DateTimeField /></Form.Item>
-                  <Form.Item name="operator" label="操作人"><Input placeholder="记录发起人或审批人" /></Form.Item>
-                  <Form.Item name="status" label="状态"><Select options={tempCloseStatusOptions} placeholder="请选择状态" /></Form.Item>
                 </div>
               </BusinessEditorSection>
             ) : null}

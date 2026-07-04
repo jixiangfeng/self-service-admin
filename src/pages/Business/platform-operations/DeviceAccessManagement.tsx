@@ -262,7 +262,7 @@ const DeviceAccessManagement: React.FC = () => {
             {modalKind === 'protocol' ? (
               <BusinessEditorSection icon={<ApiOutlined />} title="协议基础" desc="维护设备协议编码、类型、鉴权和回调要求。">
                 <div className="merchant-editor-fields">
-                  <Form.Item name="protocolCode" label="协议编码" rules={[{ required: true, message: '请输入协议编码' }]}><Input placeholder="例如：HTTP-WASH-V1" /></Form.Item>
+                  <Form.Item name="protocolCode" label="协议编码"><Input readOnly placeholder="保存后由系统自动生成" /></Form.Item>
                   <Form.Item name="protocolName" label="协议名称" rules={[{ required: true, message: '请输入协议名称' }]}><Input placeholder="例如：HTTP 洗车机协议" /></Form.Item>
                   <Form.Item name="protocolType" label="协议类型" rules={[{ required: true, message: '请选择协议类型' }]}><Select options={protocolTypeOptions} /></Form.Item>
                   <Form.Item name="version" label="版本"><Input placeholder="V1.0" /></Form.Item>
@@ -279,7 +279,7 @@ const DeviceAccessManagement: React.FC = () => {
             {modalKind === 'vendor' ? (
               <BusinessEditorSection icon={<PartitionOutlined />} title="厂商基础" desc="维护厂商联系人、接口地址和启停状态。">
                 <div className="merchant-editor-fields">
-                  <Form.Item name="vendorCode" label="厂商编码" rules={[{ required: true, message: '请输入厂商编码' }]}><Input placeholder="VENDOR-WASH-001" /></Form.Item>
+                  <Form.Item name="vendorCode" label="厂商编码"><Input readOnly placeholder="保存后由系统自动生成" /></Form.Item>
                   <Form.Item name="vendorName" label="厂商名称" rules={[{ required: true, message: '请输入厂商名称' }]}><Input placeholder="鲸洗设备厂商" /></Form.Item>
                   <Form.Item name="contactName" label="联系人"><Input placeholder="技术联系人" /></Form.Item>
                   <Form.Item name="contactPhone" label="联系电话"><Input placeholder="手机号" /></Form.Item>
@@ -292,7 +292,7 @@ const DeviceAccessManagement: React.FC = () => {
             {modalKind === 'model' ? (
               <BusinessEditorSection icon={<CodeOutlined />} title="型号基础" desc="维护设备型号、类型和适配协议。">
                 <div className="merchant-editor-fields">
-                  <Form.Item name="modelCode" label="型号编码" rules={[{ required: true, message: '请输入型号编码' }]}><Input placeholder="MODEL-WASH-A1" /></Form.Item>
+                  <Form.Item name="modelCode" label="型号编码"><Input readOnly placeholder="保存后由系统自动生成" /></Form.Item>
                   <Form.Item name="modelName" label="型号名称" rules={[{ required: true, message: '请输入型号名称' }]}><Input placeholder="A1 标准洗车机" /></Form.Item>
                   <Form.Item name="deviceType" label="设备类型"><Select options={deviceTypeOptions} /></Form.Item>
                   <Form.Item name="protocolCode" label="协议编码"><Input placeholder="HTTP-WASH-V1" /></Form.Item>
@@ -304,7 +304,7 @@ const DeviceAccessManagement: React.FC = () => {
             {modalKind === 'command' ? (
               <BusinessEditorSection icon={<ThunderboltOutlined />} title="指令模板" desc="维护启动、停止、查询、复位等设备指令模板。">
                 <div className="merchant-editor-fields">
-                  <Form.Item name="templateCode" label="模板编码" rules={[{ required: true, message: '请输入模板编码' }]}><Input placeholder="TPL-START-WASH" /></Form.Item>
+                  <Form.Item name="templateCode" label="模板编码"><Input readOnly placeholder="保存后由系统自动生成" /></Form.Item>
                   <Form.Item name="templateName" label="模板名称" rules={[{ required: true, message: '请输入模板名称' }]}><Input placeholder="启动洗车模板" /></Form.Item>
                   <Form.Item name="protocolCode" label="协议编码"><Input placeholder="HTTP-WASH-V1" /></Form.Item>
                   <Form.Item name="deviceType" label="适用设备类型"><Select options={deviceTypeOptions} /></Form.Item>
@@ -318,7 +318,7 @@ const DeviceAccessManagement: React.FC = () => {
             {modalKind === 'status' ? (
               <BusinessEditorSection icon={<CodeOutlined />} title="状态码映射" desc="维护厂商状态码到平台状态码的映射，避免页面直接显示 code。">
                 <div className="merchant-editor-fields">
-                  <Form.Item name="mappingCode" label="映射编码" rules={[{ required: true, message: '请输入映射编码' }]}><Input placeholder="MAP-WASH-ONLINE" /></Form.Item>
+                  <Form.Item name="mappingCode" label="映射编码"><Input readOnly placeholder="保存后由系统自动生成" /></Form.Item>
                   <Form.Item name="protocolCode" label="协议编码"><Input placeholder="HTTP-WASH-V1" /></Form.Item>
                   <Form.Item name="statusGroup" label="状态分组" rules={[{ required: true, message: '请输入状态分组' }]}><Input placeholder="DEVICE_STATUS" /></Form.Item>
                   <Form.Item name="vendorStatusCode" label="厂商状态码" rules={[{ required: true, message: '请输入厂商状态码' }]}><Input placeholder="0" /></Form.Item>
@@ -333,7 +333,7 @@ const DeviceAccessManagement: React.FC = () => {
             {modalKind === 'callback' ? (
               <BusinessEditorSection icon={<CloudSyncOutlined />} title="回调配置" desc="维护设备厂商回调地址、验签字段、解析规则和白名单。">
                 <div className="merchant-editor-fields">
-                  <Form.Item name="callbackCode" label="回调编码" rules={[{ required: true, message: '请输入回调编码' }]}><Input placeholder="CALLBACK-WASH-001" /></Form.Item>
+                  <Form.Item name="callbackCode" label="回调编码"><Input readOnly placeholder="保存后由系统自动生成" /></Form.Item>
                   <Form.Item name="callbackName" label="回调名称" rules={[{ required: true, message: '请输入回调名称' }]}><Input placeholder="鲸洗设备回调" /></Form.Item>
                   <Form.Item name="protocolCode" label="协议编码"><Input placeholder="HTTP-WASH-V1" /></Form.Item>
                   <Form.Item name="vendorCode" label="厂商编码"><Input placeholder="VENDOR-WASH-001" /></Form.Item>
