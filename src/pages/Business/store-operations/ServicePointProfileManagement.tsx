@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, Row, Select, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Col, Form, Input, QRCode, Row, Select, Space, Statistic, Tabs, Typography, message } from 'antd';
 import { DeleteOutlined, EditOutlined, LinkOutlined, PlusOutlined, QrcodeOutlined, ToolOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -16,6 +16,8 @@ import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
 import type {
   PointDeviceBindLogRecord,
+  SelectOptionRecord,
+  ServicePointRecord,
   ServicePointMaintainRecord,
   ServicePointQrRecord,
 } from '@/services/backendService';
@@ -42,6 +44,13 @@ const normalizePickerValues = (values: Record<string, any>) => {
       next[key] = fromDateTimePickerValue(value) || value;
     }
   });
+  return next;
+};
+
+const normalizePointProfileValues = (values: Record<string, any>) => {
+  const next = normalizePickerValues(values);
+  delete next.storeId;
+  delete next.storeName;
   return next;
 };
 
@@ -120,8 +129,33 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
   const [editingRecord, setEditingRecord] = useState<EditableRecord | null>(null);
   const [form] = Form.useForm<Record<string, unknown>>();
   const [searchForm] = Form.useForm<PointProfileSearchValues>();
+  const selectedStoreId = Form.useWatch('storeId', form) as number | undefined;
+  const watchedQrCode = Form.useWatch('qrCode', form) as string | undefined;
 
-  const { data: pointOptions } = useQuery({ queryKey: ['pointOptionsForProfiles'], queryFn: async () => (await api.servicePoint.options()).data });
+  const { data: storeOptionsData } = useQuery({
+    queryKey: ['pointProfileStoreOptions'],
+    queryFn: async () => (await api.store.options()).data,
+  });
+  const { data: allPointOptionsData } = useQuery({
+    queryKey: ['pointOptionsForProfiles'],
+    queryFn: async () => (await api.servicePoint.options()).data,
+  });
+  const { data: allPointPageData } = useQuery({
+    queryKey: ['pointRecordsForProfiles'],
+    queryFn: async () => (await api.servicePoint.page({ current: 1, size: 1000 })).data,
+  });
+  const pointOptionsQuery = useQuery({
+    queryKey: ['pointProfilePointOptions', selectedStoreId],
+    queryFn: async () => (await api.servicePoint.options(selectedStoreId)).data,
+    enabled: selectedStoreId !== undefined && selectedStoreId !== null,
+  });
+
+  const storeOptions = storeOptionsData || [];
+  const pointOptions = allPointOptionsData || [];
+  const modalPointOptions = pointOptionsQuery.data || [];
+  const pointRecords = allPointPageData?.records || [];
+  const storeOptionMap = useMemo(() => new Map(storeOptions.map((item) => [item.value, item])), [storeOptions]);
+  const pointRecordMap = useMemo(() => new Map(pointRecords.map((item: ServicePointRecord) => [item.id, item])), [pointRecords]);
 
   const pointProfileQueryParams = { current: 1, size: 200, servicePointId };
   const qrQuery = useQuery({ queryKey: ['servicePointQrRecords', servicePointId], queryFn: async () => (await api.servicePointQrRecord.page(pointProfileQueryParams)).data });
@@ -168,12 +202,13 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
   const filter = <T extends object>(items: T[]) =>
     items.filter((item) => containsKeyword(keyword, Object.values(item).map((value) => String(value ?? ''))));
 
-  const selectedPoint = (id?: number) => pointOptions?.find((item) => item.value === id);
+  const selectedPoint = (id?: number) =>
+    modalPointOptions.find((item) => item.value === id) || pointOptions.find((item) => item.value === id);
 
   const fillPointFields = (id?: number) => {
     const point = selectedPoint(id);
-    if (!point?.code) return;
-    form.setFieldsValue({ pointCode: point.code });
+    if (!point) return;
+    form.setFieldsValue({ pointCode: point.code || point.label });
   };
 
   const generateQrContent = () => {
@@ -184,6 +219,16 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
       return;
     }
     form.setFieldsValue({ pointCode, qrCode: buildPointQrLink(pointCode) });
+  };
+
+  const copyQrContent = async () => {
+    const qrCode = String(form.getFieldValue('qrCode') || '').trim();
+    if (!qrCode) {
+      message.warning('请先生成二维码内容');
+      return;
+    }
+    await navigator.clipboard.writeText(qrCode);
+    message.success('二维码链接已复制');
   };
 
   const confirmRemove = (tab: PointProfileTab, id: number) => {
@@ -199,13 +244,18 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
     setEditingRecord(record || null);
     form.resetFields();
     if (record) {
-      form.setFieldsValue(normalizePickerInitialValues(record as unknown as Record<string, any>));
+      const initialValues = normalizePickerInitialValues(record as unknown as Record<string, any>);
+      const point = pointRecordMap.get((record as { servicePointId?: number }).servicePointId || 0);
+      form.setFieldsValue({ ...initialValues, storeId: point?.storeId });
     } else if (tab === 'qr') {
-      form.setFieldsValue({ servicePointId, status: 'APPROVED' });
+      const point = pointRecordMap.get(servicePointId || 0);
+      form.setFieldsValue({ servicePointId, storeId: point?.storeId, status: 'APPROVED' });
     } else if (tab === 'maintain') {
-      form.setFieldsValue({ servicePointId, status: 'PENDING' });
+      const point = pointRecordMap.get(servicePointId || 0);
+      form.setFieldsValue({ servicePointId, storeId: point?.storeId, status: 'PENDING' });
     } else if (tab === 'bind') {
-      form.setFieldsValue({ servicePointId, pointType: 'CAR_WASH_BAY' });
+      const point = pointRecordMap.get(servicePointId || 0);
+      form.setFieldsValue({ servicePointId, storeId: point?.storeId, pointType: 'CAR_WASH_BAY' });
     }
     setModalVisible(true);
   };
@@ -230,7 +280,13 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
 
   const qrColumns = useMemo<ProColumns<ServicePointQrRecord>[]>(() => [
     { title: '点位编号', dataIndex: 'pointCode', width: 140 },
-    { title: '二维码', dataIndex: 'qrCode', width: 280 },
+    {
+      title: '二维码链接',
+      dataIndex: 'qrCode',
+      width: 320,
+      ellipsis: true,
+      render: (_, record) => record.qrCode ? <Typography.Text copyable={{ text: record.qrCode }} ellipsis>{record.qrCode}</Typography.Text> : '-',
+    },
     { title: '版本', dataIndex: 'qrVersion', width: 130 },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, auditStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
@@ -316,7 +372,7 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
           setEditingRecord(null);
           form.resetFields();
         }}
-        onOk={async () => saveMutation.mutate(normalizePickerValues(await form.validateFields()))}
+        onOk={async () => saveMutation.mutate(normalizePointProfileValues(await form.validateFields()))}
         confirmLoading={saveMutation.isPending}
         width={980}
         okText={editingRecord ? '保存变更' : '保存档案'}
@@ -330,9 +386,30 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
               desc="所有二维码、维护和绑定记录都需要落到具体点位，便于现场追踪和扫码履约。"
             >
               <div className="merchant-editor-fields merchant-editor-fields--two">
-                <Form.Item name="servicePointId" label="所属点位" rules={[{ required: true, message: '请选择点位' }]}>
-                  <Select showSearch optionFilterProp="label" options={pointOptions || []} placeholder="请选择点位" onChange={(value) => fillPointFields(value)} />
+                <Form.Item name="storeId" label="所属门店" rules={[{ required: true, message: '请选择门店' }]}>
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    options={storeOptions as SelectOptionRecord[]}
+                    placeholder="请选择门店"
+                    onChange={(value) => {
+                      const store = storeOptionMap.get(value);
+                      form.setFieldsValue({ storeName: store?.label, servicePointId: undefined, pointCode: undefined });
+                    }}
+                  />
                 </Form.Item>
+                <Form.Item name="servicePointId" label="所属点位" rules={[{ required: true, message: '请选择点位' }]}>
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    disabled={!selectedStoreId}
+                    loading={pointOptionsQuery.isLoading}
+                    options={modalPointOptions as SelectOptionRecord[]}
+                    placeholder={selectedStoreId ? '请选择点位' : '请先选择门店'}
+                    onChange={(value) => fillPointFields(value)}
+                  />
+                </Form.Item>
+                <Form.Item name="storeName" hidden><Input /></Form.Item>
                 <Form.Item name="pointCode" label="点位编号"><Input placeholder="选择点位后可回填或手动记录" /></Form.Item>
               </div>
             </BusinessEditorSection>
@@ -343,6 +420,18 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
                   <Form.Item className="merchant-editor-field-span-all" name="qrCode" label="二维码" rules={[{ required: true, message: '请输入二维码' }]}>
                     <Input.Search enterButton="生成二维码内容" onSearch={generateQrContent} placeholder="二维码内容或资源地址" />
                   </Form.Item>
+                  <div className="merchant-editor-field-span-all" style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <QRCode value={watchedQrCode || '-'} status={watchedQrCode ? 'active' : 'loading'} size={160} />
+                    <Space direction="vertical" size={8} style={{ minWidth: 260, flex: 1 }}>
+                      <Typography.Text type="secondary">扫码内容</Typography.Text>
+                      <Typography.Text copyable={watchedQrCode ? { text: watchedQrCode } : false} ellipsis>{watchedQrCode || '选择门店和点位后生成二维码链接'}</Typography.Text>
+                      <Space wrap>
+                        <Button onClick={generateQrContent}>生成链接</Button>
+                        <Button onClick={copyQrContent}>复制链接</Button>
+                        <Button disabled={!watchedQrCode} href={watchedQrCode} target="_blank">打开链接</Button>
+                      </Space>
+                    </Space>
+                  </div>
                   <Form.Item name="qrVersion" label="版本"><Input placeholder="例如：v1.0" /></Form.Item>
                   <Form.Item name="status" label="状态"><Select options={auditStatusOptions} placeholder="请选择状态" /></Form.Item>
                 </div>
