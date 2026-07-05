@@ -432,9 +432,11 @@ const MerchantGroupManagement: React.FC = () => {
               desc="定义门店组编码、名称、归属商户和当前状态，支撑后续成员维护和业务引用。"
             >
               <div className="merchant-editor-fields">
-                <Form.Item name="groupCode" label="门店组编码">
-                  <Input readOnly placeholder="保存后由系统自动生成" />
-                </Form.Item>
+                {editingRecord ? (
+                  <Form.Item name="groupCode" label="门店组编码">
+                    <Input readOnly placeholder="门店组编码不可编辑" />
+                  </Form.Item>
+                ) : null}
                 <Form.Item name="groupName" label="门店组名称" rules={[{ required: true, message: '请输入门店组名称' }]}>
                   <Input placeholder="例如：西安直营储值通用组" />
                 </Form.Item>

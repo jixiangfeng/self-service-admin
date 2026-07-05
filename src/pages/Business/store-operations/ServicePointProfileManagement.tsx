@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Col, Form, Input, Modal, QRCode, Row, Select, Space, Statistic, Typography, message } from 'antd';
 import { DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined, QrcodeOutlined } from '@ant-design/icons';
@@ -24,7 +24,7 @@ const QR_LINK_BASE = `${window.location.origin}/h5/`;
 const buildPointQrLink = (pointCode: string) => `${QR_LINK_BASE}?qrCode=${encodeURIComponent(pointCode)}`;
 const auditStatusMap = buildValueEnum(auditStatusOptions);
 
-const detailFields: DetailField<any>[] = [
+const detailFields: DetailField<ServicePointQrRecord>[] = [
   { name: 'pointCode', label: '点位编号' },
   { name: 'qrCode', label: '二维码' },
   { name: 'qrVersion', label: '版本' },
@@ -71,10 +71,10 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
     enabled: selectedStoreId !== undefined && selectedStoreId !== null,
   });
 
-  const storeOptions = storeOptionsData || [];
+  const storeOptions = useMemo(() => storeOptionsData || [], [storeOptionsData]);
   const pointOptions = allPointOptionsData || [];
   const modalPointOptions = pointOptionsQuery.data || [];
-  const pointRecords = allPointPageData?.records || [];
+  const pointRecords = useMemo(() => allPointPageData?.records || [], [allPointPageData?.records]);
   const storeOptionMap = useMemo(() => new Map(storeOptions.map((item) => [item.value, item])), [storeOptions]);
   const pointRecordMap = useMemo(() => new Map(pointRecords.map((item: ServicePointRecord) => [item.id, item])), [pointRecords]);
 
@@ -82,7 +82,16 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
     queryKey: ['servicePointQrRecords', servicePointId],
     queryFn: async () => (await api.servicePointQrRecord.page({ current: 1, size: 200, servicePointId })).data,
   });
-  const qrRecords = qrQuery.data?.records || [];
+  const qrRecords = useMemo(() => qrQuery.data?.records || [], [qrQuery.data?.records]);
+  const qrRecordsWithStore = useMemo(() => qrRecords.map((record) => {
+    const point = pointRecordMap.get(record.servicePointId || 0);
+    return {
+      ...record,
+      storeName: record.storeName || point?.storeName,
+      pointName: record.pointName || point?.pointName,
+      pointCode: record.pointCode || point?.pointCode,
+    };
+  }), [pointRecordMap, qrRecords]);
 
   const saveMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
@@ -136,15 +145,15 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
     message.success('二维码链接已复制');
   };
 
-  const confirmRemove = (id: number) => {
+  const confirmRemove = useCallback((id: number) => {
     showBusinessConfirm({
       title: '确认删除该点位二维码',
       content: '删除后将移除该点位扫码入口记录，请确认后继续。',
       onOk: () => removeMutation.mutate(id),
     });
-  };
+  }, [removeMutation]);
 
-  const openModal = (record?: ServicePointQrRecord) => {
+  const openModal = useCallback((record?: ServicePointQrRecord) => {
     setEditingRecord(record || null);
     form.resetFields();
     if (record) {
@@ -155,9 +164,9 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
       form.setFieldsValue({ servicePointId, storeId: point?.storeId, status: 'APPROVED' });
     }
     setModalVisible(true);
-  };
+  }, [form, pointRecordMap, servicePointId]);
 
-  const actionColumn: ProColumns<ServicePointQrRecord> = {
+  const actionColumn = useMemo<ProColumns<ServicePointQrRecord>>(() => ({
     title: '操作',
     width: 230,
     fixed: 'right',
@@ -169,9 +178,11 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
         <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => confirmRemove(record.id)}>删除</Button>
       </>
     ),
-  };
+  }), [confirmRemove, openModal]);
 
   const qrColumns = useMemo<ProColumns<ServicePointQrRecord>[]>(() => [
+    { title: '门店名称', dataIndex: 'storeName', width: 180, renderText: (value) => value || '-' },
+    { title: '点位名称', dataIndex: 'pointName', width: 160, renderText: (value, record) => value || record.pointCode || '-' },
     { title: '点位编号', dataIndex: 'pointCode', width: 140 },
     {
       title: '二维码链接',
@@ -221,11 +232,11 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
         cardBordered
         rowKey="id"
         columns={qrColumns}
-        dataSource={filter(qrRecords)}
+        dataSource={filter(qrRecordsWithStore)}
         loading={qrQuery.isLoading}
         search={false}
         pagination={{ pageSize: 8 }}
-        scroll={{ x: 1260 }}
+        scroll={{ x: 1540 }}
         toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>生成二维码</Button>]}
       />
 
@@ -305,8 +316,13 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
 
             <BusinessEditorSection icon={<QrcodeOutlined />} title="二维码信息" desc="维护二维码内容、版本和审核状态，保证扫码入口有效。">
               <div className="merchant-editor-fields">
-                <Form.Item className="merchant-editor-field-span-all" name="qrCode" label="二维码" rules={[{ required: true, message: '请输入二维码' }]}>
-                  <Input.Search enterButton="生成二维码内容" onSearch={generateQrContent} placeholder="二维码内容或资源地址" />
+                <Form.Item className="merchant-editor-field-span-all" label="二维码" required>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <Form.Item name="qrCode" noStyle rules={[{ required: true, message: '请输入二维码' }]}>
+                      <Input placeholder="二维码内容或资源地址" />
+                    </Form.Item>
+                    <Button type="primary" onClick={generateQrContent} style={{ height: 32, flex: '0 0 auto' }}>生成二维码内容</Button>
+                  </div>
                 </Form.Item>
                 <div className="merchant-editor-field-span-all" style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
                   <QRCode value={watchedQrCode || '-'} status={watchedQrCode ? 'active' : 'loading'} size={160} />

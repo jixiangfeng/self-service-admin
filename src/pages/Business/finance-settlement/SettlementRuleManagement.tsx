@@ -455,11 +455,11 @@ const SettlementRuleManagement: React.FC = () => {
         onOk={() => form.submit()}
         destroyOnClose
       >
-        <Form form={form} layout="vertical" className="merchant-editor-form" onFinish={(values) => saveMutation.mutate(values as SettlementRuleRecord)}>
+        <Form form={form} layout="vertical" className="merchant-editor-form" onFinish={(values) => saveMutation.mutate((editingRecord ? values : { ...values, ruleCode: undefined }) as SettlementRuleRecord)}>
           <div className="merchant-editor-shell">
             <BusinessEditorSection icon={<SafetyOutlined />} title="基础信息" desc="先确定规则身份、适用业务和版本优先级。">
               <div className="merchant-editor-fields">
-                <Form.Item name="ruleCode" label="规则编码"><Input readOnly placeholder="保存后由系统自动生成" /></Form.Item>
+                {editingRecord ? <Form.Item name="ruleCode" label="规则编码"><Input readOnly placeholder="规则编码不可编辑" /></Form.Item> : null}
                 <Form.Item name="ruleName" label="规则名称" rules={[{ required: true, message: '请输入规则名称' }]}><Input placeholder="规则展示名称" /></Form.Item>
                 <Form.Item name="ruleType" label="规则类型" rules={[{ required: true, message: '请选择规则类型' }]}><Select options={ruleTypeOptions} /></Form.Item>
                 <Form.Item name="settlementMode" label="清分模式" rules={[{ required: true, message: '请选择清分模式' }]}><Select options={settlementModeOptions} /></Form.Item>

@@ -369,9 +369,11 @@ const MerchantManagement: React.FC = () => {
                   <Form.Item name="shortName" label="商户简称" rules={[{ required: true, message: '请输入商户简称' }]}>
                     <Input placeholder="用于列表摘要和经营看板展示" />
                   </Form.Item>
-                  <Form.Item name="merchantCode" label="商户编号">
-                    <Input disabled placeholder={editingRecord ? '商户编号不可编辑' : '系统自动生成，无需运营输入'} />
-                  </Form.Item>
+                  {editingRecord ? (
+                    <Form.Item name="merchantCode" label="商户编号">
+                      <Input disabled placeholder="商户编号不可编辑" />
+                    </Form.Item>
+                  ) : null}
                   <Form.Item name="merchantType" label="主体类型" rules={[{ required: true, message: '请选择主体类型' }]}>
                     <Select options={merchantTypeOptions} placeholder="请选择主体类型" />
                   </Form.Item>

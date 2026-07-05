@@ -349,7 +349,7 @@ const RechargeActivityManagement: React.FC = () => {
           <div className="merchant-editor-shell">
             <BusinessEditorSection icon={<WalletOutlined />} title="活动基础" desc="定义充值活动编码、名称和活动状态。">
               <div className="merchant-editor-fields">
-                <Form.Item name="activityCode" label="活动编码"><Input readOnly placeholder="保存后由系统自动生成" /></Form.Item>
+                {editingRecord ? <Form.Item name="activityCode" label="活动编码"><Input readOnly placeholder="活动编码不可编辑" /></Form.Item> : null}
                 <Form.Item name="activityName" label="活动名称" rules={[{ required: true, message: '请输入活动名称' }]}><Input placeholder="例如：会员充值赠送活动" /></Form.Item>
                 <Form.Item name="status" label="状态"><Select options={activityStatusOptions} placeholder="请选择状态" /></Form.Item>
                 <Form.Item className="merchant-editor-field-span-all" name="bannerImageUrl" label="活动条Banner图片"><OssImageUpload prefix="activity/banners" placeholder="上传活动条Banner" /></Form.Item>

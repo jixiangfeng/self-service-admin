@@ -285,7 +285,7 @@ const InviteActivityManagement: React.FC = () => {
           <div className="merchant-editor-shell">
             <BusinessEditorSection icon={<TeamOutlined />} title="活动基础" desc="定义邀请活动的编码、名称和运行状态。">
               <div className="merchant-editor-fields">
-                <Form.Item name="activityCode" label="活动编码"><Input readOnly placeholder="保存后由系统自动生成" /></Form.Item>
+                {editingRecord ? <Form.Item name="activityCode" label="活动编码"><Input readOnly placeholder="活动编码不可编辑" /></Form.Item> : null}
                 <Form.Item name="activityName" label="活动名称" rules={[{ required: true, message: '请输入活动名称' }]}><Input placeholder="例如：老带新首洗奖励" /></Form.Item>
                 <Form.Item name="status" label="活动状态"><Select options={activityStatusOptions} placeholder="请选择活动状态" /></Form.Item>
                 <Form.Item className="merchant-editor-field-span-all" name="bannerImageUrl" label="活动条Banner图片"><OssImageUpload prefix="activity/banners" placeholder="上传活动条Banner" /></Form.Item>

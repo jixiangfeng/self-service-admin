@@ -414,7 +414,7 @@ export interface ServicePointRecord {
   updateTime?: string;
 }
 
-export interface ServicePointQrRecord { id: number; servicePointId: number; pointCode?: string; qrCode: string; qrVersion?: string; status: string; createdAt?: string; updatedAt?: string; }
+export interface ServicePointQrRecord { id: number; servicePointId: number; storeId?: number; storeName?: string; pointCode?: string; pointName?: string; qrCode: string; qrVersion?: string; status: string; createdAt?: string; updatedAt?: string; }
 export interface ServicePointMaintainRecord { id: number; servicePointId: number; maintainNo: string; pointCode?: string; maintainType: string; owner?: string; status: string; plannedAt?: string; createdAt?: string; updatedAt?: string; }
 export interface PointDeviceBindLogRecord { id: number; bindNo: string; servicePointId: number; pointCode?: string; pointType?: string; beforeDevice?: string; afterDevice?: string; operator?: string; boundAt?: string; createdAt?: string; updatedAt?: string; }
 

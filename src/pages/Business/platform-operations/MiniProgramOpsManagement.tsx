@@ -35,6 +35,7 @@ const pageCodeOptions = [
 
 const slotCodeOptions = [
   { value: 'HOME_TOP_CAROUSEL', label: '首页顶部轮播', pageCode: 'HOME', size: '750×320', consumer: 'pages/home/index.vue', tip: '首页首屏主轮播，建议用于全平台活动和品牌主视觉。' },
+  { value: 'HOME_ACTION_BANNER', label: '首页快捷入口下方图', pageCode: 'HOME', size: '702×140', consumer: 'pages/home/index.vue', tip: '首页团购核销、活动、充值等快捷入口下方，附近门店上方，适合放领券入口、购卡入口和短期活动。' },
   { value: 'STORE_LIST_TOP_BANNER', label: '门店列表顶部图', pageCode: 'STORE_LIST', size: '702×180', consumer: 'pages/store-list/index.vue', tip: '门店列表顶部运营图，适合附近门店促销。' },
   { value: 'PROFILE_RECHARGE_BANNER', label: '我的页充值图', pageCode: 'PROFILE', size: '702×220', consumer: 'pages/profile/index.vue', tip: '我的页余额/充值入口图，适合充值引导。' },
   { value: 'ACTIVITY_GIFT_HERO_BANNER', label: '活动页头图', pageCode: 'ACTIVITY_GIFT', size: '702×260', consumer: 'pages/activity-gift/index.vue', tip: '活动广场头图，适合福利集合页。' },
@@ -45,7 +46,7 @@ const jumpTypeOptions = [
   { value: 'NONE', label: '不跳转' },
   { value: 'PAGE', label: '小程序页面' },
   { value: 'RECHARGE', label: '充值中心' },
-  { value: 'SERVICE_CARD', label: '次卡/月卡' },
+  { value: 'PRODUCT', label: '次卡/月卡' },
   { value: 'STORE', label: '门店详情' },
   { value: 'GROUPON', label: '团购核销' },
   { value: 'WEBVIEW', label: '网页链接' },
@@ -152,7 +153,7 @@ const MiniProgramOpsManagement: React.FC = () => {
   const jumpValueOptions = useMemo(() => {
     if (watchedJumpType === 'PAGE') return pagePathOptions;
     if (watchedJumpType === 'STORE') return toSelectOptions(storeOptionsQuery.data || []);
-    if (watchedJumpType === 'SERVICE_CARD') return toSelectOptions(serviceCardOptionsQuery.data || []);
+    if (watchedJumpType === 'PRODUCT') return toSelectOptions(serviceCardOptionsQuery.data || []);
     if (watchedJumpType === 'RECHARGE') return [{ value: '/pages/recharge-center/index', label: '充值中心' }];
     if (watchedJumpType === 'GROUPON') return [{ value: '/pages/group-code-verify/index', label: '团购核销页' }];
     return [];

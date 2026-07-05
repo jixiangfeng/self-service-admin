@@ -387,7 +387,7 @@ const DeviceProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = 
               <>
                 <BusinessEditorSection icon={<ClusterOutlined />} title="厂商主体" desc="维护厂商编码、名称和状态，作为设备型号和接口协议的上游主体。">
                   <div className="merchant-editor-fields">
-                    <Form.Item name="vendorCode" label="厂商编码"><Input readOnly placeholder="保存后由系统自动生成" /></Form.Item>
+                    {editingRecord ? <Form.Item name="vendorCode" label="厂商编码"><Input readOnly placeholder="厂商编码不可编辑" /></Form.Item> : null}
                     <Form.Item name="vendorName" label="厂商名称" rules={[{ required: true, message: '请输入厂商名称' }]}><Input placeholder="设备供应商名称" /></Form.Item>
                     <Form.Item name="status" label="状态"><Select options={deviceProfileStatusOptions} placeholder="请选择状态" /></Form.Item>
                   </div>
@@ -409,7 +409,7 @@ const DeviceProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = 
                     <Form.Item name="vendorId" label="所属厂商"><Select showSearch optionFilterProp="label" options={vendorOptions} placeholder="请选择厂商" /></Form.Item>
                     <Form.Item name="vendorName" label="厂商名称"><Input placeholder="可手动记录厂商名称" /></Form.Item>
                     <Form.Item name="status" label="状态"><Select options={deviceProfileStatusOptions} placeholder="请选择状态" /></Form.Item>
-                    <Form.Item name="modelCode" label="型号编码"><Input readOnly placeholder="保存后由系统自动生成" /></Form.Item>
+                    {editingRecord ? <Form.Item name="modelCode" label="型号编码"><Input readOnly placeholder="型号编码不可编辑" /></Form.Item> : null}
                     <Form.Item name="modelName" label="型号名称" rules={[{ required: true, message: '请输入型号名称' }]}><Input placeholder="例如：高压清洗机 1200 型" /></Form.Item>
                     <Form.Item name="deviceType" label="设备类型"><Select options={deviceTypeOptions} placeholder="请选择设备类型" /></Form.Item>
                   </div>
@@ -426,7 +426,7 @@ const DeviceProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = 
               <>
                 <BusinessEditorSection icon={<ApiOutlined />} title="协议基础" desc="维护协议编码、名称、类型和版本，作为设备控制和回调解析依据。">
                   <div className="merchant-editor-fields">
-                    <Form.Item name="protocolCode" label="协议编码"><Input readOnly placeholder="保存后由系统自动生成" /></Form.Item>
+                    {editingRecord ? <Form.Item name="protocolCode" label="协议编码"><Input readOnly placeholder="协议编码不可编辑" /></Form.Item> : null}
                     <Form.Item name="protocolName" label="协议名称" rules={[{ required: true, message: '请输入协议名称' }]}><Input placeholder="例如：洗车设备 HTTP 控制协议" /></Form.Item>
                     <Form.Item name="protocolType" label="协议类型"><Select options={deviceProtocolTypeOptions} placeholder="请选择协议类型" /></Form.Item>
                     <Form.Item name="version" label="版本"><Input placeholder="例如：v1.0" /></Form.Item>

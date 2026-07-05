@@ -374,9 +374,11 @@ const StoreManagement: React.FC = () => {
                 <Form.Item name="storeName" label="门店名称" rules={[{ required: true, message: '请输入门店名称' }]}>
                   <Input placeholder="例如：鲸洗虹桥枢纽店" />
                 </Form.Item>
-                <Form.Item name="storeCode" label="门店编号">
-                  <Input disabled placeholder={editingRecord ? '门店编号不可编辑' : '系统自动生成，无需运营输入'} />
-                </Form.Item>
+                {editingRecord ? (
+                  <Form.Item name="storeCode" label="门店编号">
+                    <Input disabled placeholder="门店编号不可编辑" />
+                  </Form.Item>
+                ) : null}
                 <Form.Item name="storePhone" label="门店电话">
                   <Input placeholder="用于小程序展示和客服回访" />
                 </Form.Item>

@@ -108,7 +108,7 @@ const ServiceDeskManagement: React.FC = () => {
     },
   });
   const sendMessageMutation = useMutation({
-    mutationFn: (values: Record<string, unknown>) => api.message.messageRecords.add({ ...values, messageNo: values.messageNo || `MSG${Date.now()}`, status: 'SENT' }),
+    mutationFn: (values: Record<string, unknown>) => api.message.messageRecords.add({ ...values, status: 'SENT' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['messageRecords'] });
       message.success('消息已发送');
@@ -294,7 +294,8 @@ const ServiceDeskManagement: React.FC = () => {
           values.resultAction ? `处理动作：${optionLabel(ticketResultOptions, values.resultAction)}` : undefined,
           values.supplement ? `补充说明：${values.supplement}` : undefined,
         ]);
-        await createTicketMutation.mutateAsync({ ...values, ticketNo: values.ticketNo || `TK${Date.now()}`, ticketStatus: values.status || 'PENDING', result });
+        const { ticketNo, ...payload } = values;
+        await createTicketMutation.mutateAsync({ ...payload, ticketStatus: values.status || 'PENDING', result });
         setTicketModalVisible(false);
         ticketForm.resetFields();
       }}
@@ -305,9 +306,9 @@ const ServiceDeskManagement: React.FC = () => {
       >
         <Form form={ticketForm} layout="vertical" className="merchant-editor-form">
           <div className="merchant-editor-shell">
-            <BusinessEditorSection icon={<CustomerServiceOutlined />} title="工单基础" desc="维护工单号、类型和当前状态。">
+            <BusinessEditorSection icon={<CustomerServiceOutlined />} title="工单基础" desc="维护工单类型和当前状态。">
               <div className="merchant-editor-fields">
-                {!editingTicket ? <Form.Item name="ticketNo" label="工单号"><Input placeholder="不填自动生成" /></Form.Item> : null}
+                {editingTicket ? <Form.Item name="ticketNo" label="工单号"><Input disabled placeholder="工单号不可编辑" /></Form.Item> : null}
                 {!editingTicket ? <Form.Item name="ticketType" label="工单类型" rules={[{ required: true, message: '请选择工单类型' }]}><Select options={ticketTypeOptions} placeholder="请选择工单类型" /></Form.Item> : null}
                 <Form.Item name="status" label="工单状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={ticketStatusOptions} placeholder="请选择工单状态" /></Form.Item>
                 <Form.Item name="owner" label="处理人"><Input placeholder="例如：客服-王敏" /></Form.Item>

@@ -317,9 +317,11 @@ const ServicePointManagement: React.FC = () => {
                   />
                 </Form.Item>
                 <Form.Item name="storeName" hidden><Input /></Form.Item>
-                <Form.Item name="pointCode" label="点位编号">
-                  <Input disabled placeholder={editingRecord ? '点位编号不可编辑' : '系统自动生成，无需运营输入'} />
-                </Form.Item>
+                {editingRecord ? (
+                  <Form.Item name="pointCode" label="点位编号">
+                    <Input disabled placeholder="点位编号不可编辑" />
+                  </Form.Item>
+                ) : null}
                 <Form.Item name="pointName" label="点位名称" rules={[{ required: true, message: '请输入点位名称' }]}>
                   <Input placeholder="例如：A 区 1 号洗车位" />
                 </Form.Item>

@@ -675,9 +675,11 @@ const ServiceCardManagement: React.FC = () => {
           <div className="merchant-editor-shell">
             <BusinessEditorSection icon={<WalletOutlined />} title="卡产品基础" desc="维护卡产品编码、名称、类型和上下架状态，作为发卡和用户服务卡的统一来源。">
               <div className="merchant-editor-fields">
-                <Form.Item name="cardCode" label="卡产品编码">
-                  <Input readOnly placeholder="保存后由系统自动生成" />
-                </Form.Item>
+                {editingRecord ? (
+                  <Form.Item name="cardCode" label="卡产品编码">
+                    <Input readOnly placeholder="卡产品编码不可编辑" />
+                  </Form.Item>
+                ) : null}
                 <Form.Item name="cardName" label="卡名称" rules={[{ required: true, message: '请输入卡名称' }]}>
                   <Input placeholder="例如：10 次洗车卡" />
                 </Form.Item>

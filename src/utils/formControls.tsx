@@ -3,6 +3,7 @@ import { Cascader, DatePicker, TimePicker } from 'antd';
 import type { CascaderProps } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
+import regionLevelData from 'province-city-china/dist/level.min.json';
 
 dayjs.extend(customParseFormat);
 
@@ -110,47 +111,38 @@ export interface RegionOption {
   children?: RegionOption[];
 }
 
-export const regionOptions: RegionOption[] = [
-  {
-    value: '上海市',
-    label: '上海市',
-    children: [
-      { value: '上海市', label: '上海市', children: ['黄浦区', '徐汇区', '长宁区', '静安区', '普陀区', '虹口区', '杨浦区', '闵行区', '宝山区', '嘉定区', '浦东新区', '松江区', '青浦区', '奉贤区', '金山区', '崇明区'].map((name) => ({ value: name, label: name })) },
-    ],
-  },
-  {
-    value: '北京市',
-    label: '北京市',
-    children: [
-      { value: '北京市', label: '北京市', children: ['东城区', '西城区', '朝阳区', '海淀区', '丰台区', '石景山区', '通州区', '昌平区', '大兴区', '顺义区', '房山区', '门头沟区', '怀柔区', '平谷区', '密云区', '延庆区'].map((name) => ({ value: name, label: name })) },
-    ],
-  },
-  {
-    value: '广东省',
-    label: '广东省',
-    children: ['广州市', '深圳市', '佛山市', '东莞市', '珠海市', '中山市', '惠州市', '江门市', '肇庆市', '汕头市'].map((city) => ({ value: city, label: city })),
-  },
-  {
-    value: '浙江省',
-    label: '浙江省',
-    children: ['杭州市', '宁波市', '温州市', '嘉兴市', '湖州市', '绍兴市', '金华市', '台州市'].map((city) => ({ value: city, label: city })),
-  },
-  {
-    value: '江苏省',
-    label: '江苏省',
-    children: ['南京市', '苏州市', '无锡市', '常州市', '南通市', '扬州市', '徐州市'].map((city) => ({ value: city, label: city })),
-  },
-  {
-    value: '四川省',
-    label: '四川省',
-    children: ['成都市', '绵阳市', '德阳市', '乐山市', '宜宾市'].map((city) => ({ value: city, label: city })),
-  },
-  {
-    value: '湖北省',
-    label: '湖北省',
-    children: ['武汉市', '宜昌市', '襄阳市', '荆州市'].map((city) => ({ value: city, label: city })),
-  },
-];
+type RegionLevelNode = {
+  c: string;
+  n: string;
+  d?: RegionLevelNode[];
+};
+
+const toRegionOption = (node: RegionLevelNode): RegionOption => ({
+  value: node.n,
+  label: node.n,
+  children: node.d?.map(toRegionOption),
+});
+
+const toRegionOptions = (nodes: RegionLevelNode[]): RegionOption[] =>
+  nodes.map((province) => {
+    const children = province.d || [];
+    const hasCityLevel = children.some((item) => item.d?.length);
+    return {
+      value: province.n,
+      label: province.n,
+      children: hasCityLevel
+        ? children.map(toRegionOption)
+        : [
+            {
+              value: province.n,
+              label: province.n,
+              children: children.map(toRegionOption),
+            },
+          ],
+    };
+  });
+
+export const regionOptions: RegionOption[] = toRegionOptions(regionLevelData as RegionLevelNode[]);
 
 export const RegionCascader: React.FC<RegionCascaderProps> = ({ allowClear = true, showSearch = true, onChange, placeholder = '请选择省 / 市 / 区', style, ...props }) => (
   <Cascader
