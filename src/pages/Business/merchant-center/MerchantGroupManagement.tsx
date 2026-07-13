@@ -11,13 +11,15 @@ import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
 import type { MerchantGroupRecord, MerchantGroupStoreRecord, SelectOptionRecord } from '@/services/backendService';
-import { buildValueEnum, formatDateTime, renderStatusTag, safeJsonParse } from '@/pages/Business/shared';
+import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 
 const clearingModeOptions = [
   { value: 'NONE', label: '不启用跨商户清分' },
-  { value: 'OFFLINE_CLEARING', label: '线下清分' },
+  { value: 'AUTO_LEDGER', label: '自动清分并自动结算' },
+  { value: 'AUTO_PAYOUT', label: '自动清分、结算并发起打款' },
 ];
 const clearingCycleOptions = [
+  { value: 'REALTIME', label: '实时结算' },
   { value: 'DAY', label: '日结' },
   { value: 'WEEK', label: '周结' },
   { value: 'MONTH', label: '月结' },
@@ -32,50 +34,37 @@ const revenueOwnerOptions = [
   { value: 'RATIO_SPLIT', label: '按协议比例分摊' },
 ];
 const clearingBaseOptions = [
-  { value: 'PRINCIPAL_ONLY', label: '仅本金消耗' },
-  { value: 'PRINCIPAL_PLUS_GIFT', label: '本金 + 赠送余额' },
-  { value: 'ORDER_PAYABLE', label: '订单应付金额' },
-  { value: 'AFTER_COUPON', label: '优惠后实收口径' },
+    { value: 'PRINCIPAL_ONLY', label: '仅本金消耗' },
+    { value: 'PRINCIPAL_PLUS_GIFT', label: '本金 + 赠送余额' },
+];
+const giftCostBearerOptions = [
+  { value: 'PLATFORM', label: '平台承担' },
+  { value: 'RECHARGE_MERCHANT', label: '充值商户承担' },
+  { value: 'CONSUME_STORE', label: '履约门店承担' },
+  { value: 'RATIO_SPLIT', label: '按清分比例共同承担' },
+];
+const cardRevenueRecognitionOptions = [
+  { value: 'PURCHASE', label: '购卡成功时确认' },
+  { value: 'WRITE_OFF', label: '按核销门店确认' },
+  { value: 'WRITE_OFF_SPLIT', label: '核销时按协议比例清分' },
 ];
 
 type MerchantGroupFormValues = Partial<MerchantGroupRecord> & {
   settlementMode?: string;
   settlementCycle?: string;
+  settlementCutoffTime?: string;
+  settlementDelayDays?: number;
+  minSettlementAmount?: number | string;
   cashHolder?: string;
   revenueOwner?: string;
   clearingBase?: string;
   rechargeMerchantRate?: number | string;
   consumeMerchantRate?: number | string;
   platformRate?: number | string;
+  giftCostBearer?: string;
+  cardRevenueRecognition?: string;
   clearingRemark?: string;
 };
-
-const parseGroupRules = (record: MerchantGroupRecord) => ({
-  ...parseWriteoffConfig(record.writeoffRule, record),
-});
-const parseWriteoffConfig = (writeoffRule?: string, record?: MerchantGroupRecord) => ({
-  settlementMode: record?.settlementMode || safeJsonParse<{ settlementMode?: string }>(writeoffRule, {}).settlementMode,
-  settlementCycle: record?.settlementCycle || safeJsonParse<{ settlementCycle?: string }>(writeoffRule, {}).settlementCycle,
-  cashHolder: record?.cashHolder || safeJsonParse<{ cashHolder?: string }>(writeoffRule, {}).cashHolder,
-  revenueOwner: record?.revenueOwner || safeJsonParse<{ revenueOwner?: string }>(writeoffRule, {}).revenueOwner,
-  clearingBase: record?.clearingBase || safeJsonParse<{ clearingBase?: string }>(writeoffRule, {}).clearingBase,
-  rechargeMerchantRate: record?.rechargeMerchantRate || safeJsonParse<{ rechargeMerchantRate?: number | string }>(writeoffRule, {}).rechargeMerchantRate,
-  consumeMerchantRate: record?.consumeMerchantRate || safeJsonParse<{ consumeMerchantRate?: number | string }>(writeoffRule, {}).consumeMerchantRate,
-  platformRate: record?.platformRate || safeJsonParse<{ platformRate?: number | string }>(writeoffRule, {}).platformRate,
-  clearingRemark: record?.clearingRemark || safeJsonParse<{ clearingRemark?: string }>(writeoffRule, {}).clearingRemark,
-});
-const buildWriteoffRule = (values: MerchantGroupFormValues) =>
-  JSON.stringify({
-    settlementMode: values.settlementMode || 'NONE',
-    settlementCycle: values.settlementCycle || '',
-    cashHolder: values.cashHolder || '',
-    revenueOwner: values.revenueOwner || '',
-    clearingBase: values.clearingBase || '',
-    rechargeMerchantRate: values.rechargeMerchantRate ?? '',
-    consumeMerchantRate: values.consumeMerchantRate ?? '',
-    platformRate: values.platformRate ?? '',
-    clearingRemark: values.clearingRemark || '',
-  });
 const optionLabel = (options: Array<{ value: string; label: string }>, value?: string) =>
   options.find((item) => item.value === value)?.label || value || '-';
 const formatPercent = (value?: number | string) => (value === undefined || value === null || value === '' ? '-' : `${value}%`);
@@ -131,7 +120,7 @@ const MerchantGroupManagement: React.FC = () => {
         ...params,
       });
       const page = 'data' in result ? result.data : result;
-      setRecords((page.records || []).map((record) => ({ ...record, ...parseGroupRules(record) })));
+      setRecords(page.records || []);
     } finally {
       setLoading(false);
     }
@@ -254,7 +243,7 @@ const MerchantGroupManagement: React.FC = () => {
       dataIndex: 'linkedSettlementRuleCode',
       width: 150,
       search: false,
-      render: (_, record) => (record.groupType === 'STORED_VALUE' ? record.linkedSettlementRuleCode || '未同步' : '-'),
+      render: (_, record) => (record.groupType === 'STORED_VALUE' ? record.linkedSettlementRuleCode || '未启用自动清分' : '-'),
     },
     { title: '负责人', dataIndex: 'owner', width: 140, search: false },
     {
@@ -277,26 +266,13 @@ const MerchantGroupManagement: React.FC = () => {
             size="small"
             onClick={() => {
               setEditingRecord(record);
-              form.setFieldsValue({ ...record, ...parseGroupRules(record) } as Partial<MerchantGroupRecord>);
+              form.setFieldsValue(record);
               setModalVisible(true);
             }}
           >
             编辑
           </Button>
           <Button size="small" onClick={() => openMemberModal(record)}>成员</Button>
-          {record.groupType === 'STORED_VALUE' ? (
-            <Button
-              size="small"
-              onClick={async () => {
-                const result = await api.merchantGroup.syncSettlementRule(record.id);
-                const rule = 'data' in result ? result.data : result;
-                message.success(rule ? `已同步清分规则：${rule.ruleCode}` : '已停用关联清分规则');
-                await fetchRecords();
-              }}
-            >
-              同步规则
-            </Button>
-          ) : null}
           <Button size="small" onClick={() => confirmGroupStatus(record)}>{record.status === 'ENABLED' ? '停用' : '启用'}</Button>
         </Space>
       ),
@@ -305,35 +281,16 @@ const MerchantGroupManagement: React.FC = () => {
 
   const handleSubmit = async () => {
     const values = await form.validateFields();
-    const {
-      settlementMode,
-      settlementCycle,
-      cashHolder,
-      revenueOwner,
-      clearingBase,
-      rechargeMerchantRate,
-      consumeMerchantRate,
-      platformRate,
-      clearingRemark,
-      merchantName,
-      ...baseValues
-    } = values as MerchantGroupFormValues;
+    if (values.settlementMode === 'AUTO_PAYOUT' && values.cashHolder !== 'PLATFORM_PREPAID') {
+      message.error('自动打款要求资金由平台预收账户持有');
+      return;
+    }
+    const { merchantName, ...baseValues } = values as MerchantGroupFormValues;
     const merchantId = typeof values.merchantId === 'number' ? values.merchantId : undefined;
     const selectedMerchantName = merchantId !== undefined ? merchantOptionMap.get(merchantId) : undefined;
     const payload = {
       ...baseValues,
       merchantName: selectedMerchantName || merchantName,
-      writeoffRule: buildWriteoffRule({
-        settlementMode,
-        settlementCycle,
-        cashHolder,
-        revenueOwner,
-        clearingBase,
-        rechargeMerchantRate,
-        consumeMerchantRate,
-        platformRate,
-        clearingRemark,
-      }),
     };
     if (editingRecord) {
       await api.merchantGroup.edit({ ...editingRecord, ...payload } as Record<string, unknown>);
@@ -372,12 +329,12 @@ const MerchantGroupManagement: React.FC = () => {
             status: params.status,
           });
           const page = 'data' in result ? result.data : result;
-          const parsedRecords = (page.records || []).map((record) => ({ ...record, ...parseGroupRules(record) }));
-          setRecords(parsedRecords);
+          const pageRecords = page.records || [];
+          setRecords(pageRecords);
           setKeyword(String(params.keyword || ''));
           setTypeFilter(params.groupType as string | undefined);
           setStatusFilter(params.status as string | undefined);
-          return { data: parsedRecords, total: page.total, success: true };
+          return { data: pageRecords, total: page.total, success: true };
         }}
         search={{ labelWidth: 'auto', defaultCollapsed: false }}
         pagination={{ pageSize: 8 }}
@@ -396,12 +353,17 @@ const MerchantGroupManagement: React.FC = () => {
                 storeCount: 0,
                 settlementMode: 'NONE',
                 settlementCycle: 'WEEK',
+                settlementCutoffTime: '00:00',
+                settlementDelayDays: 0,
+                minSettlementAmount: 0,
                 cashHolder: 'RECHARGE_MERCHANT',
                 revenueOwner: 'CONSUME_STORE',
                 clearingBase: 'PRINCIPAL_PLUS_GIFT',
                 rechargeMerchantRate: 0,
                 consumeMerchantRate: 100,
                 platformRate: 0,
+                giftCostBearer: 'RECHARGE_MERCHANT',
+                cardRevenueRecognition: 'WRITE_OFF_SPLIT',
               });
               setModalVisible(true);
             }}
@@ -477,10 +439,25 @@ const MerchantGroupManagement: React.FC = () => {
                     children: (
                       <div className="merchant-editor-fields">
                         <Form.Item name="settlementMode" label="清分方式">
-                          <Select options={clearingModeOptions} placeholder="请选择清分方式" />
+                          <Select
+                            options={clearingModeOptions}
+                            placeholder="请选择清分方式"
+                            onChange={(value) => {
+                              if (value === 'AUTO_PAYOUT') form.setFieldValue('cashHolder', 'PLATFORM_PREPAID');
+                            }}
+                          />
                         </Form.Item>
                         <Form.Item name="settlementCycle" label="清分周期">
                           <Select options={clearingCycleOptions} placeholder="请选择清分周期" />
+                        </Form.Item>
+                        <Form.Item name="settlementCutoffTime" label="账期截止时间">
+                          <Input placeholder="00:00" />
+                        </Form.Item>
+                        <Form.Item name="settlementDelayDays" label="延迟结算天数">
+                          <InputNumber min={0} precision={0} addonAfter="天" style={{ width: '100%' }} />
+                        </Form.Item>
+                        <Form.Item name="minSettlementAmount" label="最低结算金额">
+                          <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} />
                         </Form.Item>
                         <Form.Item name="cashHolder" label="资金持有方">
                           <Select options={cashHolderOptions} placeholder="请选择资金持有方" />
@@ -500,8 +477,14 @@ const MerchantGroupManagement: React.FC = () => {
                         <Form.Item name="platformRate" label="平台服务费比例">
                           <InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} placeholder="例如：3" />
                         </Form.Item>
+                        <Form.Item name="giftCostBearer" label="赠送余额成本承担">
+                          <Select options={giftCostBearerOptions} placeholder="请选择承担方" />
+                        </Form.Item>
+                        <Form.Item name="cardRevenueRecognition" label="次卡收入确认">
+                          <Select options={cardRevenueRecognitionOptions} placeholder="请选择确认方式" />
+                        </Form.Item>
                         <Form.Item className="merchant-editor-field-span-2" name="clearingRemark" label="清分补充">
-                          <Input.TextArea rows={3} placeholder="例如：A 商户收充值款，B 门店履约后按周线下对账打款。" />
+                          <Input.TextArea rows={3} placeholder="记录门店组清分口径和特殊约定" />
                         </Form.Item>
                       </div>
                     ),
@@ -524,11 +507,16 @@ const MerchantGroupManagement: React.FC = () => {
             <Descriptions.Item label="备注">{detail.remark || '-'}</Descriptions.Item>
             <Descriptions.Item label="清分方式">{optionLabel(clearingModeOptions, detail.settlementMode)}</Descriptions.Item>
             <Descriptions.Item label="清分周期">{optionLabel(clearingCycleOptions, detail.settlementCycle)}</Descriptions.Item>
+            <Descriptions.Item label="账期截止">{detail.settlementCutoffTime || '00:00'}</Descriptions.Item>
+            <Descriptions.Item label="结算延迟">{detail.settlementDelayDays || 0} 天</Descriptions.Item>
+            <Descriptions.Item label="最低结算">{detail.minSettlementAmount || 0} 元</Descriptions.Item>
             <Descriptions.Item label="资金持有方">{optionLabel(cashHolderOptions, detail.cashHolder)}</Descriptions.Item>
             <Descriptions.Item label="收入归属">{optionLabel(revenueOwnerOptions, detail.revenueOwner)}</Descriptions.Item>
             <Descriptions.Item label="清分基数">{optionLabel(clearingBaseOptions, detail.clearingBase)}</Descriptions.Item>
+            <Descriptions.Item label="赠送成本承担">{optionLabel(giftCostBearerOptions, detail.giftCostBearer)}</Descriptions.Item>
+            <Descriptions.Item label="次卡收入确认">{optionLabel(cardRevenueRecognitionOptions, detail.cardRevenueRecognition)}</Descriptions.Item>
             <Descriptions.Item label="协议比例">{buildRatioText(detail)}</Descriptions.Item>
-            <Descriptions.Item label="关联清分规则">{detail.linkedSettlementRuleCode || '未同步'}</Descriptions.Item>
+            <Descriptions.Item label="生效规则版本">{detail.linkedSettlementRuleCode || '未启用自动清分'}</Descriptions.Item>
             <Descriptions.Item label="充值商户留存">{formatPercent(detail.rechargeMerchantRate)}</Descriptions.Item>
             <Descriptions.Item label="履约商户分得">{formatPercent(detail.consumeMerchantRate)}</Descriptions.Item>
             <Descriptions.Item label="平台服务费">{formatPercent(detail.platformRate)}</Descriptions.Item>

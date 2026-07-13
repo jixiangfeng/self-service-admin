@@ -124,7 +124,7 @@ const StoreManagement: React.FC = () => {
     setEditingRecord(null);
     form.resetFields();
     form.setFieldsValue({
-      status: 'OPEN',
+      status: 'PAUSED',
     });
     setModalVisible(true);
   };

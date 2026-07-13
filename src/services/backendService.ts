@@ -247,15 +247,19 @@ export interface MerchantGroupRecord {
   merchantName?: string;
   groupType: string;
   storeCount?: number;
-  writeoffRule?: string;
   settlementMode?: string;
   settlementCycle?: string;
+  settlementCutoffTime?: string;
+  settlementDelayDays?: number;
+  minSettlementAmount?: number | string;
   cashHolder?: string;
   revenueOwner?: string;
   clearingBase?: string;
   rechargeMerchantRate?: number | string;
   consumeMerchantRate?: number | string;
   platformRate?: number | string;
+  giftCostBearer?: string;
+  cardRevenueRecognition?: string;
   clearingRemark?: string;
   linkedSettlementRuleId?: number;
   linkedSettlementRuleCode?: string;
@@ -395,6 +399,13 @@ export interface StoreServiceCapabilityRecord {
   status: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface StoreServiceCapabilityBatchCreateRequest {
+  storeId: number;
+  capabilityCodes: string[];
+  configJson?: string;
+  status?: string;
 }
 export interface ServicePointRecord {
   id: number;
@@ -608,9 +619,6 @@ export interface InviteActivityRecord {
   tierRewardRules?: string;
   inviteCount?: number;
   qualifiedCount?: number;
-  fraudChecks?: string;
-  recoveryMode?: string;
-  recoveryDays?: number;
   dailyLimitCount?: number;
   bannerImageUrl?: string;
   status: string;
@@ -951,8 +959,13 @@ export interface SettlementRuleRecord {
   ruleName: string;
   ruleType: string;
   settlementMode: string;
+  cashHolderType?: string;
+  clearingBase?: string;
   revenueOwnerType: string;
   giftCostBearerType?: string;
+  sourceShareRate?: number | string;
+  serviceShareRate?: number | string;
+  cardRevenueRecognition?: string;
   ruleSnapshot?: string;
   versionNo?: string;
   status: string;
@@ -983,10 +996,12 @@ export interface SettlementRuleRecord {
   maxPlatformFee?: number | string;
   platformFeeBearerType?: string;
   settlementCycle?: string;
+  settlementCutoffTime?: string;
   settlementDelayDays?: number;
   refundFreezeDays?: number;
   minSettlementAmount?: number | string;
   autoSettlement?: string;
+  autoPayout?: string;
   nettingEnabled?: string;
   refundRule?: string;
   serviceFeeRefundRule?: string;
@@ -1012,7 +1027,11 @@ export interface SettlementBillDetailRecord {
   amount: number | string;
   merchantName?: string;
   storeName?: string;
+  sourceStoreId?: number;
+  serviceStoreId?: number;
+  revenueRole?: string;
   settlementAllocationId?: number;
+  settlementAllocationLineId?: number;
   balanceLotId?: number;
   rechargeNo?: string;
   balanceScopeType?: string;
@@ -1117,6 +1136,7 @@ export interface ProfitRatioVersionRecord {
 
 export interface ProfitShareDetailRecord {
   id: number;
+  settlementBillDetailId?: number;
   detailNo: string;
   settlementBillNo?: string;
   serviceOrderNo?: string;
@@ -1276,6 +1296,8 @@ export interface BalanceLotRecord {
 export interface SettlementAllocationRecord {
   id: number;
   allocationNo: string;
+  sourceKey?: string;
+  allocationSourceType?: string;
   relatedNo?: string;
   serviceOrderNo?: string;
   balanceLotId?: number;
@@ -1290,6 +1312,9 @@ export interface SettlementAllocationRecord {
   settlementRuleId?: number;
   fundOwnerUnitId?: number;
   revenueOwnerUnitId?: number;
+  sourceRevenueUnitId?: number;
+  serviceRevenueUnitId?: number;
+  platformRevenueUnitId?: number;
   giftCostBearerUnitId?: number;
   balanceScopeType?: string;
   balanceScopeId?: number;
@@ -1298,12 +1323,16 @@ export interface SettlementAllocationRecord {
   principalAmount?: number | string;
   giftAmount?: number | string;
   serviceAmount?: number | string;
+  sourceShareAmount?: number | string;
+  serviceShareAmount?: number | string;
   platformFeeAmount?: number | string;
   merchantReceivableAmount?: number | string;
   settlementMode?: string;
   settlementRule?: string;
   settlementRuleSnapshot?: string;
+  settlementCycle?: string;
   allocationStatus?: string;
+  eligibleSettlementAt?: string;
   occurredAt?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -2071,7 +2100,7 @@ const toSettlementBillRecord = (bill: Record<string, any>): SettlementBillRecord
   subjectName: bill.subjectName ?? (bill.subjectId ? `主体#${bill.subjectId}` : '-'),
   cycle: bill.cycle ?? [bill.periodStart, bill.periodEnd].filter(Boolean).join(' 至 '),
   status: bill.status ?? bill.billStatus,
-  payoutStatus: bill.payoutStatus ?? (bill.billStatus === 'SETTLED' ? 'PAID' : 'UNPAID'),
+  payoutStatus: bill.payoutStatus ?? (bill.billStatus === 'SETTLED' ? 'NOT_REQUIRED' : 'UNPAID'),
 } as unknown as SettlementBillRecord);
 
 const toSettlementBillDetailRecord = (detail: Record<string, any>): SettlementBillDetailRecord => ({
@@ -2299,8 +2328,6 @@ export const merchantGroupApi = {
     httpGet<SelectOptionRecord[]>('/merchant-groups/options'),
   storedValueOptions: async () =>
     httpGet<SelectOptionRecord[]>('/merchant-groups/stored-value-options'),
-  syncSettlementRule: async (id: number) =>
-    httpPost<SettlementRuleRecord | null>(`/merchant-groups/${id}/settlement-rule/sync`, {}),
   add: async (data: Record<string, unknown>) =>
     httpPost<MerchantGroupRecord>('/merchant-groups', data),
   edit: async (data: Record<string, unknown>) =>
@@ -2365,7 +2392,11 @@ export const storeApi = {
 };
 
 export const storeImageApi = crudApi<StoreImageRecord>('/store-images');
-export const storeServiceCapabilityApi = crudApi<StoreServiceCapabilityRecord>('/store-service-capabilities');
+export const storeServiceCapabilityApi = {
+  ...crudApi<StoreServiceCapabilityRecord>('/store-service-capabilities'),
+  addBatch: async (data: StoreServiceCapabilityBatchCreateRequest) =>
+    httpPost<StoreServiceCapabilityRecord[]>('/store-service-capabilities/batch', { ...data }),
+};
 export const servicePointApi = {
   page: async (params: Record<string, unknown>) =>
     httpPage<ServicePointRecord>('/service-points', params),
@@ -2517,21 +2548,6 @@ export const settlementBillApi = {
     const res = await httpPage<Record<string, any>>('/settlement-bills', { ...params, billStatus: params.billStatus ?? params.status });
     return ok(mapPageRecords(res.data, toSettlementBillRecord));
   })(),
-  add: async (data: Record<string, unknown>) => (async () => {
-    const res = await httpPost<Record<string, any>>('/settlement-bills', { ...data, billStatus: data.billStatus ?? data.status });
-    return ok(toSettlementBillRecord(res.data));
-  })(),
-  generateFromAllocations: async (data: Record<string, unknown>) => (async () => {
-    const res = await httpPost<GenerateSettlementBillsResponse>('/settlement-bills/generate-from-allocations', data);
-    return ok({
-      ...res.data,
-      bills: (res.data.bills || []).map((bill) => toSettlementBillRecord(bill as unknown as Record<string, any>)),
-    });
-  })(),
-  edit: async (data: Record<string, unknown>) =>
-    httpPut<void>(`/settlement-bills/${data.id}`, { ...data, billStatus: data.billStatus ?? data.status }),
-  remove: async (id: number) =>
-    httpDelete<void>(`/settlement-bills/${id}`),
 };
 
 export const settlementBillDetailApi = {
@@ -2559,9 +2575,7 @@ export const settlementPayoutApi = {
     const res = await httpPage<Record<string, any>>('/settlement-payouts', params);
     return ok(mapPageRecords(res.data, toSettlementPayoutRecord));
   })(),
-  add: async (data: Record<string, unknown>) => httpPost<SettlementPayoutRecord>('/settlement-payouts', data),
-  edit: async (data: Record<string, unknown>) => httpPut<void>(`/settlement-payouts/${data.id}`, data),
-  updateStatus: async (id: number, data: Record<string, unknown>) => httpPut<void>(`/settlement-payouts/${id}/status`, data),
+  dispatch: async (id: number) => httpPost<void>(`/settlement-payouts/${id}/dispatch`, {}),
 };
 
 export const settlementConfirmApi = crudApi<SettlementConfirmRecord>('/settlement-confirms');

@@ -328,7 +328,8 @@ export const FALLBACK_BUSINESS_ENUMS = {
 ],
   settlementStatusOptions: [
   { value: 'PENDING', label: '待生成' },
-  { value: 'WAIT_CONFIRM', label: '待确认' },
+  { value: 'WAIT_PAYOUT', label: '待打款' },
+  { value: 'BLOCKED', label: '处理受阻' },
   { value: 'SETTLED', label: '已结算' },
   { value: 'REJECTED', label: '已驳回' },
 ],
@@ -343,6 +344,7 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'NONE', label: '不结算' },
 ],
   payoutStatusOptions: [
+  { value: 'NOT_REQUIRED', label: '无需打款' },
   { value: 'UNPAID', label: '待打款' },
   { value: 'PAYING', label: '打款中' },
   { value: 'PAID', label: '已打款' },
@@ -355,6 +357,12 @@ export const FALLBACK_BUSINESS_ENUMS = {
 ],
   settlementDetailTypeOptions: [
   { value: 'ORDER_INCOME', label: '订单收入' },
+  { value: 'SOURCE_REVENUE', label: '充值方收入' },
+  { value: 'SERVICE_REVENUE', label: '履约方收入' },
+  { value: 'PLATFORM_FEE', label: '平台服务费' },
+  { value: 'SOURCE_GIFT_COST', label: '充值方赠送成本' },
+  { value: 'SERVICE_GIFT_COST', label: '履约方赠送成本' },
+  { value: 'PLATFORM_GIFT_COST', label: '平台赠送成本' },
   { value: 'REFUND_DEDUCT', label: '退款冲减' },
   { value: 'ACTIVITY_COST', label: '活动成本' },
   { value: 'MANUAL_ADJUST', label: '人工调整' },
@@ -468,6 +476,7 @@ export const FALLBACK_BUSINESS_ENUMS = {
   inviteRecordStatusOptions: [
   { value: 'INVITED', label: '已邀请' },
   { value: 'QUALIFIED', label: '已达标' },
+  { value: 'EXPIRED', label: '已过期' },
   { value: 'REWARDED', label: '已发奖' },
   { value: 'RISK_REJECTED', label: '风控拦截' },
 ],

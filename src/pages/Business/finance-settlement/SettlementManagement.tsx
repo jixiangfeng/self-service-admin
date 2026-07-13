@@ -1,27 +1,23 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, InputNumber, Row, Select, Space, Statistic, Tabs, message } from 'antd';
-import { AccountBookOutlined, CalculatorOutlined, CalendarOutlined, TeamOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Row, Space, Statistic, Tabs, message } from 'antd';
+import { AccountBookOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useNavigate } from 'react-router-dom';
 import {
-  costBearerOptions,
   payoutStatusOptions,
   reconciliationStatusOptions,
-  settlementCycleOptions,
   settlementDetailTypeOptions,
   settlementStatusOptions,
   settlementSubjectTypeOptions,
 } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { buildValueEnum, containsKeyword, CoreFlowPanel, formatAmount, formatDateTime, formatEnumText, OperatorTips, renderStatusTag } from '@/pages/Business/shared';
 import WorkflowGuide from '@/pages/Business/shared';
-import { DateField, fromDatePickerValue } from '@/utils/formControls';
 import api, {
   type PaymentReconciliationRecord,
   type ProfitShareDetailRecord,
@@ -117,9 +113,10 @@ const detailTypeMap = buildValueEnum(settlementDetailTypeOptions);
 const reconciliationStatusMap = buildValueEnum(reconciliationStatusOptions);
 const settlementAllocationStatusOptions = [
   { value: 'PENDING', label: '待清分' },
-  { value: 'WAIT_CONFIRM', label: '待确认' },
-  { value: 'CONFIRMED', label: '已确认' },
-  { value: 'CANCELLED', label: '已取消' },
+  { value: 'PROCESSING', label: '处理中' },
+  { value: 'WAIT_PAYOUT', label: '待打款' },
+  { value: 'SETTLED', label: '已结算' },
+  { value: 'BLOCKED', label: '处理受阻' },
 ];
 const clearingStatusMap = buildValueEnum(settlementAllocationStatusOptions);
 const clearingRiskMap = buildValueEnum([
@@ -233,11 +230,7 @@ const SettlementManagement: React.FC = () => {
   const [reconcileStatusFilter, setReconcileStatusFilter] = useState<string>();
   const [shareStatusFilter, setShareStatusFilter] = useState<string>();
   const [detail, setDetail] = useState<SettlementRecord | SettlementDetailRecord | SettlementPayoutRecord | PaymentReconciliationRecord | CrossStoreClearingRecord | null>(null);
-  const [generateVisible, setGenerateVisible] = useState(false);
-  const [costVisible, setCostVisible] = useState(false);
   const [shareDetail, setShareDetail] = useState<ProfitShareRecord | null>(null);
-  const [costForm] = Form.useForm<{ couponCost: number; rechargeCost: number; inviteCost: number; owner: string }>();
-  const [generateForm] = Form.useForm<{ cycleType: string; periodStart: string; periodEnd: string; allocationStatus: string }>();
 
   const billQuery = useQuery({
     queryKey: ['settlementBills', billKeyword, billStatusFilter],
@@ -263,39 +256,15 @@ const SettlementManagement: React.FC = () => {
     queryKey: ['settlementAllocationOverview', clearingKeyword],
     queryFn: async () => (await api.settlementAllocation.page({ pageNum: 1, pageSize: 200, keyword: clearingKeyword || undefined })).data,
   });
-  const generateBillMutation = useMutation({
-    mutationFn: (values: Record<string, unknown>) => api.settlementBill.generateFromAllocations(values),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['settlementBills'] });
-      queryClient.invalidateQueries({ queryKey: ['settlementOverviewDetails'] });
-      queryClient.invalidateQueries({ queryKey: ['settlementAllocationsCenter'] });
-      message.success('结算单已按清分明细生成');
-    },
-  });
-  const confirmBillMutation = useMutation({
-    mutationFn: (record: SettlementRecord) => api.settlementBill.edit({ ...record, billStatus: 'SETTLED', status: 'SETTLED' }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['settlementBills'] });
-      queryClient.invalidateQueries({ queryKey: ['settlementAllocationsCenter'] });
-      message.success('结算单已确认');
-    },
-  });
   const retryPayoutMutation = useMutation({
-    mutationFn: (record: SettlementPayoutRecord) => api.settlementPayout.updateStatus(record.id, { status: 'PAYING', failureReason: '' }),
+    mutationFn: (record: SettlementPayoutRecord) => api.settlementPayout.dispatch(record.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settlementPayoutsOverview'] });
+      queryClient.invalidateQueries({ queryKey: ['settlementBills'] });
+      queryClient.invalidateQueries({ queryKey: ['settlementAllocationOverview'] });
       message.success('已发起重试打款');
     },
   });
-  const confirmBill = (record: SettlementRecord) => {
-    showBusinessConfirm({
-      title: '确认结算单',
-      content: `确定确认结算单「${record.billNo}」吗？确认后该结算单将进入已结算状态。`,
-      okText: '确认结算',
-      danger: false,
-      onOk: () => confirmBillMutation.mutate(record),
-    });
-  };
 
   const confirmRetryPayout = (record?: SettlementPayoutRecord) => {
     if (!record) return;
@@ -310,6 +279,8 @@ const SettlementManagement: React.FC = () => {
   const bills = (billQuery.data?.records || []) as SettlementRecord[];
   const settlementDetails = useMemo<SettlementDetailRecord[]>(() => (billDetailQuery.data?.records || []).map((item: SettlementBillDetailRecord) => {
     const amount = Number(item.amount || 0);
+    const isCost = item.detailType?.includes('GIFT_COST');
+    const isRefund = item.detailType === 'REFUND';
     return {
       id: item.id,
       billNo: item.billNo,
@@ -324,8 +295,8 @@ const SettlementManagement: React.FC = () => {
       settlementRule: item.settlementRule,
       settlementRuleSnapshot: item.settlementRuleSnapshot,
       incomeAmount: amount > 0 ? amount : 0,
-      refundAmount: amount < 0 ? Math.abs(amount) : 0,
-      costAmount: 0,
+      refundAmount: isRefund ? Math.abs(amount) : 0,
+      costAmount: isCost ? Math.abs(amount) : 0,
       settlementAmount: amount,
       remark: item.merchantName || '-',
     };
@@ -359,9 +330,11 @@ const SettlementManagement: React.FC = () => {
     return rows.map((item) => {
       const principalAmount = Number(item.principalAmount || 0);
       const giftAmount = Number(item.giftAmount || 0);
+      const sourceShareAmount = Number(item.sourceShareAmount || 0);
+      const serviceShareAmount = Number(item.serviceShareAmount || 0);
       const platformFee = Number(item.platformFeeAmount || 0);
       const payableAmount = Number(item.merchantReceivableAmount || 0);
-      const clearingBase = Number((principalAmount + giftAmount).toFixed(2));
+      const clearingBase = Number((sourceShareAmount + serviceShareAmount + platformFee).toFixed(2));
       return {
         id: `allocation-${item.id}`,
         clearingNo: item.allocationNo,
@@ -375,15 +348,15 @@ const SettlementManagement: React.FC = () => {
         giftAmount,
         couponAmount: 0,
         clearingBase,
-        rechargeMerchantRate: 0,
-        consumeMerchantRate: clearingBase > 0 ? Number((payableAmount * 100 / clearingBase).toFixed(2)) : 0,
+        rechargeMerchantRate: clearingBase > 0 ? Number((sourceShareAmount * 100 / clearingBase).toFixed(2)) : 0,
+        consumeMerchantRate: clearingBase > 0 ? Number((serviceShareAmount * 100 / clearingBase).toFixed(2)) : 0,
         platformRate: clearingBase > 0 ? Number((platformFee * 100 / clearingBase).toFixed(2)) : 0,
-        rechargeMerchantAmount: 0,
-        consumeMerchantAmount: payableAmount,
+        rechargeMerchantAmount: sourceShareAmount,
+        consumeMerchantAmount: serviceShareAmount,
         platformFee,
         payableAmount,
         formula: item.settlementRuleSnapshot || item.settlementRule || '按后端清分明细计算',
-        settlementCycle: item.settlementMode || '-',
+        settlementCycle: item.settlementCycle || '-',
         status: item.allocationStatus || 'PENDING',
         riskStatus: 'NORMAL',
         remark: `余额批次#${item.balanceLotId || '-'} / 清分规则#${item.settlementRuleId || '-'}`,
@@ -415,13 +388,6 @@ const SettlementManagement: React.FC = () => {
       render: (_, record) => (
         <Space>
           <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-          <Button
-            size="small"
-            loading={confirmBillMutation.isPending}
-            onClick={() => confirmBill(record)}
-          >
-            确认
-          </Button>
         </Space>
       ),
     },
@@ -537,41 +503,22 @@ const SettlementManagement: React.FC = () => {
     { title: '充值方留存', dataIndex: 'rechargeMerchantAmount', width: 120, search: false, render: (_, record) => formatAmount(record.rechargeMerchantAmount) },
     { title: '履约方应收', dataIndex: 'consumeMerchantAmount', width: 120, search: false, render: (_, record) => formatAmount(record.consumeMerchantAmount) },
     { title: '平台服务费', dataIndex: 'platformFee', width: 120, search: false, render: (_, record) => formatAmount(record.platformFee) },
-    { title: '应线下清分', dataIndex: 'payableAmount', width: 130, search: false, render: (_, record) => formatAmount(record.payableAmount) },
-    { title: '账期', dataIndex: 'settlementCycle', width: 140, search: false, render: (value) => formatEnumText(value, 'settlementMode', '结算模式') },
+    { title: '商户净应结', dataIndex: 'payableAmount', width: 130, search: false, render: (_, record) => formatAmount(record.payableAmount) },
+    { title: '账期', dataIndex: 'settlementCycle', width: 140, search: false },
     { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: clearingStatusMap, render: (_, record) => renderStatusTag(record.status, clearingStatusMap) },
     { title: '风控', dataIndex: 'riskStatus', width: 120, search: false, render: (_, record) => renderStatusTag(record.riskStatus, clearingRiskMap) },
     { title: '操作', width: 100, search: false, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ];
 
-  const handleGenerate = async () => {
-    const values = await generateForm.validateFields();
-    await generateBillMutation.mutateAsync({
-      ...values,
-      periodStart: fromDatePickerValue(values.periodStart as any) || values.periodStart,
-      periodEnd: fromDatePickerValue(values.periodEnd as any) || values.periodEnd,
-      billStatus: 'WAIT_CONFIRM',
-    });
-    setGenerateVisible(false);
-    generateForm.resetFields();
-  };
-
-  const handleCostSubmit = async () => {
-    await costForm.validateFields();
-    setCostVisible(false);
-    costForm.resetFields();
-    message.success('成本分摊配置已保存');
-  };
-
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="结算总览" subtitle="补齐结算单、退款冲减、成本分摊、打款状态和确认动作。" icon={<AccountBookOutlined />} />
+      <PageBanner title="结算总览" subtitle="门店组规则驱动自动清分、到期结算和真实通道打款。" icon={<AccountBookOutlined />} />
       <WorkflowGuide
         title="结算复盘闭环"
         summary="结算页要把收入归集、退款冲减、成本分摊和分润确认串起来，而不是把两个表平铺出来。"
         steps={[
           { title: '收入归集', description: '先归集服务收入、充值收入和门店维度金额', status: 'finish', tag: '结算单管理' },
-          { title: '跨店清分', description: '对独立微信商户收款的跨店消费生成线下应收应付', status: 'process', tag: '清分台账' },
+          { title: '跨店清分', description: '按门店组规则生成多主体清分分录', status: 'process', tag: '清分台账' },
           { title: '分润确认', description: '按门店和合伙关系确认实际分润结果', status: 'process', tag: '合伙人分润' },
           { title: '导出复盘', description: '最终输出结算单、分润明细和经营复盘数据', status: 'wait', tag: '报表 / 导出' },
         ]}
@@ -581,7 +528,7 @@ const SettlementManagement: React.FC = () => {
         subtitle="结算总览要能解释收入从哪里来、退款和成本怎么扣、跨店消费怎么清分、合伙人分润怎么确认，避免财务只能看金额猜原因。"
         config={[
           { label: '结算主体', desc: '按商户、门店、门店组或平台主体生成账单，周期和账户来自商户档案。', tag: '主体' },
-          { label: '跨店清分', desc: '独立微信商户收款但跨店消费时，要形成应收应付和清分备注。', tag: '清分' },
+          { label: '跨店清分', desc: '余额或次卡消费后按充值方、履约方和平台生成清分分录。', tag: '清分' },
           { label: '分润规则', desc: '多合伙人比例要使用版本化规则，不能覆盖历史口径。', tag: '分润' },
         ]}
         landing={[
@@ -590,7 +537,7 @@ const SettlementManagement: React.FC = () => {
           { label: '打款流水', desc: '打款状态、失败原因和重试结果单独沉淀，便于财务复盘。' },
         ]}
         verify={[
-          { label: '确认前', desc: '核对周期、主体、账户、收入、退款、成本和跨店清分金额。' },
+          { label: '自动成单', desc: '达到门店组账期和最低金额后，系统自动生成结算单。' },
           { label: '打款前', desc: '确认收款账户和失败原因，不要对失败流水批量盲重试。' },
           { label: '归档后', desc: '去分润明细和结算明细抽查订单级金额是否一致。' },
         ]}
@@ -602,12 +549,12 @@ const SettlementManagement: React.FC = () => {
         items={[
           { label: '先核结算单', desc: '先看收入、退款、成本和应结金额，再处理跨店清分和分润。', tag: '核对' },
           { label: '打款失败', desc: '在打款流水行内重试，先确认失败原因和收款账户，不要批量盲重试。', tag: '打款' },
-          { label: '确认结算', desc: '确认后进入财务归档口径，提交前要核对周期、主体、金额和备注。', tag: '归档' },
+          { label: '结算完成', desc: '记账结算自动完成；真实打款以通道成功回调为最终凭证。', tag: '归档' },
         ]}
       />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="待确认结算单" value={bills.filter((item) => item.status !== 'SETTLED').length} suffix="张" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="待处理结算单" value={bills.filter((item) => item.status !== 'SETTLED').length} suffix="张" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="本周期收入" value={formatAmount(bills.reduce((sum, item) => sum + Number(item.incomeAmount || 0), 0))} /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="退款冲减" value={formatAmount(bills.reduce((sum, item) => sum + Number(item.refundAmount || 0), 0))} /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="待清分金额" value={formatAmount(crossStoreClearings.reduce((sum, item) => sum + Number(item.payableAmount || 0), 0))} /></Card></Col>
@@ -628,29 +575,7 @@ const SettlementManagement: React.FC = () => {
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 8 }}
                 scroll={{ x: 2100 }}
-                toolBarRender={() => [
-                  <Button
-                    key="cost"
-                    onClick={() => {
-                      costForm.setFieldsValue({ couponCost: 200, rechargeCost: 360, inviteCost: 120, owner: 'RATIO' });
-                      setCostVisible(true);
-                    }}
-                  >
-                    成本分摊配置
-                  </Button>,
-                  <Button
-                    key="generate"
-                    type="primary"
-                    icon={<CalculatorOutlined />}
-                    loading={generateBillMutation.isPending}
-                    onClick={() => {
-                      generateForm.setFieldsValue({ cycleType: 'DAY', allocationStatus: 'PENDING' });
-                      setGenerateVisible(true);
-                    }}
-                  >
-                    按清分生成结算单
-                  </Button>,
-                ]}
+                toolBarRender={() => []}
                 onSubmit={(values) => { setBillKeyword(String(values.keyword || '')); setBillStatusFilter(values.status ? String(values.status) : undefined); }}
                 onReset={() => { setBillKeyword(''); setBillStatusFilter(undefined); }}
               />
@@ -767,86 +692,11 @@ const SettlementManagement: React.FC = () => {
         ) : null}
       </BusinessDetailModal>
 
-      <BusinessEditorModal
-        eyebrow="成本分摊配置"
-        title="配置活动成本分摊"
-        subtitle="把优惠券、充值赠送、邀请奖励和承担方式拆成财务可维护字段，避免手写成本说明。"
-        meta={['结算总览', '成本分摊']}
-        open={costVisible}
-        onOk={handleCostSubmit}
-        onCancel={() => { setCostVisible(false); costForm.resetFields(); }}
-        width={980}
-        okText="保存成本配置"
-      >
-        <Form form={costForm} layout="vertical" className="merchant-editor-form">
-          <div className="merchant-editor-shell">
-            <BusinessEditorSection icon={<CalculatorOutlined />} title="活动成本" desc="按成本来源维护金额，后续用于结算单成本归集。">
-              <div className="merchant-editor-fields">
-                <Form.Item name="couponCost" label="优惠券成本" rules={[{ required: true, message: '请输入优惠券成本' }]}>
-                  <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" />
-                </Form.Item>
-                <Form.Item name="rechargeCost" label="充值赠送成本" rules={[{ required: true, message: '请输入充值成本' }]}>
-                  <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" />
-                </Form.Item>
-                <Form.Item name="inviteCost" label="邀请奖励成本" rules={[{ required: true, message: '请输入邀请成本' }]}>
-                  <InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" />
-                </Form.Item>
-              </div>
-            </BusinessEditorSection>
-            <BusinessEditorSection icon={<TeamOutlined />} title="承担方式" desc="配置成本承担方，保持财务和运营口径一致。">
-              <div className="merchant-editor-fields">
-                <Form.Item name="owner" label="承担方式" rules={[{ required: true, message: '请选择承担方式' }]}>
-                  <Select options={costBearerOptions} placeholder="请选择承担方式" />
-                </Form.Item>
-              </div>
-            </BusinessEditorSection>
-          </div>
-        </Form>
-      </BusinessEditorModal>
-
       <BusinessDetailModal title="分润明细" open={!!shareDetail} onCancel={() => setShareDetail(null)} width={760}>
         {shareDetail ? (
           <SchemaDetail record={shareDetail} fields={profitShareSummaryFields} column={2} labelWidth={110} />
         ) : null}
       </BusinessDetailModal>
-
-      <BusinessEditorModal
-        eyebrow="生成结算单"
-        title="按清分明细生成结算单"
-        subtitle="系统会读取待清分余额明细，按履约商户或门店自动分组生成结算单和账单明细。"
-        meta={['结算总览', '生成']}
-        open={generateVisible}
-        onOk={handleGenerate}
-        confirmLoading={generateBillMutation.isPending}
-        onCancel={() => { setGenerateVisible(false); generateForm.resetFields(); }}
-        width={920}
-        okText="生成结算单"
-      >
-        <Form form={generateForm} layout="vertical" className="merchant-editor-form">
-          <div className="merchant-editor-shell">
-            <BusinessEditorSection icon={<CalendarOutlined />} title="账期周期" desc="选择要归集的清分发生时间，系统按清分明细自动生成结算主体和金额。">
-              <div className="merchant-editor-fields">
-                <Form.Item name="cycleType" label="周期类型" rules={[{ required: true, message: '请选择周期类型' }]}>
-                  <Select options={settlementCycleOptions} placeholder="请选择周期类型" />
-                </Form.Item>
-                <Form.Item name="periodStart" label="周期开始" rules={[{ required: true, message: '请输入周期开始' }]}>
-                  <DateField />
-                </Form.Item>
-                <Form.Item name="periodEnd" label="周期结束" rules={[{ required: true, message: '请输入周期结束' }]}>
-                  <DateField />
-                </Form.Item>
-              </div>
-            </BusinessEditorSection>
-            <BusinessEditorSection icon={<AccountBookOutlined />} title="清分来源" desc="只归集指定状态的清分明细，生成后清分状态会进入待确认。">
-              <div className="merchant-editor-fields">
-                <Form.Item name="allocationStatus" label="清分状态" rules={[{ required: true, message: '请选择清分状态' }]}>
-                  <Select options={settlementAllocationStatusOptions} placeholder="请选择清分状态" />
-                </Form.Item>
-              </div>
-            </BusinessEditorSection>
-          </div>
-        </Form>
-      </BusinessEditorModal>
 
     </div>
   );

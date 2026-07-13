@@ -122,7 +122,13 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
   const saveMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) => {
       if (activeTab === 'image') return payload.id ? api.storeImage.edit(payload) : api.storeImage.add(payload);
-      return payload.id ? api.storeServiceCapability.edit(payload) : api.storeServiceCapability.add(payload);
+      if (payload.id) return api.storeServiceCapability.edit(payload);
+      return api.storeServiceCapability.addBatch({
+        storeId: Number(payload.storeId),
+        capabilityCodes: Array.isArray(payload.capabilityCodes) ? payload.capabilityCodes.map(String) : [],
+        configJson: typeof payload.configJson === 'string' ? payload.configJson : undefined,
+        status: typeof payload.status === 'string' ? payload.status : undefined,
+      });
     },
     onSuccess: () => {
       message.success('门店档案已保存');
@@ -167,7 +173,7 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
     } else if (tab === 'image') {
       form.setFieldsValue({ storeId, imageType: 'COVER', sortNo: 0, status: 'PUBLISHED' });
     } else if (tab === 'capability') {
-      form.setFieldsValue({ storeId, capabilityCode: 'SCAN', status: 'PUBLISHED' });
+      form.setFieldsValue({ storeId, capabilityCodes: [], status: 'PUBLISHED' });
     }
     setModalVisible(true);
   };
@@ -286,7 +292,20 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
                   <Select showSearch optionFilterProp="label" options={storeOptions || []} placeholder="请选择门店" />
                 </Form.Item>
                 {activeTab === 'image' ? <Form.Item name="imageType" label="图片类型" rules={[{ required: true, message: '请选择图片类型' }]}><Select options={storeImageTypeOptions} placeholder="请选择图片类型" /></Form.Item> : null}
-                {activeTab === 'capability' ? <Form.Item name="capabilityCode" label="能力" rules={[{ required: true, message: '请选择能力' }]}><Select options={storeServiceCapabilityOptions} placeholder="请选择服务能力" /></Form.Item> : null}
+                {activeTab === 'capability' ? (
+                  <Form.Item
+                    name={editingRecord ? 'capabilityCode' : 'capabilityCodes'}
+                    label={editingRecord ? '能力' : '能力（可多选）'}
+                    rules={[{ required: true, message: '请至少选择一项能力' }]}
+                  >
+                    <Select
+                      mode={editingRecord ? undefined : 'multiple'}
+                      options={storeServiceCapabilityOptions}
+                      placeholder={editingRecord ? '请选择服务能力' : '可一次选择多项服务能力'}
+                      maxTagCount="responsive"
+                    />
+                  </Form.Item>
+                ) : null}
               </div>
             </BusinessEditorSection>
 

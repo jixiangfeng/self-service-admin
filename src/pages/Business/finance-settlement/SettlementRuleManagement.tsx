@@ -25,12 +25,14 @@ const ruleTypeOptions = [
   { value: 'STORE_GROUP_CLEARING', label: '门店组清分' },
   { value: 'PLATFORM_CLEARING', label: '平台清分' },
 ];
+const editableRuleTypeOptions = ruleTypeOptions.filter((item) => item.value !== 'STORE_GROUP_CLEARING');
 const settlementModeOptions = [
   { value: 'STORE_CLEARING', label: '门店清分' },
   { value: 'MERCHANT_CLEARING', label: '商户清分' },
   { value: 'GROUP_UNIFIED_SETTLEMENT', label: '门店组统一结算' },
   { value: 'PLATFORM_CLEARING', label: '平台统一清分' },
-  { value: 'OFFLINE_CLEARING', label: '线下清分' },
+  { value: 'AUTO_LEDGER', label: '自动清分并结算' },
+  { value: 'AUTO_PAYOUT', label: '自动清分、结算并打款' },
 ];
 const ownerTypeOptions = [
   { value: 'PLATFORM', label: '平台' },
@@ -150,6 +152,11 @@ const ruleFields: DetailField<SettlementRuleRecord>[] = [
   { name: 'ruleType', label: '规则类型', render: (value) => enumText(ruleTypeMap, value) },
   { name: 'status', label: '状态', render: (value) => renderEnumTag(statusMap, value) },
   { name: 'settlementMode', label: '清分模式', render: (value) => enumText(modeMap, value) },
+  { name: 'cashHolderType', label: '资金持有方' },
+  { name: 'clearingBase', label: '清分基数', render: (value) => enumText(feeBaseMap, value) },
+  { name: 'sourceShareRate', label: '充值方比例' },
+  { name: 'serviceShareRate', label: '履约方比例' },
+  { name: 'cardRevenueRecognition', label: '次卡收入确认' },
   { name: 'versionNo', label: '版本' },
   { name: 'priority', label: '优先级' },
   { name: 'effectiveFrom', label: '生效时间', render: (value) => formatDateTime(value) },
@@ -178,10 +185,12 @@ const ruleFields: DetailField<SettlementRuleRecord>[] = [
   { name: 'maxPlatformFee', label: '最高平台费', render: (value) => formatAmount(value) },
   { name: 'platformFeeBearerType', label: '平台费承担方', render: (value) => enumText(ownerTypeMap, value) },
   { name: 'settlementCycle', label: '结算周期', render: (value) => enumText(cycleMap, value) },
+  { name: 'settlementCutoffTime', label: '账期截止时间' },
   { name: 'settlementDelayDays', label: '延迟天数' },
   { name: 'refundFreezeDays', label: '退款冻结天数' },
   { name: 'minSettlementAmount', label: '最低结算金额', render: (value) => formatAmount(value) },
   { name: 'autoSettlement', label: '自动结算', render: (value) => enumText(flagMap, value) },
+  { name: 'autoPayout', label: '自动打款', render: (value) => enumText(flagMap, value) },
   { name: 'nettingEnabled', label: '净额轧差', render: (value) => enumText(flagMap, value) },
   { name: 'refundRule', label: '退款冲正规则', render: (value) => enumText(refundMap, value) },
   { name: 'serviceFeeRefundRule', label: '服务费退款规则', render: (value) => enumText(refundMap, value) },
@@ -360,12 +369,12 @@ const SettlementRuleManagement: React.FC = () => {
       fixed: 'right',
       render: (_, record) => [
         <Button key="detail" type="link" icon={<EyeOutlined />} onClick={() => setDetailRecord(record)}>详情</Button>,
-        <Button key="edit" type="link" icon={<EditOutlined />} onClick={() => openEdit(record)}>编辑</Button>,
+        <Button key="edit" type="link" icon={<EditOutlined />} disabled={record.ruleType === 'STORE_GROUP_CLEARING'} onClick={() => openEdit(record)}>编辑</Button>,
         <Button
           key="delete"
           type="link"
           danger
-          disabled={record.status === 'ENABLED'}
+          disabled={record.status === 'ENABLED' || record.ruleType === 'STORE_GROUP_CLEARING'}
           icon={<DeleteOutlined />}
           onClick={() => showBusinessConfirm({
             title: '删除清分规则',
@@ -461,7 +470,7 @@ const SettlementRuleManagement: React.FC = () => {
               <div className="merchant-editor-fields">
                 {editingRecord ? <Form.Item name="ruleCode" label="规则编码"><Input readOnly placeholder="规则编码不可编辑" /></Form.Item> : null}
                 <Form.Item name="ruleName" label="规则名称" rules={[{ required: true, message: '请输入规则名称' }]}><Input placeholder="规则展示名称" /></Form.Item>
-                <Form.Item name="ruleType" label="规则类型" rules={[{ required: true, message: '请选择规则类型' }]}><Select options={ruleTypeOptions} /></Form.Item>
+                <Form.Item name="ruleType" label="规则类型" rules={[{ required: true, message: '请选择规则类型' }]}><Select options={editableRuleTypeOptions} /></Form.Item>
                 <Form.Item name="settlementMode" label="清分模式" rules={[{ required: true, message: '请选择清分模式' }]}><Select options={settlementModeOptions} /></Form.Item>
                 <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={statusOptions} /></Form.Item>
                 <Form.Item name="versionNo" label="版本号"><Input placeholder="V1" /></Form.Item>
