@@ -548,9 +548,9 @@ const ServiceCardManagement: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="次卡" subtitle="维护次卡的产品配置、单次分钟数、售价、发放规则和上下架状态。" icon={<WalletOutlined />} />
+      <PageBanner title="服务卡管理" subtitle="统一维护卡产品、用户持卡和使用记录，完整追踪服务卡从配置、发放到核销的生命周期。" icon={<WalletOutlined />} />
       <CoreFlowPanel
-        title="权益次卡产品闭环"
+        title="服务卡业务闭环"
         subtitle="权益产品要同时串起产品配置、可售库存、用户持卡、核销流水和充值活动赠送，避免只维护卡面规则却无法追踪发放与消耗。"
         config={[
           { label: '权益定义', desc: '维护次数、单次分钟数、适用服务、有效期和范围，是购买、发放和扣次的统一口径。', tag: '产品' },

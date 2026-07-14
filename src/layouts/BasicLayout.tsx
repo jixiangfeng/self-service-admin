@@ -85,10 +85,10 @@ const BasicLayout: React.FC = () => {
     },
     {
       key: 'group-catalog',
-      name: '权益商品',
+      name: '权益管理',
       icon: <AppstoreOutlined />,
       children: [
-        { key: '/asset/service-cards', path: '/asset/service-cards', name: '次卡/月卡', icon: <IdcardOutlined /> },
+        { key: '/asset/service-cards', path: '/asset/service-cards', name: '服务卡管理', icon: <IdcardOutlined /> },
       ],
     },
     {

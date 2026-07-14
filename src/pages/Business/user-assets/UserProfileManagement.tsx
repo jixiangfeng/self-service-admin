@@ -8,11 +8,9 @@ import {
   riskStatusOptions,
   userLevelOptions,
   yesNoTextOptions,
-  writeOffStatusOptions,
 } from '@/constants/businessCatalog';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
-import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
@@ -21,7 +19,6 @@ import api from '@/services/backendService';
 import type {
   AppUserFullProfileRecord,
   AppUserProfileRecord,
-  ServiceCardUsageRecord,
   StoreRecord,
   UserFavoriteStoreRecord,
   UserRiskRecord,
@@ -30,7 +27,6 @@ import type {
 
 const userLevelMap = buildValueEnum(userLevelOptions);
 const riskStatusMap = buildValueEnum(riskStatusOptions);
-const writeOffStatusMap = buildValueEnum(writeOffStatusOptions);
 const defaultFlagFormOptions = yesNoTextOptions.filter((item) => ['YES', 'NO'].includes(String(item.value)));
 const defaultFlagMap = buildValueEnum(defaultFlagFormOptions);
 
@@ -89,7 +85,7 @@ const buildProfileSummary = (values: Record<string, unknown>) => [
   values.operatorNote ? `补充说明：${values.operatorNote}` : '',
 ].filter(Boolean).join('；');
 
-const profileDetailFields: Record<'profile' | 'vehicle' | 'store' | 'usage' | 'risk', DetailField<any>[]> = {
+const profileDetailFields: Record<'profile' | 'vehicle' | 'store' | 'risk', DetailField<any>[]> = {
   profile: [
     { name: 'userName', label: '用户' },
     { name: 'mobile', label: '手机号' },
@@ -116,16 +112,6 @@ const profileDetailFields: Record<'profile' | 'vehicle' | 'store' | 'usage' | 'r
     { name: 'orderCount', label: '订单数' },
     { name: 'lastVisitAt', label: '最近到店', render: (value) => formatDateTime(value) },
   ],
-  usage: [
-    { name: 'usageNo', label: '使用流水' },
-    { name: 'cardName', label: '卡名称' },
-    { name: 'userName', label: '用户' },
-    { name: 'serviceOrderNo', label: '订单号' },
-    { name: 'storeName', label: '门店' },
-    { name: 'deductCount', label: '扣减次数' },
-    { name: 'status', label: '状态' },
-    { name: 'usedAt', label: '使用时间', render: (value) => formatDateTime(value) },
-  ],
   risk: [
     { name: 'userName', label: '用户' },
     { name: 'mobile', label: '手机号' },
@@ -141,7 +127,7 @@ const profileDetailFields: Record<'profile' | 'vehicle' | 'store' | 'usage' | 'r
 const UserProfileManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
-  const [detail, setDetail] = useState<AppUserProfileRecord | UserVehicleRecord | UserFavoriteStoreRecord | ServiceCardUsageRecord | UserRiskRecord | null>(null);
+  const [detail, setDetail] = useState<AppUserProfileRecord | UserVehicleRecord | UserFavoriteStoreRecord | UserRiskRecord | null>(null);
   const [fullProfileVisible, setFullProfileVisible] = useState(false);
   const [fullProfileLoading, setFullProfileLoading] = useState(false);
   const [fullProfile, setFullProfile] = useState<AppUserFullProfileRecord | undefined>();
@@ -151,7 +137,6 @@ const UserProfileManagement: React.FC = () => {
   const profileQuery = useQuery({ queryKey: ['appUserProfiles', keyword], queryFn: async () => (await api.asset.profiles.page({ pageNum: 1, pageSize: 200, keyword })).data });
   const vehicleQuery = useQuery({ queryKey: ['userVehicles', keyword], queryFn: async () => (await api.asset.vehicles.page({ pageNum: 1, pageSize: 200, keyword })).data });
   const storeQuery = useQuery({ queryKey: ['userFavoriteStores', keyword], queryFn: async () => (await api.asset.favoriteStores.page({ pageNum: 1, pageSize: 200, keyword })).data });
-  const cardUsageQuery = useQuery({ queryKey: ['profileServiceCardUsages', keyword], queryFn: async () => (await api.asset.serviceCardUsages.page({ pageNum: 1, pageSize: 200, keyword })).data });
   const riskQuery = useQuery({ queryKey: ['userRiskRecords', keyword], queryFn: async () => (await api.asset.riskRecords.page({ pageNum: 1, pageSize: 200, keyword })).data });
   const saveMutation = useMutation({
     mutationFn: async (values: Record<string, unknown>) => {
@@ -175,27 +160,9 @@ const UserProfileManagement: React.FC = () => {
       message.success('保存成功');
     },
   });
-  const rollbackUsageMutation = useMutation({
-    mutationFn: async (id: number) => api.asset.serviceCardUsages.rollback(id, { remark: '用户档案中心人工回滚' }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profileServiceCardUsages'] });
-      message.success('服务卡使用已回滚');
-    },
-  });
-
-  const confirmRollbackUsage = (record: ServiceCardUsageRecord) => {
-    showBusinessConfirm({
-      title: '确认回滚服务卡使用',
-      content: `确定回滚使用流水「${record.usageNo || record.serviceOrderNo || record.id}」吗？回滚后会恢复对应服务卡权益。`,
-      okText: '确认回滚',
-      onOk: () => rollbackUsageMutation.mutate(record.id),
-    });
-  };
-
   const profiles = profileQuery.data?.records || [];
   const vehicles = vehicleQuery.data?.records || [];
   const favoriteStores = storeQuery.data?.records || [];
-  const cardUsages = cardUsageQuery.data?.records || [];
   const userRisks = riskQuery.data?.records || [];
   const storeOptionQuery = useQuery({ queryKey: ['userProfileStoreOptions'], queryFn: async () => (await api.store.page({ pageNum: 1, pageSize: 500 })).data });
   const userOptions = profiles.map((item) => ({ value: item.userId ?? item.id, label: `${item.userName}${item.mobile ? `（${item.mobile}）` : ''}` }));
@@ -261,27 +228,6 @@ const UserProfileManagement: React.FC = () => {
     { title: '最近到店', dataIndex: 'lastVisitAt', width: 180, render: (_, record) => formatDateTime(record.lastVisitAt) },
   ], []);
 
-  const cardUsageColumns = useMemo<ProColumns<ServiceCardUsageRecord>[]>(() => [
-    { title: '使用流水', dataIndex: 'usageNo', width: 180 },
-    { title: '卡名称', dataIndex: 'cardName', width: 160 },
-    { title: '用户', dataIndex: 'userName', width: 120 },
-    { title: '订单号', dataIndex: 'serviceOrderNo', width: 180 },
-    { title: '门店', dataIndex: 'storeName', width: 180 },
-    { title: '扣减次数', dataIndex: 'deductCount', width: 100 },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, writeOffStatusMap) },
-    { title: '使用时间', dataIndex: 'usedAt', width: 180, render: (_, record) => formatDateTime(record.usedAt) },
-    {
-      title: '操作',
-      width: 160,
-      render: (_, record) => (
-        <>
-          <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-          <Button size="small" type="link" loading={rollbackUsageMutation.isPending} onClick={() => confirmRollbackUsage(record)}>回滚</Button>
-        </>
-      ),
-    },
-  ], [rollbackUsageMutation]);
-
   const riskColumns = useMemo<ProColumns<UserRiskRecord>[]>(() => [
     { title: '用户', dataIndex: 'userName', width: 120 },
     { title: '风控场景', dataIndex: 'riskScene', width: 150 , render: (value) => formatEnumText(value, 'riskScene', '风控场景') },
@@ -294,19 +240,18 @@ const UserProfileManagement: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="用户档案中心" subtitle="维护用户档案、车辆、常用门店、服务卡使用流水和用户风控记录。" icon={<ContactsOutlined />} />
+      <PageBanner title="用户档案中心" subtitle="维护用户基础档案、车辆、常用门店和风控记录；服务卡信息仅在用户完整档案中作为关联资产查看。" icon={<ContactsOutlined />} />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} xl={5}><Card><Statistic title="用户档案" value={profiles.length} suffix="人" /></Card></Col>
-        <Col xs={24} sm={12} xl={5}><Card><Statistic title="车辆" value={vehicles.length} suffix="辆" /></Card></Col>
-        <Col xs={24} sm={12} xl={5}><Card><Statistic title="服务卡使用" value={cardUsages.length} suffix="次" /></Card></Col>
-        <Col xs={24} sm={12} xl={5}><Card><Statistic title="观察名单" value={userRisks.filter((item) => item.riskStatus === 'WATCH').length} suffix="人" /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card><Statistic title="核销次数" value={cardUsages.reduce((sum, item) => sum + Number(item.deductCount || 0), 0)} suffix="次" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="用户档案" value={profiles.length} suffix="人" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="车辆" value={vehicles.length} suffix="辆" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="常用门店" value={favoriteStores.length} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="观察名单" value={userRisks.filter((item) => item.riskStatus === 'WATCH').length} suffix="人" /></Card></Col>
       </Row>
 
       <KeywordSearchBar
         value={keyword}
-        placeholder="输入用户、手机号、车牌、门店、卡流水、风控关键词"
+        placeholder="输入用户、手机号、车牌、门店或风控关键词"
         onSearch={setKeyword}
       />
 
@@ -315,7 +260,6 @@ const UserProfileManagement: React.FC = () => {
           { key: 'profile', label: '用户档案', children: <ProTable<AppUserProfileRecord> cardBordered rowKey="id" columns={profileColumns} dataSource={profiles} loading={profileQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="tag" type="primary" onClick={() => openModal('维护用户档案')}>维护档案</Button>]} /> },
           { key: 'vehicle', label: '用户车辆', children: <ProTable<UserVehicleRecord> cardBordered rowKey="id" columns={vehicleColumns} dataSource={vehicles} loading={vehicleQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1120 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新增用户车辆')}>新增车辆</Button>]} /> },
           { key: 'store', label: '常用门店', children: <ProTable<UserFavoriteStoreRecord> cardBordered rowKey="id" columns={storeColumns} dataSource={favoriteStores} loading={storeQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1080 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('维护常用门店')}>维护门店</Button>]} /> },
-          { key: 'cardUsage', label: '服务卡使用', children: <ProTable<ServiceCardUsageRecord> cardBordered rowKey="id" columns={cardUsageColumns} dataSource={cardUsages} loading={cardUsageQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1460 }} toolBarRender={() => []} /> },
           { key: 'risk', label: '用户风控', children: <ProTable<UserRiskRecord> cardBordered rowKey="id" columns={riskColumns} dataSource={userRisks} loading={riskQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="handle" type="primary" onClick={() => openModal('处理用户风控')}>处理风控</Button>]} /> },
         ]}
       />
@@ -331,7 +275,7 @@ const UserProfileManagement: React.FC = () => {
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
-            fields={('plateNo' in detail ? profileDetailFields.vehicle : 'storeName' in detail && 'lastOrderNo' in detail ? profileDetailFields.store : 'usageNo' in detail ? profileDetailFields.usage : 'riskScene' in detail ? profileDetailFields.risk : profileDetailFields.profile) as DetailField<Record<string, any>>[]}
+            fields={('plateNo' in detail ? profileDetailFields.vehicle : 'storeName' in detail && 'lastOrderNo' in detail ? profileDetailFields.store : 'riskScene' in detail ? profileDetailFields.risk : profileDetailFields.profile) as DetailField<Record<string, any>>[]}
             column={2}
             labelWidth={110}
           />

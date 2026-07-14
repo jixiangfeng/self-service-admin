@@ -45,16 +45,7 @@ const buildInvitePayload = (values: Record<string, any>) => ({
   qualifyAmount: hasAmountQualifyCondition(values.qualifyCondition) ? values.qualifyAmount : 0,
   scopeIds: values.scopeMode === 'PLATFORM' ? '' : splitScopeValues(values.scopeIds).join(','),
 });
-const tierRulesText = (value?: string) => {
-  const text = String(value || '').trim();
-  if (!text.startsWith('[')) return text;
-  try {
-    const rules = JSON.parse(text) as Array<{ inviteCount?: number; qualifyAmount?: number; rewardAmount?: number }>;
-    return rules.map((rule) => `邀请${rule.inviteCount || 0}个新人各充值满${rule.qualifyAmount || 0}元返${rule.rewardAmount || 0}元`).join('；');
-  } catch {
-    return text;
-  }
-};
+const rebateDescriptionText = (value?: string) => String(value || '').trim();
 const rewardSummary = (type?: string, amount?: number | string, cardId?: number) => {
   if (type === 'SERVICE_CARD') return cardId ? `服务卡产品 #${cardId}` : '服务卡';
   if (type === 'POINTS') return amount ? `${amount}积分` : '积分';
@@ -76,7 +67,7 @@ const inviteDetailFields: DetailField<InviteActivityRecord>[] = [
   { name: 'inviterRewardType', label: '邀请人奖励类型', render: (value) => value ? rewardTypeMap[value as keyof typeof rewardTypeMap]?.text || value : '-' },
   { name: 'inviterServiceCardId', label: '邀请人服务卡' },
   { name: 'inviterRewardAmount', label: '邀请人金额/积分' },
-  { name: 'tierRewardRules', label: '阶梯返利规则', render: (value) => tierRulesText(String(value || '')) || '-' },
+  { name: 'tierRewardRules', label: '阶梯返利说明', render: (value) => rebateDescriptionText(String(value || '')) || '-' },
   { name: 'bannerImageUrl', label: '活动条Banner' },
   { name: 'status', label: '状态', render: (value) => value ? statusMap[value as keyof typeof statusMap]?.text || value : '-' },
   { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
@@ -174,7 +165,7 @@ const InviteActivityManagement: React.FC = () => {
     { title: '适用范围', dataIndex: 'scopeMode', width: 180, search: false, render: (_, record) => record.scope || renderStatusTag(record.scopeMode || 'PLATFORM', scopeModeMap) },
     { title: '达标规则', dataIndex: 'qualifyCondition', width: 220, search: false, render: (_, record) => qualifyText(record) },
     { title: '邀请人奖励', dataIndex: 'inviterReward', width: 160, search: false },
-    { title: '阶梯返利', dataIndex: 'tierRewardRules', width: 220, search: false, ellipsis: true, render: (_, record) => tierRulesText(record.tierRewardRules) || '-' },
+    { title: '阶梯返利说明', dataIndex: 'tierRewardRules', width: 220, search: false, ellipsis: true, render: (_, record) => rebateDescriptionText(record.tierRewardRules) || '-' },
     { title: '邀请人奖励配置', dataIndex: 'inviterRewardType', width: 180, search: false, render: (_, record) => rewardSummary(record.inviterRewardType, record.inviterRewardAmount, record.inviterServiceCardId) },
     { title: '邀请数', dataIndex: 'inviteCount', width: 100, search: false },
     { title: '达标数', dataIndex: 'qualifiedCount', width: 100, search: false },
@@ -188,7 +179,7 @@ const InviteActivityManagement: React.FC = () => {
       render: (_, record) => (
         <Space>
           <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-          <Button size="small" onClick={() => { setEditingRecord(record); form.setFieldsValue({ ...record, scopeIds: splitScopeValues(record.scopeIds), tierRewardRules: tierRulesText(record.tierRewardRules) } as any); setModalVisible(true); }}>编辑</Button>
+          <Button size="small" onClick={() => { setEditingRecord(record); form.setFieldsValue({ ...record, scopeIds: splitScopeValues(record.scopeIds), tierRewardRules: rebateDescriptionText(record.tierRewardRules) } as any); setModalVisible(true); }}>编辑</Button>
           <Button
             size="small"
             onClick={() => {
@@ -339,7 +330,7 @@ const InviteActivityManagement: React.FC = () => {
                 {inviterRewardType === 'BALANCE' ? <Form.Item name="inviterRewardAmount" label="邀请人奖励金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="例如：10" /></Form.Item> : null}
                 {(inviterRewardType === 'CARD' || inviterRewardType === 'SERVICE_CARD') ? <Form.Item name="inviterServiceCardId" label="邀请人服务卡"><Select showSearch optionFilterProp="label" options={serviceCardOptions} placeholder="请选择服务卡产品" /></Form.Item> : null}
                 <Form.Item name="inviterReward" label="邀请人奖励说明"><Input placeholder="例如：邀请成功奖励，系统按上方配置发放" /></Form.Item>
-                {qualifyCondition === 'RECHARGE' ? <Form.Item className="merchant-editor-field-span-all" name="tierRewardRules" label="阶梯返利规则"><Input.TextArea rows={3} placeholder="例如：邀请3个新人各充值满100元返30元；邀请5个新人各充值满100元返80元" /></Form.Item> : null}
+                {qualifyCondition === 'RECHARGE' ? <Form.Item className="merchant-editor-field-span-all" name="tierRewardRules" label="阶梯返利说明"><Input.TextArea rows={3} placeholder="仅作运营说明，例如：邀请人数越多，可参与更高档位奖励活动" /></Form.Item> : null}
               </div>
             </BusinessEditorSection>
           </div>

@@ -277,7 +277,7 @@ const ServicePointManagement: React.FC = () => {
             <BusinessEditorSection
               icon={<CarOutlined />}
               title="点位基础"
-              desc="把点位绑定到具体门店，并明确工位名称、类型和现场位置；点位编号由后台自动生成。二维码在档案维护中补齐。"
+              desc="把点位绑定到具体门店，并明确工位名称、类型和现场位置；后台自动生成全平台唯一点位编号，该编号直接用于小程序码。"
             >
               <div className="merchant-editor-fields">
                 <Form.Item name="storeId" label="所属门店" rules={[{ required: true, message: '请选择所属门店' }]}>
@@ -295,7 +295,7 @@ const ServicePointManagement: React.FC = () => {
                 <Form.Item name="storeName" hidden><Input /></Form.Item>
                 {editingRecord ? (
                   <Form.Item name="pointCode" label="点位编号">
-                    <Input disabled placeholder="点位编号不可编辑" />
+                    <Input disabled placeholder="全平台唯一，用于小程序码" />
                   </Form.Item>
                 ) : null}
                 <Form.Item name="pointName" label="点位名称" rules={[{ required: true, message: '请输入点位名称' }]}>

@@ -19,8 +19,8 @@ const requiredMenuLabels = [
   '门店组管理',
   '点位管理',
   '设备管理',
-  '权益商品',
-  '次卡/月卡',
+  '权益管理',
+  '服务卡管理',
   '交易履约',
   '订单中心',
   '核销记录',
@@ -47,6 +47,8 @@ const requiredMenuLabels = [
 ];
 
 const hiddenMenuLabels = [
+  '权益商品',
+  '次卡/月卡',
   '设备接入',
   '设备接入管理',
   '履约记录',

@@ -241,7 +241,13 @@ const MerchantGroupManagement: React.FC = () => {
       ),
     },
     { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '门店组 / 商户 / 负责人' } },
-    { title: '所属商户', dataIndex: 'merchantName', width: 180, search: false },
+    {
+      title: '归属范围',
+      dataIndex: 'merchantName',
+      width: 180,
+      search: false,
+      render: (_, record) => record.groupType === 'STORED_VALUE' ? '跨商户' : record.merchantName || '-',
+    },
     {
       title: '分组类型',
       dataIndex: 'groupType',
@@ -299,11 +305,13 @@ const MerchantGroupManagement: React.FC = () => {
       return;
     }
     const { merchantName, ...baseValues } = values as MerchantGroupFormValues;
+    const isStoredValueGroup = values.groupType === 'STORED_VALUE';
     const merchantId = typeof values.merchantId === 'number' ? values.merchantId : undefined;
     const selectedMerchantName = merchantId !== undefined ? merchantOptionMap.get(merchantId) : undefined;
     const payload = {
       ...baseValues,
-      merchantName: selectedMerchantName || merchantName,
+      merchantId: isStoredValueGroup ? null : merchantId,
+      merchantName: isStoredValueGroup ? null : selectedMerchantName || merchantName,
     };
     if (editingRecord) {
       await api.merchantGroup.edit({ ...editingRecord, ...payload } as Record<string, unknown>);
@@ -405,7 +413,7 @@ const MerchantGroupManagement: React.FC = () => {
             <BusinessEditorSection
               icon={<DeploymentUnitOutlined />}
               title="分组基础信息"
-              desc="定义门店组编码、名称、归属商户和当前状态，支撑后续成员维护和业务引用。"
+              desc="经营门店组归属单一商户；储值通用组按成员门店确定跨商户范围，不设置所属商户。"
             >
               <div className="merchant-editor-fields">
                 {editingRecord ? (
@@ -420,16 +428,31 @@ const MerchantGroupManagement: React.FC = () => {
                   <Select options={templateStatusOptions} placeholder="请选择状态" />
                 </Form.Item>
                 <Form.Item name="groupType" label="分组类型" rules={[{ required: true, message: '请选择分组类型' }]}>
-                  <Select options={merchantGroupTypeOptions} placeholder="请选择分组类型" />
-                </Form.Item>
-                <Form.Item name="merchantId" label="所属商户" rules={[{ required: true, message: '请选择商户' }]}>
                   <Select
-                    showSearch
-                    optionFilterProp="label"
-                    options={merchantOptions as SelectOptionRecord[]}
-                    placeholder="请选择商户"
+                    disabled={Boolean(editingRecord)}
+                    options={merchantGroupTypeOptions}
+                    placeholder="请选择分组类型"
+                    onChange={(value) => {
+                      if (value === 'STORED_VALUE') {
+                        form.setFieldsValue({ merchantId: undefined, merchantName: undefined });
+                      }
+                    }}
                   />
                 </Form.Item>
+                {selectedGroupType === 'STORED_VALUE' ? (
+                  <Form.Item label="归属范围">
+                    <Input disabled value="跨商户，以成员门店为准" />
+                  </Form.Item>
+                ) : (
+                  <Form.Item name="merchantId" label="所属商户" rules={[{ required: true, message: '请选择商户' }]}>
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      options={merchantOptions as SelectOptionRecord[]}
+                      placeholder="请选择经营组所属商户"
+                    />
+                  </Form.Item>
+                )}
                 <Form.Item name="owner" label="负责人">
                   <Input placeholder="例如：区域运营负责人" />
                 </Form.Item>
@@ -520,7 +543,7 @@ const MerchantGroupManagement: React.FC = () => {
           <Descriptions column={2} labelStyle={{ width: 110 }}>
             <Descriptions.Item label="门店组编码">{detail.groupCode}</Descriptions.Item>
             <Descriptions.Item label="门店组名称">{detail.groupName}</Descriptions.Item>
-            <Descriptions.Item label="所属商户">{detail.merchantName}</Descriptions.Item>
+            <Descriptions.Item label="归属范围">{detail.groupType === 'STORED_VALUE' ? '跨商户，以成员门店为准' : detail.merchantName || '-'}</Descriptions.Item>
             <Descriptions.Item label="分组类型">{groupTypeMap[detail.groupType as keyof typeof groupTypeMap]?.text || detail.groupType}</Descriptions.Item>
             <Descriptions.Item label="门店数">{detail.storeCount}</Descriptions.Item>
             <Descriptions.Item label="备注">{detail.remark || '-'}</Descriptions.Item>

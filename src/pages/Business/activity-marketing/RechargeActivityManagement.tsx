@@ -313,12 +313,6 @@ const RechargeActivityManagement: React.FC = () => {
         pagination={{ pageSize: 8 }}
         scroll={{ x: 1360 }}
         toolBarRender={() => [
-          <Button key="tiers" onClick={() => {
-            setEditingRecord(null);
-            form.resetFields();
-            form.setFieldsValue({ status: 'DRAFT', rewardType: 'BALANCE', tierAmounts: [{ amount: 50, gift: 0 }, { amount: 100, gift: 10 }, { amount: 200, gift: 30 }, { amount: 500, gift: 100 }], rechargeMode: 'FIXED_TIER', scopeMode: 'PLATFORM', scopeIds: [] } as any);
-            setModalVisible(true);
-          }}>固定档位</Button>,
           <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => { setEditingRecord(null); form.resetFields(); form.setFieldsValue({ status: 'DRAFT', rewardType: 'BALANCE', tierAmounts: [{ amount: 50, gift: 0 }, { amount: 100, gift: 10 }, { amount: 200, gift: 30 }], rechargeMode: 'FIXED_TIER', scopeMode: 'PLATFORM', scopeIds: [] } as any); setModalVisible(true); }}>
             新建充值活动
           </Button>,

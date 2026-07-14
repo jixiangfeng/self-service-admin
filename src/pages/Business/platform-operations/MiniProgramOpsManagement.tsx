@@ -34,7 +34,7 @@ const jumpTypeOptions = [
   { value: 'NONE', label: '不跳转' },
   { value: 'PAGE', label: '小程序页面' },
   { value: 'RECHARGE', label: '充值中心' },
-  { value: 'PRODUCT', label: '次卡/月卡' },
+  { value: 'PRODUCT', label: '服务卡' },
   { value: 'STORE', label: '门店详情' },
   { value: 'GROUPON', label: '团购核销' },
   { value: 'WEBVIEW', label: '网页链接' },
