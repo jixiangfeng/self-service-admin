@@ -315,7 +315,7 @@ const RoleManagement: React.FC = () => {
             <BusinessEditorSection icon={<FieldTimeOutlined />} title="角色说明" desc="记录角色用途和授权边界，便于后续审计。">
               <div className="merchant-editor-fields merchant-editor-fields--single">
                 <Form.Item name="description" label="描述">
-                  <Input.TextArea rows={3} placeholder="例如：负责门店运营、设备巡检和客服工单处理" />
+                  <Input.TextArea rows={3} placeholder="例如：负责门店运营、设备巡检和用户反馈处理" />
                 </Form.Item>
               </div>
             </BusinessEditorSection>

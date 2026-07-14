@@ -2,7 +2,6 @@ import React from 'react';
 import { Descriptions, Drawer, Empty, List, Space, Statistic, Table, Tabs, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
-  auditStatusOptions,
   merchantContractStatusOptions,
   merchantTypeOptions,
   qualificationTypeOptions,
@@ -30,7 +29,6 @@ interface MerchantFullProfileDrawerProps {
 const merchantTypeMap = buildValueEnum(merchantTypeOptions);
 const contractStatusMap = buildValueEnum(merchantContractStatusOptions);
 const qualificationTypeMap = buildValueEnum(qualificationTypeOptions);
-const auditStatusMap = buildValueEnum(auditStatusOptions);
 const settlementCycleMap = buildValueEnum(settlementCycleOptions);
 const statusMap = buildValueEnum(statusOptions);
 const primaryFlagMap = {
@@ -77,8 +75,7 @@ const MerchantFullProfileDrawer: React.FC<MerchantFullProfileDrawerProps> = ({ o
   const risks = [
     !hasConfiguredContact ? '未配置联系人' : null,
     !hasEffectiveContract ? '暂无有效合同' : null,
-    !(profile?.settlementAccounts || []).some((item) => item.status === 'ACTIVE') ? '暂无启用结算账户' : null,
-    (profile?.pendingQualificationCount || 0) > 0 ? `有 ${profile?.pendingQualificationCount} 份待审资质` : null,
+    !(profile?.settlementAccounts || []).length ? '暂无结算账户' : null,
     (profile?.storeCount || 0) === 0 ? '尚未开设门店' : null,
   ].filter(Boolean) as string[];
 
@@ -88,7 +85,6 @@ const MerchantFullProfileDrawer: React.FC<MerchantFullProfileDrawerProps> = ({ o
     { title: '手机号', dataIndex: 'mobile' },
     { title: '邮箱', dataIndex: 'email', render: (value) => value || '-' },
     { title: '主联系人', dataIndex: 'primaryFlag', render: (_, record) => renderStatusTag(record.primaryFlag, primaryFlagMap) },
-    { title: '状态', dataIndex: 'status', render: (_, record) => renderStatusTag(record.status, auditStatusMap) },
     { title: '备注', dataIndex: 'remark', render: (value) => value || '-' },
   ];
 
@@ -97,8 +93,6 @@ const MerchantFullProfileDrawer: React.FC<MerchantFullProfileDrawerProps> = ({ o
     { title: '资质编号', dataIndex: 'qualificationNo' },
     { title: '文件', dataIndex: 'fileName', render: (value) => value || '-' },
     { title: '文件地址', dataIndex: 'fileUrl', ellipsis: true, render: (value) => value || '-' },
-    { title: '审核状态', dataIndex: 'auditStatus', render: (_, record) => renderStatusTag(record.auditStatus, auditStatusMap) },
-    { title: '状态', dataIndex: 'status', render: (value) => formatEnumText(value, 'status', '状态') },
     { title: '到期日', dataIndex: 'expireAt', render: (_, record) => renderQualificationExpireAt(record) },
     { title: '备注', dataIndex: 'remark', render: (value) => value || '-' },
   ];
@@ -108,7 +102,6 @@ const MerchantFullProfileDrawer: React.FC<MerchantFullProfileDrawerProps> = ({ o
     { title: '合同名称', dataIndex: 'contractName' },
     { title: '结算周期', dataIndex: 'settlementCycle', render: (_, record) => renderStatusTag(record.settlementCycle, settlementCycleMap) },
     { title: '合同状态', dataIndex: 'contractStatus', render: (_, record) => renderStatusTag(record.contractStatus, contractStatusMap) },
-    { title: '审核状态', dataIndex: 'status', render: (_, record) => renderStatusTag(record.status, auditStatusMap) },
     { title: '合同文件', dataIndex: 'fileUrl', ellipsis: true, render: (value) => value || '-' },
     { title: '周期', render: (_, record) => `${record.startAt || '-'} ~ ${record.endAt || '-'}` },
     { title: '备注', dataIndex: 'remark', render: (value) => value || '-' },
@@ -118,8 +111,6 @@ const MerchantFullProfileDrawer: React.FC<MerchantFullProfileDrawerProps> = ({ o
     { title: '户名', dataIndex: 'accountName' },
     { title: '账号', dataIndex: 'accountNo', render: (value) => maskAccountNo(value) },
     { title: '开户行', dataIndex: 'bankName', render: (value) => value || '-' },
-    { title: '审核状态', dataIndex: 'auditStatus', render: (_, record) => renderStatusTag(record.auditStatus, auditStatusMap) },
-    { title: '账户状态', dataIndex: 'status', render: (value) => formatEnumText(value, 'status', '账户状态') },
     { title: '生效日期', dataIndex: 'effectiveAt', render: (value) => value || '-' },
     { title: '备注', dataIndex: 'remark', render: (value) => value || '-' },
   ];
@@ -164,8 +155,8 @@ const MerchantFullProfileDrawer: React.FC<MerchantFullProfileDrawerProps> = ({ o
                     <Statistic title="启用门店" value={profile.activeStoreCount || 0} />
                     <Statistic title="设备数" value={profile.deviceCount || 0} />
                     <Statistic title="有效合同" value={profile.activeContractCount || 0} />
-                    <Statistic title="待审资质" value={profile.pendingQualificationCount || 0} />
-                    <Statistic title="待审账户" value={profile.pendingSettlementAccountCount || 0} />
+                    <Statistic title="资质数" value={profile.qualifications?.length || 0} />
+                    <Statistic title="结算账户" value={profile.settlementAccounts?.length || 0} />
                   </Space>
                   <Descriptions bordered column={2} size="small">
                     <Descriptions.Item label="商户编号">{merchant.merchantCode}</Descriptions.Item>

@@ -136,7 +136,6 @@ const Dashboard: React.FC = () => {
   const cards = data?.cards || [];
   const todos = data?.todos || [];
   const alerts = data?.alerts || [];
-  const changes = data?.changes || [];
   const quickEntries = data?.quickEntries || [];
   const trend = data?.trend || [];
   const storeRevenueRank = data?.storeRevenueRank || [];
@@ -321,19 +320,14 @@ const Dashboard: React.FC = () => {
               {giftCostBearerDistribution.length ? <Pie {...financePieConfig(giftCostBearerDistribution)} /> : <Empty description="暂无赠送成本数据" />}
             </Card>
           </Col>
-          <Col xs={24} xl={8}>
+          <Col xs={24} xl={12}>
             <Card className="dashboard-list-card" title="统一待办" extra={<Button size="small" onClick={() => navigate('/merchant-console')}>待办中心 <RightOutlined /></Button>}>
               {renderItemList(todos, '暂无待办')}
             </Card>
           </Col>
-          <Col xs={24} xl={8}>
+          <Col xs={24} xl={12}>
             <Card className="dashboard-list-card" title="异常提醒" extra={<Button size="small" onClick={() => navigate('/device')}>设备管理 <RightOutlined /></Button>}>
               {renderItemList(alerts, '暂无异常')}
-            </Card>
-          </Col>
-          <Col xs={24} xl={8}>
-            <Card className="dashboard-list-card" title="最近变更" extra={<Button size="small" onClick={() => navigate('/system/auth-audit')}>审计日志 <RightOutlined /></Button>}>
-              {renderItemList(changes, '暂无变更')}
             </Card>
           </Col>
         </Row>

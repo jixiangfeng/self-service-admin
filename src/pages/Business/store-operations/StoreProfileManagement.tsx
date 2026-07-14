@@ -18,7 +18,7 @@ import type {
   StoreImageRecord,
   StoreServiceCapabilityRecord,
 } from '@/services/backendService';
-import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, safeJsonParse, formatEnumText } from '@/pages/Business/shared';
+import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 
 type StoreProfileTab = 'image' | 'capability';
 type EditableRecord = StoreImageRecord | StoreServiceCapabilityRecord;
@@ -45,29 +45,6 @@ const storeProfileModalDescMap: Record<StoreProfileTab, string> = {
   capability: '配置门店可用能力和扩展参数，承接服务、活动和履约范围。',
 };
 
-const capabilityLimitOptions = [
-  { value: 'ALL_DAY', label: '全天开放' },
-  { value: 'BUSINESS_HOURS', label: '营业中开放' },
-  { value: 'APPOINTMENT_ONLY', label: '仅预约可用' },
-];
-
-const capabilityPointOptions = [
-  { value: 'ALL_POINTS', label: '全部点位' },
-  { value: 'CAR_WASH_ONLY', label: '洗车点位' },
-  { value: 'RETAIL_ONLY', label: '零售点位' },
-];
-
-const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
-const buildCapabilityConfig = (values: Record<string, any>) =>
-  JSON.stringify({
-    limitMode: values.limitMode,
-    pointScope: values.pointScope,
-    extraLimit: values.extraLimit,
-  });
-
-const parseCapabilityConfig = (configJson?: string) =>
-  safeJsonParse<{ limitMode?: string; pointScope?: string; extraLimit?: string }>(configJson, {});
-
 const storeProfileDetailFields: Record<StoreProfileTab, DetailField<any>[]> = {
   image: [
     { name: 'storeName', label: '门店' },
@@ -81,9 +58,6 @@ const storeProfileDetailFields: Record<StoreProfileTab, DetailField<any>[]> = {
   capability: [
     { name: 'storeName', label: '门店' },
     { name: 'capabilityCode', label: '能力' },
-    { name: 'limitMode', label: '开放限制', render: (_, record) => optionLabel(capabilityLimitOptions, record.limitMode) || '-' },
-    { name: 'pointScope', label: '适用点位', render: (_, record) => optionLabel(capabilityPointOptions, record.pointScope) || '-' },
-    { name: 'extraLimit', label: '补充限制' },
     { name: 'status', label: '状态' },
     { name: 'updatedAt', label: '更新时间' },
   ],
@@ -111,8 +85,7 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
   const capabilityQuery = useQuery({ queryKey: ['storeServiceCapabilities', storeId], queryFn: async () => (await api.storeServiceCapability.page(storeProfileQueryParams)).data });
 
   const images = withStoreName(imageQuery.data?.records);
-  const capabilities = withStoreName(capabilityQuery.data?.records)
-    .map((record) => ({ ...record, ...parseCapabilityConfig(record.configJson) }));
+  const capabilities = withStoreName(capabilityQuery.data?.records);
 
   const invalidateTab = (tab: StoreProfileTab) => {
     if (tab === 'image') queryClient.invalidateQueries({ queryKey: ['storeImages'] });
@@ -126,7 +99,6 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
       return api.storeServiceCapability.addBatch({
         storeId: Number(payload.storeId),
         capabilityCodes: Array.isArray(payload.capabilityCodes) ? payload.capabilityCodes.map(String) : [],
-        configJson: typeof payload.configJson === 'string' ? payload.configJson : undefined,
         status: typeof payload.status === 'string' ? payload.status : undefined,
       });
     },
@@ -166,10 +138,7 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
     setEditingRecord(record || null);
     form.resetFields();
     if (record) {
-      form.setFieldsValue({
-        ...record,
-        ...(tab === 'capability' ? parseCapabilityConfig(String((record as StoreServiceCapabilityRecord).configJson || '')) : {}),
-      });
+      form.setFieldsValue({ ...record });
     } else if (tab === 'image') {
       form.setFieldsValue({ storeId, imageType: 'COVER', sortNo: 0, status: 'PUBLISHED' });
     } else if (tab === 'capability') {
@@ -208,9 +177,6 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
   const capabilityColumns: ProColumns<StoreServiceCapabilityRecord>[] = [
     { title: '门店', dataIndex: 'storeName', width: 180 },
     { title: '能力', dataIndex: 'capabilityCode', width: 160, render: (value) => formatEnumText(value, 'capabilityCode', '能力') },
-    { title: '开放限制', dataIndex: 'limitMode', width: 150, render: (_, record) => optionLabel(capabilityLimitOptions, record.limitMode) || '-' },
-    { title: '适用点位', dataIndex: 'pointScope', width: 150, render: (_, record) => optionLabel(capabilityPointOptions, record.pointScope) || '-' },
-    { title: '补充限制', dataIndex: 'extraLimit', width: 220, render: (_, record) => record.extraLimit || '-' },
     { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, storeProfilePublishStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
     actionColumn('capability') as ProColumns<StoreServiceCapabilityRecord>,
@@ -273,7 +239,7 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
         }}
         onOk={async () => {
           const values = await form.validateFields();
-          saveMutation.mutate(activeTab === 'capability' ? { ...values, configJson: buildCapabilityConfig(values as Record<string, any>) } : values);
+          saveMutation.mutate(values);
         }}
         confirmLoading={saveMutation.isPending}
         width={980}
@@ -320,12 +286,9 @@ const StoreProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded = f
             ) : null}
 
             {activeTab === 'capability' ? (
-              <BusinessEditorSection icon={<ToolOutlined />} title="能力策略" desc="用开放限制、适用点位和补充限制维护能力策略，不让运营直接维护技术配置。">
-                <div className="merchant-editor-fields merchant-editor-fields--two">
+              <BusinessEditorSection icon={<ToolOutlined />} title="能力发布" desc="服务能力发布后会展示在用户端门店设施中。">
+                <div className="merchant-editor-fields">
                   <Form.Item name="status" label="状态"><Select options={storeProfilePublishStatusOptions} placeholder="请选择状态" /></Form.Item>
-                  <Form.Item name="limitMode" label="开放限制"><Select options={capabilityLimitOptions} placeholder="请选择开放限制" /></Form.Item>
-                  <Form.Item name="pointScope" label="适用点位"><Select options={capabilityPointOptions} placeholder="请选择适用点位" /></Form.Item>
-                  <Form.Item className="merchant-editor-field-span-2" name="extraLimit" label="补充限制"><Input placeholder="例如：夜间仅开放 1-3 号洗车位" /></Form.Item>
                 </div>
               </BusinessEditorSection>
             ) : null}

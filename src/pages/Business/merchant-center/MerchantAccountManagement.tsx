@@ -4,19 +4,18 @@ import { SafetyCertificateOutlined, ShopOutlined, TeamOutlined, UserSwitchOutlin
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
-import { auditStatusOptions, merchantAccountTypeOptions, scopeTypeOptions, statusOptions } from '@/constants/businessCatalog';
+import { merchantAccountTypeOptions, scopeTypeOptions, statusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
-import type { LoginLogRecord, MerchantAccountRecord, PermissionChangeLogRecord, RoleOption, SelectOptionRecord, UserRoleRelationRecord } from '@/services/backendService';
+import type { MerchantAccountRecord, RoleOption, SelectOptionRecord, UserRoleRelationRecord } from '@/services/backendService';
 import { useRoleOptions } from '@/hooks/useApi';
 import { buildValueEnum, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
 
 const statusMap = buildValueEnum(statusOptions);
-const auditStatusMap = buildValueEnum(auditStatusOptions);
 const scopeMap = buildValueEnum(scopeTypeOptions);
 const merchantScopeTypeOptions = scopeTypeOptions.filter((item) => ['MERCHANT', 'STORE'].includes(String(item.value)));
 
@@ -37,25 +36,19 @@ const genericAccountDetailFields: DetailField<any>[] = [
   { name: 'userName', label: '账号' },
   { name: 'roleName', label: '角色' },
   { name: 'roleCode', label: '角色编码' },
-  { name: 'result', label: '结果' },
-  { name: 'changeType', label: '变更类型' },
-  { name: 'beforeValue', label: '变更前' },
-  { name: 'afterValue', label: '变更后' },
-  { name: 'changedAt', label: '变更时间' },
+  { name: 'grantedAt', label: '授权时间' },
 ];
 
 const MerchantAccountManagement: React.FC = () => {
   const [accounts, setAccounts] = useState<MerchantAccountRecord[]>([]);
   const [grants, setGrants] = useState<UserRoleRelationRecord[]>([]);
-  const [loginRecords, setLoginRecords] = useState<LoginLogRecord[]>([]);
-  const [changes, setChanges] = useState<PermissionChangeLogRecord[]>([]);
   const [overviewLoading, setOverviewLoading] = useState(false);
-  const [detail, setDetail] = useState<MerchantAccountRecord | UserRoleRelationRecord | LoginLogRecord | PermissionChangeLogRecord | null>(null);
+  const [detail, setDetail] = useState<MerchantAccountRecord | UserRoleRelationRecord | null>(null);
   const [accountVisible, setAccountVisible] = useState(false);
   const [grantVisible, setGrantVisible] = useState(false);
   const [editingAccount, setEditingAccount] = useState<MerchantAccountRecord | null>(null);
   const [form] = Form.useForm<MerchantAccountRecord>();
-  const [grantForm] = Form.useForm<UserRoleRelationRecord & { changeNo?: string; auditStatus?: string; remark?: string }>();
+  const [grantForm] = Form.useForm<UserRoleRelationRecord>();
   const [searchForm] = Form.useForm<{ keyword?: string }>();
   const merchantId = Form.useWatch('merchantId', form);
   const dataScopeType = Form.useWatch('dataScopeType', form);
@@ -74,23 +67,17 @@ const MerchantAccountManagement: React.FC = () => {
   const summary = useMemo(() => ({
     total: accounts.length,
     pendingGrant: grants.filter((item) => item.status === 0).length,
-    failedLogin: loginRecords.filter((item) => item.result === 'REJECTED' || item.result === 'FAILED').length,
-    changes: changes.length,
-  }), [accounts, changes.length, grants, loginRecords]);
+  }), [accounts, grants]);
 
   const fetchOverview = async (keyword?: string) => {
     setOverviewLoading(true);
     try {
-      const [accountRes, grantRes, loginRes, changeRes] = await Promise.all([
+      const [accountRes, grantRes] = await Promise.all([
         api.merchantAccount.page({ current: 1, size: 100, keyword }),
         api.authAudit.userRoles.page({ current: 1, size: 100, keyword }),
-        api.authAudit.loginLogs.page({ current: 1, size: 100, keyword }),
-        api.authAudit.permissionChanges.page({ current: 1, size: 100, keyword }),
       ]);
       setAccounts(pageData<MerchantAccountRecord>(accountRes).records || []);
       setGrants(pageData<UserRoleRelationRecord>(grantRes).records || []);
-      setLoginRecords(pageData<LoginLogRecord>(loginRes).records || []);
-      setChanges(pageData<PermissionChangeLogRecord>(changeRes).records || []);
     } finally {
       setOverviewLoading(false);
     }
@@ -143,17 +130,7 @@ const MerchantAccountManagement: React.FC = () => {
       status: values.status ?? 1,
       grantedAt: new Date().toISOString(),
     });
-    await api.authAudit.permissionChanges.add({
-      changeNo: values.changeNo,
-      targetUser: values.userName,
-      changeType: '商户角色授权',
-      beforeValue: '-',
-      afterValue: values.roleName,
-      auditStatus: values.auditStatus || 'APPROVED',
-      remark: values.remark,
-      changedAt: new Date().toISOString(),
-    });
-    message.success('角色授权已写入');
+    message.success('角色授权已保存');
     closeGrant();
     await fetchOverview(currentKeyword());
   };
@@ -204,34 +181,13 @@ const MerchantAccountManagement: React.FC = () => {
     { title: '授权时间', dataIndex: 'grantedAt', width: 180, render: (_, record) => formatDateTime(record.grantedAt) },
   ];
 
-  const loginColumns: ProColumns<LoginLogRecord>[] = [
-    { title: '账号', dataIndex: 'userName', width: 140 },
-    { title: '登录IP', dataIndex: 'loginIp', width: 140 },
-    { title: '登录地点', dataIndex: 'loginLocation', width: 160 },
-    { title: '设备', dataIndex: 'device', width: 160 },
-    { title: '结果', dataIndex: 'result', width: 120, render: (_, record) => renderStatusTag(record.result, auditStatusMap) },
-    { title: '登录时间', dataIndex: 'loginAt', width: 180, render: (_, record) => formatDateTime(record.loginAt) },
-  ];
-
-  const changeColumns: ProColumns<PermissionChangeLogRecord>[] = [
-    { title: '变更单号', dataIndex: 'changeNo', width: 180 },
-    { title: '账号', dataIndex: 'targetUser', width: 140 },
-    { title: '变更类型', dataIndex: 'changeType', width: 140 , render: (value) => formatEnumText(value, 'changeType', '变更类型') },
-    { title: '变更前', dataIndex: 'beforeValue', width: 180 },
-    { title: '变更后', dataIndex: 'afterValue', width: 180 },
-    { title: '审核状态', dataIndex: 'auditStatus', width: 120, render: (_, record) => renderStatusTag(record.auditStatus, auditStatusMap) },
-    { title: '变更时间', dataIndex: 'changedAt', width: 180, render: (_, record) => formatDateTime(record.changedAt) },
-  ];
-
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="商户账号中心" subtitle="维护商户账号绑定、角色授权、登录记录和账号变更日志。" icon={<UserSwitchOutlined />} />
+      <PageBanner title="商户账号中心" subtitle="维护商户账号绑定和角色授权；登录与权限审计统一在系统审计中心查看。" icon={<UserSwitchOutlined />} />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="商户账号" value={summary.total} suffix="个" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="待审授权" value={summary.pendingGrant} suffix="条" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="登录失败" value={summary.failedLogin} suffix="次" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="账号变更" value={summary.changes} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12}><Card><Statistic title="商户账号" value={summary.total} suffix="个" /></Card></Col>
+        <Col xs={24} sm={12}><Card><Statistic title="停用授权" value={summary.pendingGrant} suffix="条" /></Card></Col>
       </Row>
 
       <Form
@@ -254,9 +210,7 @@ const MerchantAccountManagement: React.FC = () => {
       <Tabs
         items={[
           { key: 'account', label: '账号绑定', children: <ProTable<MerchantAccountRecord> cardBordered rowKey="id" columns={accountColumns} dataSource={accounts} loading={overviewLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openAccount()}>新增账号</Button>]} /> },
-          { key: 'grant', label: '角色授权', children: <ProTable<UserRoleRelationRecord> cardBordered rowKey="id" columns={grantColumns} dataSource={grants} loading={overviewLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="grant" type="primary" onClick={() => { grantForm.resetFields(); grantForm.setFieldsValue({ status: 1, auditStatus: 'APPROVED' }); setGrantVisible(true); }}>新增授权</Button>]} /> },
-          { key: 'login', label: '登录记录', children: <ProTable<LoginLogRecord> cardBordered rowKey="id" columns={loginColumns} dataSource={loginRecords} loading={overviewLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1080 }} /> },
-          { key: 'change', label: '账号变更', children: <ProTable<PermissionChangeLogRecord> cardBordered rowKey="id" columns={changeColumns} dataSource={changes} loading={overviewLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} /> },
+          { key: 'grant', label: '角色授权', children: <ProTable<UserRoleRelationRecord> cardBordered rowKey="id" columns={grantColumns} dataSource={grants} loading={overviewLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="grant" type="primary" onClick={() => { grantForm.resetFields(); grantForm.setFieldsValue({ status: 1 }); setGrantVisible(true); }}>新增授权</Button>]} /> },
         ]}
       />
 
@@ -344,8 +298,8 @@ const MerchantAccountManagement: React.FC = () => {
       <BusinessEditorModal
         eyebrow="商户角色授权"
         title="新增角色授权"
-        subtitle="为商户账号授予系统角色，并同步写入权限变更日志，便于审计追踪。"
-        meta={['角色授权', '审计闭环']}
+        subtitle="为商户账号授予系统角色。"
+        meta={['角色授权']}
         open={grantVisible}
         onCancel={closeGrant}
         onOk={saveGrant}
@@ -359,7 +313,7 @@ const MerchantAccountManagement: React.FC = () => {
             <BusinessEditorSection
               icon={<SafetyCertificateOutlined />}
               title="授权对象与角色"
-              desc="选择账号和角色后自动带出角色名称、编码，并记录授权人和审核状态。"
+              desc="选择账号和角色后自动带出角色名称、编码，并记录授权人。"
             >
               <div className="merchant-editor-fields merchant-editor-fields--two">
                 <Form.Item name="userId" label="用户ID"><Input placeholder="可选，已有平台用户时填写" /></Form.Item>
@@ -378,11 +332,8 @@ const MerchantAccountManagement: React.FC = () => {
                 </Form.Item>
                 <Form.Item name="roleName" label="角色名称" rules={[{ required: true, message: '请选择角色' }]}><Input disabled placeholder="选择角色后自动带出" /></Form.Item>
                 <Form.Item name="roleCode" label="角色编码" rules={[{ required: true, message: '请选择角色' }]}><Input disabled placeholder="选择角色后自动带出" /></Form.Item>
-                <Form.Item name="changeNo" label="变更单号" rules={[{ required: true, message: '请输入变更单号' }]}><Input placeholder="例如：MAC202606280001" /></Form.Item>
                 <Form.Item name="grantUser" label="授权人"><Input placeholder="例如：admin" /></Form.Item>
                 <Form.Item name="status" label="授权状态"><Select options={statusOptions} placeholder="请选择授权状态" /></Form.Item>
-                <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
-                <Form.Item className="merchant-editor-field-span-2" name="remark" label="处理说明"><Input.TextArea rows={3} placeholder="记录授权原因、审批说明或有效边界" /></Form.Item>
               </div>
             </BusinessEditorSection>
           </div>

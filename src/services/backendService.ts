@@ -168,7 +168,6 @@ export interface MerchantContactRecord {
   mobile: string;
   email?: string;
   primaryFlag: number;
-  status: string;
   remark?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -185,7 +184,6 @@ export interface MerchantContractRecord {
   fileUrl?: string;
   startAt?: string;
   endAt?: string;
-  status: string;
   remark?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -198,9 +196,7 @@ export interface MerchantSettlementAccountRecord {
   accountName: string;
   accountNo: string;
   bankName?: string;
-  auditStatus: string;
   effectiveAt?: string;
-  status: string;
   remark?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -214,9 +210,7 @@ export interface MerchantQualificationRecord {
   qualificationNo: string;
   fileName?: string;
   fileUrl?: string;
-  auditStatus: string;
   expireAt?: string;
-  status: string;
   remark?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -235,8 +229,6 @@ export interface MerchantFullProfileRecord {
   activeStoreCount?: number;
   deviceCount?: number;
   activeContractCount?: number;
-  pendingQualificationCount?: number;
-  pendingSettlementAccountCount?: number;
 }
 
 export interface MerchantGroupRecord {
@@ -392,10 +384,6 @@ export interface StoreServiceCapabilityRecord {
   storeId: number;
   storeName?: string;
   capabilityCode: string;
-  configJson?: string;
-  limitMode?: string;
-  pointScope?: string;
-  extraLimit?: string;
   status: string;
   createdAt?: string;
   updatedAt?: string;
@@ -404,7 +392,6 @@ export interface StoreServiceCapabilityRecord {
 export interface StoreServiceCapabilityBatchCreateRequest {
   storeId: number;
   capabilityCodes: string[];
-  configJson?: string;
   status?: string;
 }
 export interface ServicePointRecord {
@@ -427,7 +414,6 @@ export interface ServicePointRecord {
 
 export interface ServicePointQrRecord { id: number; servicePointId: number; storeId?: number; storeName?: string; pointCode?: string; pointName?: string; qrCode: string; qrVersion?: string; status: string; createdAt?: string; updatedAt?: string; }
 export interface ServicePointMaintainRecord { id: number; servicePointId: number; maintainNo: string; pointCode?: string; maintainType: string; owner?: string; status: string; plannedAt?: string; createdAt?: string; updatedAt?: string; }
-export interface PointDeviceBindLogRecord { id: number; bindNo: string; servicePointId: number; pointCode?: string; pointType?: string; beforeDevice?: string; afterDevice?: string; operator?: string; boundAt?: string; createdAt?: string; updatedAt?: string; }
 
 export interface DeviceRecord {
   id: number;
@@ -437,6 +423,7 @@ export interface DeviceRecord {
   pointCode?: string;
   deviceName: string;
   deviceCode: string;
+  gatewayDeviceCode: string;
   deviceType: string;
   vendorName?: string;
   protocolType?: string;
@@ -579,27 +566,6 @@ export interface DeviceMaintenanceRecord {
   updatedAt?: string;
 }
 
-export interface DeviceVendorRecord { id: number; vendorCode: string; vendorName: string; contactName?: string; contactPhone?: string; apiBaseUrl?: string; status: string; createdAt?: string; updatedAt?: string; }
-export interface DeviceModelRecord { id: number; vendorName?: string; modelCode: string; modelName: string; deviceType: string; protocolCode?: string; status: string; createdAt?: string; updatedAt?: string; }
-export interface DeviceCommandTemplateRecord { id: number; templateCode: string; templateName: string; protocolCode?: string; deviceType?: string; commandType: string; commandPayload?: string; description?: string; status: string; createdAt?: string; updatedAt?: string; }
-export interface DeviceStatusMappingRecord { id: number; mappingCode: string; protocolCode?: string; statusGroup: string; vendorStatusCode: string; platformStatusCode: string; statusName: string; description?: string; status: string; createdAt?: string; updatedAt?: string; }
-export interface DeviceCallbackConfigRecord { id: number; callbackCode: string; callbackName: string; protocolCode?: string; vendorCode?: string; callbackType: string; callbackUrl: string; appKey?: string; appSecret?: string; signatureMethod?: string; ipWhitelist?: string; parserConfig?: string; status: string; createdAt?: string; updatedAt?: string; }
-export interface DeviceProtocolRecord {
-  id: number;
-  protocolCode: string;
-  protocolName: string;
-  protocolType: string;
-  version?: string;
-  authConfig?: string;
-  authMethod?: string;
-  signatureMethod?: string;
-  callbackRequired?: string;
-  securityOwner?: string;
-  authRemark?: string;
-  status: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
 export interface DeviceBindLogRecord { id: number; deviceId?: number; bindNo: string; deviceCode?: string; beforeStore?: string; afterStore?: string; beforePoint?: string; afterPoint?: string; boundAt?: string; createdAt?: string; updatedAt?: string; }
 
 export interface InviteActivityRecord {
@@ -797,40 +763,6 @@ export interface RefundOrderRecord {
   auditNote?: string;
 }
 
-export interface AfterSaleTicketRecord {
-  id: number;
-  ticketNo: string;
-  serviceOrderId?: number;
-  ticketType: string;
-  ticketStatus: string;
-  content?: string;
-  compensationType?: string;
-  compensationValue?: string;
-  createdAt?: string;
-  updatedAt?: string;
-  orderNo?: string;
-  owner?: string;
-  compensation?: string;
-  status?: string;
-  result?: string;
-}
-
-export interface ServiceEvaluationRecord {
-  id: number;
-  serviceOrderNo: string;
-  appUserName: string;
-  storeName: string;
-  deviceCode: string;
-  score: number;
-  content: string;
-  imageUrls?: string;
-  replyContent?: string;
-  replyUserName?: string;
-  status: string;
-  createdAt?: string;
-  repliedAt?: string;
-}
-
 export interface UserFeedbackRecord {
   id: number;
   appUserName: string;
@@ -908,26 +840,6 @@ export interface WriteOffRecord {
   amount: number | string;
   result?: string;
   status: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface PerformRecord {
-  id: number;
-  relationNo: string;
-  scene: string;
-  storeId?: number;
-  storeName?: string;
-  servicePointId?: number;
-  pointCode?: string;
-  deviceId?: number;
-  deviceCode?: string;
-  commandNo?: string;
-  commandStatus?: string;
-  startAt?: string;
-  finishAt?: string;
-  status: string;
-  remark?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1462,7 +1374,6 @@ export interface BannerConfigRecord {
   slotCode?: string;
   title?: string;
   subtitle?: string;
-  imageFileAssetId?: string;
   imageUrl?: string;
   jumpType?: string;
   jumpValue?: string;
@@ -1470,7 +1381,6 @@ export interface BannerConfigRecord {
   endAt?: string;
   sortNo?: number;
   status?: number;
-  extraJson?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1483,59 +1393,6 @@ export interface AgreementContentRecord {
   versionNo: string;
   effectiveAt?: string;
   status?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface PlatformOrganizationRecord {
-  id: number;
-  orgCode: string;
-  orgName: string;
-  orgType?: string;
-  parentName?: string;
-  merchantName?: string;
-  storeName?: string;
-  status?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface PlatformDepartmentRecord {
-  id: number;
-  deptCode: string;
-  deptName: string;
-  organizationId?: number;
-  organizationName?: string;
-  parentDeptId?: number;
-  parentDept?: string;
-  manager?: string;
-  status?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface PlatformPositionRecord {
-  id: number;
-  positionCode: string;
-  positionName: string;
-  departmentId?: number;
-  departmentName?: string;
-  dataScope?: string;
-  roleName?: string;
-  status?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface PlatformOrganizationChangeLogRecord {
-  id: number;
-  changeNo: string;
-  objectName: string;
-  changeType?: string;
-  beforeValue?: string;
-  afterValue?: string;
-  operator?: string;
-  changedAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1563,44 +1420,6 @@ export interface DataScopeRelationRecord {
   merchantName?: string;
   storeName?: string;
   status?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface LoginLogRecord {
-  id: number;
-  userName: string;
-  loginIp?: string;
-  loginLocation?: string;
-  device?: string;
-  result: string;
-  loginAt?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface OperationLogRecord {
-  id: number;
-  userName: string;
-  moduleCode?: string;
-  operationType?: string;
-  bizNo?: string;
-  result: string;
-  operatedAt?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface PermissionChangeLogRecord {
-  id: number;
-  changeNo: string;
-  targetUser: string;
-  changeType?: string;
-  beforeValue?: string;
-  afterValue?: string;
-  auditStatus: string;
-  remark?: string;
-  changedAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1768,30 +1587,6 @@ export interface UserAssetOverviewRecord {
   rechargeOrderCount: number;
   balanceFlowCount: number;
   riskWatchCount: number;
-}
-
-export interface MessageRecord {
-  id: number;
-  messageNo: string;
-  templateCode: string;
-  receiver?: string;
-  phone?: string;
-  channel?: string;
-  subscribeStatus?: string;
-  status?: string;
-  failReason?: string;
-  sentAt?: string;
-}
-export interface MessageTemplateRecord {
-  id: number;
-  templateCode: string;
-  templateName: string;
-  scene?: string;
-  channel?: string;
-  triggerCondition?: string;
-  targetUser?: string;
-  status?: string;
-  updatedAt?: string;
 }
 
 export interface AnalysisSnapshotRecord {
@@ -2077,23 +1872,10 @@ const toRefundOrderRecord = (refund: Record<string, any>): RefundOrderRecord => 
   applicant: refund.applicant ?? '-',
 } as unknown as RefundOrderRecord);
 
-const toAfterSaleTicketRecord = (ticket: Record<string, any>): AfterSaleTicketRecord => ({
-  ...normalizeTimeFields(ticket),
-  status: ticket.status ?? ticket.ticketStatus,
-  orderNo: ticket.orderNo ?? (ticket.serviceOrderId ? `订单#${ticket.serviceOrderId}` : '-'),
-  owner: ticket.owner ?? '-',
-  compensation: ticket.compensation ?? [ticket.compensationType, ticket.compensationValue].filter(Boolean).join(' / '),
-  result: ticket.result ?? ticket.compensationValue,
-} as unknown as AfterSaleTicketRecord);
-
 const toWriteOffRecord = (record: Record<string, any>): WriteOffRecord => ({
   ...normalizeTimeFields(record),
   operator: record.operator ?? record.operatorName,
 } as unknown as WriteOffRecord & { operator?: string });
-
-const toPerformRecord = (record: Record<string, any>): PerformRecord => ({
-  ...normalizeTimeFields(record),
-} as unknown as PerformRecord);
 
 const toSettlementBillRecord = (bill: Record<string, any>): SettlementBillRecord => ({
   ...normalizeTimeFields(bill),
@@ -2257,6 +2039,8 @@ export const dictApi = {
 export const merchantApi = {
   page: async (params: Record<string, unknown>) =>
     httpPage<MerchantRecord>('/merchants', params),
+  detail: async (id: number) =>
+    httpGet<MerchantRecord>(`/merchants/${id}`),
   options: async (params?: { includeDisabled?: boolean }) =>
     httpGet<SelectOptionRecord[]>('/merchants/options', params),
   fullProfile: async (id: number) =>
@@ -2410,7 +2194,6 @@ export const servicePointApi = {
 
 export const servicePointQrRecordApi = crudApi<ServicePointQrRecord>('/service-point-qr-records');
 export const servicePointMaintainRecordApi = crudApi<ServicePointMaintainRecord>('/service-point-maintain-records');
-export const pointDeviceBindLogApi = crudApi<PointDeviceBindLogRecord>('/point-device-bind-logs');
 
 export const deviceApi = {
   page: async (params: Record<string, unknown>) =>
@@ -2425,13 +2208,6 @@ export const deviceApi = {
   remove: async (id: number) => httpDelete<void>(`/devices/${id}`),
 };
 
-export const deviceVendorApi = crudApi<DeviceVendorRecord>('/device-vendors');
-export const deviceModelApi = crudApi<DeviceModelRecord>('/device-models');
-export const deviceProtocolApi = crudApi<DeviceProtocolRecord>('/device-protocols');
-export const deviceCommandTemplateApi = crudApi<DeviceCommandTemplateRecord>('/device-command-templates');
-export const deviceStatusMappingApi = crudApi<DeviceStatusMappingRecord>('/device-status-mappings');
-export const deviceCallbackConfigApi = crudApi<DeviceCallbackConfigRecord>('/device-callback-configs');
-export const deviceBindLogApi = crudApi<DeviceBindLogRecord>('/device-bind-logs');
 
 export const deviceOpsApi = {
   commandLogs: crudApi<DeviceCommandLogRecord>('/device-command-logs'),
@@ -2475,24 +2251,6 @@ export const refundOrderApi = {
     request.post<ApiEnvelope<void>>(`/refund-orders/${id}/audit`, { ...data, refundStatus: data.refundStatus ?? data.status, reason: data.reason ?? data.note, auditNote: data.auditNote ?? data.note }),
 };
 
-export const afterSaleTicketApi = {
-  page: async (params: Record<string, unknown>) => (async () => {
-    const res = await httpPage<Record<string, any>>('/after-sale-tickets', { ...params, ticketStatus: params.ticketStatus ?? params.status });
-    return ok(mapPageRecords(res.data, toAfterSaleTicketRecord));
-  })(),
-  add: async (data: Record<string, unknown>) =>
-    httpPost<AfterSaleTicketRecord>('/after-sale-tickets', { ...data, ticketStatus: data.ticketStatus ?? data.status }),
-  updateStatus: async (id: number, data: Record<string, unknown>) =>
-    request.post<ApiEnvelope<void>>(`/after-sale-tickets/${id}/handle`, { ...data, ticketStatus: data.ticketStatus ?? data.status, compensationValue: data.compensationValue ?? data.result ?? data.note, result: data.result ?? data.note }),
-};
-
-export const serviceEvaluationApi = {
-  page: async (params: Record<string, unknown>) =>
-    httpPage<ServiceEvaluationRecord>('/service-evaluations', params),
-  update: async (id: number, data: Record<string, unknown>) =>
-    httpPut<void>(`/service-evaluations/${id}`, data),
-};
-
 export const userFeedbackApi = {
   page: async (params: Record<string, unknown>) =>
     httpPage<UserFeedbackRecord>('/user-feedbacks', { ...params, handleStatus: params.handleStatus ?? params.status }),
@@ -2528,17 +2286,6 @@ export const writeOffRecordApi = {
     httpPost<WriteOffRecord>('/write-off-records', data),
   updateStatus: async (id: number, data: Record<string, unknown>) =>
     httpPut<void>(`/write-off-records/${id}/status`, data),
-};
-
-export const performRecordApi = {
-  page: async (params: Record<string, unknown>) => (async () => {
-    const res = await httpPage<Record<string, any>>('/perform-records', params);
-    return ok(mapPageRecords(res.data, toPerformRecord));
-  })(),
-  add: async (data: Record<string, unknown>) =>
-    httpPost<PerformRecord>('/perform-records', data),
-  updateStatus: async (id: number, data: Record<string, unknown>) =>
-    httpPut<void>(`/perform-records/${id}/status`, data),
 };
 
 export const settlementRuleApi = crudApi<SettlementRuleRecord>('/settlement-rules');
@@ -2704,28 +2451,9 @@ export const assetApi = {
 };
 
 export const messageApi = {
-  templates: {
-    page: async (params: Record<string, unknown>) => httpPage<MessageTemplateRecord>('/message-templates', params),
-    add: async (data: Record<string, unknown>) => httpPost<MessageTemplateRecord>('/message-templates', data),
-    edit: async (data: Record<string, unknown>) => httpPut<void>(`/message-templates/${data.id}`, data),
-  },
-  serviceEvaluations: {
-    page: async (params: Record<string, unknown>) => httpPage<ServiceEvaluationRecord>('/service-evaluations', params),
-    update: async (id: number, data: Record<string, unknown>) => httpPut<void>(`/service-evaluations/${id}`, data),
-  },
   userFeedbacks: {
     page: async (params: Record<string, unknown>) => httpPage<UserFeedbackRecord>('/user-feedbacks', { ...params, handleStatus: params.handleStatus ?? params.status }),
     update: async (id: number, data: Record<string, unknown>) => httpPut<void>(`/user-feedbacks/${id}`, data),
-  },
-  recordsPage: async (params: Record<string, unknown>) => httpPage<MessageRecord>('/message-records', params),
-  records: {
-    page: async (params: Record<string, unknown>) => httpPage<MessageRecord>('/message-records', params),
-  },
-  messageRecords: {
-    page: async (params: Record<string, unknown>) => httpPage<MessageRecord>('/message-records', params),
-    add: async (data: Record<string, unknown>) => httpPost<MessageRecord>('/message-records', data),
-    edit: async (data: Record<string, unknown>) => httpPut<void>(`/message-records/${data.id}`, data),
-    resend: async (id: number) => request.post<ApiEnvelope<void>>(`/message-records/${id}/resend`),
   },
 };
 
@@ -2774,21 +2502,6 @@ export const miniProgramOpsApi = {
   agreements: crudApi<AgreementContentRecord>('/agreement-contents'),
 };
 
-export const platformBaseApi = {
-  organizations: crudApi<PlatformOrganizationRecord>('/platform-organizations'),
-  departments: crudApi<PlatformDepartmentRecord>('/platform-departments'),
-  positions: crudApi<PlatformPositionRecord>('/platform-positions'),
-  organizationChangeLogs: {
-    page: async (params: Record<string, unknown>) => httpPage<PlatformOrganizationChangeLogRecord>('/platform-organization-change-logs', params),
-    add: async (data: Record<string, unknown>) => httpPost<PlatformOrganizationChangeLogRecord>('/platform-organization-change-logs', data),
-  },
-  events: {
-    page: async (params: Record<string, unknown>) => httpPage<BizEventRecord>('/biz-events', params),
-    add: async (data: Record<string, unknown>) => httpPost<BizEventRecord>('/biz-events', data),
-    retry: async (id: number) => request.post<ApiEnvelope<BizEventRecord>>(`/biz-events/${id}/retry`),
-  },
-};
-
 export const authAuditApi = {
   userRoles: {
     page: async (params: Record<string, unknown>) =>
@@ -2801,19 +2514,6 @@ export const authAuditApi = {
       httpDelete<void>(`/user-role-relations/${id}`),
   },
   dataScopes: crudApi<DataScopeRelationRecord>('/data-scope-relations'),
-  loginLogs: {
-    page: async (params: Record<string, unknown>) => httpPage<LoginLogRecord>('/login-logs', params),
-    add: async (data: Record<string, unknown>) => httpPost<LoginLogRecord>('/login-logs', data),
-  },
-  operationLogs: {
-    page: async (params: Record<string, unknown>) => httpPage<OperationLogRecord>('/operation-logs', params),
-    add: async (data: Record<string, unknown>) => httpPost<OperationLogRecord>('/operation-logs', data),
-  },
-  permissionChanges: {
-    page: async (params: Record<string, unknown>) => httpPage<PermissionChangeLogRecord>('/permission-change-logs', params),
-    add: async (data: Record<string, unknown>) => httpPost<PermissionChangeLogRecord>('/permission-change-logs', data),
-    edit: async (data: Record<string, unknown>) => httpPut<void>(`/permission-change-logs/${data.id}`, data),
-  },
 };
 
 export const paymentApi = {
@@ -2854,15 +2554,7 @@ export default {
   servicePoint: servicePointApi,
   servicePointQrRecord: servicePointQrRecordApi,
   servicePointMaintainRecord: servicePointMaintainRecordApi,
-  pointDeviceBindLog: pointDeviceBindLogApi,
   device: deviceApi,
-  deviceVendor: deviceVendorApi,
-  deviceModel: deviceModelApi,
-  deviceProtocol: deviceProtocolApi,
-  deviceCommandTemplate: deviceCommandTemplateApi,
-  deviceStatusMapping: deviceStatusMappingApi,
-  deviceCallbackConfig: deviceCallbackConfigApi,
-  deviceBindLog: deviceBindLogApi,
   deviceOps: deviceOpsApi,
   pricingRule: pricingRuleApi,
   productStatusLog: productStatusLogApi,
@@ -2870,12 +2562,10 @@ export default {
   pricingChangeLog: pricingChangeLogApi,
   serviceOrder: serviceOrderApi,
   refundOrder: refundOrderApi,
-  afterSaleTicket: afterSaleTicketApi,
   serviceOrderItem: serviceOrderItemApi,
   orderBillingDetail: orderBillingDetailApi,
   orderStatusLog: orderStatusLogApi,
   writeOffRecord: writeOffRecordApi,
-  performRecord: performRecordApi,
   settlementRule: settlementRuleApi,
   settlementBill: settlementBillApi,
   settlementBillDetail: settlementBillDetailApi,
@@ -2895,7 +2585,6 @@ export default {
   file: fileApi,
   openApi,
   miniProgramOps: miniProgramOpsApi,
-  platformBase: platformBaseApi,
   authAudit: authAuditApi,
   payment: paymentApi,
   platformDashboard: platformDashboardApi,

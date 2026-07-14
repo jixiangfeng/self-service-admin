@@ -19,8 +19,7 @@ import type { MerchantFullProfileRecord, MerchantRecord } from '@/services/backe
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import BusinessEditorModal from '@/components/BusinessEditorModal';
 import PageBanner from '@/components/PageBanner';
-import { buildValueEnum, CoreFlowPanel, formatDateTime, OperatorTips, renderStatusTag } from '@/pages/Business/shared';
-import WorkflowGuide from '@/pages/Business/shared';
+import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import MerchantFullProfileDrawer from './MerchantFullProfileDrawer';
 import MerchantProfileManagement from './MerchantProfileManagement';
 
@@ -179,9 +178,12 @@ const MerchantManagement: React.FC = () => {
             <Button
               size="small"
               icon={<EditOutlined />}
-              onClick={() => {
-                setEditingRecord(record);
-                form.setFieldsValue(record);
+              onClick={async () => {
+                const response = await api.merchant.detail(record.id);
+                const merchant = response.data;
+                setEditingRecord(merchant);
+                form.resetFields();
+                form.setFieldsValue(merchant);
                 setModalVisible(true);
               }}
             >
@@ -218,53 +220,6 @@ const MerchantManagement: React.FC = () => {
   return (
     <div style={{ padding: 24 }}>
       <PageBanner title="商户管理" subtitle="维护商户主体基础资料和启停状态。" icon={<ApartmentOutlined />} />
-      <WorkflowGuide
-        title="商户开店闭环"
-        summary="商户建档只是第一步。录完主体后，应继续开门店、分配门店组、配置商品活动，最终再进入商户后台看经营情况。"
-        steps={[
-          { title: '主体建档', description: '录入主体基础资料', status: 'finish', tag: '当前页' },
-          { title: '门店开设', description: '为商户创建门店并配置营业策略', status: 'process', tag: '下一步：门店管理' },
-          { title: '门店组范围', description: '配置经营管理组或储值通用组，高级清分协议随储值范围维护', status: 'wait', tag: '门店组管理' },
-          { title: '经营后台', description: '切换到商户视角跟进待办和经营数据', status: 'wait', tag: '商户后台' },
-        ]}
-        actions={[
-          { key: 'create', label: '新建商户', type: 'primary', onClick: openCreateDrawer },
-          { key: 'store', label: '去门店管理', onClick: () => navigate('/store') },
-        ]}
-      />
-
-      <CoreFlowPanel
-        title="商户经营闭环"
-        subtitle="先把主体、合同、账户和门店范围配完整，再启用商户。这样后续门店开业、活动投放、订单归属和结算打款才能稳定串起来。"
-        config={[
-          { label: '主体资料', desc: '商户名称、编号、类型、统一信用代码必须唯一且可追溯。', tag: '建档' },
-          { label: '合同与资质', desc: '合同状态、资质文件和结算账户在档案维护补齐后再开放经营。', tag: '准入' },
-          { label: '门店范围', desc: '商户启用后继续维护门店、门店组和经营城市，避免订单归属错乱。', tag: '范围' },
-        ]}
-        landing={[
-          { label: '订单归属', desc: '订单会按商户、门店、设备、点位沉淀，结算和分润依赖这些主数据。' },
-          { label: '活动范围', desc: '充值套餐、权益发放和跨店核销会读取商户组和门店范围。' },
-          { label: '结算主体', desc: '商户结算账户、合同周期和主体状态决定后续账单生成与打款。' },
-        ]}
-        verify={[
-          { label: '启用前', desc: '确认联系人、合同、结算账户和至少一个门店已准备好。' },
-          { label: '停用前', desc: '先核查是否有营业门店、进行中订单、未结算账单和运行中活动。' },
-          { label: '变更后', desc: '去门店管理、门店组管理和商户后台确认数据已同步。' },
-        ]}
-        actions={[
-          { key: 'group', label: '门店组管理', onClick: () => navigate('/merchant/groups') },
-          { key: 'store', label: '去门店管理', type: 'primary', onClick: () => navigate('/store') },
-        ]}
-      />
-
-      <OperatorTips
-        items={[
-          { label: '新增商户', desc: '先建主体主档，再进入档案维护补资质、合同、联系人和结算账户。', tag: '高频' },
-          { label: '启停商户', desc: '启停会影响下游门店、活动和结算，操作前先看门店数和合同状态。', tag: '谨慎' },
-          { label: '门店协同', desc: '需要多门店统一运营时，先去门店组管理维护成员和结算规则。', tag: '闭环' },
-        ]}
-      />
-
       <Tabs
         items={[
           {
@@ -296,12 +251,15 @@ const MerchantManagement: React.FC = () => {
           </Button>,
         ]}
         onSubmit={(values) => {
+          const status = values.status === undefined || values.status === null || values.status === ''
+            ? undefined
+            : Number(values.status);
           setQueryParams({
             pageNum: 1,
             pageSize: queryParams.pageSize,
             keyword: typeof values.keyword === 'string' ? values.keyword.trim() || undefined : undefined,
             merchantType: typeof values.merchantType === 'string' ? values.merchantType : undefined,
-            status: typeof values.status === 'number' ? values.status : undefined,
+            status: Number.isFinite(status) ? status : undefined,
           });
         }}
         onReset={() => {

@@ -19,13 +19,11 @@ const requiredMenuLabels = [
   '门店组管理',
   '点位管理',
   '设备管理',
-  '设备接入',
-  '设备接入管理',
   '权益商品',
   '次卡/月卡',
   '交易履约',
   '订单中心',
-  '履约记录',
+  '核销记录',
   '用户资产',
   '用户档案',
   '资产流水',
@@ -38,10 +36,7 @@ const requiredMenuLabels = [
   '合伙人分润',
   '数据报表',
   '经营分析',
-  '客服消息',
-  '客服工单',
-  '消息中心',
-  '评价反馈',
+  '用户反馈',
   '运营支撑',
   '小程序运营配置',
   '系统管理',
@@ -49,11 +44,18 @@ const requiredMenuLabels = [
   '角色管理',
   '权限/菜单管理',
   '字典管理',
-  '日志管理',
-  '组织架构',
 ];
 
 const hiddenMenuLabels = [
+  '设备接入',
+  '设备接入管理',
+  '履约记录',
+  '客服消息',
+  '客服工单',
+  '消息中心',
+  '评价反馈',
+  '日志管理',
+  '组织架构',
   '商户档案中心',
   '商户后台',
   '门店档案中心',
@@ -97,11 +99,15 @@ const hiddenMenuLabels = [
 ];
 
 const requiredRoutes = [
-  'path="device-access"',
   'path="mini-program-ops"',
 ];
 
 const removedRoutes = [
+  'path="device-access"',
+  'path="service-desk"',
+  'path="service-desk/messages"',
+  'path="auth-audit"',
+  'path="organization"',
   'path="trade/details"',
   'path="settlement/details"',
   'path="settlement/profit-details"',
@@ -121,6 +127,11 @@ const removedRoutes = [
 ];
 
 const removedPageSymbols = [
+  'DeviceAccessManagement',
+  'ServiceDeskManagement',
+  'MessageCenterManagement',
+  'AuthAudit',
+  'Organization',
   'OrderDetailManagement',
   'SettlementDetailManagement',
   'ProfitShareDetailManagement',

@@ -797,7 +797,7 @@ const ServiceCardManagement: React.FC = () => {
                   <Input placeholder="例如：节假日可用、需提前预约" />
                 </Form.Item>
                 <Form.Item className="merchant-editor-field-span-2" name="issueNote" label="发放补充说明">
-                  <Input placeholder="例如：仅限客服工单审批后发放" />
+                  <Input placeholder="例如：仅限运营审批后发放" />
                 </Form.Item>
               </div>
             </BusinessEditorSection>
@@ -860,7 +860,7 @@ const ServiceCardManagement: React.FC = () => {
                 </Form.Item>
                 <Form.Item name="userName" hidden><Input /></Form.Item>
                 <Form.Item name="phone" label="手机号"><Input disabled placeholder="选择用户后自动带出" /></Form.Item>
-                <Form.Item name="sourceBizNo" label="来源单号"><Input placeholder="客服工单 / 活动 / 订单号" /></Form.Item>
+                <Form.Item name="sourceBizNo" label="来源单号"><Input placeholder="活动 / 订单号 / 审批单" /></Form.Item>
               </div>
             </BusinessEditorSection>
             <BusinessEditorSection icon={<WalletOutlined />} title="次数与期限" desc="记录总次数、剩余次数和有效天数，形成用户服务卡闭环。">

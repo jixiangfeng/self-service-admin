@@ -11,7 +11,7 @@ import BusinessEditorModal, { BusinessEditorSection } from '@/components/Busines
 import OssImageUpload from '@/components/OssImageUpload';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
-import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag, safeJsonParse } from '@/pages/Business/shared';
+import { buildValueEnum, formatDateTime, KeywordSearchBar, renderStatusTag } from '@/pages/Business/shared';
 import api, {
   type AgreementContentRecord,
   type BannerConfigRecord,
@@ -20,18 +20,6 @@ import api, {
 import { DateTimeField, fromDateTimePickerValue } from '@/utils/formControls';
 
 type DetailRecord = BannerConfigRecord | AgreementContentRecord;
-
-const pageCodeOptions = [
-  { value: 'HOME', label: '首页' },
-  { value: 'STORE_LIST', label: '门店列表' },
-  { value: 'PROFILE', label: '我的页' },
-  { value: 'ACTIVITY_GIFT', label: '优惠活动' },
-  { value: 'RECHARGE_SUCCESS', label: '充值成功页' },
-  { value: 'STORE_DETAIL', label: '门店详情' },
-  { value: 'CONTACT_SERVICE', label: '联系客服' },
-  { value: 'HELP_CENTER', label: '帮助中心' },
-  { value: 'FEEDBACK', label: '意见反馈' },
-];
 
 const slotCodeOptions = [
   { value: 'HOME_TOP_CAROUSEL', label: '首页顶部轮播', pageCode: 'HOME', size: '750×320', consumer: 'pages/home/index.vue', tip: '首页首屏主轮播，建议用于全平台活动和品牌主视觉。' },
@@ -62,7 +50,6 @@ const agreementTypeOptions = [
 ];
 
 const statusMap = buildValueEnum(statusOptions);
-const pageMap = buildValueEnum(pageCodeOptions);
 const slotMap = buildValueEnum(slotCodeOptions);
 const jumpTypeMap = buildValueEnum(jumpTypeOptions);
 const agreementTypeMap = buildValueEnum(agreementTypeOptions);
@@ -88,28 +75,17 @@ const unwrapOptionData = (value?: SelectOptionRecord[] | { data?: SelectOptionRe
 const toSelectOptions = (options?: SelectOptionRecord[] | { data?: SelectOptionRecord[] }) =>
   unwrapOptionData(options).map((item) => ({ value: String(item.value), label: item.label }));
 const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
-const parseAgreementContent = (value?: string) => {
-  const parsed = safeJsonParse<Record<string, string>>(value, {});
-  if (parsed.contentSummary || parsed.contentPoint) {
-    return [parsed.contentSummary, parsed.contentPoint].filter(Boolean).join('；');
-  }
-  return value || '-';
-};
-
 const miniOpsDetailFields: Record<'banner' | 'agreement', DetailField<Record<string, unknown>>[]> = {
   banner: [
     { name: 'bannerName', label: 'Banner 名称' },
-    { name: 'pageCode', label: '页面' },
     { name: 'slotCode', label: '运营位', render: (value) => optionLabel(slotCodeOptions, value) || value || '-' },
     { name: 'title', label: '展示标题' },
     { name: 'subtitle', label: '展示副标题' },
     { name: 'imageUrl', label: '图片URL' },
-    { name: 'imageFileAssetId', label: '图片文件ID' },
     { name: 'jumpType', label: '跳转类型', render: (value) => optionLabel(jumpTypeOptions, value) || value || '-' },
     { name: 'jumpValue', label: '跳转值' },
     { name: 'sortNo', label: '排序' },
     { name: 'status', label: '状态' },
-    { name: 'extraJson', label: '扩展配置' },
     { name: 'startAt', label: '开始时间', render: (value) => formatDateTime(value) },
     { name: 'endAt', label: '结束时间', render: (value) => formatDateTime(value) },
   ],
@@ -117,7 +93,7 @@ const miniOpsDetailFields: Record<'banner' | 'agreement', DetailField<Record<str
     { name: 'agreementType', label: '协议类型' },
     { name: 'title', label: '标题' },
     { name: 'versionNo', label: '版本号' },
-    { name: 'content', label: '内容摘要', render: (value) => parseAgreementContent(value) },
+    { name: 'content', label: '协议正文' },
     { name: 'effectiveAt', label: '生效时间', render: (value) => formatDateTime(value) },
     { name: 'status', label: '状态' },
   ],
@@ -138,7 +114,6 @@ const MiniProgramOpsManagement: React.FC = () => {
   const storeOptionsQuery = useQuery({ queryKey: ['mini-ops-store-options'], queryFn: () => api.store.options() });
   const serviceCardOptionsQuery = useQuery({ queryKey: ['mini-ops-service-card-options'], queryFn: () => api.asset.serviceCards.options() });
 
-  const watchedPageCode = Form.useWatch('pageCode', form);
   const watchedSlotCode = Form.useWatch('slotCode', form);
   const watchedJumpType = Form.useWatch('jumpType', form);
   const watchedImageUrl = Form.useWatch('imageUrl', form);
@@ -148,7 +123,6 @@ const MiniProgramOpsManagement: React.FC = () => {
 
   const banners = bannersQuery.data?.data.records ?? [];
   const agreements = agreementsQuery.data?.data.records ?? [];
-  const filteredSlotOptions = slotCodeOptions.filter((item) => !watchedPageCode || item.pageCode === watchedPageCode);
   const currentSlotMeta = watchedSlotCode ? slotMetaMap[watchedSlotCode] : undefined;
   const jumpValueOptions = useMemo(() => {
     if (watchedJumpType === 'PAGE') return pagePathOptions;
@@ -163,21 +137,15 @@ const MiniProgramOpsManagement: React.FC = () => {
     setModalTitle(title);
     setEditingRecord(record || null);
     form.resetFields();
-    const defaults = { pageCode: 'HOME', slotCode: 'HOME_TOP_CAROUSEL', jumpType: 'NONE', agreementType: 'SERVICE', sortNo: 1, status: 1 };
+    const defaults = { slotCode: 'HOME_TOP_CAROUSEL', jumpType: 'NONE', agreementType: 'SERVICE', sortNo: 1, status: 1 };
     if (!record) {
       form.setFieldsValue(defaults);
     } else if ('bannerName' in record) {
       form.setFieldsValue({ ...defaults, ...record, name: record.bannerName });
     } else {
-      const parsed = safeJsonParse<{ contentSummary?: string; contentPoint?: string }>(record.content, {});
-      form.setFieldsValue({ ...defaults, ...record, name: record.title, contentSummary: parsed.contentSummary || record.content || '', contentPoint: parsed.contentPoint || '' });
+      form.setFieldsValue({ ...defaults, ...record, name: record.title });
     }
     setModalVisible(true);
-  };
-
-  const handlePageCodeChange = (pageCode: string) => {
-    const firstSlot = slotCodeOptions.find((item) => item.pageCode === pageCode);
-    form.setFieldsValue({ pageCode, slotCode: firstSlot?.value });
   };
 
   const handleSlotCodeChange = (slotCode: string) => {
@@ -202,7 +170,6 @@ const MiniProgramOpsManagement: React.FC = () => {
         slotCode: values.slotCode,
         title: values.title,
         subtitle: values.subtitle,
-        imageFileAssetId: values.imageFileAssetId,
         imageUrl: values.imageUrl,
         jumpType: values.jumpType || 'NONE',
         jumpValue: values.jumpValue,
@@ -210,7 +177,6 @@ const MiniProgramOpsManagement: React.FC = () => {
         endAt: fromDateTimePickerValue(values.endAt) || values.endAt,
         sortNo: Number(values.sortNo ?? 0),
         status: values.status,
-        extraJson: values.extraJson,
       };
       editingRecord ? await api.miniProgramOps.banners.edit(payload) : await api.miniProgramOps.banners.add(payload);
       await queryClient.invalidateQueries({ queryKey: ['banner-configs'] });
@@ -219,10 +185,7 @@ const MiniProgramOpsManagement: React.FC = () => {
         id: editingRecord?.id,
         agreementType: values.agreementType || 'SERVICE',
         title: values.name,
-        content: JSON.stringify({
-          contentSummary: values.contentSummary || '',
-          contentPoint: values.contentPoint || '',
-        }),
+        content: values.content,
         versionNo: values.versionNo,
         effectiveAt: fromDateTimePickerValue(values.effectiveAt) || values.effectiveAt,
         status: values.status,
@@ -258,11 +221,9 @@ const MiniProgramOpsManagement: React.FC = () => {
 
   const bannerColumns = useMemo<ProColumns<BannerConfigRecord>[]>(() => [
     { title: 'Banner 名称', dataIndex: 'bannerName', width: 180, fixed: 'left' },
-    { title: '页面', dataIndex: 'pageCode', width: 120, render: (_, record) => renderStatusTag(record.pageCode, pageMap) },
     { title: '运营位', dataIndex: 'slotCode', width: 180, render: (_, record) => renderStatusTag(record.slotCode, slotMap) },
     { title: '展示标题', dataIndex: 'title', width: 160, ellipsis: true },
     { title: '图片URL', dataIndex: 'imageUrl', width: 220, ellipsis: true },
-    { title: '图片文件ID', dataIndex: 'imageFileAssetId', width: 160, ellipsis: true },
     { title: '跳转类型', dataIndex: 'jumpType', width: 120, render: (_, record) => renderStatusTag(record.jumpType, jumpTypeMap) },
     { title: '跳转值', dataIndex: 'jumpValue', width: 220 },
     { title: '开始时间', dataIndex: 'startAt', width: 180, render: (_, record) => formatDateTime(record.startAt) },
@@ -276,7 +237,7 @@ const MiniProgramOpsManagement: React.FC = () => {
     { title: '协议类型', dataIndex: 'agreementType', width: 160, render: (_, record) => renderStatusTag(record.agreementType, agreementTypeMap) },
     { title: '标题', dataIndex: 'title', width: 180 },
     { title: '版本号', dataIndex: 'versionNo', width: 130 },
-    { title: '内容摘要', dataIndex: 'content', width: 340, ellipsis: true, render: (_, record) => parseAgreementContent(record.content) },
+    { title: '协议内容', dataIndex: 'content', width: 340, ellipsis: true, render: (_, record) => record.content || '-' },
     { title: '生效时间', dataIndex: 'effectiveAt', width: 180, render: (_, record) => formatDateTime(record.effectiveAt) },
     { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, statusMap) },
     { title: '操作', valueType: 'option', width: 180, fixed: 'right', render: (_, record) => <Space size={6}><a key="detail" onClick={() => setDetail(record)}>详情</a><a key="edit" onClick={() => openModal('新建协议版本', record)}><EditOutlined /> 编辑</a><a key="delete" onClick={() => removeConfig('agreement', record)}><DeleteOutlined /> 删除</a></Space> },
@@ -329,10 +290,9 @@ const MiniProgramOpsManagement: React.FC = () => {
       >
         <Form form={form} layout="vertical" className="merchant-editor-form">
           <div className="merchant-editor-shell">
-            <BusinessEditorSection icon={<MobileOutlined />} title="基础信息" desc="维护名称、页面、排序和状态。">
+            <BusinessEditorSection icon={<MobileOutlined />} title="基础信息" desc="维护名称、排序和启用状态。">
               <div className="merchant-editor-fields">
                 <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}><Input placeholder="例如：首页洗车活动 Banner" /></Form.Item>
-                <Form.Item name="pageCode" label="页面"><Select options={pageCodeOptions} placeholder="请选择页面" onChange={handlePageCodeChange} /></Form.Item>
                 <Form.Item name="sortNo" label="排序"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="1" /></Form.Item>
                 <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={statusOptions} placeholder="请选择状态" /></Form.Item>
                 <Alert type={watchedStatus === 1 ? 'success' : 'warning'} showIcon message={watchedStatus === 1 ? '启用后小程序接口会返回该配置' : '停用后用户端不展示/不生效'} style={{ gridColumn: '1 / -1' }} />
@@ -341,23 +301,21 @@ const MiniProgramOpsManagement: React.FC = () => {
             {modalTitle === '新建 Banner' ? (
               <BusinessEditorSection icon={<PictureOutlined />} title="Banner 投放" desc="配置图片文件、跳转类型和跳转值。">
                 <div className="merchant-editor-fields">
-                  <Form.Item name="slotCode" label="运营位" rules={[{ required: true, message: '请选择运营位' }]}><Select showSearch options={filteredSlotOptions} placeholder="先选页面后展示对应运营位" onChange={handleSlotCodeChange} /></Form.Item>
+                  <Form.Item name="slotCode" label="展示位置" rules={[{ required: true, message: '请选择展示位置' }]}><Select showSearch options={slotCodeOptions} placeholder="请选择小程序中的展示位置" onChange={handleSlotCodeChange} /></Form.Item>
                   <Form.Item name="title" label="展示标题"><Input placeholder="例如：自助洗车限时活动" /></Form.Item>
                   <Form.Item name="subtitle" label="展示副标题"><Input placeholder="例如：扫码即洗，快速便捷" /></Form.Item>
-                  <Form.Item name="imageFileAssetId" label="Banner 图片">
+                  <Form.Item name="imageUrl" label="Banner 图片" rules={[{ required: true, message: '请上传 Banner 图片' }]}>
                     <OssImageUpload
-                      returnField="assetId"
+                      returnField="url"
                       prefix="mini-program/banners"
                       placeholder="上传 Banner 图片"
-                      onUploaded={(asset) => form.setFieldsValue({ imageFileAssetId: asset.fileAssetId, imageUrl: asset.fileUrl })}
+                      onUploaded={(asset) => form.setFieldValue('imageUrl', asset.fileUrl)}
                     />
                   </Form.Item>
-                  <Form.Item name="imageUrl" label="图片URL"><Input placeholder="上传图片后自动填入，也可手动填写远程 URL" /></Form.Item>
                   <Form.Item name="jumpType" label="跳转类型"><Select options={jumpTypeOptions} placeholder="请选择跳转类型" /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="jumpValue" label="跳转值"><Select showSearch allowClear options={jumpValueOptions} placeholder={jumpValueOptions.length ? '选择业务目标，也可直接输入' : '按跳转类型填写：URL/PHONE 可直接输入'} /></Form.Item>
                   <Form.Item name="startAt" label="开始时间"><DateTimeField /></Form.Item>
                   <Form.Item name="endAt" label="结束时间"><DateTimeField /></Form.Item>
-                  <Form.Item className="merchant-editor-field-span-all" name="extraJson" label="扩展配置 JSON"><Input.TextArea rows={3} placeholder='例如：{"trackCode":"home_banner"}' /></Form.Item>
                   <Alert className="merchant-editor-field-span-all" type="info" showIcon message={currentSlotMeta ? `${currentSlotMeta.label} · 建议尺寸 ${currentSlotMeta.size} · ${currentSlotMeta.consumer}` : '选择运营位后会显示推荐尺寸和小程序消费页面'} description={currentSlotMeta?.tip} />
                   <Card className="merchant-editor-field-span-all" size="small" title="用户端预览">
                     <Space direction="vertical" size={8} style={{ width: '100%' }}>
@@ -370,13 +328,12 @@ const MiniProgramOpsManagement: React.FC = () => {
               </BusinessEditorSection>
             ) : null}
             {modalTitle === '新建协议版本' ? (
-              <BusinessEditorSection icon={<FileTextOutlined />} title="协议内容" desc="配置协议类型、内容摘要和正文要点。">
+              <BusinessEditorSection icon={<FileTextOutlined />} title="协议内容" desc="配置协议类型、版本和用户实际阅读的正文。">
                 <div className="merchant-editor-fields">
                   <Form.Item name="agreementType" label="协议类型"><Select options={agreementTypeOptions} placeholder="请选择协议类型" /></Form.Item>
                   <Form.Item name="versionNo" label="版本号" rules={[{ required: true, message: '请输入协议版本号' }]}><Input placeholder="例如：V2026062801" /></Form.Item>
                   <Form.Item name="effectiveAt" label="生效时间"><DateTimeField /></Form.Item>
-                  <Form.Item name="contentSummary" label="内容摘要"><Input placeholder="例如：充值余额使用和退款规则" /></Form.Item>
-                  <Form.Item className="merchant-editor-field-span-all" name="contentPoint" label="正文要点"><Input placeholder="例如：充值余额不可提现，未消费部分按规则退款" /></Form.Item>
+                  <Form.Item className="merchant-editor-field-span-all" name="content" label="协议正文" rules={[{ required: true, message: '请输入协议正文' }]}><Input.TextArea rows={10} placeholder="请输入用户需要阅读的完整协议正文" /></Form.Item>
                 </div>
               </BusinessEditorSection>
             ) : null}

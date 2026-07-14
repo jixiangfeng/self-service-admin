@@ -5,18 +5,15 @@ import { ProLayout } from '@ant-design/pro-components';
 import type { MenuDataItem } from '@ant-design/pro-components';
 import {
   AccountBookOutlined,
-  ApiOutlined,
   AppstoreOutlined,
   ApartmentOutlined,
   AuditOutlined,
   BarChartOutlined,
-  BellOutlined,
   BookOutlined,
   CalculatorOutlined,
   CarOutlined,
   CommentOutlined,
   ContactsOutlined,
-  CustomerServiceOutlined,
   DashboardOutlined,
   DeploymentUnitOutlined,
   DollarOutlined,
@@ -87,14 +84,6 @@ const BasicLayout: React.FC = () => {
       ],
     },
     {
-      key: 'group-device-access',
-      name: '设备接入',
-      icon: <ApiOutlined />,
-      children: [
-        { key: '/device-access', path: '/device-access', name: '设备接入管理', icon: <ApiOutlined /> },
-      ],
-    },
-    {
       key: 'group-catalog',
       name: '权益商品',
       icon: <AppstoreOutlined />,
@@ -108,7 +97,7 @@ const BasicLayout: React.FC = () => {
       icon: <ProfileOutlined />,
       children: [
         { key: '/trade', path: '/trade', name: '订单中心', icon: <ProfileOutlined /> },
-        { key: '/fulfillment', path: '/fulfillment', name: '履约记录', icon: <AuditOutlined /> },
+        { key: '/fulfillment', path: '/fulfillment', name: '核销记录', icon: <AuditOutlined /> },
       ],
     },
     {
@@ -149,12 +138,10 @@ const BasicLayout: React.FC = () => {
     },
     {
       key: 'group-service',
-      name: '客服消息',
-      icon: <CustomerServiceOutlined />,
+      name: '用户反馈',
+      icon: <CommentOutlined />,
       children: [
-        { key: '/service-desk', path: '/service-desk', name: '客服工单', icon: <CustomerServiceOutlined /> },
-        { key: '/service-desk/messages', path: '/service-desk/messages', name: '消息中心', icon: <BellOutlined /> },
-        { key: '/service-desk/evaluations', path: '/service-desk/evaluations', name: '评价反馈', icon: <CommentOutlined /> },
+        { key: '/service-desk/evaluations', path: '/service-desk/evaluations', name: '用户反馈', icon: <CommentOutlined /> },
       ],
     },
     {
@@ -174,8 +161,6 @@ const BasicLayout: React.FC = () => {
         { key: '/system/role', path: '/system/role', name: '角色管理', icon: <TeamOutlined />, permissions: ['system:role:list'] } as MenuDataItem,
         { key: '/system/menu', path: '/system/menu', name: '权限/菜单管理', icon: <MenuOutlined />, permissions: ['system:menu:list'] } as MenuDataItem,
         { key: '/system/dictionary', path: '/system/dictionary', name: '字典管理', icon: <BookOutlined />, permissions: ['system:dictionary:list'] } as MenuDataItem,
-        { key: '/system/auth-audit', path: '/system/auth-audit', name: '日志管理', icon: <AuditOutlined />, permissions: ['system:permission:list'] } as MenuDataItem,
-        { key: '/system/organization', path: '/system/organization', name: '组织架构', icon: <ApartmentOutlined /> },
       ],
     },
   ], []);
@@ -330,4 +315,3 @@ const BasicLayout: React.FC = () => {
 };
 
 export default BasicLayout;
-

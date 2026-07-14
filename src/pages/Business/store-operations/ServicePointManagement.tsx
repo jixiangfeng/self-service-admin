@@ -15,7 +15,6 @@ import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import PageBanner from '@/components/PageBanner';
 import { buildValueEnum, formatDateTime, renderOptionTags, renderStatusTag } from '@/pages/Business/shared';
-import WorkflowGuide from '@/pages/Business/shared';
 import { joinCommaValues, splitCommaValues } from '@/utils/csv';
 import ServicePointProfileManagement from './ServicePointProfileManagement';
 
@@ -185,29 +184,6 @@ const ServicePointManagement: React.FC = () => {
   return (
     <div style={{ padding: 24 }}>
       <PageBanner title="点位管理" subtitle="维护点位基础档案。二维码在档案维护中处理，运行状态统一在设备管理中维护。" icon={<CarOutlined />} />
-      <WorkflowGuide
-        title="点位建档闭环"
-        summary="主表单只创建点位基础资料；二维码进入档案维护，设备运行状态在设备管理中统一处理。"
-        steps={[
-          { title: '定义点位', description: '给门店创建点位编号、名称和类型', status: 'finish', tag: '当前页' },
-          { title: '配置能力', description: '标记点位支持扫码、选位或夜间价格等能力', status: 'process', tag: '基础能力' },
-          { title: '维护档案', description: '二维码在档案维护里生成和预览', status: 'wait', tag: '档案维护' },
-          { title: '进入交易', description: '到交易中心验证扫码 / 选点位下单体验', status: 'wait', tag: '交易中心' },
-        ]}
-        actions={[
-          {
-            key: 'create',
-            label: '新建点位',
-            type: 'primary',
-            onClick: () => {
-              setEditingRecord(null);
-              form.resetFields();
-              form.setFieldsValue(defaultPointInitialValues);
-              setModalVisible(true);
-            },
-          },
-        ]}
-      />
       <Tabs
         items={[
           {

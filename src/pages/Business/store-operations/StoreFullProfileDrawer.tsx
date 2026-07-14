@@ -8,7 +8,7 @@ import type {
   StoreImageRecord,
   StoreServiceCapabilityRecord,
 } from '@/services/backendService';
-import { formatDateTime, formatEnumText, safeJsonParse } from '@/pages/Business/shared';
+import { formatDateTime, formatEnumText } from '@/pages/Business/shared';
 
 interface StoreFullProfileDrawerProps {
   open: boolean;
@@ -22,25 +22,9 @@ const formatMoney = (value?: number | string) => {
   return Number.isFinite(amount) ? amount.toFixed(2) : '0.00';
 };
 
-const capabilityLimitOptions = [
-  { value: 'ALL_DAY', label: '全天开放' },
-  { value: 'BUSINESS_HOURS', label: '营业中开放' },
-  { value: 'APPOINTMENT_ONLY', label: '仅预约可用' },
-];
-
-const capabilityPointOptions = [
-  { value: 'ALL_POINTS', label: '全部点位' },
-  { value: 'CAR_WASH_ONLY', label: '洗车点位' },
-  { value: 'RETAIL_ONLY', label: '零售点位' },
-];
-
-const optionLabel = (options: { value: string; label: string }[], value?: string) => options.find((item) => item.value === value)?.label || value;
-const parseCapabilityConfig = (configJson?: string) =>
-  safeJsonParse<{ limitMode?: string; pointScope?: string; extraLimit?: string }>(configJson, {});
-
 const StoreFullProfileDrawer: React.FC<StoreFullProfileDrawerProps> = ({ open, loading, profile, onClose }) => {
   const store = profile?.store;
-  const capabilities = (profile?.capabilities || []).map((record) => ({ ...record, ...parseCapabilityConfig(record.configJson) }));
+  const capabilities = profile?.capabilities || [];
   const risks = (profile?.operationWarnings && profile.operationWarnings.length ? profile.operationWarnings : [
     !store?.address ? '未配置详细地址' : null,
     !(profile?.images || []).some((item) => item.status === 'PUBLISHED') ? '暂无已发布门店图片' : null,
@@ -57,9 +41,6 @@ const StoreFullProfileDrawer: React.FC<StoreFullProfileDrawerProps> = ({ open, l
 
   const capabilityColumns: ColumnsType<StoreServiceCapabilityRecord> = [
     { title: '能力', dataIndex: 'capabilityCode', render: (value) => formatEnumText(value, 'capabilityCode', '能力') },
-    { title: '开放限制', dataIndex: 'limitMode', render: (_, record) => optionLabel(capabilityLimitOptions, record.limitMode) || '-' },
-    { title: '适用点位', dataIndex: 'pointScope', render: (_, record) => optionLabel(capabilityPointOptions, record.pointScope) || '-' },
-    { title: '补充限制', dataIndex: 'extraLimit', render: (_, record) => record.extraLimit || '-' },
     { title: '状态', dataIndex: 'status', render: (value) => formatEnumText(value, 'status', '状态') },
   ];
 

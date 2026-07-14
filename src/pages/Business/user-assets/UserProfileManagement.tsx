@@ -438,7 +438,7 @@ const UserProfileManagement: React.FC = () => {
                 <Form.Item name="handleMethod" label="处理方式" initialValue={modalTitle.includes('车辆') ? '补充车辆' : '更新标签'}><Select options={profileHandleOptions} /></Form.Item>
                 <Form.Item name="profileTags" label="用户标签"><Checkbox.Group options={['高价值用户', '待观察', '售后处理中', '活跃用户', '沉默用户']} /></Form.Item>
                 <Form.Item name="approvalRequired" label="审批要求" initialValue="客服主管已确认"><Select options={approvalOptions} /></Form.Item>
-                <Form.Item name="ticketNo" label="关联工单"><Input placeholder="客服工单 / 审批单，可选" /></Form.Item>
+                <Form.Item name="ticketNo" label="关联单号"><Input placeholder="订单号 / 审批单，可选" /></Form.Item>
                 <Form.Item name="operatorNote" label="补充说明"><Input placeholder="填写必要的补充说明" /></Form.Item>
               </div>
             </BusinessEditorSection>

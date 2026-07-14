@@ -29,17 +29,12 @@ const SettlementManagement = lazy(() => import('./pages/Business/finance-settlem
 const SettlementRuleManagement = lazy(() => import('./pages/Business/finance-settlement').then((module) => ({ default: module.SettlementRuleManagement })));
 const ProfitSharingManagement = lazy(() => import('./pages/Business/finance-settlement').then((module) => ({ default: module.ProfitSharingManagement })));
 const AnalysisManagement = lazy(() => import('./pages/Business/data-reports').then((module) => ({ default: module.AnalysisManagement })));
-const ServiceDeskManagement = lazy(() => import('./pages/Business/service-messaging').then((module) => ({ default: module.ServiceDeskManagement })));
-const MessageCenterManagement = lazy(() => import('./pages/Business/service-messaging').then((module) => ({ default: module.MessageCenterManagement })));
 const EvaluationFeedbackManagement = lazy(() => import('./pages/Business/service-messaging').then((module) => ({ default: module.EvaluationFeedbackManagement })));
-const DeviceAccessManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.DeviceAccessManagement })));
 const MiniProgramOpsManagement = lazy(() => import('./pages/Business/platform-operations').then((module) => ({ default: module.MiniProgramOpsManagement })));
 const UserManagement = lazy(() => import('./pages/System/User'));
 const RoleManagement = lazy(() => import('./pages/System/Role'));
 const MenuManagement = lazy(() => import('./pages/System/Menu'));
 const DictionaryManagement = lazy(() => import('./pages/System/Dictionary'));
-const AuthAudit = lazy(() => import('./pages/System/AuthAudit'));
-const Organization = lazy(() => import('./pages/System/Organization'));
 
 const PageLoading = () => (
   <div style={{ minHeight: '50vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -131,10 +126,7 @@ const AppContent = () => {
               <Route path="settlement/rules" element={<SettlementRuleManagement />} />
               <Route path="settlement/profit-sharing" element={<ProfitSharingManagement />} />
               <Route path="analysis" element={<AnalysisManagement />} />
-              <Route path="service-desk" element={<ServiceDeskManagement />} />
-              <Route path="service-desk/messages" element={<MessageCenterManagement />} />
               <Route path="service-desk/evaluations" element={<EvaluationFeedbackManagement />} />
-              <Route path="device-access" element={<DeviceAccessManagement />} />
               <Route path="mini-program-ops" element={<MiniProgramOpsManagement />} />
 
               <Route path="system">
@@ -142,8 +134,6 @@ const AppContent = () => {
                 <Route path="role" element={<RoleManagement />} />
                 <Route path="menu" element={<MenuManagement />} />
                 <Route path="dictionary" element={<DictionaryManagement />} />
-                <Route path="auth-audit" element={<AuthAudit />} />
-                <Route path="organization" element={<Organization />} />
               </Route>
             </Route>
 

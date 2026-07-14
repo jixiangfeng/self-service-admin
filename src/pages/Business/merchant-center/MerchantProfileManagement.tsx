@@ -5,7 +5,6 @@ import { AuditOutlined, BankOutlined, ContactsOutlined, DeleteOutlined, EditOutl
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
-  auditStatusOptions,
   contactTypeOptions as catalogContactTypeOptions,
   merchantContractStatusOptions,
   qualificationTypeOptions,
@@ -31,7 +30,6 @@ type ProfileTab = 'contact' | 'qualification' | 'contract' | 'account';
 type EditableRecord = MerchantContactRecord | MerchantContractRecord | MerchantSettlementAccountRecord | MerchantQualificationRecord;
 type ProfileSearchValues = { keyword?: string; merchantId?: number };
 
-const auditStatusMap = buildValueEnum(auditStatusOptions);
 const contractStatusMap = buildValueEnum(merchantContractStatusOptions);
 const qualificationTypeMap = buildValueEnum(qualificationTypeOptions);
 const settlementCycleMap = buildValueEnum(settlementCycleOptions);
@@ -41,11 +39,6 @@ const primaryFlagMap = {
 };
 
 const contactTypeOptions = catalogContactTypeOptions;
-
-const accountStatusOptions = [
-  { value: 'ACTIVE', label: '启用' },
-  { value: 'DISABLED', label: '停用' },
-];
 
 const normalizeDateText = (value: unknown) => {
   if (!value) {
@@ -94,9 +87,9 @@ const profileTabMeta: Record<ProfileTab, { eyebrow: string; createTitle: string;
     eyebrow: '资质档案维护',
     createTitle: '新增资质',
     editTitle: '编辑资质',
-    subtitle: '沉淀商户营业执照、法人证件和经营许可等资质材料，支持审核和到期跟进。',
+    subtitle: '沉淀商户营业执照、法人证件和经营许可等资质材料，支持到期跟进。',
     sectionTitle: '资质材料',
-    sectionDesc: '录入资质编号、文件地址、审核状态和有效期，保证资料可追溯。',
+    sectionDesc: '录入资质编号、文件地址和有效期，保证资料可追溯。',
     icon: <FileProtectOutlined />,
     meta: '资质',
   },
@@ -104,7 +97,7 @@ const profileTabMeta: Record<ProfileTab, { eyebrow: string; createTitle: string;
     eyebrow: '合同档案维护',
     createTitle: '新增合同',
     editTitle: '编辑合同',
-    subtitle: '维护商户合同编号、履约周期、结算周期和审核状态，支撑财务对账和合作管理。',
+    subtitle: '维护商户合同编号、履约周期、结算周期和合同状态，支撑财务对账和合作管理。',
     sectionTitle: '合同信息',
     sectionDesc: '配置合同主体、合同周期、结算周期和当前履约状态。',
     icon: <AuditOutlined />,
@@ -114,9 +107,9 @@ const profileTabMeta: Record<ProfileTab, { eyebrow: string; createTitle: string;
     eyebrow: '结算账户维护',
     createTitle: '新增结算账户',
     editTitle: '编辑结算账户',
-    subtitle: '维护商户收款账户和审核状态，保证结算打款信息完整。',
+    subtitle: '维护商户收款账户，保证结算打款信息完整。',
     sectionTitle: '账户信息',
-    sectionDesc: '录入户名、账号、开户行、生效日期和账户状态。',
+    sectionDesc: '录入户名、账号、开户行和生效日期。',
     icon: <BankOutlined />,
     meta: '结算账户',
   },
@@ -162,7 +155,6 @@ const profileDetailFields: Record<ProfileTab, DetailField<any>[]> = {
     { name: 'mobile', label: '手机号' },
     { name: 'email', label: '邮箱' },
     { name: 'primaryFlag', label: '主联系人' },
-    { name: 'status', label: '状态' },
     { name: 'remark', label: '备注' },
   ],
   qualification: [
@@ -171,8 +163,6 @@ const profileDetailFields: Record<ProfileTab, DetailField<any>[]> = {
     { name: 'qualificationNo', label: '资质编号' },
     { name: 'fileName', label: '文件名称' },
     { name: 'fileUrl', label: '文件地址' },
-    { name: 'auditStatus', label: '审核状态' },
-    { name: 'status', label: '状态' },
     { name: 'expireAt', label: '到期日', render: (_value, record) => renderQualificationExpireAt(record) },
     { name: 'createdAt', label: '创建时间', render: (value) => formatDateTime(value) },
     { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
@@ -184,7 +174,6 @@ const profileDetailFields: Record<ProfileTab, DetailField<any>[]> = {
     { name: 'contractName', label: '合同名称' },
     { name: 'settlementCycle', label: '结算周期' },
     { name: 'contractStatus', label: '合同状态' },
-    { name: 'status', label: '审核状态' },
     { name: 'fileUrl', label: '合同文件' },
     { name: 'startAt', label: '开始日期' },
     { name: 'endAt', label: '结束日期' },
@@ -195,8 +184,6 @@ const profileDetailFields: Record<ProfileTab, DetailField<any>[]> = {
     { name: 'accountName', label: '户名' },
     { name: 'accountNo', label: '账号' },
     { name: 'bankName', label: '开户行' },
-    { name: 'auditStatus', label: '审核状态' },
-    { name: 'status', label: '账户状态' },
     { name: 'effectiveAt', label: '生效日期' },
     { name: 'remark', label: '备注' },
   ],
@@ -311,16 +298,16 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
       setEditingRecord(fullRecord);
     } else if (tab === 'contact') {
       setEditingRecord(null);
-      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, contactType: 'BUSINESS', primaryFlag: 0, status: 'APPROVED' });
+      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, contactType: 'BUSINESS', primaryFlag: 0 });
     } else if (tab === 'contract') {
       setEditingRecord(null);
-      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, settlementCycle: 'WEEK', contractStatus: 'PENDING', status: 'PENDING' });
+      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, settlementCycle: 'WEEK', contractStatus: 'PENDING' });
     } else if (tab === 'qualification') {
       setEditingRecord(null);
-      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, auditStatus: 'PENDING', status: 'ACTIVE' });
+      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined });
     } else if (tab === 'account') {
       setEditingRecord(null);
-      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined, auditStatus: 'PENDING', status: 'ACTIVE' });
+      form.setFieldsValue({ merchantId: profileMerchantId, merchantName: profileMerchantId ? merchantMap.get(profileMerchantId) : undefined });
     }
     if (!record) {
       setModalVisible(true);
@@ -339,7 +326,6 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
     { title: '手机号', dataIndex: 'mobile', width: 140 },
     { title: '邮箱', dataIndex: 'email', width: 190 },
     { title: '主联系人', dataIndex: 'primaryFlag', width: 100, render: (_, record) => renderStatusTag(record.primaryFlag, primaryFlagMap) },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, auditStatusMap) },
     {
       title: '操作',
       width: 170,
@@ -359,7 +345,6 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
     { title: '资质类型', dataIndex: 'qualificationType', width: 140, render: (_, record) => renderStatusTag(record.qualificationType, qualificationTypeMap) },
     { title: '资质编号', dataIndex: 'qualificationNo', width: 180 },
     { title: '文件', dataIndex: 'fileName', width: 220 },
-    { title: '审核状态', dataIndex: 'auditStatus', width: 120, render: (_, record) => renderStatusTag(record.auditStatus, auditStatusMap) },
     { title: '到期日', dataIndex: 'expireAt', width: 130, render: (_, record) => renderQualificationExpireAt(record as unknown as Record<string, unknown>) },
     {
       title: '操作',
@@ -381,7 +366,6 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
     { title: '合同名称', dataIndex: 'contractName', width: 180 },
     { title: '结算周期', dataIndex: 'settlementCycle', width: 120, render: (_, record) => renderStatusTag(record.settlementCycle, settlementCycleMap) },
     { title: '合同状态', dataIndex: 'contractStatus', width: 120, render: (_, record) => renderStatusTag(record.contractStatus, contractStatusMap) },
-    { title: '审核状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, auditStatusMap) },
     { title: '开始日期', dataIndex: 'startAt', width: 130 },
     { title: '结束日期', dataIndex: 'endAt', width: 130 },
     {
@@ -403,8 +387,6 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
     { title: '户名', dataIndex: 'accountName', width: 220 },
     { title: '账号', dataIndex: 'accountNo', width: 160 },
     { title: '开户行', dataIndex: 'bankName', width: 190 },
-    { title: '审核状态', dataIndex: 'auditStatus', width: 120, render: (_, record) => renderStatusTag(record.auditStatus, auditStatusMap) },
-    { title: '账户状态', dataIndex: 'status', width: 120 , render: (value) => formatEnumText(value, 'status', '账户状态') },
     { title: '生效日期', dataIndex: 'effectiveAt', width: 130 },
     {
       title: '操作',
@@ -426,9 +408,9 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="联系人" value={contacts.length} suffix="人" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="待审资质" value={qualifications.filter((item) => item.auditStatus === 'PENDING').length} suffix="份" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="资质" value={qualifications.length} suffix="份" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="合同" value={contracts.length} suffix="份" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="待审账户" value={settlementAccounts.filter((item) => item.auditStatus === 'PENDING').length} suffix="个" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="结算账户" value={settlementAccounts.length} suffix="个" /></Card></Col>
       </Row>
 
       <Form
@@ -509,7 +491,6 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
                 <Form.Item name="mobile" label="手机号" rules={[{ required: true, message: '请输入手机号' }]}><Input placeholder="用于运营通知和异常处理" /></Form.Item>
                 <Form.Item name="email" label="邮箱"><Input placeholder="例如：ops@example.com" /></Form.Item>
                 <Form.Item name="primaryFlag" label="主联系人"><Select options={[{ value: 1, label: '是' }, { value: 0, label: '否' }]} placeholder="请选择" /></Form.Item>
-                <Form.Item name="status" label="状态"><Select options={auditStatusOptions} placeholder="请选择状态" /></Form.Item>
               </>
             ) : null}
             {activeTab === 'qualification' ? (
@@ -518,8 +499,6 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
                 <Form.Item name="qualificationNo" label="资质编号" rules={[{ required: true, message: '请输入资质编号' }]}><Input placeholder="统一信用代码或许可证编号" /></Form.Item>
                 <Form.Item name="fileName" label="文件名称"><Input placeholder="例如：营业执照.pdf" /></Form.Item>
                 <Form.Item name="fileUrl" label="资质文件"><OssImageUpload fileKind="file" prefix="merchant/qualifications" placeholder="上传资质文件" /></Form.Item>
-                <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
-                <Form.Item name="status" label="状态"><Select options={accountStatusOptions} placeholder="请选择状态" /></Form.Item>
                 <Form.Item name="expireAt" label="到期日"><DateField /></Form.Item>
               </>
             ) : null}
@@ -529,7 +508,6 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
                 <Form.Item name="contractName" label="合同名称" rules={[{ required: true, message: '请输入合同名称' }]}><Input placeholder="例如：商户入驻合作协议" /></Form.Item>
                 <Form.Item name="settlementCycle" label="结算周期"><Select options={settlementCycleOptions} placeholder="请选择结算周期" /></Form.Item>
                 <Form.Item name="contractStatus" label="合同状态"><Select options={merchantContractStatusOptions} placeholder="请选择合同状态" /></Form.Item>
-                <Form.Item name="status" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
                 <Form.Item name="fileUrl" label="合同文件"><OssImageUpload fileKind="file" prefix="merchant/contracts" placeholder="上传合同文件" /></Form.Item>
                 <Form.Item name="startAt" label="开始日期"><DateField /></Form.Item>
                 <Form.Item name="endAt" label="结束日期"><DateField /></Form.Item>
@@ -540,12 +518,10 @@ const MerchantProfileManagement: React.FC<{ embedded?: boolean }> = ({ embedded 
                 <Form.Item name="accountName" label="户名" rules={[{ required: true, message: '请输入户名' }]}><Input placeholder="例如：上海鲸洗运营有限公司" /></Form.Item>
                 <Form.Item name="accountNo" label="账号" rules={[{ required: true, message: '请输入账号' }]}><Input placeholder="银行账户或收款账号" /></Form.Item>
                 <Form.Item name="bankName" label="开户行"><Input placeholder="例如：招商银行上海分行" /></Form.Item>
-                <Form.Item name="auditStatus" label="审核状态"><Select options={auditStatusOptions} placeholder="请选择审核状态" /></Form.Item>
-                <Form.Item name="status" label="账户状态"><Select options={accountStatusOptions} placeholder="请选择账户状态" /></Form.Item>
                 <Form.Item name="effectiveAt" label="生效日期"><DateField /></Form.Item>
               </>
             ) : null}
-                <Form.Item className="merchant-editor-field-span-2" name="remark" label="备注"><Input.TextArea rows={3} placeholder="补充审核说明、资料来源或内部交接说明" /></Form.Item>
+                <Form.Item className="merchant-editor-field-span-2" name="remark" label="备注"><Input.TextArea rows={3} placeholder="补充资料来源或内部交接说明" /></Form.Item>
               </div>
             </BusinessEditorSection>
           </div>

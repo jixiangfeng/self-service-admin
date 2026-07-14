@@ -474,7 +474,7 @@ const UserManagement: React.FC = () => {
                   <Input placeholder="例如：运营岗位新增权限" />
                 </Form.Item>
                 <Form.Item name="scopeRemark" label="权限边界">
-                  <Input placeholder="例如：仅处理门店运营和客服工单" />
+                  <Input placeholder="例如：仅处理门店运营和用户反馈" />
                 </Form.Item>
               </div>
             </BusinessEditorSection>

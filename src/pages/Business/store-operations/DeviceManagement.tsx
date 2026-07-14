@@ -3,8 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { DeleteOutlined, DeploymentUnitOutlined, EditOutlined, LinkOutlined, PlusOutlined } from '@ant-design/icons';
-import { Button, Form, Input, Select, Space, Tabs, message } from 'antd';
-import { useNavigate } from 'react-router-dom';
+import { Button, Form, Input, Select, Space, message } from 'antd';
 import {
   deviceStatusOptions,
   deviceTypeOptions,
@@ -14,8 +13,7 @@ import type { DeviceFullProfileRecord, DeviceRecord, SelectOptionRecord } from '
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import PageBanner from '@/components/PageBanner';
-import { buildValueEnum, CoreFlowPanel, formatDateTime, OperatorTips, renderStatusTag } from '@/pages/Business/shared';
-import WorkflowGuide from '@/pages/Business/shared';
+import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 import { DateField, fromDatePickerValue, toDatePickerValue } from '@/utils/formControls';
 import DeviceFullProfileDrawer from './DeviceFullProfileDrawer';
 
@@ -23,7 +21,6 @@ const normalizeDeviceValues = (values: Record<string, any>) => ({ ...values, ins
 const normalizeDeviceInitialValues = (record: DeviceRecord) => ({ ...record, installTime: toDatePickerValue(record.installTime) || record.installTime }) as Record<string, unknown>;
 
 const DeviceManagement: React.FC = () => {
-  const navigate = useNavigate();
   const [form] = Form.useForm();
   const selectedStoreId = Form.useWatch('storeId', form);
   const queryClient = useQueryClient();
@@ -128,7 +125,7 @@ const DeviceManagement: React.FC = () => {
           </div>
         ),
       },
-      { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '设备名称 / 编号 / 厂商' } },
+      { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '设备名称 / 平台编号 / 第三方编号 / 厂商' } },
       {
         title: '所属门店',
         dataIndex: 'storeId',
@@ -138,7 +135,8 @@ const DeviceManagement: React.FC = () => {
         render: (_, record) => record.storeName || '-',
       },
       { title: '点位编号', dataIndex: 'pointCode', width: 120, search: false, render: (_, record) => record.pointCode || '-' },
-      { title: '设备编号', dataIndex: 'deviceCode', width: 140, search: false },
+      { title: '平台设备编号', dataIndex: 'deviceCode', width: 150, search: false },
+      { title: '第三方设备编号', dataIndex: 'gatewayDeviceCode', width: 170, search: false },
       {
         title: '设备类型',
         dataIndex: 'deviceType',
@@ -200,62 +198,7 @@ const DeviceManagement: React.FC = () => {
   return (
     <div style={{ padding: 24 }}>
       <PageBanner title="设备管理" subtitle="维护设备台账和门店点位绑定；运行状态由设备心跳、回调和订单自动判断。" icon={<DeploymentUnitOutlined />} />
-      <WorkflowGuide
-        title="设备管理流程"
-        summary="主设备页只处理设备资产和门店点位绑定；在线、离线、使用中、故障等运行态由设备侧和系统记录自动产生。"
-        steps={[
-          { title: '设备建档', description: '录设备名称、编号、类型和厂商', status: 'finish', tag: '当前页' },
-          { title: '绑定门店点位', description: '决定设备服务于哪个门店和点位', status: 'process', tag: '门店 / 点位' },
-          { title: '接入档案', description: '由实施人员维护厂商、型号和协议', status: 'wait', tag: '接入档案' },
-          { title: '履约验证', description: '去交易和履约页看设备启动、回执和异常表现', status: 'wait', tag: '交易 / 核销履约' },
-        ]}
-        actions={[
-          {
-            key: 'create',
-            label: '新建设备',
-            type: 'primary',
-            onClick: openCreateDrawer,
-          },
-          { key: 'trade', label: '去交易中心', onClick: () => navigate('/trade') },
-        ]}
-      />
-      <CoreFlowPanel
-        title="设备履约闭环"
-        subtitle="设备要从资产建档、门店点位绑定、协议接入、状态监控一路串到订单履约，运营才能快速判断故障影响范围。"
-        config={[
-          { label: '设备主档', desc: '设备编号、类型和厂商用于识别资产与售后责任。', tag: '资产' },
-          { label: '门店点位', desc: '绑定门店和点位后，订单才知道从哪个设备执行服务。', tag: '绑定' },
-          { label: '接入资料', desc: '型号、协议、指令模板和回调配置放在设备接入管理维护。', tag: '技术' },
-        ]}
-        landing={[
-          { label: '服务订单', desc: '订单记录设备编号、点位和启动结果，异常可反查设备状态。' },
-          { label: '故障运维', desc: '故障级别、信号强度和最近心跳用于判断是否现场处理。' },
-          { label: '结算影响', desc: '设备不可用会影响门店履约、退款原因和结算复盘。' },
-        ]}
-        verify={[
-          { label: '新建后', desc: '确认设备已绑定门店点位，并等待设备心跳或回调同步运行态。' },
-          { label: '异常时', desc: '先看最近心跳、故障级别和交易中心的失败订单。' },
-          { label: '更换点位', desc: '换绑前确认旧点位没有进行中订单，并保留换绑记录。' },
-        ]}
-        actions={[
-          { key: 'access', label: '设备接入管理', onClick: () => navigate('/device-access') },
-          { key: 'trade', label: '去交易中心', type: 'primary', onClick: () => navigate('/trade') },
-        ]}
-      />
-      <OperatorTips
-        items={[
-          { label: '新建设备', desc: '先选门店，再选点位；选择点位后会自动带出点位编号，减少手工录错。', tag: '建档' },
-          { label: '看异常设备', desc: '优先看状态、故障级别、信号强度和最近心跳，判断是否需要现场处理。', tag: '巡检' },
-          { label: '维护接入资料', desc: '厂商、型号、协议和鉴权资料在“接入档案”，由实施或技术人员维护。', tag: '接入' },
-        ]}
-      />
-      <Tabs
-        items={[
-          {
-            key: 'device-list',
-            label: '设备列表',
-            children: (
-              <ProTable<DeviceRecord>
+      <ProTable<DeviceRecord>
         cardBordered
         rowKey="id"
         columns={columns}
@@ -294,10 +237,6 @@ const DeviceManagement: React.FC = () => {
         onReset={() => {
           setQueryParams({ pageNum: 1, pageSize: 10, keyword: undefined, storeId: undefined, deviceType: undefined, status: undefined });
         }}
-      />
-            ),
-          },
-        ]}
       />
 
       <DeviceFullProfileDrawer
@@ -382,17 +321,27 @@ const DeviceManagement: React.FC = () => {
             <BusinessEditorSection
               icon={<DeploymentUnitOutlined />}
               title="设备基础"
-              desc="维护设备名称、编号、厂商和安装时间，形成设备资产台账和后续维护追踪依据。"
+              desc="平台设备编号由系统生成；第三方设备编号填写设备厂商或网关提供的唯一编号。"
             >
               <div className="merchant-editor-fields">
                 <Form.Item name="deviceName" label="设备名称" rules={[{ required: true, message: '请输入设备名称' }]}>
                   <Input placeholder="例如：A 区 1 号高压水枪" />
                 </Form.Item>
                 {editingRecord ? (
-                  <Form.Item name="deviceCode" label="设备编号">
-                    <Input readOnly placeholder="设备编号不可编辑" />
+                  <Form.Item name="deviceCode" label="平台设备编号">
+                    <Input readOnly placeholder="平台自动生成，不可编辑" />
                   </Form.Item>
                 ) : null}
+                <Form.Item
+                  name="gatewayDeviceCode"
+                  label="第三方设备编号"
+                  rules={[
+                    { required: true, message: '请输入第三方设备编号' },
+                    { whitespace: true, message: '请输入第三方设备编号' },
+                  ]}
+                >
+                  <Input placeholder="请输入设备铭牌、厂商平台或网关中的设备编号" />
+                </Form.Item>
                 <Form.Item name="vendorName" label="厂商名称">
                   <Input placeholder="设备供应商或集成商名称" />
                 </Form.Item>

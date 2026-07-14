@@ -129,7 +129,8 @@ const DeviceFullProfileDrawer: React.FC<DeviceFullProfileDrawerProps> = ({ open,
                     <Statistic title="离线时长" value={formatOfflineMinutes(profile.offlineMinutes)} />
                   </Space>
                   <Descriptions bordered column={2} size="small">
-                    <Descriptions.Item label="设备编号">{device.deviceCode}</Descriptions.Item>
+                    <Descriptions.Item label="平台设备编号">{device.deviceCode}</Descriptions.Item>
+                    <Descriptions.Item label="第三方设备编号">{device.gatewayDeviceCode || '-'}</Descriptions.Item>
                     <Descriptions.Item label="健康状态">{health ? <Tag color={health.color}>{health.text}</Tag> : '-'}</Descriptions.Item>
                     <Descriptions.Item label="设备状态">{formatEnumText(device.status, 'deviceStatus', '设备状态')}</Descriptions.Item>
                     <Descriptions.Item label="设备类型">{formatEnumText(device.deviceType, 'deviceType', '设备类型')}</Descriptions.Item>
