@@ -10,13 +10,17 @@ import BusinessEditorModal, { BusinessEditorSection } from '@/components/Busines
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
-import type { MerchantGroupRecord, MerchantGroupStoreRecord, SelectOptionRecord } from '@/services/backendService';
+import type { MerchantGroupRecord, MerchantGroupStoreRecord, SelectOptionRecord, StoreRecord } from '@/services/backendService';
 import { buildValueEnum, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
 
 const clearingModeOptions = [
   { value: 'NONE', label: '不启用跨商户清分' },
   { value: 'AUTO_LEDGER', label: '自动清分并自动结算' },
   { value: 'AUTO_PAYOUT', label: '自动清分、结算并发起打款' },
+];
+const clearingScopeOptions = [
+  { value: 'Y', label: '仅跨商户消费参与清分' },
+  { value: 'N', label: '所有跨店消费均参与清分' },
 ];
 const clearingCycleOptions = [
   { value: 'REALTIME', label: '实时结算' },
@@ -51,6 +55,7 @@ const cardRevenueRecognitionOptions = [
 
 type MerchantGroupFormValues = Partial<MerchantGroupRecord> & {
   settlementMode?: string;
+  crossMerchantFlag?: string;
   settlementCycle?: string;
   settlementCutoffTime?: string;
   settlementDelayDays?: number;
@@ -96,11 +101,20 @@ const MerchantGroupManagement: React.FC = () => {
   const [members, setMembers] = useState<MerchantGroupStoreRecord[]>([]);
   const [editingMember, setEditingMember] = useState<MerchantGroupStoreRecord | null>(null);
   const [memberLoading, setMemberLoading] = useState(false);
+  const selectedGroupType = Form.useWatch('groupType', form);
   const { data: merchantOptions } = useQuery({ queryKey: ['merchantOptionsForMerchantGroups'], queryFn: async () => (await api.merchant.options()).data });
   const { data: storeOptions } = useQuery({
-    queryKey: ['storeOptionsForMerchantGroups', memberGroup?.merchantId],
-    queryFn: async () => (await api.store.options(memberGroup?.merchantId)).data,
-    enabled: Boolean(memberGroup?.merchantId),
+    queryKey: ['storeOptionsForMerchantGroups', memberGroup?.id, memberGroup?.groupType, memberGroup?.merchantId],
+    queryFn: async () => {
+      const merchantId = memberGroup?.groupType === 'STORED_VALUE' ? undefined : memberGroup?.merchantId;
+      const page = (await api.store.page({ current: 1, size: 500, merchantId })).data;
+      return page.records.map((store: StoreRecord) => ({
+        value: store.id,
+        code: store.storeCode,
+        label: `${store.storeName} (${store.storeCode}) · ${store.merchantName || `商户#${store.merchantId}`}`,
+      }));
+    },
+    enabled: Boolean(memberGroup),
   });
   const merchantGroupTypeOptions = useBusinessEnumOptions('merchantGroupTypeOptions');
   const templateStatusOptions = useBusinessEnumOptions('templateStatusOptions');
@@ -161,7 +175,6 @@ const MerchantGroupManagement: React.FC = () => {
       await api.merchantGroupStore.add({
         ...values,
         groupId: memberGroup.id,
-        merchantId: memberGroup.merchantId,
         status: values.status || 'ENABLED',
       });
       message.success('门店成员已添加');
@@ -352,6 +365,7 @@ const MerchantGroupManagement: React.FC = () => {
                 status: 'DRAFT',
                 storeCount: 0,
                 settlementMode: 'NONE',
+                crossMerchantFlag: 'Y',
                 settlementCycle: 'WEEK',
                 settlementCutoffTime: '00:00',
                 settlementDelayDays: 0,
@@ -376,7 +390,7 @@ const MerchantGroupManagement: React.FC = () => {
       <BusinessEditorModal
         eyebrow={editingRecord ? '门店组配置维护' : '门店组建档'}
         title={editingRecord ? `编辑门店组 · ${editingRecord.groupName}` : '新建门店组'}
-        subtitle="用于经营管理或储值通用范围配置；储值通用组可在高级清分协议中配置跨结算主体消费后的清分规则。"
+        subtitle="用于经营管理或储值通用范围配置；只有储值通用组需要维护高级清分协议。"
         meta={['门店组', editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
         onOk={handleSubmit}
@@ -425,19 +439,20 @@ const MerchantGroupManagement: React.FC = () => {
               </div>
             </BusinessEditorSection>
 
-            <BusinessEditorSection
-              icon={<AuditOutlined />}
-              title="高级清分配置"
-              desc="默认收起，作为储值通用组的高级协议：同结算主体可不清分，跨结算主体消费时维护资金持有方、收入归属和协议比例。"
-            >
-              <Collapse
-                ghost
-                items={[
-                  {
-                    key: 'settlement',
-                    label: '展开维护清分协议',
-                    children: (
-                      <div className="merchant-editor-fields">
+            {selectedGroupType === 'STORED_VALUE' ? (
+              <BusinessEditorSection
+                icon={<AuditOutlined />}
+                title="高级清分配置"
+                desc="仅储值通用组使用：默认同商户不清分、跨商户才清分；如需内部核算可改为所有跨店消费均参与。保存后由系统自动生成规则版本。"
+              >
+                <Collapse
+                  ghost
+                  items={[
+                    {
+                      key: 'settlement',
+                      label: '展开维护清分协议',
+                      children: (
+                        <div className="merchant-editor-fields">
                         <Form.Item name="settlementMode" label="清分方式">
                           <Select
                             options={clearingModeOptions}
@@ -446,6 +461,9 @@ const MerchantGroupManagement: React.FC = () => {
                               if (value === 'AUTO_PAYOUT') form.setFieldValue('cashHolder', 'PLATFORM_PREPAID');
                             }}
                           />
+                        </Form.Item>
+                        <Form.Item name="crossMerchantFlag" label="清分范围">
+                          <Select options={clearingScopeOptions} placeholder="请选择清分范围" />
                         </Form.Item>
                         <Form.Item name="settlementCycle" label="清分周期">
                           <Select options={clearingCycleOptions} placeholder="请选择清分周期" />
@@ -486,12 +504,13 @@ const MerchantGroupManagement: React.FC = () => {
                         <Form.Item className="merchant-editor-field-span-2" name="clearingRemark" label="清分补充">
                           <Input.TextArea rows={3} placeholder="记录门店组清分口径和特殊约定" />
                         </Form.Item>
-                      </div>
-                    ),
-                  },
-                ]}
-              />
-            </BusinessEditorSection>
+                        </div>
+                      ),
+                    },
+                  ]}
+                />
+              </BusinessEditorSection>
+            ) : null}
           </div>
         </Form>
       </BusinessEditorModal>
@@ -506,6 +525,7 @@ const MerchantGroupManagement: React.FC = () => {
             <Descriptions.Item label="门店数">{detail.storeCount}</Descriptions.Item>
             <Descriptions.Item label="备注">{detail.remark || '-'}</Descriptions.Item>
             <Descriptions.Item label="清分方式">{optionLabel(clearingModeOptions, detail.settlementMode)}</Descriptions.Item>
+            <Descriptions.Item label="清分范围">{optionLabel(clearingScopeOptions, detail.crossMerchantFlag)}</Descriptions.Item>
             <Descriptions.Item label="清分周期">{optionLabel(clearingCycleOptions, detail.settlementCycle)}</Descriptions.Item>
             <Descriptions.Item label="账期截止">{detail.settlementCutoffTime || '00:00'}</Descriptions.Item>
             <Descriptions.Item label="结算延迟">{detail.settlementDelayDays || 0} 天</Descriptions.Item>
@@ -530,7 +550,9 @@ const MerchantGroupManagement: React.FC = () => {
       <BusinessEditorModal
         eyebrow="门店组成员维护"
         title={memberGroup ? `门店组成员 · ${memberGroup.groupName}` : '门店组成员'}
-        subtitle="将门店加入当前门店组，成员变更会同步影响门店组覆盖数量。"
+        subtitle={memberGroup?.groupType === 'STORED_VALUE'
+          ? '储值通用组可以绑定不同商户的门店，成员变更会同步影响余额使用和跨商户清分范围。'
+          : '经营门店组只能绑定所属商户的门店，成员变更会同步影响门店组覆盖数量。'}
         meta={['成员维护', editingMember ? '编辑成员' : '添加成员']}
         open={memberVisible}
         onCancel={() => {
@@ -547,7 +569,9 @@ const MerchantGroupManagement: React.FC = () => {
             <BusinessEditorSection
               icon={<ShopOutlined />}
               title="门店成员信息"
-              desc="选择门店即可，门店编码和名称由后端根据门店档案自动带出。"
+              desc={memberGroup?.groupType === 'STORED_VALUE'
+                ? '可选择当前数据权限内不同商户的门店，门店所属商户由后端按门店档案自动带出。'
+                : '选择所属商户的门店，门店编码和名称由后端按门店档案自动带出。'}
             >
               <div className="merchant-editor-fields">
                 <Form.Item name="storeId" label="门店" rules={[{ required: true, message: '请选择门店' }]}>
@@ -581,6 +605,7 @@ const MerchantGroupManagement: React.FC = () => {
           pagination={{ pageSize: 6 }}
           columns={[
             { title: '门店ID', dataIndex: 'storeId', width: 100 },
+            { title: '所属商户', dataIndex: 'merchantId', width: 160, render: (_, record) => merchantOptionMap.get(record.merchantId || 0) || `商户#${record.merchantId || '-'}` },
             { title: '门店编码', dataIndex: 'storeCode', width: 140 },
             { title: '门店名称', dataIndex: 'storeName', width: 180 },
             { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status, statusMap) },

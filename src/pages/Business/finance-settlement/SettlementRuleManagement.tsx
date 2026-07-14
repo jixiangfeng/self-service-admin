@@ -315,6 +315,9 @@ const SettlementRuleManagement: React.FC = () => {
         <Space direction="vertical" size={4}>
           {renderEnumTag(ruleTypeMap, record.ruleType)}
           <span className="settlement-rule-table__muted">{enumText(modeMap, record.settlementMode)}</span>
+          {record.ruleType === 'STORE_GROUP_CLEARING' ? (
+            <span className="settlement-rule-table__muted">系统生成 · 请到门店组配置修改</span>
+          ) : null}
         </Space>
       ),
     },
@@ -390,7 +393,7 @@ const SettlementRuleManagement: React.FC = () => {
     <div className="settlement-rule-page">
       <PageBanner
         title="清分规则中心"
-        subtitle="统一维护门店统一钱包的余额范围、收入归属、平台服务费、结算周期与退款冲正规则。"
+        subtitle="维护充值余额、余额消费等通用规则；门店组清分规则由门店组高级清分配置自动生成，仅用于查看和审计。"
         icon={<CalculatorOutlined />}
       />
 

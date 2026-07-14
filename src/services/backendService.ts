@@ -240,6 +240,7 @@ export interface MerchantGroupRecord {
   groupType: string;
   storeCount?: number;
   settlementMode?: string;
+  crossMerchantFlag?: string;
   settlementCycle?: string;
   settlementCutoffTime?: string;
   settlementDelayDays?: number;
