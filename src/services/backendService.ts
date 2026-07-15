@@ -253,7 +253,6 @@ export interface ClearingPlanSaveRequest {
   settlementDelayDays: number;
   minSettlementAmount: number | string;
   cashHolder: string;
-  clearingBase: string;
   sourceShareRate: number | string;
   serviceShareRate: number | string;
   platformRate: number | string;
@@ -323,11 +322,11 @@ export interface MerchantGroupStoreRecord {
 
 export interface MerchantAccountRecord {
   id: number;
-  userId?: number;
+  userId: number;
   userName: string;
   mobile?: string;
   accountType: string;
-  merchantId?: number;
+  merchantId: number;
   merchantName?: string;
   storeId?: number;
   storeName?: string;
@@ -1203,6 +1202,16 @@ export interface PartnerPayableSummaryRecord {
   latestSettlementBillNo?: string;
 }
 
+export interface MerchantAccountSaveRequest {
+  userId: number;
+  accountType: string;
+  merchantId: number;
+  storeId?: number;
+  dataScopeType: 'MERCHANT' | 'STORE';
+  status: number;
+  remark?: string;
+}
+
 export interface SettlementPayeeAccountRecord {
   id: number;
   accountNo: string;
@@ -1360,6 +1369,11 @@ export interface AppUserProfileRecord {
   updatedAt?: string;
 }
 
+export interface AppUserOptionRecord extends SelectOptionRecord {
+  userName: string;
+  mobile?: string;
+}
+
 export interface UserVehicleRecord {
   id: number;
   userId?: number;
@@ -1512,7 +1526,9 @@ export interface DataScopeRelationRecord {
   roleName: string;
   scopeType: string;
   scopeName: string;
+  merchantId?: number;
   merchantName?: string;
+  storeId?: number;
   storeName?: string;
   status?: number;
   createdAt?: string;
@@ -2241,10 +2257,10 @@ export const clearingPlanApi = {
 export const merchantAccountApi = {
   page: async (params: Record<string, unknown>) =>
     httpPage<MerchantAccountRecord>('/merchant-accounts', params),
-  add: async (data: Record<string, unknown>) =>
-    httpPost<MerchantAccountRecord>('/merchant-accounts', data),
-  edit: async (data: Record<string, unknown>) =>
-    httpPut<void>(`/merchant-accounts/${data.id}`, data),
+  add: async (data: MerchantAccountSaveRequest) =>
+    httpPost<MerchantAccountRecord>('/merchant-accounts', data as unknown as Record<string, unknown>),
+  edit: async (id: number, data: MerchantAccountSaveRequest) =>
+    httpPut<void>(`/merchant-accounts/${id}`, data as unknown as Record<string, unknown>),
   remove: async (id: number) =>
     httpDelete<void>(`/merchant-accounts/${id}`),
   changeStatus: async (id: number, status: number) =>
@@ -2573,7 +2589,7 @@ export const assetApi = {
     batchTags: async (data: Record<string, unknown>) => request.post<ApiEnvelope<number>>('/user-asset-operations/batch-tags', data),
     riskBlacklist: async (data: Record<string, unknown>) => request.post<ApiEnvelope<number>>('/user-asset-operations/risk-blacklist', data),
   },
-  userOptions: async (params?: Record<string, unknown>) => httpGet<SelectOptionRecord[]>('/app-user-profiles/options', params),
+  userOptions: async (params?: Record<string, unknown>) => httpGet<AppUserOptionRecord[]>('/app-user-profiles/options', params),
 };
 
 export const messageApi = {

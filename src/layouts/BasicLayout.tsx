@@ -68,7 +68,7 @@ const BasicLayout: React.FC = () => {
       icon: <ApartmentOutlined />,
       children: [
         { key: '/merchant', path: '/merchant', name: '商户管理', icon: <ApartmentOutlined /> },
-        { key: '/merchant/accounts', path: '/merchant/accounts', name: '商户账号', icon: <UserSwitchOutlined /> },
+        { key: '/merchant/accounts', path: '/merchant/accounts', name: '商户人员权限', icon: <UserSwitchOutlined /> },
       ],
     },
     {

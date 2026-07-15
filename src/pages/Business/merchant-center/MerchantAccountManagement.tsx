@@ -1,339 +1,331 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Col, Form, Input, Row, Select, Space, Statistic, Tabs, message } from 'antd';
-import { SafetyCertificateOutlined, ShopOutlined, TeamOutlined, UserSwitchOutlined } from '@ant-design/icons';
+import { Button, Form, Input, Select, Space, message } from 'antd';
+import { DeleteOutlined, EditOutlined, PlusOutlined, ShopOutlined, TeamOutlined, UserSwitchOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
-import { merchantAccountTypeOptions, scopeTypeOptions, statusOptions } from '@/constants/businessCatalog';
+import { merchantAccountTypeOptions, statusOptions } from '@/constants/businessCatalog';
 import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import api from '@/services/backendService';
-import type { MerchantAccountRecord, RoleOption, SelectOptionRecord, UserRoleRelationRecord } from '@/services/backendService';
-import { useRoleOptions } from '@/hooks/useApi';
-import { buildValueEnum, formatDateTime, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
+import type {
+  AppUserOptionRecord,
+  MerchantAccountRecord,
+  MerchantAccountSaveRequest,
+  SelectOptionRecord,
+} from '@/services/backendService';
+import { buildValueEnum, formatEnumText, renderStatusTag } from '@/pages/Business/shared';
+
+type MerchantAccountFormValues = MerchantAccountSaveRequest;
 
 const statusMap = buildValueEnum(statusOptions);
-const scopeMap = buildValueEnum(scopeTypeOptions);
-const merchantScopeTypeOptions = scopeTypeOptions.filter((item) => ['MERCHANT', 'STORE'].includes(String(item.value)));
+const manageableScopeOptions = [
+  { value: 'MERCHANT', label: '所选商户的全部门店' },
+  { value: 'STORE', label: '仅所选门店' },
+];
+const scopeMap = buildValueEnum(manageableScopeOptions);
 
-const pageData = <T,>(result: any) => ('data' in result ? result.data : result) as { records: T[]; total: number };
+const pageData = <T,>(result: unknown) => {
+  const payload = result as { data?: { records?: T[]; total?: number }; records?: T[]; total?: number };
+  return (payload.data || payload) as { records?: T[]; total?: number };
+};
 
 const accountDetailFields: DetailField<MerchantAccountRecord>[] = [
-  { name: 'userName', label: '账号' },
+  { name: 'userName', label: '商户人员' },
   { name: 'mobile', label: '手机号' },
-  { name: 'accountType', label: '账号类型' },
-  { name: 'merchantName', label: '商户' },
-  { name: 'storeName', label: '门店' },
-  { name: 'dataScopeType', label: '数据范围' },
-  { name: 'status', label: '状态' },
+  { name: 'accountType', label: '商户端权限模板', render: (value) => formatEnumText(value, 'accountType', '权限模板') },
+  { name: 'merchantName', label: '所属商户' },
+  { name: 'storeName', label: '指定门店' },
+  { name: 'dataScopeType', label: '可管理范围', render: (value) => scopeMap[value as string]?.text || value || '-' },
+  { name: 'status', label: '状态', render: (value) => renderStatusTag(value, statusMap) },
   { name: 'remark', label: '备注' },
-];
-
-const genericAccountDetailFields: DetailField<any>[] = [
-  { name: 'userName', label: '账号' },
-  { name: 'roleName', label: '角色' },
-  { name: 'roleCode', label: '角色编码' },
-  { name: 'grantedAt', label: '授权时间' },
 ];
 
 const MerchantAccountManagement: React.FC = () => {
   const [accounts, setAccounts] = useState<MerchantAccountRecord[]>([]);
-  const [grants, setGrants] = useState<UserRoleRelationRecord[]>([]);
-  const [overviewLoading, setOverviewLoading] = useState(false);
-  const [detail, setDetail] = useState<MerchantAccountRecord | UserRoleRelationRecord | null>(null);
-  const [accountVisible, setAccountVisible] = useState(false);
-  const [grantVisible, setGrantVisible] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [detail, setDetail] = useState<MerchantAccountRecord | null>(null);
+  const [editorVisible, setEditorVisible] = useState(false);
   const [editingAccount, setEditingAccount] = useState<MerchantAccountRecord | null>(null);
-  const [form] = Form.useForm<MerchantAccountRecord>();
-  const [grantForm] = Form.useForm<UserRoleRelationRecord>();
+  const [form] = Form.useForm<MerchantAccountFormValues>();
   const [searchForm] = Form.useForm<{ keyword?: string }>();
   const merchantId = Form.useWatch('merchantId', form);
   const dataScopeType = Form.useWatch('dataScopeType', form);
-  const { data: merchantOptions } = useQuery({ queryKey: ['merchantOptionsForAccounts'], queryFn: async () => (await api.merchant.options()).data });
-  const { data: storeOptions } = useQuery({
+
+  const { data: appUserOptions = [], isLoading: appUsersLoading } = useQuery({
+    queryKey: ['appUserOptionsForMerchantAccounts'],
+    queryFn: async () => (await api.asset.userOptions()).data,
+  });
+  const { data: merchantOptions = [] } = useQuery({
+    queryKey: ['merchantOptionsForAccounts'],
+    queryFn: async () => (await api.merchant.options()).data,
+  });
+  const { data: storeOptions = [] } = useQuery({
     queryKey: ['storeOptionsForAccounts', merchantId],
     queryFn: async () => (await api.store.options(merchantId)).data,
     enabled: Boolean(merchantId),
   });
-  const { data: roleOptions = [] } = useRoleOptions();
-  const merchantOptionMap = useMemo(() => new Map((merchantOptions as SelectOptionRecord[] | undefined || []).map((item) => [item.value, item.label])), [merchantOptions]);
-  const storeOptionMap = useMemo(() => new Map((storeOptions as SelectOptionRecord[] | undefined || []).map((item) => [item.value, item.label])), [storeOptions]);
-  const roleSelectOptions = useMemo(() => (roleOptions as RoleOption[]).map((item) => ({ value: item.id, label: `${item.roleName} / ${item.roleCode}`, role: item })), [roleOptions]);
+
+  const selectableAppUsers = useMemo(() => {
+    const options = [...(appUserOptions as AppUserOptionRecord[])];
+    if (editingAccount && !options.some((item) => item.value === editingAccount.userId)) {
+      options.unshift({
+        value: editingAccount.userId,
+        label: `${editingAccount.userName}${editingAccount.mobile ? `（${editingAccount.mobile}）` : ''}`,
+        userName: editingAccount.userName,
+        mobile: editingAccount.mobile,
+      });
+    }
+    return options;
+  }, [appUserOptions, editingAccount]);
+
   const currentKeyword = () => String(searchForm.getFieldValue('keyword') || '').trim() || undefined;
 
-  const summary = useMemo(() => ({
-    total: accounts.length,
-    pendingGrant: grants.filter((item) => item.status === 0).length,
-  }), [accounts, grants]);
-
-  const fetchOverview = async (keyword?: string) => {
-    setOverviewLoading(true);
+  const fetchAccounts = async (keyword?: string) => {
+    setLoading(true);
     try {
-      const [accountRes, grantRes] = await Promise.all([
-        api.merchantAccount.page({ current: 1, size: 100, keyword }),
-        api.authAudit.userRoles.page({ current: 1, size: 100, keyword }),
-      ]);
-      setAccounts(pageData<MerchantAccountRecord>(accountRes).records || []);
-      setGrants(pageData<UserRoleRelationRecord>(grantRes).records || []);
+      const result = await api.merchantAccount.page({ current: 1, size: 100, keyword });
+      setAccounts(pageData<MerchantAccountRecord>(result).records || []);
     } finally {
-      setOverviewLoading(false);
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    void fetchOverview();
+    let active = true;
+    void api.merchantAccount.page({ current: 1, size: 100 }).then((result) => {
+      if (active) setAccounts(pageData<MerchantAccountRecord>(result).records || []);
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const openAccount = (record?: MerchantAccountRecord) => {
-    setEditingAccount(record || null);
+  const openEditor = (record?: MerchantAccountRecord) => {
+    const editing = record || null;
+    setEditingAccount(editing);
     form.resetFields();
-    form.setFieldsValue(record || { accountType: 'MERCHANT_ADMIN', dataScopeType: 'MERCHANT', status: 1 });
-    setAccountVisible(true);
+    form.setFieldsValue(editing ? {
+      userId: editing.userId,
+      accountType: editing.accountType,
+      merchantId: editing.merchantId as number,
+      storeId: editing.storeId,
+      dataScopeType: editing.dataScopeType as 'MERCHANT' | 'STORE',
+      status: editing.status,
+      remark: editing.remark,
+    } : {
+      accountType: 'STORE_MANAGER',
+      dataScopeType: 'MERCHANT',
+      status: 1,
+    } as MerchantAccountFormValues);
+    setEditorVisible(true);
   };
 
-  const closeAccount = () => {
-    setAccountVisible(false);
+  const closeEditor = () => {
+    setEditorVisible(false);
     setEditingAccount(null);
     form.resetFields();
   };
 
-  const closeGrant = () => {
-    setGrantVisible(false);
-    grantForm.resetFields();
-  };
-
   const saveAccount = async () => {
     const values = await form.validateFields();
-    if (editingAccount) {
-      await api.merchantAccount.edit({ ...editingAccount, ...values } as unknown as Record<string, unknown>);
-      message.success('商户账号绑定已更新');
-    } else {
-      await api.merchantAccount.add(values as unknown as Record<string, unknown>);
-      message.success('商户账号绑定已创建');
+    setSaving(true);
+    try {
+      if (editingAccount) {
+        await api.merchantAccount.edit(editingAccount.id, values);
+        message.success('商户人员权限已更新');
+      } else {
+        await api.merchantAccount.add(values);
+        message.success('商户人员已添加');
+      }
+      closeEditor();
+      await fetchAccounts(currentKeyword());
+    } finally {
+      setSaving(false);
     }
-    closeAccount();
-    await fetchOverview(currentKeyword());
-  };
-
-  const saveGrant = async () => {
-    const values = await grantForm.validateFields();
-    await api.authAudit.userRoles.add({
-      userId: values.userId,
-      userName: values.userName,
-      roleId: values.roleId,
-      roleName: values.roleName,
-      roleCode: values.roleCode,
-      grantUser: values.grantUser,
-      status: values.status ?? 1,
-      grantedAt: new Date().toISOString(),
-    });
-    message.success('角色授权已保存');
-    closeGrant();
-    await fetchOverview(currentKeyword());
   };
 
   const confirmAccountStatus = (record: MerchantAccountRecord) => {
-    const actionName = record.status === 1 ? '停用' : '启用';
+    const enabling = record.status !== 1;
     showBusinessConfirm({
-      eyebrow: '账号状态确认',
-      title: `确认${actionName}该账号`,
-      content: `账号「${record.userName}」${actionName}后，将影响商户后台登录、门店数据范围和后续运营操作权限。`,
-      okText: `确认${actionName}`,
-      danger: false,
+      eyebrow: '商户端权限确认',
+      title: `确认${enabling ? '启用' : '停用'}该人员`,
+      content: `${record.userName}${enabling ? '将可以' : '将不能'}继续使用已配置范围内的小程序商户工具。`,
+      okText: `确认${enabling ? '启用' : '停用'}`,
+      danger: !enabling,
       onOk: async () => {
-        await api.merchantAccount.changeStatus(record.id, record.status === 1 ? 0 : 1);
-        message.success('账号状态已更新');
-        await fetchOverview(currentKeyword());
+        await api.merchantAccount.changeStatus(record.id, enabling ? 1 : 0);
+        message.success('商户人员状态已更新');
+        await fetchAccounts(currentKeyword());
       },
     });
   };
 
-  const accountColumns: ProColumns<MerchantAccountRecord>[] = [
-    { title: '账号', dataIndex: 'userName', width: 140 },
-    { title: '手机号', dataIndex: 'mobile', width: 140 },
-    { title: '账号类型', dataIndex: 'accountType', width: 130 , render: (value) => formatEnumText(value, 'accountType', '账号类型') },
-    { title: '商户', dataIndex: 'merchantName', width: 180 },
-    { title: '门店', dataIndex: 'storeName', width: 180 },
-    { title: '数据范围', dataIndex: 'dataScopeType', width: 120, render: (_, record) => renderStatusTag(record.dataScopeType, scopeMap) },
-    { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, statusMap) },
+  const confirmDelete = (record: MerchantAccountRecord) => {
+    showBusinessConfirm({
+      eyebrow: '移除商户人员',
+      title: `确认移除 ${record.userName}`,
+      content: '移除后，该用户将立即失去当前商户或门店的小程序商户工具权限。',
+      okText: '确认移除',
+      danger: true,
+      onOk: async () => {
+        await api.merchantAccount.remove(record.id);
+        message.success('商户人员已移除');
+        await fetchAccounts(currentKeyword());
+      },
+    });
+  };
+
+  const columns: ProColumns<MerchantAccountRecord>[] = [
+    { title: '商户人员', dataIndex: 'userName', width: 140 },
+    { title: '手机号', dataIndex: 'mobile', width: 140, render: (_, record) => record.mobile || '-' },
+    { title: '商户端权限模板', dataIndex: 'accountType', width: 160, render: (value) => formatEnumText(value, 'accountType', '权限模板') },
+    { title: '所属商户', dataIndex: 'merchantName', width: 180 },
+    { title: '指定门店', dataIndex: 'storeName', width: 180, render: (_, record) => record.storeName || '-' },
+    { title: '可管理范围', dataIndex: 'dataScopeType', width: 180, render: (_, record) => renderStatusTag(record.dataScopeType, scopeMap) },
+    { title: '状态', dataIndex: 'status', width: 90, render: (_, record) => renderStatusTag(record.status, statusMap) },
     {
       title: '操作',
-      width: 210,
+      width: 260,
+      fixed: 'right',
       render: (_, record) => (
         <Space>
           <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-          <Button size="small" onClick={() => openAccount(record)}>编辑</Button>
+          <Button size="small" icon={<EditOutlined />} onClick={() => openEditor(record)}>编辑</Button>
           <Button size="small" onClick={() => confirmAccountStatus(record)}>{record.status === 1 ? '停用' : '启用'}</Button>
+          <Button size="small" danger icon={<DeleteOutlined />} onClick={() => confirmDelete(record)}>移除</Button>
         </Space>
       ),
     },
   ];
 
-  const grantColumns: ProColumns<UserRoleRelationRecord>[] = [
-    { title: '账号', dataIndex: 'userName', width: 140 },
-    { title: '角色', dataIndex: 'roleName', width: 140 },
-    { title: '角色编码', dataIndex: 'roleCode', width: 140 },
-    { title: '授权人', dataIndex: 'grantUser', width: 140 },
-    { title: '状态', dataIndex: 'status', width: 120, render: (_, record) => renderStatusTag(record.status ?? 1, statusMap) },
-    { title: '授权时间', dataIndex: 'grantedAt', width: 180, render: (_, record) => formatDateTime(record.grantedAt) },
-  ];
-
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="商户账号中心" subtitle="维护商户账号绑定和角色授权；登录与权限审计统一在系统审计中心查看。" icon={<UserSwitchOutlined />} />
-
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12}><Card><Statistic title="商户账号" value={summary.total} suffix="个" /></Card></Col>
-        <Col xs={24} sm={12}><Card><Statistic title="停用授权" value={summary.pendingGrant} suffix="条" /></Card></Col>
-      </Row>
+      <PageBanner
+        title="商户人员权限"
+        subtitle="绑定可使用小程序商户工具的人员；后台登录账号与系统角色在系统管理中维护。"
+        icon={<UserSwitchOutlined />}
+      />
 
       <Form
         form={searchForm}
         layout="inline"
         style={{ marginBottom: 16 }}
-        onFinish={(values) => fetchOverview(String(values.keyword || '').trim() || undefined)}
+        onFinish={(values) => fetchAccounts(String(values.keyword || '').trim() || undefined)}
       >
-        <Form.Item name="keyword" label="关键词">
-          <Input allowClear placeholder="输入账号、商户、门店、角色" style={{ width: 320 }} />
+        <Form.Item name="keyword" label="搜索">
+          <Input allowClear placeholder="姓名、手机号、商户或门店" style={{ width: 320 }} />
         </Form.Item>
-        <Form.Item>
-          <Button type="primary" htmlType="submit">查询</Button>
-        </Form.Item>
-        <Form.Item>
-          <Button onClick={() => { searchForm.resetFields(); fetchOverview(); }}>重置</Button>
-        </Form.Item>
+        <Form.Item><Button type="primary" htmlType="submit">查询</Button></Form.Item>
+        <Form.Item><Button onClick={() => { searchForm.resetFields(); void fetchAccounts(); }}>重置</Button></Form.Item>
       </Form>
 
-      <Tabs
-        items={[
-          { key: 'account', label: '账号绑定', children: <ProTable<MerchantAccountRecord> cardBordered rowKey="id" columns={accountColumns} dataSource={accounts} loading={overviewLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openAccount()}>新增账号</Button>]} /> },
-          { key: 'grant', label: '角色授权', children: <ProTable<UserRoleRelationRecord> cardBordered rowKey="id" columns={grantColumns} dataSource={grants} loading={overviewLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="grant" type="primary" onClick={() => { grantForm.resetFields(); grantForm.setFieldsValue({ status: 1 }); setGrantVisible(true); }}>新增授权</Button>]} /> },
+      <ProTable<MerchantAccountRecord>
+        cardBordered
+        rowKey="id"
+        columns={columns}
+        dataSource={accounts}
+        loading={loading}
+        search={false}
+        pagination={{ pageSize: 10 }}
+        scroll={{ x: 1380 }}
+        toolBarRender={() => [
+          <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openEditor()}>添加商户人员</Button>,
         ]}
       />
 
-      <BusinessDetailModal title="商户账号详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
-        {detail ? <SchemaDetail record={detail as any} fields={'merchantName' in detail ? accountDetailFields : genericAccountDetailFields} /> : null}
+      <BusinessDetailModal title="商户人员权限详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
+        {detail ? <SchemaDetail record={detail} fields={accountDetailFields} /> : null}
       </BusinessDetailModal>
 
       <BusinessEditorModal
-        eyebrow={editingAccount ? '商户账号维护' : '商户账号绑定'}
-        title={editingAccount ? `编辑账号 · ${editingAccount.userName}` : '新增商户账号'}
-        subtitle="将平台用户与商户、门店和数据范围绑定，形成商户后台访问身份。"
-        meta={['账号绑定', editingAccount ? '编辑模式' : '新建模式']}
-        open={accountVisible}
-        onCancel={closeAccount}
+        eyebrow={editingAccount ? '调整商户端权限' : '添加商户人员'}
+        title={editingAccount ? `编辑 ${editingAccount.userName}` : '添加商户人员'}
+        subtitle="人员身份来自小程序用户档案，姓名和手机号无需重复录入。"
+        meta={[editingAccount ? '编辑权限' : '新建绑定']}
+        open={editorVisible}
+        onCancel={closeEditor}
         onOk={saveAccount}
-        okText={editingAccount ? '保存变更' : '创建账号'}
-        width={1040}
+        okText={editingAccount ? '保存变更' : '确认添加'}
+        confirmLoading={saving}
+        width={920}
         forceRender
         destroyOnClose
       >
         <Form form={form} layout="vertical" className="merchant-editor-form">
           <div className="merchant-editor-shell">
-            <BusinessEditorSection
-              icon={<TeamOutlined />}
-              title="账号基础信息"
-              desc="录入平台用户、账号类型、手机号和启停状态，用于商户后台登录身份识别。"
-            >
+            <BusinessEditorSection icon={<TeamOutlined />} title="选择人员" desc="人员姓名与手机号以小程序用户档案为准。">
               <div className="merchant-editor-fields merchant-editor-fields--two">
-                <Form.Item name="userName" label="账号名称" rules={[{ required: true, message: '请输入账号名称' }]}><Input placeholder="例如：merchant_direct_admin" /></Form.Item>
-                <Form.Item name="mobile" label="手机号"><Input placeholder="用于登录校验和通知" /></Form.Item>
-                <Form.Item name="accountType" label="账号类型" rules={[{ required: true, message: '请选择账号类型' }]}><Select options={merchantAccountTypeOptions} placeholder="请选择账号类型" /></Form.Item>
-                <Form.Item name="status" label="状态"><Select options={statusOptions} placeholder="请选择状态" /></Form.Item>
+                <Form.Item
+                  className="merchant-editor-field-span-2"
+                  name="userId"
+                  label="小程序用户（姓名 / 手机号）"
+                  rules={[{ required: true, message: '请选择小程序用户' }]}
+                >
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    options={selectableAppUsers}
+                    loading={appUsersLoading}
+                    disabled={Boolean(editingAccount)}
+                    placeholder="搜索姓名或手机号"
+                  />
+                </Form.Item>
+                <Form.Item name="accountType" label="商户端权限模板" rules={[{ required: true, message: '请选择权限模板' }]}>
+                  <Select options={merchantAccountTypeOptions} placeholder="请选择权限模板" />
+                </Form.Item>
+                <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}>
+                  <Select options={statusOptions} />
+                </Form.Item>
               </div>
             </BusinessEditorSection>
 
-            <BusinessEditorSection
-              icon={<ShopOutlined />}
-              title="商户与权限范围"
-              desc="绑定商户和门店，并配置账号可访问的数据范围。"
-            >
+            <BusinessEditorSection icon={<ShopOutlined />} title="配置可管理范围" desc="按商户授权全部门店，或只授权一个指定门店。">
               <div className="merchant-editor-fields merchant-editor-fields--two">
-                <Form.Item name="merchantId" label="商户" rules={[{ required: true, message: '请选择商户' }]}>
+                <Form.Item name="merchantId" label="所属商户" rules={[{ required: true, message: '请选择商户' }]}>
                   <Select
                     showSearch
                     optionFilterProp="label"
                     options={merchantOptions as SelectOptionRecord[]}
                     allowClear
                     placeholder="请选择商户"
+                    onChange={() => form.setFieldValue('storeId', undefined)}
+                  />
+                </Form.Item>
+                <Form.Item name="dataScopeType" label="可管理范围" rules={[{ required: true, message: '请选择可管理范围' }]}>
+                  <Select
+                    options={manageableScopeOptions}
                     onChange={(value) => {
-                      form.setFieldsValue({
-                        merchantName: merchantOptionMap.get(value),
-                        storeId: undefined,
-                        storeName: undefined,
-                      });
+                      if (value === 'MERCHANT') form.setFieldValue('storeId', undefined);
                     }}
                   />
                 </Form.Item>
-                <Form.Item name="merchantName" label="商户名称" rules={[{ required: true, message: '请选择商户' }]}>
-                  <Input disabled placeholder="选择商户后自动带出" />
+                {dataScopeType === 'STORE' ? (
+                  <Form.Item
+                    className="merchant-editor-field-span-2"
+                    name="storeId"
+                    label="指定门店"
+                    rules={[{ required: true, message: '请选择门店' }]}
+                  >
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      options={storeOptions as SelectOptionRecord[]}
+                      allowClear
+                      disabled={!merchantId}
+                      placeholder={merchantId ? '请选择该商户下的门店' : '请先选择商户'}
+                    />
+                  </Form.Item>
+                ) : null}
+                <Form.Item className="merchant-editor-field-span-2" name="remark" label="备注">
+                  <Input.TextArea rows={3} placeholder="例如：负责日常运营，2026-07-15 授权" />
                 </Form.Item>
-                <Form.Item
-                  name="storeId"
-                  label="门店"
-                  rules={dataScopeType === 'STORE' ? [{ required: true, message: '门店范围账号必须选择门店' }] : undefined}
-                >
-                  <Select
-                    showSearch
-                    optionFilterProp="label"
-                    options={storeOptions as SelectOptionRecord[]}
-                    allowClear
-                    disabled={!merchantId}
-                    placeholder={merchantId ? '请选择该商户下的门店' : '请先选择商户'}
-                    onChange={(value) => form.setFieldValue('storeName', storeOptionMap.get(value))}
-                  />
-                </Form.Item>
-                <Form.Item name="storeName" label="门店名称"><Input disabled placeholder="选择门店后自动带出" /></Form.Item>
-                <Form.Item name="dataScopeType" label="数据范围" rules={[{ required: true, message: '请选择数据范围' }]}><Select options={merchantScopeTypeOptions} placeholder="请选择数据范围" /></Form.Item>
-                <Form.Item className="merchant-editor-field-span-2" name="remark" label="备注"><Input.TextArea rows={3} placeholder="记录账号用途、授权边界或交接说明" /></Form.Item>
-              </div>
-            </BusinessEditorSection>
-          </div>
-        </Form>
-      </BusinessEditorModal>
-
-      <BusinessEditorModal
-        eyebrow="商户角色授权"
-        title="新增角色授权"
-        subtitle="为商户账号授予系统角色。"
-        meta={['角色授权']}
-        open={grantVisible}
-        onCancel={closeGrant}
-        onOk={saveGrant}
-        okText="写入授权"
-        width={1040}
-        forceRender
-        destroyOnClose
-      >
-        <Form form={grantForm} layout="vertical" className="merchant-editor-form">
-          <div className="merchant-editor-shell">
-            <BusinessEditorSection
-              icon={<SafetyCertificateOutlined />}
-              title="授权对象与角色"
-              desc="选择账号和角色后自动带出角色名称、编码，并记录授权人。"
-            >
-              <div className="merchant-editor-fields merchant-editor-fields--two">
-                <Form.Item name="userId" label="用户ID"><Input placeholder="可选，已有平台用户时填写" /></Form.Item>
-                <Form.Item name="userName" label="账号" rules={[{ required: true, message: '请输入账号' }]}><Input placeholder="例如：merchant_direct_admin" /></Form.Item>
-                <Form.Item name="roleId" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
-                  <Select
-                    showSearch
-                    optionFilterProp="label"
-                    options={roleSelectOptions}
-                    placeholder="请选择角色"
-                    onChange={(_, option) => {
-                      const role = !option || Array.isArray(option) ? undefined : option.role;
-                      grantForm.setFieldsValue({ roleName: role?.roleName, roleCode: role?.roleCode });
-                    }}
-                  />
-                </Form.Item>
-                <Form.Item name="roleName" label="角色名称" rules={[{ required: true, message: '请选择角色' }]}><Input disabled placeholder="选择角色后自动带出" /></Form.Item>
-                <Form.Item name="roleCode" label="角色编码" rules={[{ required: true, message: '请选择角色' }]}><Input disabled placeholder="选择角色后自动带出" /></Form.Item>
-                <Form.Item name="grantUser" label="授权人"><Input placeholder="例如：admin" /></Form.Item>
-                <Form.Item name="status" label="授权状态"><Select options={statusOptions} placeholder="请选择授权状态" /></Form.Item>
               </div>
             </BusinessEditorSection>
           </div>

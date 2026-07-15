@@ -23,10 +23,6 @@ const cashHolderOptions = [
   { value: 'RECHARGE_MERCHANT', label: '充值收款商户保管' },
   { value: 'PLATFORM_PREPAID', label: '平台统一预收' },
 ];
-const clearingBaseOptions = [
-  { value: 'PRINCIPAL_ONLY', label: '仅本金参与收入清分' },
-  { value: 'PRINCIPAL_PLUS_GIFT', label: '本金和赠送金额共同参与清分' },
-];
 const giftBearerOptions = [
   { value: 'PLATFORM', label: '平台承担' },
   { value: 'RECHARGE_MERCHANT', label: '充值方承担' },
@@ -36,7 +32,7 @@ const giftBearerOptions = [
 
 const defaultPlan: ClearingPlanSaveRequest = {
   settlementMode: 'AUTO_LEDGER', settlementCycle: 'WEEK', settlementCutoffTime: '00:00',
-  settlementDelayDays: 0, minSettlementAmount: 0, cashHolder: 'RECHARGE_MERCHANT', clearingBase: 'PRINCIPAL_ONLY',
+  settlementDelayDays: 0, minSettlementAmount: 0, cashHolder: 'RECHARGE_MERCHANT',
   sourceShareRate: 0, serviceShareRate: 100, platformRate: 0, giftCostBearer: 'RECHARGE_MERCHANT',
   cardRevenueRecognition: 'WRITE_OFF_SPLIT', autoSettlement: true, nettingEnabled: true, autoPayout: false,
 };
@@ -180,7 +176,9 @@ export default function ClearingPlanManagement() {
                     <Col span={8}><Form.Item name="platformRate" label="平台服务费" rules={[{ required: true }]}><InputNumber min={0} max={100} addonAfter="%" style={{ width: '100%' }} /></Form.Item></Col>
                   </Row>
                   <Progress percent={Math.min(totalRate, 100)} status={totalRate === 100 ? 'success' : 'exception'} format={() => `合计 ${totalRate}%`} />
-                  <Form.Item name="clearingBase" label="收入清分基数" style={{ marginTop: 16 }}><Select options={clearingBaseOptions} /></Form.Item>
+                  <Descriptions size="small" style={{ marginTop: 16 }}>
+                    <Descriptions.Item label="收入清分基数">实际消费的本金和赠送金额</Descriptions.Item>
+                  </Descriptions>
                 </Card>
                 <Card title="4. 赠送金额由谁承担" size="small" style={{ marginTop: 16 }}>
                   <Form.Item name="giftCostBearer"><Select options={giftBearerOptions} /></Form.Item>
