@@ -26,6 +26,7 @@ const UserProfileManagement = lazy(() => import('./pages/Business/user-assets').
 const InviteActivityManagement = lazy(() => import('./pages/Business/activity-marketing').then((module) => ({ default: module.InviteActivityManagement })));
 const RechargeActivityManagement = lazy(() => import('./pages/Business/activity-marketing').then((module) => ({ default: module.RechargeActivityManagement })));
 const SettlementManagement = lazy(() => import('./pages/Business/finance-settlement').then((module) => ({ default: module.SettlementManagement })));
+const ClearingPlanManagement = lazy(() => import('./pages/Business/finance-settlement').then((module) => ({ default: module.ClearingPlanManagement })));
 const SettlementRuleManagement = lazy(() => import('./pages/Business/finance-settlement').then((module) => ({ default: module.SettlementRuleManagement })));
 const ProfitSharingManagement = lazy(() => import('./pages/Business/finance-settlement').then((module) => ({ default: module.ProfitSharingManagement })));
 const AnalysisManagement = lazy(() => import('./pages/Business/data-reports').then((module) => ({ default: module.AnalysisManagement })));
@@ -123,6 +124,7 @@ const AppContent = () => {
               <Route path="marketing/recharge-activities" element={<RechargeActivityManagement />} />
               <Route path="fulfillment" element={<FulfillmentManagement />} />
               <Route path="settlement" element={<SettlementManagement />} />
+              <Route path="settlement/clearing-plans" element={<ClearingPlanManagement />} />
               <Route path="settlement/rules" element={<SettlementRuleManagement />} />
               <Route path="settlement/profit-sharing" element={<ProfitSharingManagement />} />
               <Route path="analysis" element={<AnalysisManagement />} />

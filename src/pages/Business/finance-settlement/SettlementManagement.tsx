@@ -20,7 +20,6 @@ import { buildValueEnum, containsKeyword, CoreFlowPanel, formatAmount, formatDat
 import WorkflowGuide from '@/pages/Business/shared';
 import api, {
   type PaymentReconciliationRecord,
-  type ProfitShareDetailRecord,
   type SettlementBillDetailRecord,
   type SettlementAllocationRecord,
   type SettlementBillRecord,
@@ -40,23 +39,6 @@ interface SettlementRecord extends SettlementBillRecord {
   payoutStatus?: string;
   status?: string;
   updatedAt?: string;
-}
-
-interface ProfitShareRecord {
-  id: string;
-  storeName: string;
-  partnerName: string;
-  rechargeNo?: string;
-  balanceScopeType?: string;
-  merchantGroupName?: string;
-  settlementMode?: string;
-  settlementRule?: string;
-  settlementRuleSnapshot?: string;
-  baseAmount: number;
-  ratio: string;
-  actualAmount: number;
-  status: string;
-  updatedAt: string;
 }
 
 interface SettlementDetailRecord {
@@ -139,16 +121,6 @@ const settlementBillDetailFields: DetailField<SettlementRecord>[] = [
   { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
 ];
 
-const profitShareSummaryFields: DetailField<ProfitShareRecord>[] = [
-  { name: 'storeName', label: '门店' },
-  { name: 'partnerName', label: '合伙人' },
-  { name: 'baseAmount', label: '分润基数', render: (value) => formatAmount(value) },
-  { name: 'ratio', label: '比例' },
-  { name: 'actualAmount', label: '应分金额', render: (value) => formatAmount(value) },
-  { name: 'status', label: '状态', render: (value) => settlementStatusMap[value as keyof typeof settlementStatusMap]?.text || value },
-  { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
-];
-
 const settlementOverviewDetailFields: DetailField<SettlementDetailRecord>[] = [
   { name: 'billNo', label: '结算单号' },
   { name: 'detailType', label: '明细类型', render: (value) => detailTypeMap[value as keyof typeof detailTypeMap]?.text || value },
@@ -219,7 +191,6 @@ const SettlementManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [billKeyword, setBillKeyword] = useState('');
-  const [shareKeyword, setShareKeyword] = useState('');
   const [detailKeyword, setDetailKeyword] = useState('');
   const [payoutKeyword, setPayoutKeyword] = useState('');
   const [reconcileKeyword, setReconcileKeyword] = useState('');
@@ -228,9 +199,7 @@ const SettlementManagement: React.FC = () => {
   const [detailTypeFilter, setDetailTypeFilter] = useState<string>();
   const [payoutStatusFilter, setPayoutStatusFilter] = useState<string>();
   const [reconcileStatusFilter, setReconcileStatusFilter] = useState<string>();
-  const [shareStatusFilter, setShareStatusFilter] = useState<string>();
   const [detail, setDetail] = useState<SettlementRecord | SettlementDetailRecord | SettlementPayoutRecord | PaymentReconciliationRecord | CrossStoreClearingRecord | null>(null);
-  const [shareDetail, setShareDetail] = useState<ProfitShareRecord | null>(null);
 
   const billQuery = useQuery({
     queryKey: ['settlementBills', billKeyword, billStatusFilter],
@@ -248,10 +217,6 @@ const SettlementManagement: React.FC = () => {
     queryKey: ['settlementReconciliationsOverview', reconcileKeyword, reconcileStatusFilter],
     queryFn: async () => (await api.payment.reconciliations.page({ pageNum: 1, pageSize: 200, keyword: reconcileKeyword || undefined, status: reconcileStatusFilter })).data,
   });
-  const profitShareQuery = useQuery({
-    queryKey: ['profitShareOverview', shareKeyword, shareStatusFilter],
-    queryFn: async () => (await api.profitShareDetail.page({ pageNum: 1, pageSize: 200, keyword: shareKeyword || undefined, status: shareStatusFilter })).data,
-  });
   const allocationQuery = useQuery({
     queryKey: ['settlementAllocationOverview', clearingKeyword],
     queryFn: async () => (await api.settlementAllocation.page({ pageNum: 1, pageSize: 200, keyword: clearingKeyword || undefined })).data,
@@ -265,6 +230,14 @@ const SettlementManagement: React.FC = () => {
       message.success('已发起重试打款');
     },
   });
+  const generateProfitConfirmMutation = useMutation({
+    mutationFn: (billNo: string) => api.profitConfirm.generate({ settlementBillNo: billNo }),
+    onSuccess: async (response) => {
+      await queryClient.invalidateQueries({ queryKey: ['profitConfirms'] });
+      message.success(`已生成 ${response.data.generatedCount} 张分润确认单，合计 ${formatAmount(response.data.totalConfirmAmount)}`);
+      navigate('/settlement/profit-sharing');
+    },
+  });
 
   const confirmRetryPayout = (record?: SettlementPayoutRecord) => {
     if (!record) return;
@@ -276,7 +249,7 @@ const SettlementManagement: React.FC = () => {
     });
   };
 
-  const bills = (billQuery.data?.records || []) as SettlementRecord[];
+  const bills = useMemo(() => (billQuery.data?.records || []) as SettlementRecord[], [billQuery.data]);
   const settlementDetails = useMemo<SettlementDetailRecord[]>(() => (billDetailQuery.data?.records || []).map((item: SettlementBillDetailRecord) => {
     const amount = Number(item.amount || 0);
     const isCost = item.detailType?.includes('GIFT_COST');
@@ -301,27 +274,10 @@ const SettlementManagement: React.FC = () => {
       remark: item.merchantName || '-',
     };
   }), [billDetailQuery.data]);
-  const profitShares = useMemo<ProfitShareRecord[]>(() => ((profitShareQuery.data?.records || []) as ProfitShareDetailRecord[]).map((item) => ({
-    id: String(item.id),
-    storeName: item.storeName || '-',
-    partnerName: item.partnerName,
-    rechargeNo: item.rechargeNo,
-    balanceScopeType: item.balanceScopeType,
-    merchantGroupName: item.merchantGroupName,
-    settlementMode: item.settlementMode,
-    settlementRule: item.settlementRule,
-    settlementRuleSnapshot: item.settlementRuleSnapshot,
-    baseAmount: Number(item.baseAmount || 0),
-    ratio: item.ratio || '',
-    actualAmount: Number(item.actualAmount ?? item.shareAmount ?? 0),
-    status: item.status,
-    updatedAt: item.updatedAt || item.createdAt || '',
-  })), [profitShareQuery.data]);
-  const payouts = (payoutQuery.data?.records || []) as SettlementPayoutRecord[];
-  const reconciliations = (reconciliationQuery.data?.records || []) as PaymentReconciliationRecord[];
+  const payouts = useMemo(() => (payoutQuery.data?.records || []) as SettlementPayoutRecord[], [payoutQuery.data]);
+  const reconciliations = useMemo(() => (reconciliationQuery.data?.records || []) as PaymentReconciliationRecord[], [reconciliationQuery.data]);
 
   const filteredBills = useMemo(() => bills.filter((item) => containsKeyword(billKeyword, [item.billNo, item.subjectName, item.cycle])), [billKeyword, bills]);
-  const filteredShares = useMemo(() => profitShares.filter((item) => containsKeyword(shareKeyword, [item.storeName, item.partnerName, item.ratio, item.rechargeNo, item.merchantGroupName, item.settlementMode, item.settlementRule])), [shareKeyword, profitShares]);
   const filteredDetails = useMemo(() => settlementDetails.filter((item) => containsKeyword(detailKeyword, [item.billNo, item.sourceNo, item.storeName, item.rechargeNo, item.merchantGroupName, item.settlementMode, item.settlementRule, item.remark])), [detailKeyword, settlementDetails]);
   const filteredPayouts = useMemo(() => payouts.filter((item) => containsKeyword(payoutKeyword, [item.payoutNo, item.billNo, item.accountName, item.bankName, item.failureReason])), [payoutKeyword, payouts]);
   const filteredReconciliations = useMemo(() => reconciliations.filter((item) => containsKeyword(reconcileKeyword, [item.reconNo, item.channelCode, item.handleRemark])), [reconcileKeyword, reconciliations]);
@@ -334,7 +290,7 @@ const SettlementManagement: React.FC = () => {
       const serviceShareAmount = Number(item.serviceShareAmount || 0);
       const platformFee = Number(item.platformFeeAmount || 0);
       const payableAmount = Number(item.merchantReceivableAmount || 0);
-      const clearingBase = Number((sourceShareAmount + serviceShareAmount + platformFee).toFixed(2));
+      const clearingBase = Number(item.settlementBaseAmount ?? (sourceShareAmount + serviceShareAmount + platformFee));
       return {
         id: `allocation-${item.id}`,
         clearingNo: item.allocationNo,
@@ -346,7 +302,7 @@ const SettlementManagement: React.FC = () => {
         sourceNo: item.serviceOrderNo || item.relatedNo || item.rechargeNo || '-',
         principalAmount,
         giftAmount,
-        couponAmount: 0,
+        couponAmount: Number(item.giftCostAmount || 0),
         clearingBase,
         rechargeMerchantRate: clearingBase > 0 ? Number((sourceShareAmount * 100 / clearingBase).toFixed(2)) : 0,
         consumeMerchantRate: clearingBase > 0 ? Number((serviceShareAmount * 100 / clearingBase).toFixed(2)) : 0,
@@ -355,7 +311,7 @@ const SettlementManagement: React.FC = () => {
         consumeMerchantAmount: serviceShareAmount,
         platformFee,
         payableAmount,
-        formula: item.settlementRuleSnapshot || item.settlementRule || '按后端清分明细计算',
+        formula: item.settlementRuleSnapshot || `${item.settlementRule || '清分规则'} / 版本 ${item.settlementRuleVersion || '-'}`,
         settlementCycle: item.settlementCycle || '-',
         status: item.allocationStatus || 'PENDING',
         riskStatus: 'NORMAL',
@@ -383,37 +339,26 @@ const SettlementManagement: React.FC = () => {
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
     {
       title: '操作',
-      width: 220,
+      width: 260,
       search: false,
       render: (_, record) => (
         <Space>
           <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-        </Space>
-      ),
-    },
-  ];
-
-  const shareColumns: ProColumns<ProfitShareRecord>[] = [
-    { title: '门店', dataIndex: 'storeName', width: 180, hideInSearch: true },
-    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '门店 / 合伙人 / 比例' } },
-    { title: '合伙人', dataIndex: 'partnerName', width: 180, search: false },
-    { title: '充值单号', dataIndex: 'rechargeNo', width: 180, search: false },
-    { title: '门店组', dataIndex: 'merchantGroupName', width: 180, search: false },
-    { title: '结算模式', dataIndex: 'settlementMode', width: 140, search: false, render: (_, record) => formatEnumText(record.settlementMode, 'settlementMode', '结算模式') },
-    { title: '结算规则', dataIndex: 'settlementRule', width: 180, search: false },
-    { title: '分润基数', dataIndex: 'baseAmount', width: 120, search: false, render: (_, record) => formatAmount(record.baseAmount) },
-    { title: '比例', dataIndex: 'ratio', width: 100, search: false },
-    { title: '应分金额', dataIndex: 'actualAmount', width: 120, search: false, render: (_, record) => formatAmount(record.actualAmount) },
-    { title: '状态', dataIndex: 'status', width: 120, search: false, render: (_, record) => renderStatusTag(record.status, settlementStatusMap) },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
-    {
-      title: '操作',
-      width: 160,
-      search: false,
-      render: (_, record) => (
-        <Space>
-          <Button size="small" onClick={() => setShareDetail(record)}>明细</Button>
-          <Button size="small" onClick={() => navigate('/settlement/profit-sharing')}>调整</Button>
+          <Button
+            size="small"
+            type="primary"
+            loading={generateProfitConfirmMutation.isPending}
+            disabled={record.status === 'REJECTED' || record.status === 'PENDING'}
+            title={record.status === 'REJECTED' || record.status === 'PENDING' ? '结算单生成后才可生成分润确认单' : undefined}
+            onClick={() => showBusinessConfirm({
+              title: '生成分润确认单',
+              content: `按结算单「${record.billNo}」的待处理分润明细，按合伙主体和收款账户汇总生成确认单。`,
+              okText: '确认生成',
+              onOk: () => generateProfitConfirmMutation.mutate(record.billNo),
+            })}
+          >
+            生成分润确认单
+          </Button>
         </Space>
       ),
     },
@@ -512,7 +457,7 @@ const SettlementManagement: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="结算总览" subtitle="门店组规则驱动自动清分、到期结算和真实通道打款。" icon={<AccountBookOutlined />} />
+      <PageBanner title="结算中心" subtitle="先处理打款失败和对账差异，再核对结算单与跨店清分。" icon={<AccountBookOutlined />} />
       <WorkflowGuide
         title="结算复盘闭环"
         summary="结算页要把收入归集、退款冲减、成本分摊和分润确认串起来，而不是把两个表平铺出来。"
@@ -657,44 +602,17 @@ const SettlementManagement: React.FC = () => {
               />
             ),
           },
-          {
-            key: 'share',
-            label: '合伙人分润',
-            children: (
-              <ProTable<ProfitShareRecord>
-                cardBordered
-                rowKey="id"
-                columns={shareColumns}
-                dataSource={filteredShares}
-                search={{ labelWidth: 'auto', defaultCollapsed: false }}
-                pagination={{ pageSize: 8 }}
-                scroll={{ x: 1440 }}
-                toolBarRender={() => [
-                  <Button key="partner" onClick={() => navigate('/settlement/profit-sharing')}>合伙关系配置</Button>,
-                  <Button key="rule" type="primary" onClick={() => navigate('/settlement/profit-sharing')}>分润规则</Button>,
-                ]}
-                onSubmit={(values) => { setShareKeyword(String(values.keyword || '')); setShareStatusFilter(values.status ? String(values.status) : undefined); }}
-                onReset={() => { setShareKeyword(''); setShareStatusFilter(undefined); }}
-              />
-            ),
-          },
         ]}
       />
 
       <BusinessDetailModal title={detail && 'clearingNo' in detail ? '跨店清分详情' : detail && 'payoutNo' in detail ? '打款流水详情' : detail && 'reconNo' in detail ? '对账差异详情' : detail && 'sourceNo' in detail ? '结算明细详情' : '结算单详情'} open={!!detail} onCancel={() => setDetail(null)} width={820}>
         {detail ? (
           <SchemaDetail
-            record={detail as Record<string, any>}
-            fields={('clearingNo' in detail ? crossStoreClearingDetailFields : 'payoutNo' in detail ? settlementPayoutDetailFields : 'reconNo' in detail ? reconciliationDetailFields : 'sourceNo' in detail ? settlementOverviewDetailFields : settlementBillDetailFields) as DetailField<Record<string, any>>[]}
+            record={detail as unknown as Record<string, unknown>}
+            fields={('clearingNo' in detail ? crossStoreClearingDetailFields : 'payoutNo' in detail ? settlementPayoutDetailFields : 'reconNo' in detail ? reconciliationDetailFields : 'sourceNo' in detail ? settlementOverviewDetailFields : settlementBillDetailFields) as unknown as DetailField<Record<string, unknown>>[]}
             column={2}
             labelWidth={110}
           />
-        ) : null}
-      </BusinessDetailModal>
-
-      <BusinessDetailModal title="分润明细" open={!!shareDetail} onCancel={() => setShareDetail(null)} width={760}>
-        {shareDetail ? (
-          <SchemaDetail record={shareDetail} fields={profitShareSummaryFields} column={2} labelWidth={110} />
         ) : null}
       </BusinessDetailModal>
 

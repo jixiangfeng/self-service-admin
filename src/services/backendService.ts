@@ -239,28 +239,73 @@ export interface MerchantGroupRecord {
   merchantName?: string;
   groupType: string;
   storeCount?: number;
-  settlementMode?: string;
-  crossMerchantFlag?: string;
-  settlementCycle?: string;
-  settlementCutoffTime?: string;
-  settlementDelayDays?: number;
-  minSettlementAmount?: number | string;
-  cashHolder?: string;
-  revenueOwner?: string;
-  clearingBase?: string;
-  rechargeMerchantRate?: number | string;
-  consumeMerchantRate?: number | string;
-  platformRate?: number | string;
-  giftCostBearer?: string;
-  cardRevenueRecognition?: string;
-  clearingRemark?: string;
-  linkedSettlementRuleId?: number;
-  linkedSettlementRuleCode?: string;
   owner?: string;
   status: string;
   remark?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface ClearingPlanSaveRequest {
+  settlementMode: string;
+  settlementCycle: string;
+  settlementCutoffTime: string;
+  settlementDelayDays: number;
+  minSettlementAmount: number | string;
+  cashHolder: string;
+  clearingBase: string;
+  sourceShareRate: number | string;
+  serviceShareRate: number | string;
+  platformRate: number | string;
+  giftCostBearer: string;
+  cardRevenueRecognition: string;
+  autoSettlement: boolean;
+  nettingEnabled: boolean;
+  autoPayout: boolean;
+  remark?: string;
+}
+
+export interface ClearingPlanRecord extends ClearingPlanSaveRequest {
+  id?: number;
+  merchantGroupId: number;
+  merchantGroupName: string;
+  memberStoreCount: number;
+  status: string;
+  configHash?: string;
+  activeSettlementRuleId?: number;
+  activeSettlementRuleCode?: string;
+  activeSettlementRuleVersion?: string;
+  publishedBy?: string;
+  publishedAt?: string;
+  updatedAt?: string;
+}
+
+export interface ClearingPlanSimulationRequest {
+  plan: ClearingPlanSaveRequest;
+  rechargePrincipal: number | string;
+  rechargeGift: number | string;
+  consumeAmount: number | string;
+  sourceStoreId?: number;
+  serviceStoreId?: number;
+}
+
+export interface ClearingPlanSimulationRecord {
+  principalConsumed: number | string;
+  giftConsumed: number | string;
+  settlementBase: number | string;
+  sourceShareAmount: number | string;
+  serviceShareAmount: number | string;
+  platformFeeAmount: number | string;
+  giftCostAmount: number | string;
+  balanced: boolean;
+  validationMessages: string[];
+}
+
+export interface ClearingPlanPublishRecord {
+  published: boolean;
+  message: string;
+  plan: ClearingPlanRecord;
+  rule: SettlementRuleRecord;
 }
 
 export interface MerchantGroupStoreRecord {
@@ -881,6 +926,11 @@ export interface SettlementRuleRecord {
   cardRevenueRecognition?: string;
   ruleSnapshot?: string;
   versionNo?: string;
+  sourceType?: string;
+  sourceId?: number;
+  configHash?: string;
+  publishedBy?: string;
+  publishedAt?: string;
   status: string;
   priority?: number;
   effectiveFrom?: string;
@@ -1024,7 +1074,7 @@ export interface ProfitPartnerRelationRecord {
   role?: string;
   shareRatio: number | string;
   ratio?: string;
-  settleAccount?: string;
+  settleAccountId?: number;
   primarySettlement?: string;
   effectiveStart?: string;
   effectiveEnd?: string;
@@ -1036,12 +1086,18 @@ export interface ProfitPartnerRelationRecord {
 
 export interface ProfitRatioVersionRecord {
   id: number;
+  relationId: number;
   versionNo: string;
   relationNo: string;
   beforeRatio?: number | string;
   afterRatio: number | string;
+  distributionMode?: string;
+  effectiveFrom?: string;
+  effectiveTo?: string;
   effectiveAt?: string;
   auditStatus: string;
+  auditor?: string;
+  auditedAt?: string;
   remark?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -1072,10 +1128,15 @@ export interface ProfitShareDetailRecord {
   settlementMode?: string;
   settlementRule?: string;
   settlementRuleSnapshot?: string;
+  relationId?: number;
+  relationNo?: string;
+  ratioVersionId?: number;
+  profitConfirmId?: number;
   partnerName: string;
   partnerSubjectType?: string;
   partnerSubjectId?: number;
   partnerSubjectName?: string;
+  settleAccountId?: number;
   distributionMode?: string;
   baseAmount: number | string;
   shareRatio?: number | string;
@@ -1083,6 +1144,9 @@ export interface ProfitShareDetailRecord {
   shareAmount: number | string;
   actualAmount?: number | string;
   refundAmount?: number | string;
+  confirmedAmount?: number | string;
+  paidAmount?: number | string;
+  calculationSnapshot?: string;
   status: string;
   createdAt?: string;
   updatedAt?: string;
@@ -1091,10 +1155,12 @@ export interface ProfitShareDetailRecord {
 export interface ProfitChargebackRecord {
   id: number;
   chargebackNo: string;
+  profitShareDetailId: number;
   detailNo: string;
   refundNo?: string;
   partnerName: string;
   chargebackAmount: number | string;
+  reason?: string;
   status?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -1105,28 +1171,53 @@ export interface ProfitConfirmRecord {
   confirmNo: string;
   settlementBillNo?: string;
   partnerName: string;
+  partnerSubjectType?: string;
+  partnerSubjectId?: number;
+  partnerSubjectName?: string;
+  settleAccountId?: number;
   confirmAmount: number | string;
+  chargebackAmount?: number | string;
+  paidAmount?: number | string;
   confirmer?: string;
   confirmStatus?: string;
   confirmRemark?: string;
   confirmedAt?: string;
   payoutStatus?: string;
+  payoutReference?: string;
+  payoutVoucherUrl?: string;
+  payoutRemark?: string;
   paidAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }
 
 export interface PartnerPayableSummaryRecord {
-  partnerName: string;
+  partnerSubjectType?: string;
+  partnerSubjectId?: number;
+  partnerSubjectName: string;
+  settleAccountId?: number;
   confirmCount: number;
   pendingAmount: number | string;
   payableAmount: number | string;
   paidAmount?: number | string;
-  rejectedAmount: number | string;
-  totalAmount: number | string;
   latestSettlementBillNo?: string;
-  latestConfirmedAt?: string;
-  payoutStatus?: string;
+}
+
+export interface SettlementPayeeAccountRecord {
+  id: number;
+  accountNo: string;
+  subjectType: string;
+  subjectId?: number;
+  subjectName: string;
+  accountType: string;
+  accountName: string;
+  bankName?: string;
+  accountReference: string;
+  paymentChannel?: string;
+  verificationStatus: string;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface GenerateProfitConfirmResponse {
@@ -1223,6 +1314,7 @@ export interface SettlementAllocationRecord {
   serviceMerchantId?: number;
   usageScopePolicyId?: number;
   settlementRuleId?: number;
+  settlementRuleVersion?: string;
   fundOwnerUnitId?: number;
   revenueOwnerUnitId?: number;
   sourceRevenueUnitId?: number;
@@ -1236,6 +1328,8 @@ export interface SettlementAllocationRecord {
   principalAmount?: number | string;
   giftAmount?: number | string;
   serviceAmount?: number | string;
+  settlementBaseAmount?: number | string;
+  giftCostAmount?: number | string;
   sourceShareAmount?: number | string;
   serviceShareAmount?: number | string;
   platformFeeAmount?: number | string;
@@ -2132,6 +2226,18 @@ export const merchantGroupStoreApi = {
   remove: async (id: number) =>
     httpDelete<void>(`/merchant-group-stores/${id}`),
 };
+export const clearingPlanApi = {
+  get: async (merchantGroupId: number) =>
+    httpGet<ClearingPlanRecord>(`/merchant-groups/${merchantGroupId}/clearing-plan`),
+  saveDraft: async (merchantGroupId: number, data: ClearingPlanSaveRequest) =>
+    httpPut<ClearingPlanRecord>(`/merchant-groups/${merchantGroupId}/clearing-plan`, data as unknown as Record<string, unknown>),
+  simulate: async (merchantGroupId: number, data: ClearingPlanSimulationRequest) =>
+    httpPost<ClearingPlanSimulationRecord>(`/merchant-groups/${merchantGroupId}/clearing-plan/simulate`, data as unknown as Record<string, unknown>),
+  publish: async (merchantGroupId: number) =>
+    httpPost<ClearingPlanPublishRecord>(`/merchant-groups/${merchantGroupId}/clearing-plan/publish`, {}),
+  versions: async (merchantGroupId: number) =>
+    httpGet<SettlementRuleRecord[]>(`/merchant-groups/${merchantGroupId}/clearing-plan/versions`),
+};
 export const merchantAccountApi = {
   page: async (params: Record<string, unknown>) =>
     httpPage<MerchantAccountRecord>('/merchant-accounts', params),
@@ -2289,7 +2395,10 @@ export const writeOffRecordApi = {
     httpPut<void>(`/write-off-records/${id}/status`, data),
 };
 
-export const settlementRuleApi = crudApi<SettlementRuleRecord>('/settlement-rules');
+export const settlementRuleApi = {
+  page: async (params: Record<string, unknown>) => httpPage<SettlementRuleRecord>('/settlement-rules', params),
+  detail: async (id: number) => httpGet<SettlementRuleRecord>(`/settlement-rules/${id}`),
+};
 
 export const settlementBillApi = {
   page: async (params: Record<string, unknown>) => (async () => {
@@ -2334,24 +2443,40 @@ export const profitPartnerRelationApi = {
   })(),
   add: async (data: Record<string, unknown>) => httpPost<ProfitPartnerRelationRecord>('/profit-partner-relations', data),
   edit: async (data: Record<string, unknown>) => httpPut<void>(`/profit-partner-relations/${data.id}`, data),
-  remove: async (id: number) => httpDelete<void>(`/profit-partner-relations/${id}`),
+  close: async (id: number) => httpPost<void>(`/profit-partner-relations/${id}/close`, {}),
 };
-export const profitRatioVersionApi = crudApi<ProfitRatioVersionRecord>('/profit-ratio-versions');
+export const profitRatioVersionApi = {
+  page: async (params: Record<string, unknown>) => httpPage<ProfitRatioVersionRecord>('/profit-ratio-versions', params),
+  add: async (data: Record<string, unknown>) => httpPost<ProfitRatioVersionRecord>('/profit-ratio-versions', data),
+  edit: async (data: Record<string, unknown>) => httpPut<void>(`/profit-ratio-versions/${data.id}`, data),
+  approve: async (id: number, data: Record<string, unknown>) => httpPost<void>(`/profit-ratio-versions/${id}/approve`, data),
+  reject: async (id: number, data: Record<string, unknown>) => httpPost<void>(`/profit-ratio-versions/${id}/reject`, data),
+};
 export const profitShareDetailApi = {
   page: async (params: Record<string, unknown>) => (async () => {
     const res = await httpPage<Record<string, any>>('/profit-share-details', params);
     return ok(mapPageRecords(res.data, toProfitShareDetailRecord));
   })(),
-  add: async (data: Record<string, unknown>) => httpPost<ProfitShareDetailRecord>('/profit-share-details', data),
-  edit: async (data: Record<string, unknown>) => httpPut<void>(`/profit-share-details/${data.id}`, data),
-  remove: async (id: number) => httpDelete<void>(`/profit-share-details/${id}`),
+  detail: async (id: number) => httpGet<ProfitShareDetailRecord>(`/profit-share-details/${id}`),
 };
-export const profitChargebackApi = crudApi<ProfitChargebackRecord>('/profit-chargebacks');
+export const profitChargebackApi = {
+  page: async (params: Record<string, unknown>) => httpPage<ProfitChargebackRecord>('/profit-chargebacks', params),
+  create: async (confirmId: number, data: Record<string, unknown>) => httpPost<ProfitChargebackRecord>(`/profit-confirms/${confirmId}/chargeback`, data),
+};
 export const profitConfirmApi = {
-  ...crudApi<ProfitConfirmRecord>('/profit-confirms'),
+  page: async (params: Record<string, unknown>) => httpPage<ProfitConfirmRecord>('/profit-confirms', params),
   generate: async (data: Record<string, unknown>) => httpPost<GenerateProfitConfirmResponse>('/profit-confirms/generate', data),
-  updatePayoutStatus: async (id: number, data: Record<string, unknown>) => httpPut<void>(`/profit-confirms/${id}/payout-status`, data),
+  approve: async (id: number, data: Record<string, unknown>) => httpPost<void>(`/profit-confirms/${id}/approve`, data),
+  reject: async (id: number, data: Record<string, unknown>) => httpPost<void>(`/profit-confirms/${id}/reject`, data),
+  payout: async (id: number, data: Record<string, unknown>) => httpPost<void>(`/profit-confirms/${id}/payout`, data),
+  details: async (id: number) => httpGet<ProfitShareDetailRecord[]>(`/profit-confirms/${id}/details`),
   payableSummary: async (params: Record<string, unknown>) => httpGet<PartnerPayableSummaryRecord[]>('/profit-confirms/payable-summary', params),
+};
+export const settlementPayeeAccountApi = {
+  page: async (params: Record<string, unknown>) => httpPage<SettlementPayeeAccountRecord>('/settlement-payee-accounts', params),
+  add: async (data: Record<string, unknown>) => httpPost<SettlementPayeeAccountRecord>('/settlement-payee-accounts', data),
+  edit: async (data: Record<string, unknown>) => httpPut<void>(`/settlement-payee-accounts/${data.id}`, data),
+  disable: async (id: number) => httpDelete<void>(`/settlement-payee-accounts/${id}`),
 };
 export const marketingApi = {
   inviteActivities: {
@@ -2546,6 +2671,7 @@ export default {
   merchantQualification: merchantQualificationApi,
   merchantGroup: merchantGroupApi,
   merchantGroupStore: merchantGroupStoreApi,
+  clearingPlan: clearingPlanApi,
   merchantAccount: merchantAccountApi,
   merchantTodo: merchantTodoApi,
   merchantWorkbench: merchantWorkbenchApi,
@@ -2579,6 +2705,7 @@ export default {
   profitShareDetail: profitShareDetailApi,
   profitChargeback: profitChargebackApi,
   profitConfirm: profitConfirmApi,
+  settlementPayeeAccount: settlementPayeeAccountApi,
   marketing: marketingApi,
   asset: assetApi,
   message: messageApi,

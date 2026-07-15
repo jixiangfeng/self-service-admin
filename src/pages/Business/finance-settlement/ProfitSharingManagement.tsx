@@ -1,11 +1,33 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, InputNumber, List, Row, Select, Space, Statistic, Tabs, message } from 'antd';
-import { AccountBookOutlined, CalendarOutlined, PlusOutlined, TeamOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Statistic, Tabs, message } from 'antd';
+import {
+  AccountBookOutlined,
+  BankOutlined,
+  CheckOutlined,
+  CloseOutlined,
+  DollarOutlined,
+  PlusOutlined,
+  TeamOutlined,
+} from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { useNavigate } from 'react-router-dom';
-import { auditStatusOptions, partnerRoleOptions, profitRelationStatusOptions } from '@/constants/businessCatalog';
+import { partnerRoleOptions, profitRelationStatusOptions } from '@/constants/businessCatalog';
+import PageBanner from '@/components/PageBanner';
+import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
+import BusinessDetailModal from '@/components/BusinessDetailModal';
+import { showBusinessConfirm } from '@/components/BusinessConfirm';
+import { buildValueEnum, formatAmount, formatDateTime, renderStatusTag } from '@/pages/Business/shared';
+import api, {
+  type ProfitConfirmRecord,
+  type ProfitChargebackRecord,
+  type ProfitPartnerRelationRecord,
+  type ProfitRatioVersionRecord,
+  type ProfitShareDetailRecord,
+  type SettlementPayeeAccountRecord,
+  type StoreRecord,
+} from '@/services/backendService';
+import { DateField, fromDatePickerValue, toDatePickerValue } from '@/utils/formControls';
 
 const partnerSubjectTypeOptions = [
   { value: 'MERCHANT', label: '商户主体' },
@@ -14,434 +36,629 @@ const partnerSubjectTypeOptions = [
   { value: 'EXTERNAL', label: '外部合伙人' },
 ];
 
-const distributionModeOptions = [
-  { value: 'REVENUE_RATIO', label: '收入比例' },
-  { value: 'GROSS_PROFIT_RATIO', label: '毛利比例' },
-  { value: 'NET_PROFIT_RATIO', label: '净利比例' },
-  { value: 'FIXED_PLUS_RATIO', label: '固定+比例' },
+const ratioAuditStatusOptions = [
+  { value: 'PENDING', label: '待审批' },
+  { value: 'APPROVED', label: '已生效' },
+  { value: 'REJECTED', label: '已驳回' },
 ];
-import PageBanner from '@/components/PageBanner';
-import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
-import BusinessDetailModal from '@/components/BusinessDetailModal';
-import { showBusinessConfirm } from '@/components/BusinessConfirm';
-import { buildValueEnum, containsKeyword, formatAmount, OperatorTips, renderStatusTag } from '@/pages/Business/shared';
-import WorkflowGuide from '@/pages/Business/shared';
-import api, { type ProfitPartnerRelationRecord, type ProfitRatioVersionRecord, type ProfitShareDetailRecord } from '@/services/backendService';
-import { DateField, DateTimeField, fromDatePickerValue, fromDateTimePickerValue, toDatePickerValue, toDateTimePickerValue } from '@/utils/formControls';
+
+const confirmStatusOptions = [
+  { value: 'PENDING', label: '待确认' },
+  { value: 'APPROVED', label: '已确认' },
+  { value: 'REJECTED', label: '已驳回' },
+];
+
+const profitPayoutStatusOptions = [
+  { value: 'NO_PAYABLE', label: '未到打款' },
+  { value: 'WAIT_PAY', label: '待打款' },
+  { value: 'PAID', label: '已打款' },
+];
+
+const accountTypeOptions = [
+  { value: 'BANK', label: '银行账户' },
+  { value: 'WECHAT', label: '微信账户' },
+  { value: 'ALIPAY', label: '支付宝账户' },
+  { value: 'OTHER', label: '其他账户' },
+];
+
+const accountVerificationOptions = [
+  { value: 'PENDING', label: '待验证' },
+  { value: 'VERIFIED', label: '已验证' },
+  { value: 'REJECTED', label: '验证失败' },
+];
+
+const accountStatusOptions = [
+  { value: 'ENABLED', label: '启用' },
+  { value: 'DISABLED', label: '停用' },
+];
+
+const chargebackStatusOptions = [
+  { value: 'APPROVED', label: '已冲减待付款' },
+  { value: 'PENDING', label: '已付款待追缴' },
+];
 
 const roleMap = buildValueEnum(partnerRoleOptions);
-const statusMap = buildValueEnum(profitRelationStatusOptions);
-const auditStatusMap = buildValueEnum(auditStatusOptions);
-const partnerSubjectTypeMap = buildValueEnum(partnerSubjectTypeOptions);
-const distributionModeMap = buildValueEnum(distributionModeOptions);
+const relationStatusMap = buildValueEnum(profitRelationStatusOptions);
+const subjectTypeMap = buildValueEnum(partnerSubjectTypeOptions);
+const ratioAuditStatusMap = buildValueEnum(ratioAuditStatusOptions);
+const confirmStatusMap = buildValueEnum(confirmStatusOptions);
+const profitPayoutStatusMap = buildValueEnum(profitPayoutStatusOptions);
+const accountTypeMap = buildValueEnum(accountTypeOptions);
+const accountVerificationMap = buildValueEnum(accountVerificationOptions);
+const accountStatusMap = buildValueEnum(accountStatusOptions);
+const chargebackStatusMap = buildValueEnum(chargebackStatusOptions);
 
-const profitRelationDetailFields: DetailField<ProfitPartnerRelationRecord>[] = [
-  { name: 'storeId', label: '门店ID' },
-  { name: 'storeName', label: '门店' },
-  { name: 'partnerName', label: '合伙人' },
-  { name: 'partnerSubjectType', label: '主体类型', render: (value) => partnerSubjectTypeMap[value as keyof typeof partnerSubjectTypeMap]?.text || value },
-  { name: 'partnerSubjectId', label: '主体ID' },
-  { name: 'partnerSubjectName', label: '主体名称' },
-  { name: 'distributionMode', label: '分配模式', render: (value) => distributionModeMap[value as keyof typeof distributionModeMap]?.text || value },
-  { name: 'partnerRole', label: '角色', render: (value) => roleMap[value as keyof typeof roleMap]?.text || value },
-  { name: 'shareRatio', label: '分润比例' },
-  { name: 'settleAccount', label: '收款账户' },
-  { name: 'period', label: '生效周期' },
-  { name: 'effectiveStart', label: '生效开始' },
-  { name: 'effectiveEnd', label: '生效结束' },
-  { name: 'status', label: '状态', render: (value) => statusMap[value as keyof typeof statusMap]?.text || value },
-];
+type AuditTarget = {
+  kind: 'ratio-approve' | 'ratio-reject' | 'confirm-approve' | 'confirm-reject';
+  id: number;
+  title: string;
+};
 
 const ProfitSharingManagement: React.FC = () => {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const [form] = Form.useForm<ProfitPartnerRelationRecord>();
-  const [profitAdjustForm] = Form.useForm<Record<string, unknown>>();
+  const [relationForm] = Form.useForm<Record<string, unknown>>();
+  const [accountForm] = Form.useForm<Record<string, unknown>>();
+  const [auditForm] = Form.useForm<Record<string, unknown>>();
+  const [payoutForm] = Form.useForm<Record<string, unknown>>();
   const [chargebackForm] = Form.useForm<Record<string, unknown>>();
-  const [keyword, setKeyword] = useState('');
-  const [relationStatusFilter, setRelationStatusFilter] = useState<string>();
-  const [detailStatusFilter, setDetailStatusFilter] = useState<string>();
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<ProfitPartnerRelationRecord | null>(null);
-  const [detail, setDetail] = useState<ProfitPartnerRelationRecord | null>(null);
-  const [versionVisible, setVersionVisible] = useState(false);
-  const [profitDetail, setProfitDetail] = useState<ProfitShareDetailRecord | null>(null);
-  const [chargebackTarget, setChargebackTarget] = useState<ProfitShareDetailRecord | null>(null);
+  const relationSubjectType = Form.useWatch('partnerSubjectType', relationForm);
+  const relationSubjectId = Form.useWatch('partnerSubjectId', relationForm);
+  const relationSubjectName = Form.useWatch('partnerSubjectName', relationForm);
+  const chargebackDetailId = Form.useWatch('profitShareDetailId', chargebackForm);
+  const [relationKeyword, setRelationKeyword] = useState('');
+  const [versionKeyword, setVersionKeyword] = useState('');
+  const [confirmKeyword, setConfirmKeyword] = useState('');
+  const [payoutKeyword, setPayoutKeyword] = useState('');
+  const [accountKeyword, setAccountKeyword] = useState('');
+  const [chargebackKeyword, setChargebackKeyword] = useState('');
+  const [editingRelation, setEditingRelation] = useState<ProfitPartnerRelationRecord | null>(null);
+  const [relationEditorOpen, setRelationEditorOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<SettlementPayeeAccountRecord | null>(null);
+  const [accountEditorOpen, setAccountEditorOpen] = useState(false);
+  const [auditTarget, setAuditTarget] = useState<AuditTarget | null>(null);
+  const [payoutTarget, setPayoutTarget] = useState<ProfitConfirmRecord | null>(null);
+  const [detailTarget, setDetailTarget] = useState<ProfitConfirmRecord | null>(null);
+  const [chargebackTarget, setChargebackTarget] = useState<ProfitConfirmRecord | null>(null);
 
-  const closeModal = () => {
-    setModalVisible(false);
-    setEditingRecord(null);
-    form.resetFields();
-  };
-
-  const relationQuery = useQuery({
-    queryKey: ['profitPartnerRelations', keyword, relationStatusFilter],
-    queryFn: async () => (await api.profitPartnerRelation.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: relationStatusFilter })).data,
+  const storeQuery = useQuery({
+    queryKey: ['profitStores'],
+    queryFn: async () => (await api.store.page({ pageNum: 1, pageSize: 500 })).data,
   });
-  const detailQuery = useQuery({
-    queryKey: ['profitShareDetails', keyword, detailStatusFilter],
-    queryFn: async () => (await api.profitShareDetail.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined, status: detailStatusFilter })).data,
+  const relationQuery = useQuery({
+    queryKey: ['profitPartnerRelations', relationKeyword],
+    queryFn: async () => (await api.profitPartnerRelation.page({ pageNum: 1, pageSize: 500, keyword: relationKeyword || undefined })).data,
   });
   const versionQuery = useQuery({
-    queryKey: ['profitRatioVersions', keyword],
-    queryFn: async () => (await api.profitRatioVersion.page({ pageNum: 1, pageSize: 200, keyword: keyword || undefined })).data,
+    queryKey: ['profitRatioVersions', versionKeyword],
+    queryFn: async () => (await api.profitRatioVersion.page({ pageNum: 1, pageSize: 500, keyword: versionKeyword || undefined })).data,
   });
+  const confirmQuery = useQuery({
+    queryKey: ['profitConfirms', confirmKeyword],
+    queryFn: async () => (await api.profitConfirm.page({ pageNum: 1, pageSize: 500, keyword: confirmKeyword || undefined })).data,
+  });
+  const payoutQuery = useQuery({
+    queryKey: ['profitPayouts', payoutKeyword],
+    queryFn: async () => (await api.profitConfirm.page({ pageNum: 1, pageSize: 500, keyword: payoutKeyword || undefined, confirmStatus: 'APPROVED' })).data,
+  });
+  const accountQuery = useQuery({
+    queryKey: ['settlementPayeeAccounts', accountKeyword],
+    queryFn: async () => (await api.settlementPayeeAccount.page({ pageNum: 1, pageSize: 500, keyword: accountKeyword || undefined })).data,
+  });
+  const chargebackQuery = useQuery({
+    queryKey: ['profitChargebacks', chargebackKeyword],
+    queryFn: async () => (await api.profitChargeback.page({ pageNum: 1, pageSize: 500, keyword: chargebackKeyword || undefined })).data,
+  });
+  const confirmDetailQuery = useQuery({
+    queryKey: ['profitConfirmDetails', detailTarget?.id],
+    enabled: !!detailTarget,
+    queryFn: async () => (await api.profitConfirm.details(detailTarget!.id)).data,
+  });
+  const chargebackDetailQuery = useQuery({
+    queryKey: ['profitConfirmChargebackDetails', chargebackTarget?.id],
+    enabled: !!chargebackTarget,
+    queryFn: async () => (await api.profitConfirm.details(chargebackTarget!.id)).data,
+  });
+
+  const stores = (storeQuery.data?.records || []) as StoreRecord[];
+  const relations = (relationQuery.data?.records || []) as ProfitPartnerRelationRecord[];
+  const versions = (versionQuery.data?.records || []) as ProfitRatioVersionRecord[];
+  const confirms = (confirmQuery.data?.records || []) as ProfitConfirmRecord[];
+  const payoutConfirms = (payoutQuery.data?.records || []) as ProfitConfirmRecord[];
+  const accounts = useMemo(() => (accountQuery.data?.records || []) as SettlementPayeeAccountRecord[], [accountQuery.data]);
+  const chargebacks = (chargebackQuery.data?.records || []) as ProfitChargebackRecord[];
+  const confirmDetails = (confirmDetailQuery.data || []) as ProfitShareDetailRecord[];
+  const chargebackDetails = (chargebackDetailQuery.data || []) as ProfitShareDetailRecord[];
+  const selectedChargebackDetail = chargebackDetails.find((item) => item.id === chargebackDetailId);
+
+  const accountById = useMemo(() => new Map(accounts.map((item) => [item.id, item])), [accounts]);
+  const verifiedAccountOptions = useMemo(() => accounts
+    .filter((item) => item.status === 'ENABLED'
+      && item.verificationStatus === 'VERIFIED'
+      && item.subjectType === relationSubjectType
+      && (relationSubjectType === 'EXTERNAL'
+        ? item.subjectName === relationSubjectName
+        : item.subjectId === relationSubjectId))
+    .map((item) => ({
+      value: item.id,
+      label: `${item.subjectName} / ${item.accountName} / ${item.accountReference}`,
+    })), [accounts, relationSubjectId, relationSubjectName, relationSubjectType]);
+
   const saveRelationMutation = useMutation<unknown, Error, Record<string, unknown>>({
-    mutationFn: (values: Record<string, unknown>) => {
-      const payload = {
-        ...values,
-        partnerRole: values.partnerRole || values.role,
-        partnerSubjectType: values.partnerSubjectType || 'EXTERNAL',
-        partnerSubjectName: values.partnerSubjectName || values.partnerName,
-        partnerName: values.partnerSubjectName || values.partnerName,
-        distributionMode: values.distributionMode || 'REVENUE_RATIO',
-        shareRatio: Number(String(values.shareRatio ?? values.ratio ?? '0').replace('%', '')),
-        ...(editingRecord ? { relationNo: values.relationNo } : {}),
-      };
-      return editingRecord ? api.profitPartnerRelation.edit({ ...payload, id: editingRecord.id }) : api.profitPartnerRelation.add(payload);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profitPartnerRelations'] });
-      message.success('合伙关系已保存');
-    },
-  });
-  const relationStatusMutation = useMutation({
-    mutationFn: (record: ProfitPartnerRelationRecord) => api.profitPartnerRelation.edit({
-      ...(record as unknown as Record<string, unknown>),
-      status: record.status === 'EFFECTIVE' ? 'CLOSED' : 'EFFECTIVE',
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profitPartnerRelations'] });
-      message.success('合伙关系状态已更新');
-    },
-  });
-  const saveDetailMutation = useMutation({
-    mutationFn: (record: ProfitShareDetailRecord) => api.profitShareDetail.edit({ ...record, status: 'APPROVED' }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profitShareDetails'] });
-      message.success('分润调整已确认');
-    },
-  });
-  const chargebackMutation = useMutation({
-    mutationFn: (values: Record<string, unknown>) => api.profitChargeback.add(values),
+    mutationFn: (values: Record<string, unknown>) => editingRelation
+      ? api.profitPartnerRelation.edit({ ...values, id: editingRelation.id })
+      : api.profitPartnerRelation.add(values),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['profitChargebacks'] });
-      message.success('回冲记录已创建');
-      navigate('/settlement/profit-sharing');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['profitPartnerRelations'] }),
+        queryClient.invalidateQueries({ queryKey: ['profitRatioVersions'] }),
+      ]);
+      message.success(editingRelation ? '合伙关系已更新，比例变更已进入审批' : '合伙关系已创建，比例已进入审批');
+      setRelationEditorOpen(false);
+      setEditingRelation(null);
+      relationForm.resetFields();
     },
   });
-  const confirmChargeback = (record: ProfitShareDetailRecord) => {
-    setChargebackTarget(record);
-    chargebackForm.setFieldsValue({
-      detailNo: record.detailNo,
-      partnerName: record.partnerName,
-      chargebackAmount: record.actualAmount ?? record.shareAmount,
-      status: 'PENDING',
+
+  const closeRelationMutation = useMutation({
+    mutationFn: (id: number) => api.profitPartnerRelation.close(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['profitPartnerRelations'] });
+      message.success('合伙关系已结束');
+    },
+  });
+
+  const auditMutation = useMutation({
+    mutationFn: async ({ target, values }: { target: AuditTarget; values: Record<string, unknown> }) => {
+      if (target.kind === 'ratio-approve') return api.profitRatioVersion.approve(target.id, { auditor: values.operator, remark: values.remark });
+      if (target.kind === 'ratio-reject') return api.profitRatioVersion.reject(target.id, { auditor: values.operator, remark: values.remark });
+      if (target.kind === 'confirm-approve') return api.profitConfirm.approve(target.id, values);
+      return api.profitConfirm.reject(target.id, values);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['profitRatioVersions'] }),
+        queryClient.invalidateQueries({ queryKey: ['profitPartnerRelations'] }),
+        queryClient.invalidateQueries({ queryKey: ['profitConfirms'] }),
+        queryClient.invalidateQueries({ queryKey: ['profitPayouts'] }),
+      ]);
+      message.success('审批处理已完成');
+      setAuditTarget(null);
+      auditForm.resetFields();
+    },
+  });
+
+  const payoutMutation = useMutation({
+    mutationFn: ({ id, values }: { id: number; values: Record<string, unknown> }) => api.profitConfirm.payout(id, values),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['profitConfirms'] }),
+        queryClient.invalidateQueries({ queryKey: ['profitPayouts'] }),
+      ]);
+      message.success('打款结果已登记');
+      setPayoutTarget(null);
+      payoutForm.resetFields();
+    },
+  });
+
+  const saveAccountMutation = useMutation<unknown, Error, Record<string, unknown>>({
+    mutationFn: (values: Record<string, unknown>) => editingAccount
+      ? api.settlementPayeeAccount.edit({ ...values, id: editingAccount.id })
+      : api.settlementPayeeAccount.add(values),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['settlementPayeeAccounts'] });
+      message.success(editingAccount ? '收款账户已更新' : '收款账户已创建');
+      setAccountEditorOpen(false);
+      setEditingAccount(null);
+      accountForm.resetFields();
+    },
+  });
+
+  const disableAccountMutation = useMutation({
+    mutationFn: (id: number) => api.settlementPayeeAccount.disable(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['settlementPayeeAccounts'] });
+      message.success('收款账户已停用');
+    },
+  });
+
+  const chargebackMutation = useMutation({
+    mutationFn: ({ confirmId, values }: { confirmId: number; values: Record<string, unknown> }) => api.profitChargeback.create(confirmId, values),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['profitChargebacks'] }),
+        queryClient.invalidateQueries({ queryKey: ['profitConfirms'] }),
+        queryClient.invalidateQueries({ queryKey: ['profitPayouts'] }),
+      ]);
+      message.success('分润回冲已创建');
+      setChargebackTarget(null);
+      chargebackForm.resetFields();
+    },
+  });
+
+  const openRelationEditor = (record?: ProfitPartnerRelationRecord) => {
+    setEditingRelation(record || null);
+    relationForm.resetFields();
+    relationForm.setFieldsValue(record ? {
+      ...record,
+      effectiveStart: toDatePickerValue(record.effectiveStart) || record.effectiveStart,
+      effectiveEnd: toDatePickerValue(record.effectiveEnd) || record.effectiveEnd,
+    } : {
+      partnerSubjectType: 'EXTERNAL',
+      partnerRole: 'PARTNER',
+      shareRatio: 0,
     });
-  };
-  const confirmRelationStatus = (record: ProfitPartnerRelationRecord) => {
-    const nextStatus = record.status === 'EFFECTIVE' ? 'CLOSED' : 'EFFECTIVE';
-    const actionName = nextStatus === 'EFFECTIVE' ? '生效' : '结束';
-    showBusinessConfirm({
-      title: `确认${actionName}合伙关系`,
-      content: `确定${actionName}「${record.storeName || record.relationNo} / ${record.partnerName}」的合伙关系吗？该操作会影响后续分润结算口径。`,
-      okText: `确认${actionName}`,
-      danger: nextStatus !== 'EFFECTIVE',
-      onOk: () => relationStatusMutation.mutate(record),
-    });
+    setRelationEditorOpen(true);
   };
 
-  const relations = (relationQuery.data?.records || []) as ProfitPartnerRelationRecord[];
-  const details = (detailQuery.data?.records || []) as ProfitShareDetailRecord[];
-  const versions = (versionQuery.data?.records || []) as ProfitRatioVersionRecord[];
-  const filteredRelations = useMemo(() => relations.filter((item) => containsKeyword(keyword, [item.storeName, item.partnerName, item.partnerSubjectName, item.ratio, item.settleAccount])), [keyword, relations]);
-  const filteredDetails = useMemo(() => details.filter((item) => containsKeyword(keyword, [item.orderNo, item.serviceOrderNo, item.storeName, item.partnerName])), [keyword, details]);
+  const openAccountEditor = (record?: SettlementPayeeAccountRecord) => {
+    setEditingAccount(record || null);
+    accountForm.resetFields();
+    accountForm.setFieldsValue(record ? { ...record } as Parameters<typeof accountForm.setFieldsValue>[0] : {
+      subjectType: 'EXTERNAL',
+      accountType: 'BANK',
+      verificationStatus: 'PENDING',
+      status: 'ENABLED',
+    });
+    setAccountEditorOpen(true);
+  };
+
+  const openAudit = (target: AuditTarget) => {
+    auditForm.resetFields();
+    setAuditTarget(target);
+  };
 
   const relationColumns: ProColumns<ProfitPartnerRelationRecord>[] = [
-    { title: '门店ID', dataIndex: 'storeId', width: 100, search: false },
     { title: '门店', dataIndex: 'storeName', width: 180, hideInSearch: true },
-    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '门店 / 合伙人 / 比例 / 收款账户' } },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '门店 / 合伙主体 / 关系编号' } },
     { title: '合伙主体', dataIndex: 'partnerSubjectName', width: 180, search: false },
-    { title: '主体类型', dataIndex: 'partnerSubjectType', width: 130, valueType: 'select', valueEnum: partnerSubjectTypeMap, render: (_, record) => renderStatusTag(record.partnerSubjectType, partnerSubjectTypeMap) },
-    { title: '分配模式', dataIndex: 'distributionMode', width: 130, valueType: 'select', valueEnum: distributionModeMap, render: (_, record) => renderStatusTag(record.distributionMode, distributionModeMap) },
+    { title: '主体类型', dataIndex: 'partnerSubjectType', width: 120, search: false, render: (_, record) => renderStatusTag(record.partnerSubjectType, subjectTypeMap) },
+    { title: '角色', dataIndex: 'partnerRole', width: 120, search: false, render: (_, record) => renderStatusTag(record.partnerRole, roleMap) },
+    { title: '当前比例', dataIndex: 'shareRatio', width: 110, search: false, render: (_, record) => `${Number(record.shareRatio || 0)}%` },
     {
-      title: '角色',
-      dataIndex: 'partnerRole',
-      width: 120,
-      valueType: 'select',
-      valueEnum: roleMap,
-      render: (_, record) => renderStatusTag(record.partnerRole, roleMap),
+      title: '收款账户',
+      dataIndex: 'settleAccountId',
+      width: 240,
+      search: false,
+      render: (_, record) => {
+        const account = record.settleAccountId ? accountById.get(record.settleAccountId) : undefined;
+        return account ? `${account.accountName} / ${account.accountReference}` : '-';
+      },
     },
-    { title: '比例', dataIndex: 'ratio', width: 100, search: false },
-    { title: '结算账户', dataIndex: 'settleAccount', width: 180, search: false },
-    { title: '生效周期', dataIndex: 'period', width: 220, search: false },
-    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: auditStatusMap, render: (_, record) => renderStatusTag(record.status, auditStatusMap) },
+    { title: '生效周期', dataIndex: 'effectiveStart', width: 220, search: false, render: (_, record) => `${record.effectiveStart || '立即'} 至 ${record.effectiveEnd || '长期'}` },
+    { title: '状态', dataIndex: 'status', width: 110, search: false, render: (_, record) => renderStatusTag(record.status, relationStatusMap) },
     {
       title: '操作',
-      width: 220,
+      width: 190,
       search: false,
       render: (_, record) => (
         <Space>
-          <Button size="small" onClick={() => setDetail(record)}>详情</Button>
+          <Button size="small" onClick={() => openRelationEditor(record)}>编辑</Button>
           <Button
             size="small"
-            onClick={() => {
-              setEditingRecord(record);
-              form.setFieldsValue({
-                ...record,
-                effectiveStart: toDatePickerValue(record.effectiveStart) || record.effectiveStart,
-                effectiveEnd: toDatePickerValue(record.effectiveEnd) || record.effectiveEnd,
-              } as any);
-              setModalVisible(true);
-            }}
+            danger
+            disabled={record.status === 'CLOSED'}
+            loading={closeRelationMutation.isPending}
+            onClick={() => showBusinessConfirm({
+              title: '结束合伙关系',
+              content: `结束「${record.storeName} / ${record.partnerSubjectName}」后，不再参与后续交易分润。`,
+              okText: '确认结束',
+              danger: true,
+              onOk: () => closeRelationMutation.mutate(record.id),
+            })}
           >
-            编辑
-          </Button>
-          <Button
-            size="small"
-            loading={relationStatusMutation.isPending}
-            onClick={() => confirmRelationStatus(record)}
-          >
-            {record.status === 'EFFECTIVE' ? '结束' : '生效'}
+            结束
           </Button>
         </Space>
       ),
     },
   ];
 
-  const detailColumns: ProColumns<ProfitShareDetailRecord>[] = [
-    { title: '订单号', dataIndex: 'orderNo', width: 180, hideInSearch: true },
-    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '订单号 / 门店 / 合伙人' } },
-    { title: '门店', dataIndex: 'storeName', width: 180, search: false },
-    { title: '合伙人', dataIndex: 'partnerName', width: 180, search: false },
-    { title: '分润基数', dataIndex: 'baseAmount', width: 120, search: false, render: (_, record) => formatAmount(record.baseAmount) },
-    { title: '实际分润', dataIndex: 'actualAmount', width: 120, search: false, render: (_, record) => formatAmount(record.actualAmount ?? record.shareAmount) },
-    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
+  const versionColumns: ProColumns<ProfitRatioVersionRecord>[] = [
+    { title: '版本号', dataIndex: 'versionNo', width: 180, hideInSearch: true },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '版本号 / 关系编号 / 备注' } },
+    { title: '关系编号', dataIndex: 'relationNo', width: 180, search: false },
+    { title: '比例变更', dataIndex: 'afterRatio', width: 140, search: false, render: (_, record) => `${Number(record.beforeRatio || 0)}% -> ${Number(record.afterRatio || 0)}%` },
+    { title: '计划生效', dataIndex: 'effectiveFrom', width: 180, search: false, render: (_, record) => formatDateTime(record.effectiveFrom) },
+    { title: '审批状态', dataIndex: 'auditStatus', width: 110, search: false, render: (_, record) => renderStatusTag(record.auditStatus, ratioAuditStatusMap) },
+    { title: '审批人', dataIndex: 'auditor', width: 120, search: false },
+    { title: '备注', dataIndex: 'remark', width: 220, search: false },
+    {
+      title: '操作',
+      width: 170,
+      search: false,
+      render: (_, record) => record.auditStatus === 'PENDING' ? (
+        <Space>
+          <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => openAudit({ kind: 'ratio-approve', id: record.id, title: `通过比例版本 ${record.versionNo}` })}>通过</Button>
+          <Button size="small" danger icon={<CloseOutlined />} onClick={() => openAudit({ kind: 'ratio-reject', id: record.id, title: `驳回比例版本 ${record.versionNo}` })}>驳回</Button>
+        </Space>
+      ) : '-',
+    },
+  ];
+
+  const confirmColumns: ProColumns<ProfitConfirmRecord>[] = [
+    { title: '确认单号', dataIndex: 'confirmNo', width: 180, hideInSearch: true },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '确认单 / 结算单 / 合伙主体' } },
+    { title: '结算单号', dataIndex: 'settlementBillNo', width: 180, search: false },
+    { title: '合伙主体', dataIndex: 'partnerSubjectName', width: 180, search: false },
+    { title: '确认金额', dataIndex: 'confirmAmount', width: 120, search: false, render: (_, record) => formatAmount(record.confirmAmount) },
+    { title: '已回冲', dataIndex: 'chargebackAmount', width: 110, search: false, render: (_, record) => formatAmount(record.chargebackAmount) },
+    { title: '确认状态', dataIndex: 'confirmStatus', width: 110, search: false, render: (_, record) => renderStatusTag(record.confirmStatus, confirmStatusMap) },
+    { title: '打款状态', dataIndex: 'payoutStatus', width: 110, search: false, render: (_, record) => renderStatusTag(record.payoutStatus, profitPayoutStatusMap) },
+    { title: '生成时间', dataIndex: 'createdAt', width: 180, search: false, render: (_, record) => formatDateTime(record.createdAt) },
+    {
+      title: '操作',
+      width: 310,
+      search: false,
+      render: (_, record) => (
+        <Space>
+          <Button size="small" onClick={() => setDetailTarget(record)}>明细</Button>
+          {record.confirmStatus === 'PENDING' ? <>
+            <Button size="small" type="primary" onClick={() => openAudit({ kind: 'confirm-approve', id: record.id, title: `通过分润确认单 ${record.confirmNo}` })}>通过</Button>
+            <Button size="small" danger onClick={() => openAudit({ kind: 'confirm-reject', id: record.id, title: `驳回分润确认单 ${record.confirmNo}` })}>驳回</Button>
+          </> : null}
+          {record.confirmStatus === 'APPROVED' ? <Button size="small" danger onClick={() => { chargebackForm.resetFields(); setChargebackTarget(record); }}>回冲</Button> : null}
+        </Space>
+      ),
+    },
+  ];
+
+  const payoutColumns: ProColumns<ProfitConfirmRecord>[] = [
+    { title: '确认单号', dataIndex: 'confirmNo', width: 180, hideInSearch: true },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '确认单 / 结算单 / 合伙主体 / 流水号' } },
+    { title: '结算单号', dataIndex: 'settlementBillNo', width: 180, search: false },
+    { title: '合伙主体', dataIndex: 'partnerSubjectName', width: 180, search: false },
+    { title: '应付金额', dataIndex: 'confirmAmount', width: 120, search: false, render: (_, record) => formatAmount(Number(record.confirmAmount || 0) - Number(record.chargebackAmount || 0)) },
+    { title: '实付金额', dataIndex: 'paidAmount', width: 120, search: false, render: (_, record) => formatAmount(record.paidAmount) },
+    { title: '打款状态', dataIndex: 'payoutStatus', width: 110, search: false, render: (_, record) => renderStatusTag(record.payoutStatus, profitPayoutStatusMap) },
+    { title: '打款流水号', dataIndex: 'payoutReference', width: 180, search: false },
+    { title: '打款时间', dataIndex: 'paidAt', width: 180, search: false, render: (_, record) => formatDateTime(record.paidAt) },
+    {
+      title: '操作',
+      width: 130,
+      search: false,
+      render: (_, record) => record.payoutStatus === 'WAIT_PAY' ? (
+        <Button
+          size="small"
+          type="primary"
+          icon={<DollarOutlined />}
+          onClick={() => {
+            setPayoutTarget(record);
+            payoutForm.setFieldsValue({ paidAmount: Number(record.confirmAmount || 0) - Number(record.chargebackAmount || 0) });
+          }}
+        >
+          登记打款
+        </Button>
+      ) : <Button size="small" onClick={() => setDetailTarget(record)}>明细</Button>,
+    },
+  ];
+
+  const accountColumns: ProColumns<SettlementPayeeAccountRecord>[] = [
+    { title: '账户编号', dataIndex: 'accountNo', width: 180, hideInSearch: true },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '主体 / 户名 / 账户标识' } },
+    { title: '收款主体', dataIndex: 'subjectName', width: 180, search: false },
+    { title: '账户类型', dataIndex: 'accountType', width: 120, search: false, render: (_, record) => renderStatusTag(record.accountType, accountTypeMap) },
+    { title: '收款户名', dataIndex: 'accountName', width: 180, search: false },
+    { title: '开户行', dataIndex: 'bankName', width: 160, search: false },
+    { title: '账户标识', dataIndex: 'accountReference', width: 220, search: false },
+    { title: '验证状态', dataIndex: 'verificationStatus', width: 110, search: false, render: (_, record) => renderStatusTag(record.verificationStatus, accountVerificationMap) },
+    { title: '状态', dataIndex: 'status', width: 100, search: false, render: (_, record) => renderStatusTag(record.status, accountStatusMap) },
     {
       title: '操作',
       width: 160,
       search: false,
       render: (_, record) => (
         <Space>
-          <Button size="small" onClick={() => {
-            setProfitDetail(record);
-            profitAdjustForm.setFieldsValue({
-              ...record,
-              actualAmount: record.actualAmount ?? record.shareAmount,
-              shareRatio: record.shareRatio ?? record.ratio,
-              confirmedAt: toDateTimePickerValue((record as any).confirmedAt) || (record as any).confirmedAt,
-            });
-          }}>调整</Button>
-          <Button size="small" loading={chargebackMutation.isPending} onClick={() => confirmChargeback(record)}>回冲</Button>
+          <Button size="small" onClick={() => openAccountEditor(record)}>编辑</Button>
+          <Button
+            size="small"
+            danger
+            disabled={record.status === 'DISABLED'}
+            loading={disableAccountMutation.isPending}
+            onClick={() => showBusinessConfirm({
+              title: '停用收款账户',
+              content: `停用「${record.accountName} / ${record.accountReference}」后，新合伙关系不能再选择该账户。`,
+              okText: '确认停用',
+              danger: true,
+              onOk: () => disableAccountMutation.mutate(record.id),
+            })}
+          >
+            停用
+          </Button>
         </Space>
       ),
     },
   ];
 
-  const handleSubmit = async () => {
-    const values = await form.validateFields();
-    await saveRelationMutation.mutateAsync({
-      ...values,
-      effectiveStart: fromDatePickerValue(values.effectiveStart as any) || values.effectiveStart,
-      effectiveEnd: fromDatePickerValue(values.effectiveEnd as any) || values.effectiveEnd,
-    } as unknown as Record<string, unknown>);
-    closeModal();
-  };
+  const chargebackColumns: ProColumns<ProfitChargebackRecord>[] = [
+    { title: '回冲单号', dataIndex: 'chargebackNo', width: 180, hideInSearch: true },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '回冲单 / 退款单 / 分润明细 / 合伙人' } },
+    { title: '退款单号', dataIndex: 'refundNo', width: 180, search: false },
+    { title: '分润明细', dataIndex: 'detailNo', width: 180, search: false },
+    { title: '合伙人', dataIndex: 'partnerName', width: 160, search: false },
+    { title: '回冲金额', dataIndex: 'chargebackAmount', width: 120, search: false, render: (_, record) => formatAmount(record.chargebackAmount) },
+    { title: '处理状态', dataIndex: 'status', width: 130, search: false, render: (_, record) => renderStatusTag(record.status, chargebackStatusMap) },
+    { title: '回冲原因', dataIndex: 'reason', width: 220, search: false },
+    { title: '创建时间', dataIndex: 'createdAt', width: 180, search: false, render: (_, record) => formatDateTime(record.createdAt) },
+  ];
+
+  const pendingVersions = versions.filter((item) => item.auditStatus === 'PENDING').length;
+  const pendingConfirms = confirms.filter((item) => item.confirmStatus === 'PENDING').length;
+  const waitPayAmount = payoutConfirms
+    .filter((item) => item.payoutStatus === 'WAIT_PAY')
+    .reduce((sum, item) => sum + Number(item.confirmAmount || 0), 0);
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="多合伙人分润" subtitle="补齐合伙关系、收款账户、周期版本和状态维护能力。" icon={<AccountBookOutlined />} />
-      <WorkflowGuide
-        title="分润确认闭环"
-        summary="分润页要先配关系，再看版本，再核明细，最后才能进入结算单确认。"
-        steps={[
-          { title: '合伙关系', description: '定义门店、合伙人角色和分润比例', status: 'finish', tag: '关系配置' },
-          { title: '生效版本', description: '按时间版本确定当前生效周期', status: 'process', tag: '版本管理' },
-          { title: '单笔分润', description: '核对订单级分润基数和实际分润金额', status: 'process', tag: '分润明细' },
-          { title: '结算确认', description: '回到结算总览生成最终结算单', status: 'wait', tag: '结算总览' },
-        ]}
-      />
-      <OperatorTips
-        items={[
-          { label: '维护关系', desc: '合伙关系要先确定门店、角色、比例和生效周期，后续分润都按版本计算。', tag: '关系' },
-          { label: '审核版本', desc: '比例调整不要直接覆盖历史，新增版本并审核，保证历史结算可追溯。', tag: '版本' },
-          { label: '核对明细', desc: '按订单核对分润基数和实际金额，异常再做调整或退款回冲。', tag: '明细' },
-        ]}
-      />
+      <PageBanner title="合伙人分润" subtitle="按待办顺序处理关系、比例审批、确认和打款。" icon={<AccountBookOutlined />} />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="合伙关系" value={relations.length} suffix="条" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="待确认分润" value={details.filter((item) => item.status === 'PENDING').length} suffix="条" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="门店合伙人" value={new Set(relations.map((item) => item.storeName)).size} suffix="家门店" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="当前版本" value={versions.length} suffix="版" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="生效合伙关系" value={relations.filter((item) => item.status === 'EFFECTIVE').length} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="待审比例版本" value={pendingVersions} suffix="条" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="待确认分润单" value={pendingConfirms} suffix="张" /></Card></Col>
+        <Col xs={24} sm={12} xl={6}><Card><Statistic title="待打款金额" value={formatAmount(waitPayAmount)} /></Card></Col>
       </Row>
 
       <Tabs
         items={[
           {
-            key: 'relation',
+            key: 'relations',
             label: '合伙关系',
-            children: (
-              <ProTable<ProfitPartnerRelationRecord>
-                cardBordered
-                rowKey="id"
-                columns={relationColumns}
-                dataSource={filteredRelations}
-                loading={relationQuery.isLoading}
-                search={{ labelWidth: 'auto', defaultCollapsed: false }}
-                pagination={{ pageSize: 8 }}
-                scroll={{ x: 1700 }}
-                toolBarRender={() => [
-                  <Button key="version" onClick={() => setVersionVisible(true)}>版本管理</Button>,
-                  <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => { setEditingRecord(null); form.resetFields(); setModalVisible(true); }}>
-                    新建合伙关系
-                  </Button>,
-                ]}
-                onSubmit={(values) => { setKeyword(String(values.keyword || '')); setRelationStatusFilter(values.status ? String(values.status) : undefined); }}
-                onReset={() => { setKeyword(''); setRelationStatusFilter(undefined); }}
-              />
-            ),
+            children: <ProTable<ProfitPartnerRelationRecord>
+              cardBordered
+              rowKey="id"
+              columns={relationColumns}
+              dataSource={relations}
+              loading={relationQuery.isLoading || accountQuery.isLoading}
+              search={{ labelWidth: 'auto', defaultCollapsed: false }}
+              pagination={{ pageSize: 10 }}
+              scroll={{ x: 1600 }}
+              toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openRelationEditor()}>新建合伙关系</Button>]}
+              onSubmit={(values) => setRelationKeyword(String(values.keyword || ''))}
+              onReset={() => setRelationKeyword('')}
+            />,
           },
           {
-            key: 'detail',
-            label: '分润明细',
-            children: (
-              <ProTable<ProfitShareDetailRecord>
-                cardBordered
-                rowKey="id"
-                columns={detailColumns}
-                dataSource={filteredDetails}
-                loading={detailQuery.isLoading}
-                search={{ labelWidth: 'auto', defaultCollapsed: false }}
-                pagination={{ pageSize: 8 }}
-                scroll={{ x: 1380 }}
-                toolBarRender={() => [
-                  <Button key="settle" onClick={() => navigate('/settlement')}>生成结算单</Button>,
-                ]}
-                onSubmit={(values) => { setKeyword(String(values.keyword || '')); setDetailStatusFilter(values.status ? String(values.status) : undefined); }}
-                onReset={() => { setKeyword(''); setDetailStatusFilter(undefined); }}
-              />
-            ),
+            key: 'versions',
+            label: `比例审批 (${pendingVersions})`,
+            children: <ProTable<ProfitRatioVersionRecord>
+              cardBordered
+              rowKey="id"
+              columns={versionColumns}
+              dataSource={versions}
+              loading={versionQuery.isLoading}
+              search={{ labelWidth: 'auto', defaultCollapsed: false }}
+              pagination={{ pageSize: 10 }}
+              scroll={{ x: 1400 }}
+              onSubmit={(values) => setVersionKeyword(String(values.keyword || ''))}
+              onReset={() => setVersionKeyword('')}
+            />,
+          },
+          {
+            key: 'confirms',
+            label: `分润确认 (${pendingConfirms})`,
+            children: <ProTable<ProfitConfirmRecord>
+              cardBordered
+              rowKey="id"
+              columns={confirmColumns}
+              dataSource={confirms}
+              loading={confirmQuery.isLoading}
+              search={{ labelWidth: 'auto', defaultCollapsed: false }}
+              pagination={{ pageSize: 10 }}
+              scroll={{ x: 1600 }}
+              onSubmit={(values) => setConfirmKeyword(String(values.keyword || ''))}
+              onReset={() => setConfirmKeyword('')}
+            />,
+          },
+          {
+            key: 'payouts',
+            label: '待打款',
+            children: <ProTable<ProfitConfirmRecord>
+              cardBordered
+              rowKey="id"
+              columns={payoutColumns}
+              dataSource={payoutConfirms}
+              loading={payoutQuery.isLoading}
+              search={{ labelWidth: 'auto', defaultCollapsed: false }}
+              pagination={{ pageSize: 10 }}
+              scroll={{ x: 1600 }}
+              onSubmit={(values) => setPayoutKeyword(String(values.keyword || ''))}
+              onReset={() => setPayoutKeyword('')}
+            />,
+          },
+          {
+            key: 'accounts',
+            label: '收款账户',
+            children: <ProTable<SettlementPayeeAccountRecord>
+              cardBordered
+              rowKey="id"
+              columns={accountColumns}
+              dataSource={accounts}
+              loading={accountQuery.isLoading}
+              search={{ labelWidth: 'auto', defaultCollapsed: false }}
+              pagination={{ pageSize: 10 }}
+              scroll={{ x: 1600 }}
+              toolBarRender={() => [<Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => openAccountEditor()}>新建收款账户</Button>]}
+              onSubmit={(values) => setAccountKeyword(String(values.keyword || ''))}
+              onReset={() => setAccountKeyword('')}
+            />,
+          },
+          {
+            key: 'chargebacks',
+            label: '回冲记录',
+            children: <ProTable<ProfitChargebackRecord>
+              cardBordered
+              rowKey="id"
+              columns={chargebackColumns}
+              dataSource={chargebacks}
+              loading={chargebackQuery.isLoading}
+              search={{ labelWidth: 'auto', defaultCollapsed: false }}
+              pagination={{ pageSize: 10 }}
+              scroll={{ x: 1500 }}
+              onSubmit={(values) => setChargebackKeyword(String(values.keyword || ''))}
+              onReset={() => setChargebackKeyword('')}
+            />,
           },
         ]}
       />
 
       <BusinessEditorModal
-        eyebrow="合伙关系配置"
-        title={editingRecord ? `编辑合伙关系 · ${editingRecord.partnerName}` : '新建合伙关系'}
-        subtitle="配置门店、合伙人、角色、分润比例、收款账户和生效周期，形成分润结算基础。"
-        meta={[editingRecord ? '编辑' : '新增', '多合伙人分润']}
-        open={modalVisible}
-        width={1080}
-        onCancel={closeModal}
-        onOk={handleSubmit}
-        okText="保存合伙关系"
+        eyebrow="合伙关系"
+        title={editingRelation ? `编辑 ${editingRelation.partnerSubjectName}` : '新建合伙关系'}
+        subtitle="保存后，新增或调整的比例统一进入审批，不直接覆盖生效比例。"
+        meta={[editingRelation ? '调整关系' : '新增关系', '收入比例分润']}
+        open={relationEditorOpen}
+        width={960}
+        okText={editingRelation ? '保存并提交比例审批' : '创建并提交比例审批'}
         confirmLoading={saveRelationMutation.isPending}
-      >
-        <Form form={form} layout="vertical" className="merchant-editor-form">
-          <div className="merchant-editor-shell">
-            <BusinessEditorSection icon={<TeamOutlined />} title="关系基础" desc="定义门店、合伙人和合伙人角色。">
-              <div className="merchant-editor-fields">
-                <Form.Item name="storeId" label="门店ID" rules={[{ required: true, message: '请输入门店ID' }]}><InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder="例如：100" /></Form.Item>
-                <Form.Item name="storeName" label="门店" rules={[{ required: true, message: '请输入门店' }]}><Input placeholder="例如：浦东旗舰店" /></Form.Item>
-                {editingRecord ? <Form.Item name="relationNo" label="关系编号"><Input disabled placeholder="关系编号不可编辑" /></Form.Item> : null}
-                <Form.Item name="partnerSubjectType" label="主体类型" rules={[{ required: true, message: '请选择主体类型' }]} initialValue="EXTERNAL"><Select options={partnerSubjectTypeOptions} placeholder="请选择主体类型" /></Form.Item>
-                <Form.Item name="partnerSubjectId" label="主体ID"><InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder="商户/门店主体ID" /></Form.Item>
-                <Form.Item name="partnerSubjectName" label="合伙主体名称" rules={[{ required: true, message: '请输入合伙主体名称' }]}><Input placeholder="例如：张三 / XX商户" /></Form.Item>
-                <Form.Item name="partnerRole" label="角色" rules={[{ required: true, message: '请选择角色' }]}><Select options={partnerRoleOptions} placeholder="请选择角色" /></Form.Item>
-                <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={profitRelationStatusOptions} placeholder="请选择状态" /></Form.Item>
-              </div>
-            </BusinessEditorSection>
-            <BusinessEditorSection icon={<AccountBookOutlined />} title="分润与账户" desc="配置分润比例和收款账户。">
-              <div className="merchant-editor-fields">
-                <Form.Item name="shareRatio" label="分润比例" rules={[{ required: true, message: '请输入分润比例' }]}><InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} placeholder="30" /></Form.Item>
-                <Form.Item name="distributionMode" label="分配模式" rules={[{ required: true, message: '请选择分配模式' }]} initialValue="REVENUE_RATIO"><Select options={distributionModeOptions} placeholder="请选择分配模式" /></Form.Item>
-                <Form.Item className="merchant-editor-field-span-all" name="settleAccount" label="收款账户" rules={[{ required: true, message: '请输入收款账户' }]}><Input placeholder="例如：招商银行 6222 **** 8888 / 张三" /></Form.Item>
-              </div>
-            </BusinessEditorSection>
-            <BusinessEditorSection icon={<CalendarOutlined />} title="生效周期" desc="配置关系生效开始和结束时间。">
-              <div className="merchant-editor-fields">
-                <Form.Item name="effectiveStart" label="生效开始"><DateField /></Form.Item>
-                <Form.Item name="effectiveEnd" label="生效结束"><DateField /></Form.Item>
-              </div>
-            </BusinessEditorSection>
-          </div>
-        </Form>
-      </BusinessEditorModal>
-
-      <BusinessDetailModal title="合伙关系详情" open={!!detail} onCancel={() => setDetail(null)} width={780}>
-        {detail ? (
-          <SchemaDetail record={detail} fields={profitRelationDetailFields} column={2} labelWidth={110} />
-        ) : null}
-      </BusinessDetailModal>
-
-      <BusinessDetailModal title="版本管理" open={versionVisible} onCancel={() => setVersionVisible(false)} width={720}>
-        <List
-          dataSource={versions}
-          renderItem={(item: ProfitRatioVersionRecord) => (
-            <List.Item>
-              <div style={{ width: '100%' }}>
-                <div style={{ fontWeight: 600 }}>{item.versionNo} / {item.relationNo}</div>
-                <div style={{ marginTop: 4, color: 'rgba(0,0,0,0.65)' }}>{`${item.beforeRatio}% -> ${item.afterRatio}% · ${item.auditStatus}`}</div>
-              </div>
-            </List.Item>
-          )}
-        />
-      </BusinessDetailModal>
-
-      <BusinessEditorModal
-        eyebrow="分润明细调整"
-        title={profitDetail ? `分润调整 · ${profitDetail.orderNo || profitDetail.serviceOrderNo || profitDetail.detailNo}` : '分润调整'}
-        subtitle="核对订单、门店、合伙人、分润基数和实分金额，确认后进入结算或回冲。"
-        meta={[profitDetail?.partnerName || '合伙人', profitDetail?.status || '待确认']}
-        open={!!profitDetail}
-        onCancel={() => {
-          setProfitDetail(null);
-          profitAdjustForm.resetFields();
-        }}
+        onCancel={() => { setRelationEditorOpen(false); setEditingRelation(null); relationForm.resetFields(); }}
         onOk={async () => {
-          if (!profitDetail) return;
-          const values = await profitAdjustForm.validateFields();
-          saveDetailMutation.mutate({
-            ...profitDetail,
+          const values = await relationForm.validateFields();
+          await saveRelationMutation.mutateAsync({
             ...values,
-            actualAmount: Number(values.actualAmount ?? profitDetail.actualAmount ?? profitDetail.shareAmount),
-            confirmedAt: fromDateTimePickerValue(values.confirmedAt as any) || values.confirmedAt,
-            status: String(values.status || 'APPROVED'),
-          } as ProfitShareDetailRecord);
-          setProfitDetail(null);
-          profitAdjustForm.resetFields();
+            distributionMode: 'REVENUE_RATIO',
+            effectiveStart: fromDatePickerValue(values.effectiveStart as never) || values.effectiveStart,
+            effectiveEnd: fromDatePickerValue(values.effectiveEnd as never) || values.effectiveEnd,
+          });
         }}
-        confirmLoading={saveDetailMutation.isPending}
-        width={980}
-        okText="确认调整"
       >
-        <Form form={profitAdjustForm} layout="vertical" className="merchant-editor-form">
+        <Form
+          form={relationForm}
+          layout="vertical"
+          className="merchant-editor-form"
+          onValuesChange={(changed) => {
+            if ('partnerSubjectType' in changed || 'partnerSubjectId' in changed || 'partnerSubjectName' in changed) {
+              relationForm.setFieldValue('settleAccountId', undefined);
+            }
+          }}
+        >
           <div className="merchant-editor-shell">
-            <BusinessEditorSection icon={<AccountBookOutlined />} title="订单与合伙人" desc="确认分润归属对象，避免错调门店或合伙人。">
+            <BusinessEditorSection icon={<TeamOutlined />} title="归属关系" desc="选择门店和合伙主体。门店名称由系统带出。">
               <div className="merchant-editor-fields">
-                <Form.Item name="orderNo" label="订单号"><Input disabled placeholder="订单号" /></Form.Item>
-                <Form.Item name="storeName" label="门店"><Input disabled placeholder="门店" /></Form.Item>
-                <Form.Item name="partnerName" label="合伙人"><Input disabled placeholder="合伙人" /></Form.Item>
-                <Form.Item name="settlementBillNo" label="结算单号"><Input placeholder="关联结算单号" /></Form.Item>
+                <Form.Item name="storeId" label="分润归属门店" rules={[{ required: true, message: '请选择门店' }]}>
+                  <Select showSearch optionFilterProp="label" loading={storeQuery.isLoading} options={stores.map((item) => ({ value: item.id, label: `${item.storeName} (${item.storeCode})` }))} placeholder="选择门店" />
+                </Form.Item>
+                <Form.Item name="partnerSubjectType" label="合伙主体类型" rules={[{ required: true, message: '请选择主体类型' }]}>
+                  <Select options={partnerSubjectTypeOptions} />
+                </Form.Item>
+                <Form.Item noStyle shouldUpdate={(previous, current) => previous.partnerSubjectType !== current.partnerSubjectType}>
+                  {({ getFieldValue }) => getFieldValue('partnerSubjectType') !== 'EXTERNAL' ? (
+                    <Form.Item name="partnerSubjectId" label="合伙主体ID" rules={[{ required: true, message: '请输入主体ID' }]}>
+                      <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+                    </Form.Item>
+                  ) : null}
+                </Form.Item>
+                <Form.Item name="partnerSubjectName" label="合伙主体名称" rules={[{ required: true, message: '请输入合伙主体名称' }]}><Input /></Form.Item>
+                <Form.Item name="partnerRole" label="合伙角色" rules={[{ required: true, message: '请选择合伙角色' }]}><Select options={partnerRoleOptions} /></Form.Item>
               </div>
             </BusinessEditorSection>
-            <BusinessEditorSection icon={<TeamOutlined />} title="金额调整" desc="录入分润基数、比例、实分金额和回冲金额。">
+            <BusinessEditorSection icon={<AccountBookOutlined />} title="比例与账户" desc="只支持收入比例分润，收款账户必须已验证并启用。">
               <div className="merchant-editor-fields">
-                <Form.Item name="baseAmount" label="分润基数"><InputNumber min={0} precision={2} style={{ width: '100%' }} disabled /></Form.Item>
-                <Form.Item name="shareRatio" label="分润比例"><InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} /></Form.Item>
-                <Form.Item name="actualAmount" label="实分金额" rules={[{ required: true, message: '请输入实分金额' }]}><InputNumber min={0} precision={2} style={{ width: '100%' }} /></Form.Item>
-                <Form.Item name="refundAmount" label="回冲金额"><InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="无回冲可不填" /></Form.Item>
-              </div>
-            </BusinessEditorSection>
-            <BusinessEditorSection icon={<CalendarOutlined />} title="处理闭环" desc="记录确认状态、确认人和调整说明。">
-              <div className="merchant-editor-fields">
-                <Form.Item name="status" label="处理状态" rules={[{ required: true, message: '请选择处理状态' }]}><Select options={auditStatusOptions} placeholder="请选择状态" /></Form.Item>
-                <Form.Item name="confirmer" label="确认人"><Input placeholder="例如：财务专员" /></Form.Item>
-                <Form.Item name="confirmNo" label="确认单号"><Input placeholder="例如：CONF-20260510-001" /></Form.Item>
-                <Form.Item name="confirmedAt" label="确认时间"><DateTimeField /></Form.Item>
-                <Form.Item className="merchant-editor-field-span-all" name="confirmRemark" label="确认说明"><Input.TextArea rows={3} placeholder="填写比例调整、异常回冲或结算备注" /></Form.Item>
+                <Form.Item name="shareRatio" label="收入分润比例" rules={[{ required: true, message: '请输入比例' }]}><InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} /></Form.Item>
+                <Form.Item name="settleAccountId" label="收款账户" rules={[{ required: true, message: '请选择已验证的收款账户' }]}>
+                  <Select showSearch optionFilterProp="label" options={verifiedAccountOptions} placeholder="选择已验证账户" />
+                </Form.Item>
+                <Form.Item name="effectiveStart" label="计划开始日期"><DateField /></Form.Item>
+                <Form.Item name="effectiveEnd" label="关系结束日期"><DateField /></Form.Item>
               </div>
             </BusinessEditorSection>
           </div>
@@ -449,47 +666,154 @@ const ProfitSharingManagement: React.FC = () => {
       </BusinessEditorModal>
 
       <BusinessEditorModal
-        eyebrow="分润回冲"
-        title={chargebackTarget ? `创建回冲 · ${chargebackTarget.partnerName || chargebackTarget.storeName || chargebackTarget.detailNo}` : '创建回冲'}
-        subtitle="录入回冲单号、退款单号和回冲金额，后台不再自动生成业务编号。"
-        meta={[chargebackTarget?.detailNo || '分润明细', chargebackTarget?.partnerName || '合伙人']}
-        open={!!chargebackTarget}
-        onCancel={() => {
-          setChargebackTarget(null);
-          chargebackForm.resetFields();
+        eyebrow="收款账户"
+        title={editingAccount ? `编辑 ${editingAccount.accountName}` : '新建收款账户'}
+        subtitle="账户验证通过后，才能用于合伙关系和打款。"
+        meta={[editingAccount ? '编辑账户' : '新增账户', '结构化账户']}
+        open={accountEditorOpen}
+        width={900}
+        okText="保存账户"
+        confirmLoading={saveAccountMutation.isPending}
+        onCancel={() => { setAccountEditorOpen(false); setEditingAccount(null); accountForm.resetFields(); }}
+        onOk={async () => saveAccountMutation.mutateAsync(await accountForm.validateFields())}
+      >
+        <Form form={accountForm} layout="vertical" className="merchant-editor-form">
+          <div className="merchant-editor-shell">
+            <BusinessEditorSection icon={<BankOutlined />} title="账户信息" desc="明确收款主体、户名和账户标识。">
+              <div className="merchant-editor-fields">
+                <Form.Item name="subjectType" label="主体类型" rules={[{ required: true, message: '请选择主体类型' }]}><Select options={partnerSubjectTypeOptions} /></Form.Item>
+                <Form.Item
+                  name="subjectId"
+                  label="主体ID"
+                  dependencies={['subjectType']}
+                  rules={[({ getFieldValue }) => ({
+                    validator: (_, value) => getFieldValue('subjectType') === 'EXTERNAL' || value
+                      ? Promise.resolve()
+                      : Promise.reject(new Error('请输入主体ID')),
+                  })]}
+                >
+                  <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+                </Form.Item>
+                <Form.Item name="subjectName" label="主体名称" rules={[{ required: true, message: '请输入主体名称' }]}><Input /></Form.Item>
+                <Form.Item name="accountType" label="账户类型" rules={[{ required: true, message: '请选择账户类型' }]}><Select options={accountTypeOptions} /></Form.Item>
+                <Form.Item name="accountName" label="收款户名" rules={[{ required: true, message: '请输入收款户名' }]}><Input /></Form.Item>
+                <Form.Item name="bankName" label="开户行"><Input /></Form.Item>
+                <Form.Item name="accountReference" label="账户标识" rules={[{ required: true, message: '请输入卡号或账号' }]}><Input /></Form.Item>
+                <Form.Item name="paymentChannel" label="打款渠道"><Input placeholder="例如：线下银行转账" /></Form.Item>
+                <Form.Item name="verificationStatus" label="验证状态" rules={[{ required: true, message: '请选择验证状态' }]}><Select options={accountVerificationOptions} /></Form.Item>
+                <Form.Item name="status" label="账户状态" rules={[{ required: true, message: '请选择账户状态' }]}><Select options={accountStatusOptions} /></Form.Item>
+              </div>
+            </BusinessEditorSection>
+          </div>
+        </Form>
+      </BusinessEditorModal>
+
+      <BusinessEditorModal
+        eyebrow="审批处理"
+        title={auditTarget?.title || '审批处理'}
+        subtitle="审批结果会决定比例是否生效，或确认单是否进入待打款。"
+        meta={[auditTarget?.kind.includes('reject') ? '驳回' : '通过']}
+        open={!!auditTarget}
+        width={680}
+        okText={auditTarget?.kind.includes('reject') ? '确认驳回' : '确认通过'}
+        confirmLoading={auditMutation.isPending}
+        onCancel={() => { setAuditTarget(null); auditForm.resetFields(); }}
+        onOk={async () => {
+          if (!auditTarget) return;
+          const values = await auditForm.validateFields();
+          await auditMutation.mutateAsync({ target: auditTarget, values });
         }}
+      >
+        <Form form={auditForm} layout="vertical">
+          <Form.Item name="operator" label="审批人" rules={[{ required: true, message: '请输入审批人' }]}><Input /></Form.Item>
+          <Form.Item name="remark" label="审批意见" rules={auditTarget?.kind.includes('reject') ? [{ required: true, message: '请输入驳回原因' }] : undefined}><Input.TextArea rows={4} /></Form.Item>
+        </Form>
+      </BusinessEditorModal>
+
+      <BusinessEditorModal
+        eyebrow="线下打款"
+        title={payoutTarget ? `登记打款 ${payoutTarget.confirmNo}` : '登记打款'}
+        subtitle="登记银行或第三方渠道的真实流水，确认金额不会在此修改。"
+        meta={[
+          payoutTarget?.partnerSubjectName || '合伙主体',
+          formatAmount(Number(payoutTarget?.confirmAmount || 0) - Number(payoutTarget?.chargebackAmount || 0)),
+        ]}
+        open={!!payoutTarget}
+        width={720}
+        okText="确认已打款"
+        confirmLoading={payoutMutation.isPending}
+        onCancel={() => { setPayoutTarget(null); payoutForm.resetFields(); }}
+        onOk={async () => {
+          if (!payoutTarget) return;
+          await payoutMutation.mutateAsync({ id: payoutTarget.id, values: await payoutForm.validateFields() });
+        }}
+      >
+        <Form form={payoutForm} layout="vertical">
+          <Form.Item name="paidAmount" label="实付金额" rules={[{ required: true, message: '请输入实付金额' }]}><InputNumber disabled precision={2} style={{ width: '100%' }} /></Form.Item>
+          <Form.Item name="payoutReference" label="打款流水号" rules={[{ required: true, message: '请输入真实打款流水号' }]}><Input /></Form.Item>
+          <Form.Item name="payoutVoucherUrl" label="打款凭证地址"><Input /></Form.Item>
+          <Form.Item name="remark" label="打款备注"><Input.TextArea rows={3} /></Form.Item>
+        </Form>
+      </BusinessEditorModal>
+
+      <BusinessEditorModal
+        eyebrow="退款回冲"
+        title={chargebackTarget ? `创建回冲 ${chargebackTarget.confirmNo}` : '创建回冲'}
+        subtitle="未打款确认单直接冲减应付；已打款确认单进入待追缴记录。"
+        meta={[chargebackTarget?.partnerSubjectName || '合伙主体']}
+        open={!!chargebackTarget}
+        width={760}
+        okText="确认创建回冲"
+        confirmLoading={chargebackMutation.isPending}
+        onCancel={() => { setChargebackTarget(null); chargebackForm.resetFields(); }}
         onOk={async () => {
           if (!chargebackTarget) return;
-          const values = await chargebackForm.validateFields();
-          await chargebackMutation.mutateAsync({
-            ...values,
-            detailNo: values.detailNo || chargebackTarget.detailNo,
-            partnerName: values.partnerName || chargebackTarget.partnerName,
-            chargebackAmount: Number(values.chargebackAmount || 0),
-            status: values.status || 'PENDING',
-          });
-          setChargebackTarget(null);
-          chargebackForm.resetFields();
+          await chargebackMutation.mutateAsync({ confirmId: chargebackTarget.id, values: await chargebackForm.validateFields() });
         }}
-        confirmLoading={chargebackMutation.isPending}
-        width={860}
-        okText="创建回冲"
       >
-        <Form form={chargebackForm} layout="vertical" className="merchant-editor-form">
-          <div className="merchant-editor-shell">
-            <BusinessEditorSection icon={<AccountBookOutlined />} title="回冲信息" desc="回冲单号由业务显式录入，避免系统自动生成。">
-              <div className="merchant-editor-fields">
-                <Form.Item name="chargebackNo" label="回冲单号" rules={[{ required: true, message: '请输入回冲单号' }]}><Input placeholder="例如：PCB-20260628-001" /></Form.Item>
-                <Form.Item name="detailNo" label="分润明细"><Input disabled placeholder="分润明细号" /></Form.Item>
-                <Form.Item name="refundNo" label="退款单号"><Input placeholder="关联退款单号" /></Form.Item>
-                <Form.Item name="partnerName" label="合伙人"><Input disabled placeholder="合伙人" /></Form.Item>
-                <Form.Item name="chargebackAmount" label="回冲金额" rules={[{ required: true, message: '请输入回冲金额' }]}><InputNumber min={0} precision={2} style={{ width: '100%' }} /></Form.Item>
-                <Form.Item name="status" label="回冲状态" rules={[{ required: true, message: '请选择回冲状态' }]}><Select options={auditStatusOptions} /></Form.Item>
-              </div>
-            </BusinessEditorSection>
-          </div>
+        <Form form={chargebackForm} layout="vertical">
+          <Form.Item name="profitShareDetailId" label="原分润明细" rules={[{ required: true, message: '请选择原分润明细' }]}>
+            <Select
+              loading={chargebackDetailQuery.isLoading}
+              options={chargebackDetails.map((item) => ({
+                value: item.id,
+                label: `${item.detailNo} / ${item.serviceOrderNo || '-'} / 可回冲 ${formatAmount(Number(item.shareAmount || 0) - Number(item.refundAmount || 0))}`,
+              }))}
+            />
+          </Form.Item>
+          <Form.Item name="refundNo" label="关联退款单号" rules={[{ required: true, message: '请输入退款单号' }]}><Input /></Form.Item>
+          <Form.Item name="chargebackAmount" label="回冲金额" rules={[{ required: true, message: '请输入回冲金额' }]}>
+            <InputNumber
+              min={0.01}
+              max={selectedChargebackDetail ? Number(selectedChargebackDetail.shareAmount || 0) - Number(selectedChargebackDetail.refundAmount || 0) : undefined}
+              precision={2}
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
+          <Form.Item name="reason" label="回冲原因" rules={[{ required: true, message: '请输入回冲原因' }]}><Input.TextArea rows={3} /></Form.Item>
         </Form>
       </BusinessEditorModal>
+
+      <BusinessDetailModal title={detailTarget ? `分润明细 ${detailTarget.confirmNo}` : '分润明细'} open={!!detailTarget} onCancel={() => setDetailTarget(null)} width={980}>
+        <ProTable<ProfitShareDetailRecord>
+          rowKey="id"
+          search={false}
+          options={false}
+          loading={confirmDetailQuery.isLoading}
+          pagination={false}
+          dataSource={confirmDetails}
+          columns={[
+            { title: '明细号', dataIndex: 'detailNo', width: 180 },
+            { title: '服务订单', dataIndex: 'serviceOrderNo', width: 180 },
+            { title: '门店', dataIndex: 'storeName', width: 160 },
+            { title: '分润基数', dataIndex: 'baseAmount', width: 120, render: (_, record) => formatAmount(record.baseAmount) },
+            { title: '比例', dataIndex: 'shareRatio', width: 90, render: (_, record) => `${Number(record.shareRatio || 0)}%` },
+            { title: '应分金额', dataIndex: 'shareAmount', width: 120, render: (_, record) => formatAmount(record.shareAmount) },
+            { title: '状态', dataIndex: 'status', width: 100 },
+          ]}
+          scroll={{ x: 1000 }}
+        />
+      </BusinessDetailModal>
     </div>
   );
 };

@@ -124,7 +124,7 @@ const BasicLayout: React.FC = () => {
       icon: <AccountBookOutlined />,
       children: [
         { key: '/settlement', path: '/settlement', name: '结算中心', icon: <AccountBookOutlined /> },
-        { key: '/settlement/rules', path: '/settlement/rules', name: '清分规则', icon: <CalculatorOutlined /> },
+        { key: '/settlement/clearing-plans', path: '/settlement/clearing-plans', name: '跨店结算方案', icon: <CalculatorOutlined /> },
         { key: '/settlement/profit-sharing', path: '/settlement/profit-sharing', name: '合伙人分润', icon: <PercentageOutlined /> },
       ],
     },
