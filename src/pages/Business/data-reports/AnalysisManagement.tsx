@@ -1,272 +1,124 @@
-import React, { useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Table, Tabs, message } from 'antd';
-import { BarChartOutlined, DashboardOutlined, LineChartOutlined, TeamOutlined } from '@ant-design/icons';
-import { analysisSnapshotTypeOptions, reportDimensionOptions } from '@/constants/businessCatalog';
+import React, { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { BarChartOutlined } from '@ant-design/icons';
+import { Alert, Card, Col, Row, Table, Tabs } from 'antd';
 import PageBanner from '@/components/PageBanner';
-import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
-import BusinessEditorModal, { BusinessEditorSection } from '@/components/BusinessEditorModal';
-import BusinessDetailModal from '@/components/BusinessDetailModal';
-import { buildValueEnum, formatAmount, renderStatusTag, formatEnumText } from '@/pages/Business/shared';
-import api, { type AnalysisSnapshotRecord } from '@/services/backendService';
-import { DateField, fromDatePickerValue } from '@/utils/formControls';
+import { formatAmount, formatDateTime, formatEnumText } from '@/pages/Business/shared';
+import api from '@/services/backendService';
+import type {
+  DeviceRecord,
+  MarketingParticipationRecord,
+  PlatformDashboardCardRecord,
+  PlatformDashboardChartPointRecord,
+  PlatformDashboardRankItemRecord,
+} from '@/services/backendService';
 
-interface DerivedStoreRecord {
+interface MarketingAnalysisRecord {
   key: string;
-  storeName: string;
-  orders: number;
-  revenue: number;
-  utilization: number;
-  hotService: string;
-  owner: string;
-  refundRate: string;
-  faultCount: number;
+  activityCode: string;
+  activityName: string;
+  participationCount: number;
+  qualifiedCount: number;
+  pendingCount: number;
+  conversionRate: number;
+  latestJoinedAt?: string;
 }
 
-interface DerivedMarketingRecord {
-  key: string;
-  name: string;
-  exposure: number;
-  click: number;
-  conversion: number;
-  roi: string;
-  owner: string;
-}
+const abnormalDeviceStatuses = new Set(['OFFLINE', 'FAULT', 'MAINTENANCE', 'ABNORMAL', 'DISABLED']);
 
-const snapshotTypeMap = buildValueEnum(analysisSnapshotTypeOptions);
-const dimensionMap = buildValueEnum(reportDimensionOptions);
-const metricSceneOptions = [
-  { value: 'DAILY_REVIEW', label: '每日经营复盘' },
-  { value: 'STORE_RANKING', label: '门店排行分析' },
-  { value: 'MARKETING_REVIEW', label: '营销效果复盘' },
-  { value: 'DEVICE_ALERT', label: '设备异常跟踪' },
-];
-const compareBasisOptions = [
-  { value: 'YESTERDAY', label: '对比昨日' },
-  { value: 'LAST_WEEK', label: '对比上周同日' },
-  { value: 'MANUAL', label: '人工录入对比值' },
-];
-
-const analysisDetailFields: Record<'snapshot' | 'store' | 'marketing', DetailField<any>[]> = {
-  snapshot: [
-    { name: 'snapshotDate', label: '快照日期' },
-    { name: 'snapshotHour', label: '小时' },
-    { name: 'snapshotType', label: '快照类型' },
-    { name: 'dimension', label: '维度' },
-    { name: 'scopeId', label: '范围ID' },
-    { name: 'dimensionName', label: '维度名称' },
-    { name: 'metricCode', label: '指标编码' },
-    { name: 'metricValue', label: '指标值' },
-    { name: 'compareValue', label: '对比值' },
-    { name: 'owner', label: '负责人' },
-    { name: 'metricScene', label: '使用场景' },
-    { name: 'compareBasis', label: '对比口径' },
-    { name: 'supplement', label: '补充说明' },
-    { name: 'orderCount', label: '订单数' },
-    { name: 'incomeAmount', label: '收入', render: (value) => formatAmount(value) },
-    { name: 'refundAmount', label: '退款', render: (value) => formatAmount(value) },
-    { name: 'utilizationRate', label: '点位利用率', render: (value) => value === undefined || value === null ? '-' : `${value}%` },
-    { name: 'hotServiceName', label: '热门服务' },
-    { name: 'refundRate', label: '退款率', render: (value) => value === undefined || value === null ? '-' : `${value}%` },
-    { name: 'exposureCount', label: '曝光' },
-    { name: 'clickCount', label: '点击' },
-    { name: 'conversionCount', label: '转化' },
-    { name: 'activeDeviceCount', label: '活跃设备' },
-    { name: 'faultDeviceCount', label: '故障设备' },
-    { name: 'createdAt', label: '生成时间' },
-  ],
-  store: [
-    { name: 'storeName', label: '门店' },
-    { name: 'owner', label: '负责人' },
-    { name: 'orders', label: '订单数' },
-    { name: 'revenue', label: '营收', render: (value) => formatAmount(value) },
-    { name: 'utilization', label: '点位利用率', render: (value) => `${value ?? 0}%` },
-    { name: 'refundRate', label: '退款率' },
-    { name: 'faultCount', label: '故障数' },
-    { name: 'hotService', label: '热门服务' },
-  ],
-  marketing: [
-    { name: 'name', label: '活动' },
-    { name: 'owner', label: '负责人' },
-    { name: 'exposure', label: '曝光' },
-    { name: 'click', label: '点击' },
-    { name: 'conversion', label: '转化' },
-    { name: 'roi', label: 'ROI' },
-  ],
+const aggregateMarketing = (records: MarketingParticipationRecord[]): MarketingAnalysisRecord[] => {
+  const grouped = new Map<string, MarketingAnalysisRecord>();
+  records.forEach((item) => {
+    const key = item.activityCode || item.activityName || `activity-${item.id}`;
+    const current = grouped.get(key) || {
+      key,
+      activityCode: item.activityCode || '-',
+      activityName: item.activityName || item.activityCode || '未命名活动',
+      participationCount: 0,
+      qualifiedCount: 0,
+      pendingCount: 0,
+      conversionRate: 0,
+      latestJoinedAt: undefined,
+    };
+    current.participationCount += 1;
+    if (item.qualifyStatus === 'QUALIFIED') current.qualifiedCount += 1;
+    if (item.qualifyStatus === 'PENDING') current.pendingCount += 1;
+    if (item.joinedAt && (!current.latestJoinedAt || item.joinedAt > current.latestJoinedAt)) current.latestJoinedAt = item.joinedAt;
+    grouped.set(key, current);
+  });
+  return Array.from(grouped.values())
+    .map((item) => ({
+      ...item,
+      conversionRate: item.participationCount ? Number((item.qualifiedCount * 100 / item.participationCount).toFixed(2)) : 0,
+    }))
+    .sort((a, b) => b.participationCount - a.participationCount);
 };
 
 const AnalysisManagement: React.FC = () => {
-  const queryClient = useQueryClient();
-  const [detail, setDetail] = useState<AnalysisSnapshotRecord | DerivedStoreRecord | DerivedMarketingRecord | null>(null);
-  const [metricVisible, setMetricVisible] = useState(false);
-  const [keywordInput, setKeywordInput] = useState('');
-  const [keyword, setKeyword] = useState('');
-  const [snapshotTypeFilter, setSnapshotTypeFilter] = useState<string>();
-  const [dimensionFilter, setDimensionFilter] = useState<string>();
-  const [metricForm] = Form.useForm<AnalysisSnapshotRecord & { owner?: string; metricScene?: string; compareBasis?: string; supplement?: string }>();
-
-  const snapshotQuery = useQuery({
-    queryKey: ['analysisSnapshots', keyword, snapshotTypeFilter, dimensionFilter],
-    queryFn: async () => (await api.analysis.snapshots.page({
-      pageNum: 1,
-      pageSize: 200,
-      keyword: keyword || undefined,
-      snapshotType: snapshotTypeFilter,
-      dimension: dimensionFilter,
-    })).data,
+  const dashboardQuery = useQuery({
+    queryKey: ['operatingAnalysisDashboard'],
+    queryFn: async () => (await api.platformDashboard.overview()).data,
   });
-  const saveMetricMutation = useMutation({
-    mutationFn: (values: Record<string, unknown>) => api.analysis.snapshots.add({
-      snapshotDate: values.snapshotDate,
-      snapshotType: values.snapshotType || 'PLATFORM_DAILY',
-      dimension: values.dimension || 'PLATFORM',
-      scopeId: values.scopeId || '0',
-      dimensionName: values.dimensionName,
-      metricCode: values.metricCode,
-      metricValue: Number(values.metricValue || 0),
-      compareValue: Number(values.compareValue || 0),
-      owner: values.owner,
-      metricScene: values.metricScene,
-      compareBasis: values.compareBasis,
-      supplement: values.supplement,
-      utilizationRate: Number(values.utilizationRate || 0),
-      hotServiceName: values.hotServiceName,
-      refundRate: Number(values.refundRate || 0),
-      exposureCount: Number(values.exposureCount || 0),
-      clickCount: Number(values.clickCount || 0),
-      conversionCount: Number(values.conversionCount || 0),
-      orderCount: Number(values.orderCount || 0),
-      incomeAmount: Number(values.incomeAmount || 0),
-      refundAmount: Number(values.refundAmount || 0),
-      activeDeviceCount: Number(values.activeDeviceCount || 0),
-      faultDeviceCount: Number(values.faultDeviceCount || 0),
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['analysisSnapshots'] });
-      message.success('指标口径已保存');
-    },
+  const participationQuery = useQuery({
+    queryKey: ['operatingAnalysisParticipations'],
+    queryFn: async () => (await api.marketing.participations.page({ pageNum: 1, pageSize: 1000 })).data,
+  });
+  const deviceQuery = useQuery({
+    queryKey: ['operatingAnalysisDevices'],
+    queryFn: async () => (await api.device.page({ pageNum: 1, pageSize: 1000 })).data,
   });
 
-  const snapshots = (snapshotQuery.data?.records || []).map((item) => ({ ...item, key: String(item.id) }));
-  const platform = snapshots.find((item) => item.dimension === 'PLATFORM') || snapshots[0];
-  const storeRanking = useMemo<DerivedStoreRecord[]>(() => snapshots.filter((item) => item.dimension === 'STORE').map((item) => {
-    return {
-      key: String(item.id),
-      storeName: item.dimensionName,
-      orders: Number(item.orderCount || item.metricValue || 0),
-      revenue: Number(item.incomeAmount || 0),
-      utilization: Number(item.utilizationRate || 0),
-      hotService: item.hotServiceName || '-',
-      owner: item.owner || '-',
-      refundRate: item.refundRate === undefined || item.refundRate === null ? '-' : `${item.refundRate}%`,
-      faultCount: Number(item.faultDeviceCount || 0),
-    };
-  }), [snapshots]);
-  const marketingMetrics = useMemo<DerivedMarketingRecord[]>(() => snapshots.filter((item) => item.dimension === 'ACTIVITY').map((item) => {
-    return {
-      key: String(item.id),
-      name: item.dimensionName,
-      exposure: Number(item.exposureCount || 0),
-      click: Number(item.clickCount || 0),
-      conversion: Number(item.conversionCount || item.orderCount || 0),
-      roi: String(item.metricValue || 0),
-      owner: item.owner || '-',
-    };
-  }), [snapshots]);
-  const faultSnapshots = snapshots.filter((item) => Number(item.faultDeviceCount || 0) > 0);
+  const dashboard = dashboardQuery.data;
+  const cards = (dashboard?.cards || []).filter((item) => ['merchant', 'order', 'revenue', 'alarm'].includes(item.key));
+  const trend = (dashboard?.trend || []) as PlatformDashboardChartPointRecord[];
+  const storeRanking = (dashboard?.storeRevenueRank || []) as PlatformDashboardRankItemRecord[];
+  const marketing = useMemo(() => aggregateMarketing(participationQuery.data?.records || []), [participationQuery.data]);
+  const abnormalDevices = useMemo(
+    () => (deviceQuery.data?.records || []).filter((item) => abnormalDeviceStatuses.has(String(item.status || '').toUpperCase())),
+    [deviceQuery.data],
+  );
+  const hasError = dashboardQuery.isError || participationQuery.isError || deviceQuery.isError;
 
-  const platformCards = [
-    { title: '今日订单', value: `${Number(platform?.orderCount || 0)} 单`, helper: `对比 ${platform?.compareValue ?? 0}` },
-    { title: '今日营收', value: formatAmount(platform?.incomeAmount || 0), helper: `退款冲减 ${formatAmount(platform?.refundAmount || 0)}` },
-    { title: '活跃设备', value: `${Number(platform?.activeDeviceCount || 0)} 台`, helper: `故障设备 ${Number(platform?.faultDeviceCount || 0)} 台` },
-    { title: '分析快照', value: `${snapshots.length} 条`, helper: '已接入 analysis_snapshot' },
-  ];
-
-  const handleMetricSubmit = async () => {
-    const values = await metricForm.validateFields();
-    await saveMetricMutation.mutateAsync({
-      ...values,
-      snapshotDate: fromDatePickerValue(values.snapshotDate as any) || values.snapshotDate,
-    } as unknown as Record<string, unknown>);
-    setMetricVisible(false);
-    metricForm.resetFields();
-  };
+  const cardValue = (item: PlatformDashboardCardRecord) => item.key === 'revenue'
+    ? formatAmount(item.value)
+    : `${item.value}${item.suffix ? ` ${item.suffix}` : ''}`;
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="经营分析" subtitle="查看平台、门店、营销和设备维度的经营分析，并支持下钻查看异常与指标口径。" icon={<BarChartOutlined />} />
+      <PageBanner title="经营分析" subtitle="订单、营收、门店、营销参与和设备异常均来自实时业务数据。" icon={<BarChartOutlined />} />
+      {hasError ? <Alert style={{ marginBottom: 16 }} type="warning" showIcon message="部分经营数据加载失败，请刷新后重试" /> : null}
 
       <Row gutter={[16, 16]}>
-        {platformCards.map((item) => (
-          <Col xs={24} sm={12} xl={6} key={item.title}>
-            <Card>
+        {cards.map((item) => (
+          <Col xs={24} sm={12} xl={6} key={item.key}>
+            <Card loading={dashboardQuery.isLoading}>
               <div style={{ color: 'rgba(0, 0, 0, 0.45)', fontSize: 14 }}>{item.title}</div>
-              <div style={{ marginTop: 8, fontSize: 28, fontWeight: 600 }}>{item.value}</div>
-              <div style={{ marginTop: 8, color: '#1677ff' }}>{item.helper}</div>
+              <div style={{ marginTop: 8, fontSize: 26, fontWeight: 600 }}>{cardValue(item)}</div>
+              <div style={{ marginTop: 8, color: 'rgba(0, 0, 0, 0.45)' }}>累计业务数据</div>
             </Card>
           </Col>
         ))}
       </Row>
 
       <Tabs
-        style={{ marginTop: 8 }}
+        style={{ marginTop: 16 }}
         items={[
           {
-            key: 'snapshot',
-            label: '经营快照',
+            key: 'trend',
+            label: '近14日趋势',
             children: (
-              <Card extra={<Button onClick={() => setMetricVisible(true)}>指标口径</Button>}>
-                <Space wrap style={{ marginBottom: 16 }}>
-                  <Input.Search
-                    allowClear
-                    placeholder="维度名称 / 指标编码 / 负责人"
-                    value={keywordInput}
-                    onChange={(event) => setKeywordInput(event.target.value)}
-                    onSearch={(value) => setKeyword(value.trim())}
-                    style={{ width: 260 }}
-                  />
-                  <Select
-                    allowClear
-                    placeholder="快照类型"
-                    options={analysisSnapshotTypeOptions}
-                    value={snapshotTypeFilter}
-                    onChange={setSnapshotTypeFilter}
-                    style={{ width: 180 }}
-                  />
-                  <Select
-                    allowClear
-                    placeholder="分析维度"
-                    options={reportDimensionOptions}
-                    value={dimensionFilter}
-                    onChange={setDimensionFilter}
-                    style={{ width: 160 }}
-                  />
-                  <Button onClick={() => { setKeywordInput(''); setKeyword(''); setSnapshotTypeFilter(undefined); setDimensionFilter(undefined); }}>重置</Button>
-                </Space>
-                <Table<AnalysisSnapshotRecord>
-                  loading={snapshotQuery.isLoading}
-                  pagination={{ pageSize: 8 }}
-                  rowKey="id"
-                  dataSource={snapshots}
+              <Card>
+                <Table<PlatformDashboardChartPointRecord>
+                  rowKey="date"
+                  loading={dashboardQuery.isLoading}
+                  dataSource={trend}
+                  pagination={false}
                   columns={[
-                    { title: '快照日期', dataIndex: 'snapshotDate', width: 120 },
-                    { title: '小时', dataIndex: 'snapshotHour', width: 80, render: (value?: number) => value ?? '-' },
-                    { title: '快照类型', dataIndex: 'snapshotType', width: 150, render: (value: string) => renderStatusTag(value, snapshotTypeMap) },
-                    { title: '维度', dataIndex: 'dimension', width: 120, render: (value: string) => renderStatusTag(value, dimensionMap) },
-                    { title: '范围ID', dataIndex: 'scopeId', width: 120 },
-                    { title: '维度名称', dataIndex: 'dimensionName' },
-                    { title: '指标编码', dataIndex: 'metricCode', width: 150 },
-                    { title: '指标值', dataIndex: 'metricValue', width: 110 },
-                    { title: '对比值', dataIndex: 'compareValue', width: 110 },
-                    { title: '订单数', dataIndex: 'orderCount', width: 100 },
-                    { title: '收入', dataIndex: 'incomeAmount', width: 120, render: (value: number | string) => formatAmount(value) },
-                    { title: '退款', dataIndex: 'refundAmount', width: 120, render: (value: number | string) => formatAmount(value) },
-                    { title: '活跃设备', dataIndex: 'activeDeviceCount', width: 100 },
-                    { title: '故障设备', dataIndex: 'faultDeviceCount', width: 100 },
-                    { title: '生成时间', dataIndex: 'createdAt', width: 180 },
-                    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
+                    { title: '日期', dataIndex: 'date', width: 140 },
+                    { title: '订单数', dataIndex: 'orders', width: 140, render: (value) => `${Number(value || 0)} 单` },
+                    { title: '实收金额', dataIndex: 'revenue', width: 160, render: (value) => formatAmount(value) },
+                    { title: '新增用户', dataIndex: 'users', width: 140, render: (value) => `${Number(value || 0)} 人` },
                   ]}
-                  scroll={{ x: 1700 }}
                 />
               </Card>
             ),
@@ -276,20 +128,16 @@ const AnalysisManagement: React.FC = () => {
             label: '门店排行',
             children: (
               <Card>
-                <Table<DerivedStoreRecord>
-                  pagination={{ pageSize: 8 }}
-                  rowKey="key"
+                <Table<PlatformDashboardRankItemRecord>
+                  rowKey="name"
+                  loading={dashboardQuery.isLoading}
                   dataSource={storeRanking}
+                  pagination={{ pageSize: 10 }}
                   columns={[
-                    { title: '门店', dataIndex: 'storeName' },
-                    { title: '负责人', dataIndex: 'owner', width: 120 },
-                    { title: '订单数', dataIndex: 'orders', width: 100 },
-                    { title: '营收', dataIndex: 'revenue', width: 120, render: (value: number) => formatAmount(value) },
-                    { title: '点位利用率', dataIndex: 'utilization', width: 120, render: (value: number) => `${value}%` },
-                    { title: '退款率', dataIndex: 'refundRate', width: 100 },
-                    { title: '故障数', dataIndex: 'faultCount', width: 100 },
-                    { title: '热门服务', dataIndex: 'hotService', width: 180 },
-                    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
+                    { title: '门店', dataIndex: 'name' },
+                    { title: '订单数', dataIndex: 'orders', width: 140, render: (value) => `${Number(value || 0)} 单` },
+                    { title: '实收金额', dataIndex: 'revenue', width: 160, render: (value) => formatAmount(value) },
+                    { title: '门店状态', dataIndex: 'status', width: 140, render: (value) => formatEnumText(value, 'storeStatus', '门店状态') },
                   ]}
                 />
               </Card>
@@ -297,114 +145,53 @@ const AnalysisManagement: React.FC = () => {
           },
           {
             key: 'marketing',
-            label: '营销效果',
+            label: '营销参与',
             children: (
               <Card>
-                <Table<DerivedMarketingRecord>
-                  pagination={{ pageSize: 8 }}
+                <Table<MarketingAnalysisRecord>
                   rowKey="key"
-                  dataSource={marketingMetrics}
+                  loading={participationQuery.isLoading}
+                  dataSource={marketing}
+                  pagination={{ pageSize: 10 }}
                   columns={[
-                    { title: '活动', dataIndex: 'name' },
-                    { title: '负责人', dataIndex: 'owner', width: 140 },
-                    { title: '曝光', dataIndex: 'exposure', width: 90 },
-                    { title: '点击', dataIndex: 'click', width: 90 },
-                    { title: '转化', dataIndex: 'conversion', width: 90 },
-                    { title: 'ROI', dataIndex: 'roi', width: 90 },
-                    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
+                    { title: '活动', dataIndex: 'activityName' },
+                    { title: '活动编码', dataIndex: 'activityCode', width: 170 },
+                    { title: '参与人数', dataIndex: 'participationCount', width: 120 },
+                    { title: '已达标', dataIndex: 'qualifiedCount', width: 110 },
+                    { title: '待判定', dataIndex: 'pendingCount', width: 110 },
+                    { title: '达标率', dataIndex: 'conversionRate', width: 110, render: (value) => `${Number(value || 0)}%` },
+                    { title: '最近参与', dataIndex: 'latestJoinedAt', width: 180, render: (value) => formatDateTime(value) },
                   ]}
                 />
               </Card>
             ),
           },
           {
-            key: 'fault',
-            label: '设备异常',
+            key: 'device',
+            label: `设备异常 (${abnormalDevices.length})`,
             children: (
               <Card>
-                <Table<AnalysisSnapshotRecord>
-                  pagination={{ pageSize: 8 }}
+                <Table<DeviceRecord>
                   rowKey="id"
-                  dataSource={faultSnapshots}
+                  loading={deviceQuery.isLoading}
+                  dataSource={abnormalDevices}
+                  pagination={{ pageSize: 10 }}
                   columns={[
-                    { title: '维度名称', dataIndex: 'dimensionName' },
-                    { title: '维度', dataIndex: 'dimension', width: 120 , render: (value) => formatEnumText(value, 'dimension', '维度') },
-                    { title: '范围ID', dataIndex: 'scopeId', width: 120 },
-                    { title: '故障设备', dataIndex: 'faultDeviceCount', width: 120 },
-                    { title: '活跃设备', dataIndex: 'activeDeviceCount', width: 120 },
-                    { title: '快照日期', dataIndex: 'snapshotDate', width: 140 },
-                    { title: '操作', width: 100, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
+                    { title: '设备', dataIndex: 'deviceName' },
+                    { title: '设备编号', dataIndex: 'deviceCode', width: 170 },
+                    { title: '门店', dataIndex: 'storeName', width: 180, render: (value) => value || '-' },
+                    { title: '工位', dataIndex: 'pointCode', width: 120, render: (value) => value || '-' },
+                    { title: '状态', dataIndex: 'status', width: 120, render: (value) => formatEnumText(value, 'deviceStatus', '设备状态') },
+                    { title: '最后心跳', dataIndex: 'lastHeartbeatAt', width: 180, render: (value) => formatDateTime(value) },
+                    { title: '厂商', dataIndex: 'vendorName', width: 140, render: (value) => value || '-' },
                   ]}
+                  scroll={{ x: 1120 }}
                 />
               </Card>
             ),
           },
         ]}
       />
-
-      <BusinessEditorModal
-        eyebrow="指标口径配置"
-        title="新增经营分析快照"
-        subtitle="把指标口径拆成日期、维度、数值、金额、设备、场景和转化字段，运营无需维护 JSON。"
-        meta={['经营分析', '指标口径']}
-        open={metricVisible}
-        onOk={handleMetricSubmit}
-        confirmLoading={saveMetricMutation.isPending}
-        onCancel={() => { setMetricVisible(false); metricForm.resetFields(); }}
-        width={1120}
-        okText="保存指标口径"
-      >
-        <Form form={metricForm} layout="vertical" className="merchant-editor-form">
-          <div className="merchant-editor-shell">
-            <BusinessEditorSection icon={<DashboardOutlined />} title="快照基础" desc="定义快照日期、类型、维度和指标编码。">
-              <div className="merchant-editor-fields">
-                <Form.Item name="snapshotDate" label="快照日期" rules={[{ required: true, message: '请选择快照日期' }]}><DateField /></Form.Item>
-                <Form.Item name="snapshotType" label="快照类型"><Select options={analysisSnapshotTypeOptions} placeholder="请选择快照类型" /></Form.Item>
-                <Form.Item name="dimension" label="指标维度"><Select options={reportDimensionOptions} placeholder="请选择指标维度" /></Form.Item>
-                <Form.Item name="scopeId" label="范围ID"><Input placeholder="例如：0 或门店ID" /></Form.Item>
-                <Form.Item name="dimensionName" label="维度名称" rules={[{ required: true, message: '请输入维度名称' }]}><Input placeholder="例如：平台整体或浦东旗舰店" /></Form.Item>
-                <Form.Item name="metricCode" label="指标编码" rules={[{ required: true, message: '请输入指标编码' }]}><Input placeholder="例如：ORDER_COUNT" /></Form.Item>
-              </div>
-            </BusinessEditorSection>
-            <BusinessEditorSection icon={<LineChartOutlined />} title="指标数值" desc="维护指标值、对比值、订单和金额数据。">
-              <div className="merchant-editor-fields">
-                <Form.Item name="metricValue" label="指标值" rules={[{ required: true, message: '请输入指标值' }]}><InputNumber precision={2} style={{ width: '100%' }} placeholder="0" /></Form.Item>
-                <Form.Item name="compareValue" label="对比值"><InputNumber precision={2} style={{ width: '100%' }} placeholder="0" /></Form.Item>
-                <Form.Item name="orderCount" label="订单数"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
-                <Form.Item name="incomeAmount" label="收入金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
-                <Form.Item name="refundAmount" label="退款金额"><InputNumber min={0} precision={2} addonAfter="元" style={{ width: '100%' }} placeholder="0.00" /></Form.Item>
-              </div>
-            </BusinessEditorSection>
-            <BusinessEditorSection icon={<TeamOutlined />} title="设备与口径" desc="配置设备数据、负责人、使用场景和对比口径。">
-              <div className="merchant-editor-fields">
-                <Form.Item name="activeDeviceCount" label="活跃设备"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
-                <Form.Item name="faultDeviceCount" label="故障设备"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
-                <Form.Item name="owner" label="负责人"><Input placeholder="例如：数据运营-王敏" /></Form.Item>
-                <Form.Item name="metricScene" label="使用场景"><Select options={metricSceneOptions} placeholder="请选择使用场景" /></Form.Item>
-                <Form.Item name="compareBasis" label="对比口径"><Select options={compareBasisOptions} placeholder="请选择对比口径" /></Form.Item>
-                <Form.Item name="utilizationRate" label="点位利用率"><InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} placeholder="0" /></Form.Item>
-                <Form.Item name="refundRate" label="退款率"><InputNumber min={0} max={100} precision={2} addonAfter="%" style={{ width: '100%' }} placeholder="0" /></Form.Item>
-                <Form.Item name="hotServiceName" label="热门服务"><Input placeholder="例如：泡沫精洗套餐" /></Form.Item>
-                <Form.Item name="exposureCount" label="曝光数"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
-                <Form.Item name="clickCount" label="点击数"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
-                <Form.Item name="conversionCount" label="转化数"><InputNumber min={0} precision={0} style={{ width: '100%' }} placeholder="0" /></Form.Item>
-                <Form.Item className="merchant-editor-field-span-all" name="supplement" label="补充说明"><Input placeholder="例如：剔除测试门店和异常退款单" /></Form.Item>
-              </div>
-            </BusinessEditorSection>
-          </div>
-        </Form>
-      </BusinessEditorModal>
-
-      <BusinessDetailModal title="经营分析详情" open={!!detail} onCancel={() => setDetail(null)} width={780}>
-        {detail ? (
-          <SchemaDetail
-            record={detail as Record<string, any>}
-            fields={('storeName' in detail ? analysisDetailFields.store : 'name' in detail ? analysisDetailFields.marketing : analysisDetailFields.snapshot) as DetailField<Record<string, any>>[]}
-            column={2}
-            labelWidth={100}
-          />
-        ) : null}
-      </BusinessDetailModal>
     </div>
   );
 };

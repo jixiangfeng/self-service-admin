@@ -391,7 +391,6 @@ export interface StoreRecord {
   status: string;
   storePhone?: string;
   managerName?: string;
-  managerPhone?: string;
   intro?: string;
   coverUrl?: string;
   imageUrls?: string;
@@ -1202,6 +1201,27 @@ export interface PartnerPayableSummaryRecord {
   latestSettlementBillNo?: string;
 }
 
+export interface ThirdPartyVerificationRecord {
+  id: number;
+  verificationNo: string;
+  platform: 'MEITUAN' | 'DOUYIN' | string;
+  platformTradeNo?: string;
+  voucherCode: string;
+  voucherName?: string;
+  serviceOrderId?: number;
+  serviceOrderNo?: string;
+  storeId?: number;
+  storeName?: string;
+  userId?: number;
+  userName?: string;
+  amount: number | string;
+  status: 'SUCCESS' | 'FAILED' | 'REVERSED' | string;
+  resultMessage?: string;
+  verifiedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface MerchantAccountSaveRequest {
   userId: number;
   accountType: string;
@@ -1389,20 +1409,6 @@ export interface UserVehicleRecord {
   updatedAt?: string;
 }
 
-export interface UserFavoriteStoreRecord {
-  id: number;
-  userId?: number;
-  userName?: string;
-  storeId?: number;
-  storeName: string;
-  city?: string;
-  lastOrderNo?: string;
-  orderCount?: number;
-  lastVisitAt?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
 export interface UserRiskRecord {
   id: number;
   userId?: number;
@@ -1422,7 +1428,6 @@ export interface AppUserFullProfileRecord {
   profile: AppUserProfileRecord;
   account?: UserAssetAccountRecord;
   vehicles: UserVehicleRecord[];
-  favoriteStores: UserFavoriteStoreRecord[];
   serviceCards: UserServiceCardRecord[];
   serviceCardUsages: ServiceCardUsageRecord[];
   rechargeOrders: RechargeOrderRecord[];
@@ -1430,7 +1435,6 @@ export interface AppUserFullProfileRecord {
   balanceFlows: BalanceFlowRecord[];
   riskRecords: UserRiskRecord[];
   vehicleCount?: number;
-  favoriteStoreCount?: number;
   serviceCardCount?: number;
   activeServiceCardCount?: number;
   totalRemainTimes?: number;
@@ -1848,10 +1852,20 @@ const normalizeRecordFields = <T,>(value: T): T => {
   return next as T;
 };
 
-const normalizeEnvelope = <T,>(res: ApiEnvelope<T>): ApiEnvelope<T> => ({
-  ...res,
-  data: normalizeRecordFields(res.data),
-});
+const normalizeEnvelope = <T,>(res: ApiEnvelope<T> | T | null | undefined): ApiEnvelope<T> => {
+  if (isPlainObject(res) && ('code' in res || 'message' in res) && 'data' in res) {
+    const envelope = res as ApiEnvelope<T>;
+    return {
+      ...envelope,
+      data: normalizeRecordFields(envelope.data),
+    };
+  }
+  return {
+    code: 200,
+    message: 'success',
+    data: normalizeRecordFields(res as T),
+  };
+};
 
 const httpPage = async <T,>(url: string, params: Record<string, unknown>) =>
   normalizeEnvelope(await request.get<ApiEnvelope<PageResult<T>>>(url, { params: pageParams(params) }));
@@ -2416,6 +2430,12 @@ export const settlementRuleApi = {
   detail: async (id: number) => httpGet<SettlementRuleRecord>(`/settlement-rules/${id}`),
 };
 
+export const thirdPartyVerificationApi = {
+  page: async (params: Record<string, unknown>) =>
+    httpPage<ThirdPartyVerificationRecord>('/third-party-verifications', params),
+  detail: async (id: number) => httpGet<ThirdPartyVerificationRecord>(`/third-party-verifications/${id}`),
+};
+
 export const settlementBillApi = {
   page: async (params: Record<string, unknown>) => (async () => {
     const res = await httpPage<Record<string, any>>('/settlement-bills', { ...params, billStatus: params.billStatus ?? params.status });
@@ -2552,12 +2572,6 @@ export const assetApi = {
     fullProfile: async (id: number) => httpGet<AppUserFullProfileRecord>(`/app-user-profiles/${id}/full-profile`),
   },
   vehicles: crudApi<UserVehicleRecord>('/user-vehicles'),
-  favoriteStores: {
-    page: async (params: Record<string, unknown>) => httpPage<UserFavoriteStoreRecord>('/user-favorite-stores', params),
-    add: async (data: Record<string, unknown>) => httpPost<UserFavoriteStoreRecord>('/user-favorite-stores', data),
-    edit: async (data: Record<string, unknown>) => httpPut<void>(`/user-favorite-stores/${data.id}`, data),
-    remove: async (id: number) => httpDelete<void>(`/user-favorite-stores/${id}`),
-  },
   riskRecords: {
     page: async (params: Record<string, unknown>) => httpPage<UserRiskRecord>('/user-risk-records', params),
     add: async (data: Record<string, unknown>) => httpPost<UserRiskRecord>('/user-risk-records', data),
@@ -2709,6 +2723,7 @@ export default {
   orderBillingDetail: orderBillingDetailApi,
   orderStatusLog: orderStatusLogApi,
   writeOffRecord: writeOffRecordApi,
+  thirdPartyVerification: thirdPartyVerificationApi,
   settlementRule: settlementRuleApi,
   settlementBill: settlementBillApi,
   settlementBillDetail: settlementBillDetailApi,

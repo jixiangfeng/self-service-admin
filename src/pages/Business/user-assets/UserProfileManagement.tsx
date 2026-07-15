@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Checkbox, Col, Form, Input, InputNumber, Row, Select, Statistic, Tabs, message } from 'antd';
+import { Button, Card, Checkbox, Col, Form, Input, Row, Select, Statistic, Tabs, message } from 'antd';
 import { ContactsOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -19,8 +19,6 @@ import api from '@/services/backendService';
 import type {
   AppUserFullProfileRecord,
   AppUserProfileRecord,
-  StoreRecord,
-  UserFavoriteStoreRecord,
   UserRiskRecord,
   UserVehicleRecord,
 } from '@/services/backendService';
@@ -85,7 +83,7 @@ const buildProfileSummary = (values: Record<string, unknown>) => [
   values.operatorNote ? `补充说明：${values.operatorNote}` : '',
 ].filter(Boolean).join('；');
 
-const profileDetailFields: Record<'profile' | 'vehicle' | 'store' | 'risk', DetailField<any>[]> = {
+const profileDetailFields: Record<'profile' | 'vehicle' | 'risk', DetailField<any>[]> = {
   profile: [
     { name: 'userName', label: '用户' },
     { name: 'mobile', label: '手机号' },
@@ -104,14 +102,6 @@ const profileDetailFields: Record<'profile' | 'vehicle' | 'store' | 'risk', Deta
     { name: 'defaultFlag', label: '默认车辆' },
     { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
   ],
-  store: [
-    { name: 'userName', label: '用户' },
-    { name: 'storeName', label: '常用门店' },
-    { name: 'city', label: '城市' },
-    { name: 'lastOrderNo', label: '最近订单' },
-    { name: 'orderCount', label: '订单数' },
-    { name: 'lastVisitAt', label: '最近到店', render: (value) => formatDateTime(value) },
-  ],
   risk: [
     { name: 'userName', label: '用户' },
     { name: 'mobile', label: '手机号' },
@@ -127,7 +117,7 @@ const profileDetailFields: Record<'profile' | 'vehicle' | 'store' | 'risk', Deta
 const UserProfileManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
-  const [detail, setDetail] = useState<AppUserProfileRecord | UserVehicleRecord | UserFavoriteStoreRecord | UserRiskRecord | null>(null);
+  const [detail, setDetail] = useState<AppUserProfileRecord | UserVehicleRecord | UserRiskRecord | null>(null);
   const [fullProfileVisible, setFullProfileVisible] = useState(false);
   const [fullProfileLoading, setFullProfileLoading] = useState(false);
   const [fullProfile, setFullProfile] = useState<AppUserFullProfileRecord | undefined>();
@@ -136,14 +126,12 @@ const UserProfileManagement: React.FC = () => {
   const [form] = Form.useForm<Record<string, unknown>>();
   const profileQuery = useQuery({ queryKey: ['appUserProfiles', keyword], queryFn: async () => (await api.asset.profiles.page({ pageNum: 1, pageSize: 200, keyword })).data });
   const vehicleQuery = useQuery({ queryKey: ['userVehicles', keyword], queryFn: async () => (await api.asset.vehicles.page({ pageNum: 1, pageSize: 200, keyword })).data });
-  const storeQuery = useQuery({ queryKey: ['userFavoriteStores', keyword], queryFn: async () => (await api.asset.favoriteStores.page({ pageNum: 1, pageSize: 200, keyword })).data });
   const riskQuery = useQuery({ queryKey: ['userRiskRecords', keyword], queryFn: async () => (await api.asset.riskRecords.page({ pageNum: 1, pageSize: 200, keyword })).data });
   const saveMutation = useMutation({
     mutationFn: async (values: Record<string, unknown>) => {
       const summary = buildProfileSummary(values);
       const payload = { ...values, remark: summary || values.remark };
       if (modalTitle.includes('车辆')) return api.asset.vehicles.add(payload);
-      if (modalTitle.includes('门店')) return api.asset.favoriteStores.add(payload);
       if (modalTitle.includes('风控')) {
         return api.asset.riskRecords.add({
           ...payload,
@@ -155,18 +143,14 @@ const UserProfileManagement: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['appUserProfiles'] });
       queryClient.invalidateQueries({ queryKey: ['userVehicles'] });
-      queryClient.invalidateQueries({ queryKey: ['userFavoriteStores'] });
       queryClient.invalidateQueries({ queryKey: ['userRiskRecords'] });
       message.success('保存成功');
     },
   });
   const profiles = profileQuery.data?.records || [];
   const vehicles = vehicleQuery.data?.records || [];
-  const favoriteStores = storeQuery.data?.records || [];
   const userRisks = riskQuery.data?.records || [];
-  const storeOptionQuery = useQuery({ queryKey: ['userProfileStoreOptions'], queryFn: async () => (await api.store.page({ pageNum: 1, pageSize: 500 })).data });
   const userOptions = profiles.map((item) => ({ value: item.userId ?? item.id, label: `${item.userName}${item.mobile ? `（${item.mobile}）` : ''}` }));
-  const storeOptions = (storeOptionQuery.data?.records || []).map((item: StoreRecord) => ({ value: item.id, label: `${item.storeName}${item.storeCode ? `（${item.storeCode}）` : ''}` }));
 
   const openModal = (title: string) => {
     setModalTitle(title);
@@ -219,15 +203,6 @@ const UserProfileManagement: React.FC = () => {
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
   ], []);
 
-  const storeColumns = useMemo<ProColumns<UserFavoriteStoreRecord>[]>(() => [
-    { title: '用户', dataIndex: 'userName', width: 120 },
-    { title: '常用门店', dataIndex: 'storeName', width: 180 },
-    { title: '城市', dataIndex: 'city', width: 100 },
-    { title: '最近订单', dataIndex: 'lastOrderNo', width: 180 },
-    { title: '订单数', dataIndex: 'orderCount', width: 100 },
-    { title: '最近到店', dataIndex: 'lastVisitAt', width: 180, render: (_, record) => formatDateTime(record.lastVisitAt) },
-  ], []);
-
   const riskColumns = useMemo<ProColumns<UserRiskRecord>[]>(() => [
     { title: '用户', dataIndex: 'userName', width: 120 },
     { title: '风控场景', dataIndex: 'riskScene', width: 150 , render: (value) => formatEnumText(value, 'riskScene', '风控场景') },
@@ -240,12 +215,11 @@ const UserProfileManagement: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="用户档案中心" subtitle="维护用户基础档案、车辆、常用门店和风控记录；服务卡信息仅在用户完整档案中作为关联资产查看。" icon={<ContactsOutlined />} />
+      <PageBanner title="用户档案中心" subtitle="维护用户基础档案、车辆和风控记录；服务卡信息仅在用户完整档案中作为关联资产查看。" icon={<ContactsOutlined />} />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="用户档案" value={profiles.length} suffix="人" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="车辆" value={vehicles.length} suffix="辆" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="常用门店" value={favoriteStores.length} suffix="条" /></Card></Col>
         <Col xs={24} sm={12} xl={6}><Card><Statistic title="观察名单" value={userRisks.filter((item) => item.riskStatus === 'WATCH').length} suffix="人" /></Card></Col>
       </Row>
 
@@ -259,7 +233,6 @@ const UserProfileManagement: React.FC = () => {
         items={[
           { key: 'profile', label: '用户档案', children: <ProTable<AppUserProfileRecord> cardBordered rowKey="id" columns={profileColumns} dataSource={profiles} loading={profileQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="tag" type="primary" onClick={() => openModal('维护用户档案')}>维护档案</Button>]} /> },
           { key: 'vehicle', label: '用户车辆', children: <ProTable<UserVehicleRecord> cardBordered rowKey="id" columns={vehicleColumns} dataSource={vehicles} loading={vehicleQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1120 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新增用户车辆')}>新增车辆</Button>]} /> },
-          { key: 'store', label: '常用门店', children: <ProTable<UserFavoriteStoreRecord> cardBordered rowKey="id" columns={storeColumns} dataSource={favoriteStores} loading={storeQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1080 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('维护常用门店')}>维护门店</Button>]} /> },
           { key: 'risk', label: '用户风控', children: <ProTable<UserRiskRecord> cardBordered rowKey="id" columns={riskColumns} dataSource={userRisks} loading={riskQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="handle" type="primary" onClick={() => openModal('处理用户风控')}>处理风控</Button>]} /> },
         ]}
       />
@@ -275,7 +248,7 @@ const UserProfileManagement: React.FC = () => {
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
-            fields={('plateNo' in detail ? profileDetailFields.vehicle : 'storeName' in detail && 'lastOrderNo' in detail ? profileDetailFields.store : 'riskScene' in detail ? profileDetailFields.risk : profileDetailFields.profile) as DetailField<Record<string, any>>[]}
+            fields={('plateNo' in detail ? profileDetailFields.vehicle : 'riskScene' in detail ? profileDetailFields.risk : profileDetailFields.profile) as DetailField<Record<string, any>>[]}
             column={2}
             labelWidth={110}
           />
@@ -283,7 +256,7 @@ const UserProfileManagement: React.FC = () => {
       </BusinessDetailModal>
 
       <BusinessEditorModal
-        eyebrow={modalTitle.includes('车辆') ? '用户车辆维护' : modalTitle.includes('风控') ? '用户风控处理' : modalTitle.includes('门店') ? '常用门店维护' : '用户档案维护'}
+        eyebrow={modalTitle.includes('车辆') ? '用户车辆维护' : modalTitle.includes('风控') ? '用户风控处理' : '用户档案维护'}
         title={modalTitle}
         subtitle="补齐用户档案、车辆和风控处理字段，保证处理结果可追踪、可回写。"
         meta={[modalTitle]}
@@ -336,29 +309,6 @@ const UserProfileManagement: React.FC = () => {
                   <Form.Item name="brand" label="品牌"><Input placeholder="填写品牌名称" /></Form.Item>
                   <Form.Item name="color" label="颜色"><Select options={colorOptions} placeholder="请选择车身颜色" /></Form.Item>
                   <Form.Item name="defaultFlag" label="默认车辆" initialValue="NO"><Select options={defaultFlagFormOptions} /></Form.Item>
-                </div>
-              </BusinessEditorSection>
-            ) : null}
-
-            {modalTitle.includes('门店') ? (
-              <BusinessEditorSection icon={<ContactsOutlined />} title="常用门店" desc="选择用户常用服务门店，并记录最近订单和到店次数。">
-                <div className="merchant-editor-fields">
-                  <Form.Item name="storeId" label="常用门店" rules={[{ required: true, message: '请选择门店' }]}>
-                    <Select
-                      showSearch
-                      optionFilterProp="label"
-                      options={storeOptions}
-                      placeholder="请选择常用门店"
-                      onChange={(value) => {
-                        const store = (storeOptionQuery.data?.records || []).find((item: StoreRecord) => item.id === value);
-                        form.setFieldsValue({ storeName: store?.storeName, city: store?.city });
-                      }}
-                    />
-                  </Form.Item>
-                  <Form.Item name="storeName" hidden><Input /></Form.Item>
-                  <Form.Item name="city" label="城市"><Input disabled placeholder="选择门店后自动带出" /></Form.Item>
-                  <Form.Item name="lastOrderNo" label="最近订单"><Input placeholder="服务订单号，可选" /></Form.Item>
-                  <Form.Item name="orderCount" label="订单数" initialValue={1}><InputNumber style={{ width: '100%' }} min={0} precision={0} addonAfter="单" /></Form.Item>
                 </div>
               </BusinessEditorSection>
             ) : null}

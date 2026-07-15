@@ -333,14 +333,11 @@ const StoreManagement: React.FC = () => {
                     <Input disabled placeholder="门店编号不可编辑" />
                   </Form.Item>
                 ) : null}
-                <Form.Item name="storePhone" label="门店电话">
-                  <Input placeholder="用于小程序展示和客服回访" />
+                <Form.Item name="storePhone" label="联系电话">
+                  <Input placeholder="用于用户联系、客服回访和门店通知" />
                 </Form.Item>
                 <Form.Item name="managerName" label="店长 / 负责人">
                   <Input placeholder="现场运营负责人" />
-                </Form.Item>
-                <Form.Item name="managerPhone" label="负责人电话">
-                  <Input placeholder="异常、巡检和售后通知手机号" />
                 </Form.Item>
               </div>
             </BusinessEditorSection>

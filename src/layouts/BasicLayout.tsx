@@ -97,7 +97,7 @@ const BasicLayout: React.FC = () => {
       icon: <ProfileOutlined />,
       children: [
         { key: '/trade', path: '/trade', name: '订单中心', icon: <ProfileOutlined /> },
-        { key: '/fulfillment', path: '/fulfillment', name: '核销记录', icon: <AuditOutlined /> },
+        { key: '/fulfillment', path: '/fulfillment', name: '第三方核销记录', icon: <AuditOutlined /> },
       ],
     },
     {

@@ -5,7 +5,6 @@ import type {
   AppUserFullProfileRecord,
   BalanceFlowRecord,
   ServiceCardUsageRecord,
-  UserFavoriteStoreRecord,
   UserServiceCardRecord,
   UserVehicleRecord,
   UserRiskRecord,
@@ -39,14 +38,6 @@ const UserAssetFullProfileDrawer: React.FC<Props> = ({ open, loading, profile, o
     { title: '默认', dataIndex: 'defaultFlag', width: 90, render: (value) => formatEnumText(value, 'defaultFlag', '默认') },
     { title: '状态', dataIndex: 'status', width: 100, render: (value) => formatEnumText(value, 'status', '状态') },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (value) => formatDateTime(value) },
-  ];
-
-  const storeColumns: ColumnsType<UserFavoriteStoreRecord> = [
-    { title: '门店', dataIndex: 'storeName', width: 180 },
-    { title: '城市', dataIndex: 'city', width: 120, render: (value) => value || '-' },
-    { title: '下单次数', dataIndex: 'orderCount', width: 100, render: (value) => value ?? 0 },
-    { title: '最近订单', dataIndex: 'lastOrderNo', width: 180, render: (value) => value || '-' },
-    { title: '最近到访', dataIndex: 'lastVisitAt', width: 180, render: (value) => formatDateTime(value) },
   ];
 
   const cardColumns: ColumnsType<UserServiceCardRecord> = [
@@ -138,11 +129,10 @@ const UserAssetFullProfileDrawer: React.FC<Props> = ({ open, loading, profile, o
                 <Descriptions.Item label="备注" span={2}>{user.remark || '-'}</Descriptions.Item>
               </Descriptions>
               <Space wrap>{risks.length ? risks.map((risk) => <Tag key={risk} color="warning">{risk}</Tag>) : <Tag color="success">用户资产状态正常</Tag>}</Space>
-              <Typography.Text type="secondary">聚合最近 50 条车辆/常用门店/风控记录、100 条服务卡/充值订单/服务订单/余额流水和 100 条核销记录。</Typography.Text>
+              <Typography.Text type="secondary">聚合最近 50 条车辆/风控记录、100 条服务卡/充值订单/服务订单/余额流水和 100 条核销记录。</Typography.Text>
             </Space>
           ) },
           { key: 'vehicles', label: '车辆', children: <Table rowKey="id" size="small" columns={vehicleColumns} dataSource={profile.vehicles || []} pagination={{ pageSize: 8 }} scroll={{ x: 960 }} /> },
-          { key: 'stores', label: '常用门店', children: <Table rowKey="id" size="small" columns={storeColumns} dataSource={profile.favoriteStores || []} pagination={{ pageSize: 8 }} scroll={{ x: 900 }} /> },
           { key: 'cards', label: '服务卡', children: <Table rowKey="id" size="small" columns={cardColumns} dataSource={profile.serviceCards || []} pagination={{ pageSize: 8 }} scroll={{ x: 1120 }} /> },
           { key: 'usage', label: '核销流水', children: <Table rowKey="id" size="small" columns={usageColumns} dataSource={profile.serviceCardUsages || []} pagination={{ pageSize: 8 }} scroll={{ x: 1120 }} /> },
           { key: 'recharges', label: '充值订单', children: <Table rowKey="id" size="small" columns={rechargeColumns} dataSource={profile.rechargeOrders || []} pagination={{ pageSize: 8 }} scroll={{ x: 1220 }} /> },
