@@ -63,10 +63,10 @@ const FulfillmentManagement: React.FC = () => {
     { title: '本地服务订单', dataIndex: 'serviceOrderNo', width: 180, hideInSearch: true, render: (value) => value || '-' },
     { title: '核销门店', dataIndex: 'storeId', width: 160, valueType: 'select', fieldProps: { options: storeOptions, showSearch: true, optionFilterProp: 'label', allowClear: true }, render: (_, record) => record.storeName || '-' },
     { title: '用户', dataIndex: 'userName', width: 120, hideInSearch: true, render: (value) => value || '-' },
-    { title: '核销金额', dataIndex: 'amount', width: 110, hideInSearch: true, render: (value) => formatAmount(value) },
+    { title: '核销金额', dataIndex: 'amount', width: 110, hideInSearch: true, render: (_, record) => formatAmount(record.amount) },
     { title: '状态', dataIndex: 'status', width: 110, valueType: 'select', valueEnum: statusMap, render: (_, record) => renderStatusTag(record.status, statusMap) },
     { title: '平台结果', dataIndex: 'resultMessage', width: 220, hideInSearch: true, ellipsis: true, render: (value) => value || '-' },
-    { title: '核销时间', dataIndex: 'verifiedAt', width: 180, hideInSearch: true, render: (value) => formatDateTime(value) },
+    { title: '核销时间', dataIndex: 'verifiedAt', width: 180, hideInSearch: true, render: (_, record) => formatDateTime(record.verifiedAt) },
     { title: '操作', width: 90, hideInSearch: true, fixed: 'right', render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
   ];
 

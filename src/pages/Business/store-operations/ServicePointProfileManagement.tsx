@@ -20,8 +20,40 @@ import { buildValueEnum, containsKeyword, formatDateTime, renderStatusTag } from
 
 type PointProfileSearchValues = { keyword?: string; servicePointId?: number };
 
-const QR_LINK_BASE = `${window.location.origin}/h5/`;
-const buildPointQrLink = (pointCode: string) => `${QR_LINK_BASE}?qrCode=${encodeURIComponent(pointCode)}`;
+const normalizePointQrBaseUrl = (value: string | undefined) => {
+  const normalized = value?.trim().replace(/[?&]+$/, '');
+  if (!normalized) {
+    throw new Error('未配置 VITE_POINT_QR_BASE_URL，无法生成点位二维码');
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(normalized);
+  } catch {
+    throw new Error('VITE_POINT_QR_BASE_URL 必须是有效的 http/https 地址');
+  }
+
+  if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+    throw new Error('VITE_POINT_QR_BASE_URL 仅支持 http/https 地址');
+  }
+
+  return normalized;
+};
+
+const pointQrBaseConfig = (() => {
+  try {
+    return { baseUrl: normalizePointQrBaseUrl(import.meta.env.VITE_POINT_QR_BASE_URL), error: '' };
+  } catch (error) {
+    return { baseUrl: '', error: error instanceof Error ? error.message : '点位二维码入口配置无效' };
+  }
+})();
+
+const buildPointQrLink = (pointCode: string) => {
+  if (pointQrBaseConfig.error) {
+    throw new Error(pointQrBaseConfig.error);
+  }
+  return `${pointQrBaseConfig.baseUrl}?qrCode=${encodeURIComponent(pointCode)}`;
+};
 const auditStatusMap = buildValueEnum(auditStatusOptions);
 
 const detailFields: DetailField<ServicePointQrRecord>[] = [
@@ -132,7 +164,11 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
       message.warning('请先选择所属点位');
       return;
     }
-    form.setFieldsValue({ pointCode, qrCode: buildPointQrLink(pointCode) });
+    try {
+      form.setFieldsValue({ pointCode, qrCode: buildPointQrLink(pointCode) });
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '点位二维码链接生成失败');
+    }
   };
 
   const copyQrContent = async () => {
@@ -199,7 +235,7 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
 
   return (
     <div style={{ padding: embedded ? 0 : 24 }}>
-      {!embedded ? <PageBanner title="点位档案中心" subtitle="维护点位二维码，保证扫码入口和点位一一对应。" icon={<QrcodeOutlined />} /> : null}
+      {!embedded ? <PageBanner title="点位档案中心" subtitle="维护点位二维码；微信扫码将拉起小程序，项目内部扫一扫也兼容。" icon={<QrcodeOutlined />} /> : null}
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} xl={8}><Card><Statistic title="二维码" value={qrRecords.length} suffix="个" /></Card></Col>
@@ -264,7 +300,7 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
       <BusinessEditorModal
         eyebrow={editingRecord ? '点位二维码维护' : '点位二维码新增'}
         title={`${editingRecord ? '编辑' : '新增'}点位二维码`}
-        subtitle="生成或维护点位二维码，保证扫码入口和点位一一对应。"
+        subtitle="微信扫码将拉起小程序，项目内部扫一扫也兼容。"
         meta={['点位二维码', editingRecord ? '编辑模式' : '新建模式']}
         open={modalVisible}
         onCancel={() => {
@@ -314,8 +350,13 @@ const ServicePointProfileManagement: React.FC<{ embedded?: boolean }> = ({ embed
               </div>
             </BusinessEditorSection>
 
-            <BusinessEditorSection icon={<QrcodeOutlined />} title="二维码信息" desc="维护二维码内容、版本和审核状态，保证扫码入口有效。">
+            <BusinessEditorSection icon={<QrcodeOutlined />} title="二维码信息" desc="微信扫码将拉起小程序，项目内部扫一扫也兼容。">
               <div className="merchant-editor-fields">
+                {pointQrBaseConfig.error ? (
+                  <Typography.Text className="merchant-editor-field-span-all" type="danger">
+                    {pointQrBaseConfig.error}
+                  </Typography.Text>
+                ) : null}
                 <Form.Item className="merchant-editor-field-span-all" label="二维码" required>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <Form.Item name="qrCode" noStyle rules={[{ required: true, message: '请输入二维码' }]}>

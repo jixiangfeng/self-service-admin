@@ -809,7 +809,7 @@ const ProfitSharingManagement: React.FC = () => {
             { title: '分润基数', dataIndex: 'baseAmount', width: 120, render: (_, record) => formatAmount(record.baseAmount) },
             { title: '比例', dataIndex: 'shareRatio', width: 90, render: (_, record) => `${Number(record.shareRatio || 0)}%` },
             { title: '应分金额', dataIndex: 'shareAmount', width: 120, render: (_, record) => formatAmount(record.shareAmount) },
-            { title: '状态', dataIndex: 'status', width: 100 },
+            { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => renderStatusTag(record.status, confirmStatusMap) },
           ]}
           scroll={{ x: 1000 }}
         />

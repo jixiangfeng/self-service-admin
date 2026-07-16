@@ -4,15 +4,19 @@ import path from 'node:path';
 const root = process.cwd();
 const layoutPath = path.join(root, 'src/layouts/BasicLayout.tsx');
 const appPath = path.join(root, 'src/App.tsx');
+const pointQrPagePath = path.join(root, 'src/pages/Business/store-operations/ServicePointProfileManagement.tsx');
+const envExamplePath = path.join(root, '.env.example');
 
 const layout = fs.readFileSync(layoutPath, 'utf8');
 const app = fs.readFileSync(appPath, 'utf8');
+const pointQrPage = fs.readFileSync(pointQrPagePath, 'utf8');
+const envExample = fs.readFileSync(envExamplePath, 'utf8');
 
 const requiredMenuLabels = [
   '工作台',
   '商户中心',
   '商户管理',
-  '商户账号',
+  '商户人员权限',
   '门店运营',
   '门店管理',
   '门店计费规则',
@@ -23,7 +27,7 @@ const requiredMenuLabels = [
   '服务卡管理',
   '交易履约',
   '订单中心',
-  '核销记录',
+  '第三方核销记录',
   '用户资产',
   '用户档案',
   '资产流水',
@@ -32,7 +36,7 @@ const requiredMenuLabels = [
   '邀请活动',
   '财务结算',
   '结算中心',
-  '清分规则',
+  '跨店结算方案',
   '合伙人分润',
   '数据报表',
   '经营分析',
@@ -47,6 +51,8 @@ const requiredMenuLabels = [
 ];
 
 const hiddenMenuLabels = [
+  '商户账号',
+  '清分规则',
   '权益商品',
   '次卡/月卡',
   '设备接入',
@@ -195,6 +201,18 @@ for (const redirect of requiredRedirects) {
   if (!app.includes(redirect)) {
     errors.push(`missing required collapsed profile redirect: ${redirect}`);
   }
+}
+
+if (pointQrPage.includes('window.location.origin')) {
+  errors.push('point QR link must not use window.location.origin');
+}
+
+if (!pointQrPage.includes('import.meta.env.VITE_POINT_QR_BASE_URL')) {
+  errors.push('point QR link must use VITE_POINT_QR_BASE_URL');
+}
+
+if (!envExample.includes('VITE_POINT_QR_BASE_URL=https://jdj.xinchengchuan.com/h5/#/pages/miniapp-launch/index')) {
+  errors.push('point QR base URL example must target miniapp-launch');
 }
 
 if (errors.length) {

@@ -33,6 +33,7 @@
   },
   "include": [
     "src/main.tsx",
+    "src/vite-env.d.ts",
     "src/App.tsx",
     "src/App.css",
     "src/index.css",
