@@ -1852,20 +1852,10 @@ const normalizeRecordFields = <T,>(value: T): T => {
   return next as T;
 };
 
-const normalizeEnvelope = <T,>(res: ApiEnvelope<T> | T | null | undefined): ApiEnvelope<T> => {
-  if (isPlainObject(res) && ('code' in res || 'message' in res) && 'data' in res) {
-    const envelope = res as ApiEnvelope<T>;
-    return {
-      ...envelope,
-      data: normalizeRecordFields(envelope.data),
-    };
-  }
-  return {
-    code: 200,
-    message: 'success',
-    data: normalizeRecordFields(res as T),
-  };
-};
+const normalizeEnvelope = <T,>(res: ApiEnvelope<T>): ApiEnvelope<T> => ({
+  ...res,
+  data: normalizeRecordFields(res.data),
+});
 
 const httpPage = async <T,>(url: string, params: Record<string, unknown>) =>
   normalizeEnvelope(await request.get<ApiEnvelope<PageResult<T>>>(url, { params: pageParams(params) }));

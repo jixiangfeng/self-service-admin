@@ -31,6 +31,21 @@ function isAuthExpired(status?: number, data?: any) {
   return code === 401 || messageText.includes('未登录') || messageText.includes('登录已过期') || messageText.includes('token 无效');
 }
 
+interface ResultEnvelope {
+  code: number;
+  message: string;
+  data: unknown;
+}
+
+function isResultEnvelope(data: unknown): data is ResultEnvelope {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+
+  const result = data as Record<string, unknown>;
+  return Number.isFinite(result.code)
+    && typeof result.message === 'string'
+    && Object.prototype.hasOwnProperty.call(result, 'data');
+}
+
 // 创建 axios 实例
 const httpClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -67,9 +82,14 @@ httpClient.interceptors.response.use(
 
     console.log('[HTTP Response]', response.config.url, data);
 
+    if (!isResultEnvelope(data)) {
+      message.error('接口响应格式错误');
+      return Promise.reject(new TypeError(`Invalid Result envelope from ${response.config.url || 'unknown endpoint'}`));
+    }
+
     // 统一处理响应
     if (data.code === 200) {
-      return data;
+      return data as unknown as AxiosResponse;
     }
 
     if (isAuthExpired(response.status, data)) {

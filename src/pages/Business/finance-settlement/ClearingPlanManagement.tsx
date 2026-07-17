@@ -88,7 +88,7 @@ export default function ClearingPlanManagement() {
       return api.clearingPlan.simulate(selectedGroupId as number, { plan: planValues, ...transaction });
     },
     onSuccess: (response) => {
-      if (selectedGroupId && response?.data) setSimulationResult({ groupId: selectedGroupId, data: response.data });
+      if (selectedGroupId) setSimulationResult({ groupId: selectedGroupId, data: response.data });
     },
   });
   const publishMutation = useMutation({
@@ -102,7 +102,7 @@ export default function ClearingPlanManagement() {
         queryClient.invalidateQueries({ queryKey: ['clearingPlanVersions', selectedGroupId] }),
         queryClient.invalidateQueries({ queryKey: ['settlementRules'] }),
       ]);
-      message.success(response?.data?.message || '结算方案已发布');
+      message.success(response.data.message);
     },
   });
 
