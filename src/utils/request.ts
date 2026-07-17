@@ -6,8 +6,8 @@ import { message } from 'antd';
  * HTTP 请求客户端配置
  */
 
-// 后端 API 基础地址：默认走当前前端站点的 /api，避免局域网访问时请求访问者本机 localhost。
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+// 后端 API 基础地址。
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://jdj.xinchengchuan.com/api';
 const ROUTER_BASENAME = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
 const LOGIN_PATH = `${ROUTER_BASENAME}/login`.replace(/^\/\//, '/');
 

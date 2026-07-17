@@ -52,7 +52,7 @@ export default function ClearingPlanManagement() {
   const groups = useMemo(() => (groupsQuery.data?.records || []) as MerchantGroupRecord[], [groupsQuery.data]);
   const selectedGroupId = groupIdParam || groups[0]?.id;
   const selectedGroup = groups.find((item) => item.id === selectedGroupId);
-  const simulation = simulationResult?.groupId === selectedGroupId ? simulationResult.data : undefined;
+  const simulation = simulationResult && simulationResult.groupId === selectedGroupId ? simulationResult.data : undefined;
   const planQuery = useQuery({
     queryKey: ['clearingPlan', selectedGroupId],
     queryFn: async () => (await api.clearingPlan.get(selectedGroupId as number)).data,
