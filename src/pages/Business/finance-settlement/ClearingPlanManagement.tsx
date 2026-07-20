@@ -9,10 +9,6 @@ import PageBanner from '@/components/PageBanner';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
 import { formatAmount, formatDateTime } from '@/pages/Business/shared';
 
-const settlementModeOptions = [
-  { value: 'AUTO_LEDGER', label: '自动记账并生成结算单' },
-  { value: 'AUTO_PAYOUT', label: '自动记账、结算并发起打款' },
-];
 const cycleOptions = [
   { value: 'REALTIME', label: '实时' },
   { value: 'DAY', label: '每日' },
@@ -70,12 +66,18 @@ export default function ClearingPlanManagement() {
     if (!groupIdParam && groups[0]?.id) setSearchParams({ groupId: String(groups[0].id) }, { replace: true });
   }, [groupIdParam, groups, setSearchParams]);
   useEffect(() => {
-    if (plan) form.setFieldsValue(plan);
+    if (plan) form.setFieldsValue({ ...plan, settlementMode: 'AUTO_LEDGER', autoPayout: false });
     else form.setFieldsValue(defaultPlan);
   }, [form, plan, selectedGroupId]);
 
+  const validatePlan = async (): Promise<ClearingPlanSaveRequest> => ({
+    ...await form.validateFields(),
+    settlementMode: 'AUTO_LEDGER',
+    autoPayout: false,
+  });
+
   const saveMutation = useMutation({
-    mutationFn: async () => api.clearingPlan.saveDraft(selectedGroupId as number, await form.validateFields()),
+    mutationFn: async () => api.clearingPlan.saveDraft(selectedGroupId as number, await validatePlan()),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['clearingPlan', selectedGroupId] });
       message.success('结算方案草稿已保存，尚未影响交易');
@@ -83,7 +85,7 @@ export default function ClearingPlanManagement() {
   });
   const simulateMutation = useMutation({
     mutationFn: async () => {
-      const planValues = await form.validateFields();
+      const planValues = await validatePlan();
       const transaction = await simulationForm.validateFields();
       return api.clearingPlan.simulate(selectedGroupId as number, { plan: planValues, ...transaction });
     },
@@ -93,7 +95,7 @@ export default function ClearingPlanManagement() {
   });
   const publishMutation = useMutation({
     mutationFn: async () => {
-      await api.clearingPlan.saveDraft(selectedGroupId as number, await form.validateFields());
+      await api.clearingPlan.saveDraft(selectedGroupId as number, await validatePlan());
       return api.clearingPlan.publish(selectedGroupId as number);
     },
     onSuccess: async (response) => {
@@ -185,7 +187,6 @@ export default function ClearingPlanManagement() {
                 </Card>
                 <Card title="5. 何时结算" size="small" style={{ marginTop: 16 }}>
                   <Row gutter={16}>
-                    <Col span={8}><Form.Item name="settlementMode" label="处理方式"><Select options={settlementModeOptions} /></Form.Item></Col>
                     <Col span={8}><Form.Item name="settlementCycle" label="结算周期"><Select options={cycleOptions} /></Form.Item></Col>
                     <Col span={8}><Form.Item name="settlementCutoffTime" label="账期截止"><Input placeholder="00:00" /></Form.Item></Col>
                     <Col span={8}><Form.Item name="settlementDelayDays" label="延迟天数"><InputNumber min={0} addonAfter="天" style={{ width: '100%' }} /></Form.Item></Col>
@@ -194,7 +195,6 @@ export default function ClearingPlanManagement() {
                   <Space size="large" wrap>
                     <Form.Item name="autoSettlement" valuePropName="checked" label="自动生成结算单"><Switch /></Form.Item>
                     <Form.Item name="nettingEnabled" valuePropName="checked" label="允许净额轧差"><Switch /></Form.Item>
-                    <Form.Item name="autoPayout" valuePropName="checked" label="自动打款"><Switch /></Form.Item>
                   </Space>
                   <Form.Item name="remark" label="财务说明"><Input.TextArea rows={3} /></Form.Item>
                 </Card>
@@ -209,10 +209,13 @@ export default function ClearingPlanManagement() {
                 </Form>
                 {simulation ? (
                   <Row gutter={16} style={{ marginTop: 16 }}>
-                    <Col span={6}><Card size="small">本金消耗<br /><strong>{formatAmount(simulation.principalConsumed)}</strong></Card></Col>
-                    <Col span={6}><Card size="small">充值方留存<br /><strong>{formatAmount(simulation.sourceShareAmount)}</strong></Card></Col>
-                    <Col span={6}><Card size="small">服务方所得<br /><strong>{formatAmount(simulation.serviceShareAmount)}</strong></Card></Col>
-                    <Col span={6}><Card size="small">平台服务费<br /><strong>{formatAmount(simulation.platformFeeAmount)}</strong></Card></Col>
+                    <Col xs={12} sm={6}><Card size="small">本金消耗<br /><strong>{formatAmount(simulation.principalConsumed)}</strong></Card></Col>
+                    <Col xs={12} sm={6}><Card size="small">赠送消耗<br /><strong>{formatAmount(simulation.giftConsumed)}</strong></Card></Col>
+                    <Col xs={12} sm={6}><Card size="small">清分基数<br /><strong>{formatAmount(simulation.settlementBase)}</strong></Card></Col>
+                    <Col xs={12} sm={6}><Card size="small">赠送成本<br /><strong>{formatAmount(simulation.giftCostAmount)}</strong></Card></Col>
+                    <Col xs={12} sm={8}><Card size="small">充值方留存<br /><strong>{formatAmount(simulation.sourceShareAmount)}</strong></Card></Col>
+                    <Col xs={12} sm={8}><Card size="small">服务方所得<br /><strong>{formatAmount(simulation.serviceShareAmount)}</strong></Card></Col>
+                    <Col xs={12} sm={8}><Card size="small">平台服务费<br /><strong>{formatAmount(simulation.platformFeeAmount)}</strong></Card></Col>
                     <Col span={24} style={{ marginTop: 12 }}><Alert showIcon type={simulation.balanced ? 'success' : 'error'} message={simulation.balanced ? '资金流入与流出相等，可以发布' : '资金流不平衡，不能发布'} description={simulation.validationMessages.join('；') || undefined} /></Col>
                   </Row>
                 ) : null}

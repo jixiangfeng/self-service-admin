@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, Checkbox, Col, Form, Input, Row, Select, Statistic, Tabs, message } from 'antd';
+import { Button, Checkbox, Form, Input, Select, message } from 'antd';
 import { ContactsOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -19,14 +19,11 @@ import api from '@/services/backendService';
 import type {
   AppUserFullProfileRecord,
   AppUserProfileRecord,
-  UserRiskRecord,
-  UserVehicleRecord,
 } from '@/services/backendService';
 
 const userLevelMap = buildValueEnum(userLevelOptions);
 const riskStatusMap = buildValueEnum(riskStatusOptions);
 const defaultFlagFormOptions = yesNoTextOptions.filter((item) => ['YES', 'NO'].includes(String(item.value)));
-const defaultFlagMap = buildValueEnum(defaultFlagFormOptions);
 
 const profileSceneOptions = [
   { value: '资料补全', label: '资料补全' },
@@ -83,41 +80,20 @@ const buildProfileSummary = (values: Record<string, unknown>) => [
   values.operatorNote ? `补充说明：${values.operatorNote}` : '',
 ].filter(Boolean).join('；');
 
-const profileDetailFields: Record<'profile' | 'vehicle' | 'risk', DetailField<any>[]> = {
-  profile: [
-    { name: 'userName', label: '用户' },
-    { name: 'mobile', label: '手机号' },
-    { name: 'memberLevel', label: '会员等级' },
-    { name: 'realNameStatus', label: '实名状态' },
-    { name: 'riskStatus', label: '风控状态' },
-    { name: 'registeredAt', label: '注册时间', render: (value) => formatDateTime(value) },
-    { name: 'remark', label: '备注' },
-  ],
-  vehicle: [
-    { name: 'userName', label: '用户' },
-    { name: 'plateNo', label: '车牌号' },
-    { name: 'vehicleType', label: '车辆类型' },
-    { name: 'brand', label: '品牌' },
-    { name: 'color', label: '颜色' },
-    { name: 'defaultFlag', label: '默认车辆' },
-    { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
-  ],
-  risk: [
-    { name: 'userName', label: '用户' },
-    { name: 'mobile', label: '手机号' },
-    { name: 'riskScene', label: '风控场景' },
-    { name: 'riskReason', label: '原因' },
-    { name: 'relatedNo', label: '关联单号' },
-    { name: 'riskStatus', label: '状态' },
-    { name: 'owner', label: '负责人' },
-    { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
-  ],
-};
+const profileDetailFields: DetailField<any>[] = [
+  { name: 'userName', label: '用户' },
+  { name: 'mobile', label: '手机号' },
+  { name: 'memberLevel', label: '会员等级' },
+  { name: 'realNameStatus', label: '实名状态' },
+  { name: 'riskStatus', label: '风控状态' },
+  { name: 'registeredAt', label: '注册时间', render: (value) => formatDateTime(value) },
+  { name: 'remark', label: '备注' },
+];
 
 const UserProfileManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState('');
-  const [detail, setDetail] = useState<AppUserProfileRecord | UserVehicleRecord | UserRiskRecord | null>(null);
+  const [detail, setDetail] = useState<AppUserProfileRecord | null>(null);
   const [fullProfileVisible, setFullProfileVisible] = useState(false);
   const [fullProfileLoading, setFullProfileLoading] = useState(false);
   const [fullProfile, setFullProfile] = useState<AppUserFullProfileRecord | undefined>();
@@ -125,8 +101,6 @@ const UserProfileManagement: React.FC = () => {
   const [modalTitle, setModalTitle] = useState('');
   const [form] = Form.useForm<Record<string, unknown>>();
   const profileQuery = useQuery({ queryKey: ['appUserProfiles', keyword], queryFn: async () => (await api.asset.profiles.page({ pageNum: 1, pageSize: 200, keyword })).data });
-  const vehicleQuery = useQuery({ queryKey: ['userVehicles', keyword], queryFn: async () => (await api.asset.vehicles.page({ pageNum: 1, pageSize: 200, keyword })).data });
-  const riskQuery = useQuery({ queryKey: ['userRiskRecords', keyword], queryFn: async () => (await api.asset.riskRecords.page({ pageNum: 1, pageSize: 200, keyword })).data });
   const saveMutation = useMutation({
     mutationFn: async (values: Record<string, unknown>) => {
       const summary = buildProfileSummary(values);
@@ -142,19 +116,24 @@ const UserProfileManagement: React.FC = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['appUserProfiles'] });
-      queryClient.invalidateQueries({ queryKey: ['userVehicles'] });
-      queryClient.invalidateQueries({ queryKey: ['userRiskRecords'] });
       message.success('保存成功');
     },
   });
   const profiles = profileQuery.data?.records || [];
-  const vehicles = vehicleQuery.data?.records || [];
-  const userRisks = riskQuery.data?.records || [];
   const userOptions = profiles.map((item) => ({ value: item.userId ?? item.id, label: `${item.userName}${item.mobile ? `（${item.mobile}）` : ''}` }));
 
-  const openModal = (title: string) => {
+  const openModal = (title: string, user?: AppUserProfileRecord) => {
     setModalTitle(title);
     form.resetFields();
+    if (user) {
+      form.setFieldsValue({
+        userId: user.userId ?? user.id,
+        userName: user.userName,
+        mobile: user.mobile,
+        memberLevel: user.memberLevel,
+        riskStatus: user.riskStatus,
+      });
+    }
     setModalVisible(true);
   };
 
@@ -193,48 +172,26 @@ const UserProfileManagement: React.FC = () => {
     },
   ], []);
 
-  const vehicleColumns = useMemo<ProColumns<UserVehicleRecord>[]>(() => [
-    { title: '用户', dataIndex: 'userName', width: 120 },
-    { title: '车牌号', dataIndex: 'plateNo', width: 130 },
-    { title: '车辆类型', dataIndex: 'vehicleType', width: 120 , render: (value) => formatEnumText(value, 'vehicleType', '车辆类型') },
-    { title: '品牌', dataIndex: 'brand', width: 120 },
-    { title: '颜色', dataIndex: 'color', width: 100 },
-    { title: '默认车辆', dataIndex: 'defaultFlag', width: 110 , render: (_, record) => renderStatusTag(record.defaultFlag, defaultFlagMap) },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
-  ], []);
-
-  const riskColumns = useMemo<ProColumns<UserRiskRecord>[]>(() => [
-    { title: '用户', dataIndex: 'userName', width: 120 },
-    { title: '风控场景', dataIndex: 'riskScene', width: 150 , render: (value) => formatEnumText(value, 'riskScene', '风控场景') },
-    { title: '原因', dataIndex: 'riskReason', width: 220 },
-    { title: '关联单号', dataIndex: 'relatedNo', width: 160 },
-    { title: '状态', dataIndex: 'riskStatus', width: 120, render: (_, record) => renderStatusTag(record.riskStatus, riskStatusMap) },
-    { title: '负责人', dataIndex: 'owner', width: 130 },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (_, record) => formatDateTime(record.updatedAt) },
-  ], []);
-
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="用户档案中心" subtitle="维护用户基础档案、车辆和风控记录；服务卡信息仅在用户完整档案中作为关联资产查看。" icon={<ContactsOutlined />} />
-
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="用户档案" value={profiles.length} suffix="人" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="车辆" value={vehicles.length} suffix="辆" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="观察名单" value={userRisks.filter((item) => item.riskStatus === 'WATCH').length} suffix="人" /></Card></Col>
-      </Row>
+      <PageBanner title="用户档案中心" subtitle="维护用户基础档案；车辆和风控处理统一从用户完整档案进入。" icon={<ContactsOutlined />} />
 
       <KeywordSearchBar
         value={keyword}
-        placeholder="输入用户、手机号、车牌、门店或风控关键词"
+        placeholder="输入用户或手机号"
         onSearch={setKeyword}
       />
 
-      <Tabs
-        items={[
-          { key: 'profile', label: '用户档案', children: <ProTable<AppUserProfileRecord> cardBordered rowKey="id" columns={profileColumns} dataSource={profiles} loading={profileQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1180 }} toolBarRender={() => [<Button key="tag" type="primary" onClick={() => openModal('维护用户档案')}>维护档案</Button>]} /> },
-          { key: 'vehicle', label: '用户车辆', children: <ProTable<UserVehicleRecord> cardBordered rowKey="id" columns={vehicleColumns} dataSource={vehicles} loading={vehicleQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1120 }} toolBarRender={() => [<Button key="new" type="primary" onClick={() => openModal('新增用户车辆')}>新增车辆</Button>]} /> },
-          { key: 'risk', label: '用户风控', children: <ProTable<UserRiskRecord> cardBordered rowKey="id" columns={riskColumns} dataSource={userRisks} loading={riskQuery.isLoading} search={false} pagination={{ pageSize: 8 }} scroll={{ x: 1280 }} toolBarRender={() => [<Button key="handle" type="primary" onClick={() => openModal('处理用户风控')}>处理风控</Button>]} /> },
-        ]}
+      <ProTable<AppUserProfileRecord>
+        cardBordered
+        rowKey="id"
+        columns={profileColumns}
+        dataSource={profiles}
+        loading={profileQuery.isLoading}
+        search={false}
+        pagination={{ pageSize: 8 }}
+        scroll={{ x: 1180 }}
+        toolBarRender={() => [<Button key="tag" type="primary" onClick={() => openModal('维护用户档案')}>维护档案</Button>]}
       />
 
       <UserAssetFullProfileDrawer
@@ -242,13 +199,25 @@ const UserProfileManagement: React.FC = () => {
         loading={fullProfileLoading}
         profile={fullProfile}
         onClose={closeFullProfile}
+        onAddVehicle={() => {
+          const user = fullProfile?.profile;
+          if (!user) return;
+          closeFullProfile();
+          openModal('新增用户车辆', user);
+        }}
+        onHandleRisk={() => {
+          const user = fullProfile?.profile;
+          if (!user) return;
+          closeFullProfile();
+          openModal('处理用户风控', user);
+        }}
       />
 
       <BusinessDetailModal title="用户档案详情" open={!!detail} onCancel={() => setDetail(null)} width={760}>
         {detail ? (
           <SchemaDetail
             record={detail as Record<string, any>}
-            fields={('plateNo' in detail ? profileDetailFields.vehicle : 'riskScene' in detail ? profileDetailFields.risk : profileDetailFields.profile) as DetailField<Record<string, any>>[]}
+            fields={profileDetailFields as DetailField<Record<string, any>>[]}
             column={2}
             labelWidth={110}
           />

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Descriptions, Drawer, Empty, Space, Statistic, Table, Tabs, Tag, Typography } from 'antd';
+import { Button, Descriptions, Drawer, Empty, Space, Statistic, Table, Tabs, Tag, Typography } from 'antd';
+import { PlusOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type {
   AppUserFullProfileRecord,
@@ -18,9 +19,11 @@ interface Props {
   loading?: boolean;
   profile?: AppUserFullProfileRecord;
   onClose: () => void;
+  onAddVehicle: () => void;
+  onHandleRisk: () => void;
 }
 
-const UserAssetFullProfileDrawer: React.FC<Props> = ({ open, loading, profile, onClose }) => {
+const UserAssetFullProfileDrawer: React.FC<Props> = ({ open, loading, profile, onClose, onAddVehicle, onHandleRisk }) => {
   const user = profile?.profile;
   const account = profile?.account;
   const risks = [
@@ -132,13 +135,27 @@ const UserAssetFullProfileDrawer: React.FC<Props> = ({ open, loading, profile, o
               <Typography.Text type="secondary">聚合最近 50 条车辆/风控记录、100 条服务卡/充值订单/服务订单/余额流水和 100 条核销记录。</Typography.Text>
             </Space>
           ) },
-          { key: 'vehicles', label: '车辆', children: <Table rowKey="id" size="small" columns={vehicleColumns} dataSource={profile.vehicles || []} pagination={{ pageSize: 8 }} scroll={{ x: 960 }} /> },
+          { key: 'vehicles', label: '车辆', children: (
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+                <Button type="primary" icon={<PlusOutlined />} onClick={onAddVehicle}>新增车辆</Button>
+              </Space>
+              <Table rowKey="id" size="small" columns={vehicleColumns} dataSource={profile.vehicles || []} pagination={{ pageSize: 8 }} scroll={{ x: 960 }} />
+            </Space>
+          ) },
           { key: 'cards', label: '服务卡', children: <Table rowKey="id" size="small" columns={cardColumns} dataSource={profile.serviceCards || []} pagination={{ pageSize: 8 }} scroll={{ x: 1120 }} /> },
           { key: 'usage', label: '核销流水', children: <Table rowKey="id" size="small" columns={usageColumns} dataSource={profile.serviceCardUsages || []} pagination={{ pageSize: 8 }} scroll={{ x: 1120 }} /> },
           { key: 'recharges', label: '充值订单', children: <Table rowKey="id" size="small" columns={rechargeColumns} dataSource={profile.rechargeOrders || []} pagination={{ pageSize: 8 }} scroll={{ x: 1220 }} /> },
           { key: 'orders', label: '服务订单', children: <Table rowKey="id" size="small" columns={serviceOrderColumns} dataSource={profile.serviceOrders || []} pagination={{ pageSize: 8 }} scroll={{ x: 1220 }} /> },
           { key: 'flows', label: '余额流水', children: <Table rowKey="id" size="small" columns={flowColumns} dataSource={profile.balanceFlows || []} pagination={{ pageSize: 8 }} scroll={{ x: 1120 }} /> },
-          { key: 'risks', label: '风控记录', children: <Table rowKey="id" size="small" columns={riskColumns} dataSource={profile.riskRecords || []} pagination={{ pageSize: 8 }} scroll={{ x: 1120 }} /> },
+          { key: 'risks', label: '风控记录', children: (
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+                <Button type="primary" icon={<SafetyCertificateOutlined />} onClick={onHandleRisk}>处理风控</Button>
+              </Space>
+              <Table rowKey="id" size="small" columns={riskColumns} dataSource={profile.riskRecords || []} pagination={{ pageSize: 8 }} scroll={{ x: 1120 }} />
+            </Space>
+          ) },
         ]} />
       )}
     </Drawer>

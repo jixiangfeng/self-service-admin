@@ -1,13 +1,17 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Col, Row, Space, Statistic, Tabs, message } from 'antd';
-import { AccountBookOutlined } from '@ant-design/icons';
+import { Button, Space, Tabs, message } from 'antd';
+import {
+  AccountBookOutlined,
+  EyeOutlined,
+  FileDoneOutlined,
+  SettingOutlined,
+} from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useNavigate } from 'react-router-dom';
 import {
-  payoutStatusOptions,
-  reconciliationStatusOptions,
+  settlementCycleOptions,
   settlementDetailTypeOptions,
   settlementStatusOptions,
   settlementSubjectTypeOptions,
@@ -16,15 +20,26 @@ import PageBanner from '@/components/PageBanner';
 import SchemaDetail, { type DetailField } from '@/components/SchemaDetail';
 import BusinessDetailModal from '@/components/BusinessDetailModal';
 import { showBusinessConfirm } from '@/components/BusinessConfirm';
-import { buildValueEnum, containsKeyword, CoreFlowPanel, formatAmount, formatDateTime, formatEnumText, OperatorTips, renderStatusTag } from '@/pages/Business/shared';
-import WorkflowGuide from '@/pages/Business/shared';
+import {
+  buildValueEnum,
+  formatAmount,
+  formatDateTime,
+  renderStatusTag,
+} from '@/pages/Business/shared';
 import api, {
-  type PaymentReconciliationRecord,
-  type SettlementBillDetailRecord,
   type SettlementAllocationRecord,
+  type SettlementBillDetailRecord,
   type SettlementBillRecord,
-  type SettlementPayoutRecord,
 } from '@/services/backendService';
+
+type SettlementTabKey = 'bill' | 'crossStoreClearing';
+
+interface PageQuery {
+  pageNum: number;
+  pageSize: number;
+  keyword?: string;
+  status?: string;
+}
 
 interface SettlementRecord extends SettlementBillRecord {
   id: number;
@@ -36,29 +51,15 @@ interface SettlementRecord extends SettlementBillRecord {
   refundAmount: number | string;
   costAmount: number | string;
   settlementAmount: number | string;
-  payoutStatus?: string;
+  pendingProfitDetailCount?: number;
   status?: string;
   updatedAt?: string;
 }
 
-interface SettlementDetailRecord {
-  id: number | string;
-  billNo: string;
-  detailType: string;
-  sourceNo: string;
-  storeName: string;
-  rechargeNo?: string;
-  balanceScopeType?: string;
-  balanceScopeId?: number;
-  merchantGroupName?: string;
-  settlementMode?: string;
-  settlementRule?: string;
-  settlementRuleSnapshot?: string;
-  incomeAmount: number | string;
-  refundAmount: number | string;
-  costAmount: number | string;
-  settlementAmount: number | string;
-  remark: string;
+interface ClearingPlanSnapshot {
+  sourceShareRate?: number | string;
+  serviceShareRate?: number | string;
+  platformRate?: number | string;
 }
 
 interface CrossStoreClearingRecord {
@@ -72,270 +73,198 @@ interface CrossStoreClearingRecord {
   sourceNo: string;
   principalAmount: number;
   giftAmount: number;
-  couponAmount: number;
+  giftCostAmount: number;
   clearingBase: number;
-  rechargeMerchantRate: number;
-  consumeMerchantRate: number;
-  platformRate: number;
+  configuredRate: string;
   rechargeMerchantAmount: number;
   consumeMerchantAmount: number;
   platformFee: number;
   payableAmount: number;
-  formula: string;
+  settlementRule: string;
+  settlementRuleVersion: string;
   settlementCycle: string;
   status: string;
-  riskStatus: string;
   remark: string;
 }
 
-const settlementStatusMap = buildValueEnum(settlementStatusOptions);
-const payoutStatusMap = buildValueEnum(payoutStatusOptions);
+const settlementStatusMap = buildValueEnum(settlementStatusOptions.map((option) => (
+  option.value === 'WAIT_PAYOUT' ? { ...option, label: '待外部结算' } : option
+)));
 const subjectTypeMap = buildValueEnum(settlementSubjectTypeOptions);
 const detailTypeMap = buildValueEnum(settlementDetailTypeOptions);
-const reconciliationStatusMap = buildValueEnum(reconciliationStatusOptions);
+const settlementCycleMap = buildValueEnum([
+  ...settlementCycleOptions,
+  { value: 'T_PLUS_1', label: '日结（T+1）' },
+  { value: 'WEEKLY', label: '周结' },
+  { value: 'MONTHLY', label: '月结' },
+  { value: 'REALTIME', label: '实时' },
+]);
 const settlementAllocationStatusOptions = [
   { value: 'PENDING', label: '待清分' },
   { value: 'PROCESSING', label: '处理中' },
-  { value: 'WAIT_PAYOUT', label: '待打款' },
+  { value: 'WAIT_PAYOUT', label: '待外部结算' },
   { value: 'SETTLED', label: '已结算' },
   { value: 'BLOCKED', label: '处理受阻' },
 ];
 const clearingStatusMap = buildValueEnum(settlementAllocationStatusOptions);
-const clearingRiskMap = buildValueEnum([
-  { value: 'NORMAL', label: '正常' },
-  { value: 'NEAR_LIMIT', label: '接近额度' },
-  { value: 'OVERDUE', label: '逾期' },
-]);
+
+const parseRate = (value: number | string | undefined) => {
+  if (value === undefined || value === null || value === '') return undefined;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : undefined;
+};
+
+const configuredRateText = (snapshotText?: string) => {
+  if (!snapshotText) return '-';
+  try {
+    const snapshot = JSON.parse(snapshotText) as ClearingPlanSnapshot;
+    const sourceRate = parseRate(snapshot.sourceShareRate);
+    const serviceRate = parseRate(snapshot.serviceShareRate);
+    const platformRate = parseRate(snapshot.platformRate);
+    if (sourceRate === undefined && serviceRate === undefined && platformRate === undefined) return '-';
+    return `资金方 ${sourceRate ?? 0}% / 履约方 ${serviceRate ?? 0}% / 平台 ${platformRate ?? 0}%`;
+  } catch {
+    return '-';
+  }
+};
 
 const settlementBillDetailFields: DetailField<SettlementRecord>[] = [
   { name: 'billNo', label: '结算单号' },
-  { name: 'billType', label: '结算层级', render: (value) => formatEnumText(value, 'billType', '结算层级') },
+  { name: 'billType', label: '结算层级', render: (value) => subjectTypeMap[value as keyof typeof subjectTypeMap]?.text || value },
   { name: 'subjectName', label: '结算主体' },
-  { name: 'cycle', label: '周期' },
+  { name: 'cycle', label: '结算周期' },
   { name: 'incomeAmount', label: '收入金额', render: (value) => formatAmount(value) },
   { name: 'refundAmount', label: '退款冲减', render: (value) => formatAmount(value) },
-  { name: 'costAmount', label: '活动成本', render: (value) => formatAmount(value) },
+  { name: 'costAmount', label: '赠送及活动成本', render: (value) => formatAmount(value) },
   { name: 'settlementAmount', label: '应结金额', render: (value) => formatAmount(value) },
-  { name: 'payoutStatus', label: '打款状态', render: (value) => payoutStatusMap[value as keyof typeof payoutStatusMap]?.text || value },
-  { name: 'status', label: '状态', render: (value) => settlementStatusMap[value as keyof typeof settlementStatusMap]?.text || value },
-  { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
-];
-
-const settlementOverviewDetailFields: DetailField<SettlementDetailRecord>[] = [
-  { name: 'billNo', label: '结算单号' },
-  { name: 'detailType', label: '明细类型', render: (value) => detailTypeMap[value as keyof typeof detailTypeMap]?.text || value },
-  { name: 'sourceNo', label: '来源单号' },
-  { name: 'storeName', label: '门店' },
-  { name: 'rechargeNo', label: '充值单号' },
-  { name: 'balanceScopeType', label: '可用范围', render: (value, record) => record.balanceScopeType ? formatEnumText(value, 'scopeType', '可用范围') : '-' },
-  { name: 'merchantGroupName', label: '门店组' },
-  { name: 'settlementMode', label: '结算模式', render: (value) => formatEnumText(value, 'settlementMode', '结算模式') },
-  { name: 'settlementRule', label: '结算规则' },
-  { name: 'settlementRuleSnapshot', label: '规则快照' },
-  { name: 'incomeAmount', label: '收入', render: (value) => formatAmount(value) },
-  { name: 'refundAmount', label: '退款', render: (value) => formatAmount(value) },
-  { name: 'costAmount', label: '成本', render: (value) => formatAmount(value) },
-  { name: 'settlementAmount', label: '应结', render: (value) => formatAmount(value) },
-  { name: 'remark', label: '备注' },
-];
-
-const settlementPayoutDetailFields: DetailField<SettlementPayoutRecord>[] = [
-  { name: 'payoutNo', label: '打款流水号' },
-  { name: 'billNo', label: '结算单号' },
-  { name: 'accountName', label: '收款户名' },
-  { name: 'bankName', label: '开户行' },
-  { name: 'payoutAmount', label: '打款金额', render: (value) => formatAmount(value) },
-  { name: 'status', label: '打款状态', render: (value) => payoutStatusMap[value as keyof typeof payoutStatusMap]?.text || value },
-  { name: 'paidAt', label: '打款时间', render: (value) => formatDateTime(value) },
-  { name: 'failureReason', label: '失败原因' },
-];
-
-const reconciliationDetailFields: DetailField<PaymentReconciliationRecord>[] = [
-  { name: 'reconNo', label: '对账单号' },
-  { name: 'channelCode', label: '渠道编码' },
-  { name: 'channelAmount', label: '渠道金额', render: (value) => formatAmount(value) },
-  { name: 'platformAmount', label: '系统金额', render: (value) => formatAmount(value) },
-  { name: 'diffAmount', label: '差异金额', render: (value) => formatAmount(value) },
-  { name: 'status', label: '对账状态', render: (value) => reconciliationStatusMap[value as keyof typeof reconciliationStatusMap]?.text || value },
-  { name: 'handleRemark', label: '处理说明' },
+  { name: 'status', label: '结算状态', render: (value) => settlementStatusMap[value as keyof typeof settlementStatusMap]?.text || value },
   { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
 ];
 
 const crossStoreClearingDetailFields: DetailField<CrossStoreClearingRecord>[] = [
   { name: 'clearingNo', label: '清分单号' },
   { name: 'merchantGroupName', label: '门店组' },
-  { name: 'rechargeMerchant', label: '资金持有商户' },
-  { name: 'consumeMerchant', label: '履约商户' },
+  { name: 'rechargeMerchant', label: '资金持有方' },
+  { name: 'consumeMerchant', label: '履约收入方' },
   { name: 'rechargeStore', label: '充值门店' },
   { name: 'consumeStore', label: '消费门店' },
   { name: 'sourceNo', label: '来源单号' },
   { name: 'principalAmount', label: '本金消耗', render: (value) => formatAmount(value) },
   { name: 'giftAmount', label: '赠送消耗', render: (value) => formatAmount(value) },
-  { name: 'couponAmount', label: '优惠抵扣', render: (value) => formatAmount(value) },
+  { name: 'giftCostAmount', label: '赠送成本', render: (value) => formatAmount(value) },
   { name: 'clearingBase', label: '清分基数', render: (value) => formatAmount(value) },
-  { name: 'rechargeMerchantRate', label: '充值方比例', render: (value) => `${value}%` },
-  { name: 'consumeMerchantRate', label: '履约方比例', render: (value) => `${value}%` },
-  { name: 'platformRate', label: '平台比例', render: (value) => `${value}%` },
-  { name: 'rechargeMerchantAmount', label: '充值方留存', render: (value) => formatAmount(value) },
-  { name: 'consumeMerchantAmount', label: '履约方应收', render: (value) => formatAmount(value) },
+  { name: 'configuredRate', label: '方案比例' },
+  { name: 'rechargeMerchantAmount', label: '资金方分成', render: (value) => formatAmount(value) },
+  { name: 'consumeMerchantAmount', label: '履约方分成', render: (value) => formatAmount(value) },
   { name: 'platformFee', label: '平台服务费', render: (value) => formatAmount(value) },
-  { name: 'payableAmount', label: '应线下清分', render: (value) => formatAmount(value) },
-  { name: 'formula', label: '计算公式' },
-  { name: 'settlementCycle', label: '账期', render: (value) => formatEnumText(value, 'settlementMode', '结算模式') },
-  { name: 'status', label: '状态', render: (value) => clearingStatusMap[value as keyof typeof clearingStatusMap]?.text || value },
-  { name: 'riskStatus', label: '风控状态', render: (value) => clearingRiskMap[value as keyof typeof clearingRiskMap]?.text || value },
-  { name: 'remark', label: '清分说明' },
+  { name: 'payableAmount', label: '商户净应结', render: (value) => formatAmount(value) },
+  { name: 'settlementRule', label: '结算方案' },
+  { name: 'settlementRuleVersion', label: '方案版本' },
+  { name: 'settlementCycle', label: '账期', render: (value) => settlementCycleMap[value as keyof typeof settlementCycleMap]?.text || value },
+  { name: 'status', label: '清分状态', render: (value) => clearingStatusMap[value as keyof typeof clearingStatusMap]?.text || value },
+  { name: 'remark', label: '关联信息' },
 ];
+
+const mapCrossStoreClearing = (item: SettlementAllocationRecord): CrossStoreClearingRecord => ({
+  id: `allocation-${item.id}`,
+  clearingNo: item.allocationNo,
+  merchantGroupName: item.merchantGroupName || item.balanceScopeType || '-',
+  rechargeMerchant: item.fundOwnerUnitId
+    ? `资金主体#${item.fundOwnerUnitId}`
+    : item.sourceMerchantId ? `充值商户#${item.sourceMerchantId}` : '-',
+  consumeMerchant: item.revenueOwnerUnitId
+    ? `收入主体#${item.revenueOwnerUnitId}`
+    : item.serviceMerchantId ? `履约商户#${item.serviceMerchantId}` : '-',
+  rechargeStore: item.sourceStoreId ? `充值门店#${item.sourceStoreId}` : '-',
+  consumeStore: item.serviceStoreId ? `消费门店#${item.serviceStoreId}` : '-',
+  sourceNo: item.serviceOrderNo || item.relatedNo || item.rechargeNo || '-',
+  principalAmount: Number(item.principalAmount || 0),
+  giftAmount: Number(item.giftAmount || 0),
+  giftCostAmount: Number(item.giftCostAmount || 0),
+  clearingBase: Number(item.settlementBaseAmount || 0),
+  configuredRate: configuredRateText(item.settlementRuleSnapshot),
+  rechargeMerchantAmount: Number(item.sourceShareAmount || 0),
+  consumeMerchantAmount: Number(item.serviceShareAmount || 0),
+  platformFee: Number(item.platformFeeAmount || 0),
+  payableAmount: Number(item.merchantReceivableAmount || 0),
+  settlementRule: item.settlementRule || '-',
+  settlementRuleVersion: item.settlementRuleVersion || '-',
+  settlementCycle: item.settlementCycle || '-',
+  status: item.allocationStatus || 'PENDING',
+  remark: `余额批次#${item.balanceLotId || '-'} / 清分规则#${item.settlementRuleId || '-'}`,
+});
 
 const SettlementManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [billKeyword, setBillKeyword] = useState('');
-  const [detailKeyword, setDetailKeyword] = useState('');
-  const [payoutKeyword, setPayoutKeyword] = useState('');
-  const [reconcileKeyword, setReconcileKeyword] = useState('');
-  const [clearingKeyword, setClearingKeyword] = useState('');
-  const [billStatusFilter, setBillStatusFilter] = useState<string>();
-  const [detailTypeFilter, setDetailTypeFilter] = useState<string>();
-  const [payoutStatusFilter, setPayoutStatusFilter] = useState<string>();
-  const [reconcileStatusFilter, setReconcileStatusFilter] = useState<string>();
-  const [detail, setDetail] = useState<SettlementRecord | SettlementDetailRecord | SettlementPayoutRecord | PaymentReconciliationRecord | CrossStoreClearingRecord | null>(null);
+  const [activeTab, setActiveTab] = useState<SettlementTabKey>('bill');
+  const [billQueryParams, setBillQueryParams] = useState<PageQuery>({ pageNum: 1, pageSize: 10 });
+  const [clearingQueryParams, setClearingQueryParams] = useState<PageQuery>({ pageNum: 1, pageSize: 10 });
+  const [billDetailPage, setBillDetailPage] = useState({ pageNum: 1, pageSize: 8 });
+  const [selectedBill, setSelectedBill] = useState<SettlementRecord | null>(null);
+  const [selectedDetail, setSelectedDetail] = useState<CrossStoreClearingRecord | null>(null);
 
   const billQuery = useQuery({
-    queryKey: ['settlementBills', billKeyword, billStatusFilter],
-    queryFn: async () => (await api.settlementBill.page({ pageNum: 1, pageSize: 200, keyword: billKeyword || undefined, billStatus: billStatusFilter })).data,
-  });
-  const billDetailQuery = useQuery({
-    queryKey: ['settlementOverviewDetails', detailKeyword, detailTypeFilter],
-    queryFn: async () => (await api.settlementBillDetail.page({ pageNum: 1, pageSize: 200, keyword: detailKeyword || undefined, detailType: detailTypeFilter })).data,
-  });
-  const payoutQuery = useQuery({
-    queryKey: ['settlementPayoutsOverview', payoutKeyword, payoutStatusFilter],
-    queryFn: async () => (await api.settlementPayout.page({ pageNum: 1, pageSize: 200, keyword: payoutKeyword || undefined, status: payoutStatusFilter })).data,
-  });
-  const reconciliationQuery = useQuery({
-    queryKey: ['settlementReconciliationsOverview', reconcileKeyword, reconcileStatusFilter],
-    queryFn: async () => (await api.payment.reconciliations.page({ pageNum: 1, pageSize: 200, keyword: reconcileKeyword || undefined, status: reconcileStatusFilter })).data,
+    queryKey: ['settlementBills', billQueryParams],
+    queryFn: async () => (await api.settlementBill.page({
+      pageNum: billQueryParams.pageNum,
+      pageSize: billQueryParams.pageSize,
+      keyword: billQueryParams.keyword,
+      billStatus: billQueryParams.status,
+    })).data,
+    enabled: activeTab === 'bill',
   });
   const allocationQuery = useQuery({
-    queryKey: ['settlementAllocationOverview', clearingKeyword],
-    queryFn: async () => (await api.settlementAllocation.page({ pageNum: 1, pageSize: 200, keyword: clearingKeyword || undefined })).data,
+    queryKey: ['settlementAllocationOverview', clearingQueryParams],
+    queryFn: async () => (await api.settlementAllocation.page({
+      pageNum: clearingQueryParams.pageNum,
+      pageSize: clearingQueryParams.pageSize,
+      keyword: clearingQueryParams.keyword,
+      allocationStatus: clearingQueryParams.status,
+    })).data,
+    enabled: activeTab === 'crossStoreClearing',
   });
-  const retryPayoutMutation = useMutation({
-    mutationFn: (record: SettlementPayoutRecord) => api.settlementPayout.dispatch(record.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['settlementPayoutsOverview'] });
-      queryClient.invalidateQueries({ queryKey: ['settlementBills'] });
-      queryClient.invalidateQueries({ queryKey: ['settlementAllocationOverview'] });
-      message.success('已发起重试打款');
-    },
+  const billDetailQuery = useQuery({
+    queryKey: ['settlementBillDetails', selectedBill?.billNo, billDetailPage],
+    queryFn: async () => (await api.settlementBillDetail.page({
+      pageNum: billDetailPage.pageNum,
+      pageSize: billDetailPage.pageSize,
+      billNo: selectedBill?.billNo,
+    })).data,
+    enabled: !!selectedBill?.billNo,
   });
+
   const generateProfitConfirmMutation = useMutation({
     mutationFn: (billNo: string) => api.profitConfirm.generate({ settlementBillNo: billNo }),
     onSuccess: async (response) => {
-      await queryClient.invalidateQueries({ queryKey: ['profitConfirms'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['profitConfirms'] }),
+        queryClient.invalidateQueries({ queryKey: ['settlementBills'] }),
+      ]);
       message.success(`已生成 ${response.data.generatedCount} 张分润确认单，合计 ${formatAmount(response.data.totalConfirmAmount)}`);
       navigate('/settlement/profit-sharing');
     },
   });
 
-  const confirmRetryPayout = (record?: SettlementPayoutRecord) => {
-    if (!record) return;
-    showBusinessConfirm({
-      title: '确认重试打款',
-      content: `确定重试打款流水「${record.payoutNo || record.billNo || record.id}」吗？系统会重新发起打款处理。`,
-      okText: '确认重试',
-      onOk: () => retryPayoutMutation.mutate(record),
-    });
+  const openBillDetail = (record: SettlementRecord) => {
+    setBillDetailPage({ pageNum: 1, pageSize: 8 });
+    setSelectedBill(record);
   };
 
-  const bills = useMemo(() => (billQuery.data?.records || []) as SettlementRecord[], [billQuery.data]);
-  const settlementDetails = useMemo<SettlementDetailRecord[]>(() => (billDetailQuery.data?.records || []).map((item: SettlementBillDetailRecord) => {
-    const amount = Number(item.amount || 0);
-    const isCost = item.detailType?.includes('GIFT_COST');
-    const isRefund = item.detailType === 'REFUND';
-    return {
-      id: item.id,
-      billNo: item.billNo,
-      detailType: item.detailType,
-      sourceNo: item.serviceOrderNo,
-      storeName: item.storeName || '-',
-      rechargeNo: item.rechargeNo,
-      balanceScopeType: item.balanceScopeType,
-      balanceScopeId: item.balanceScopeId,
-      merchantGroupName: item.merchantGroupName,
-      settlementMode: item.settlementMode,
-      settlementRule: item.settlementRule,
-      settlementRuleSnapshot: item.settlementRuleSnapshot,
-      incomeAmount: amount > 0 ? amount : 0,
-      refundAmount: isRefund ? Math.abs(amount) : 0,
-      costAmount: isCost ? Math.abs(amount) : 0,
-      settlementAmount: amount,
-      remark: item.merchantName || '-',
-    };
-  }), [billDetailQuery.data]);
-  const payouts = useMemo(() => (payoutQuery.data?.records || []) as SettlementPayoutRecord[], [payoutQuery.data]);
-  const reconciliations = useMemo(() => (reconciliationQuery.data?.records || []) as PaymentReconciliationRecord[], [reconciliationQuery.data]);
-
-  const filteredBills = useMemo(() => bills.filter((item) => containsKeyword(billKeyword, [item.billNo, item.subjectName, item.cycle])), [billKeyword, bills]);
-  const filteredDetails = useMemo(() => settlementDetails.filter((item) => containsKeyword(detailKeyword, [item.billNo, item.sourceNo, item.storeName, item.rechargeNo, item.merchantGroupName, item.settlementMode, item.settlementRule, item.remark])), [detailKeyword, settlementDetails]);
-  const filteredPayouts = useMemo(() => payouts.filter((item) => containsKeyword(payoutKeyword, [item.payoutNo, item.billNo, item.accountName, item.bankName, item.failureReason])), [payoutKeyword, payouts]);
-  const filteredReconciliations = useMemo(() => reconciliations.filter((item) => containsKeyword(reconcileKeyword, [item.reconNo, item.channelCode, item.handleRemark])), [reconcileKeyword, reconciliations]);
-  const crossStoreClearings = useMemo<CrossStoreClearingRecord[]>(() => {
-    const rows = (allocationQuery.data?.records || []) as SettlementAllocationRecord[];
-    return rows.map((item) => {
-      const principalAmount = Number(item.principalAmount || 0);
-      const giftAmount = Number(item.giftAmount || 0);
-      const sourceShareAmount = Number(item.sourceShareAmount || 0);
-      const serviceShareAmount = Number(item.serviceShareAmount || 0);
-      const platformFee = Number(item.platformFeeAmount || 0);
-      const payableAmount = Number(item.merchantReceivableAmount || 0);
-      const clearingBase = Number(item.settlementBaseAmount ?? (sourceShareAmount + serviceShareAmount + platformFee));
-      return {
-        id: `allocation-${item.id}`,
-        clearingNo: item.allocationNo,
-        merchantGroupName: item.merchantGroupName || item.balanceScopeType || '-',
-        rechargeMerchant: item.fundOwnerUnitId ? `资金主体#${item.fundOwnerUnitId}` : (item.sourceMerchantId ? `充值商户#${item.sourceMerchantId}` : '-'),
-        consumeMerchant: item.revenueOwnerUnitId ? `收入主体#${item.revenueOwnerUnitId}` : (item.serviceMerchantId ? `履约商户#${item.serviceMerchantId}` : '-'),
-        rechargeStore: item.sourceStoreId ? `充值门店#${item.sourceStoreId}` : '-',
-        consumeStore: item.serviceStoreId ? `消费门店#${item.serviceStoreId}` : '-',
-        sourceNo: item.serviceOrderNo || item.relatedNo || item.rechargeNo || '-',
-        principalAmount,
-        giftAmount,
-        couponAmount: Number(item.giftCostAmount || 0),
-        clearingBase,
-        rechargeMerchantRate: clearingBase > 0 ? Number((sourceShareAmount * 100 / clearingBase).toFixed(2)) : 0,
-        consumeMerchantRate: clearingBase > 0 ? Number((serviceShareAmount * 100 / clearingBase).toFixed(2)) : 0,
-        platformRate: clearingBase > 0 ? Number((platformFee * 100 / clearingBase).toFixed(2)) : 0,
-        rechargeMerchantAmount: sourceShareAmount,
-        consumeMerchantAmount: serviceShareAmount,
-        platformFee,
-        payableAmount,
-        formula: item.settlementRuleSnapshot || `${item.settlementRule || '清分规则'} / 版本 ${item.settlementRuleVersion || '-'}`,
-        settlementCycle: item.settlementCycle || '-',
-        status: item.allocationStatus || 'PENDING',
-        riskStatus: 'NORMAL',
-        remark: `余额批次#${item.balanceLotId || '-'} / 清分规则#${item.settlementRuleId || '-'}`,
-      };
-    });
-  }, [allocationQuery.data]);
-  const filteredCrossStoreClearings = useMemo(
-    () => crossStoreClearings.filter((item) => containsKeyword(clearingKeyword, [item.clearingNo, item.merchantGroupName, item.rechargeMerchant, item.consumeMerchant, item.rechargeStore, item.consumeStore, item.sourceNo])),
-    [clearingKeyword, crossStoreClearings]
-  );
+  const bills = (billQuery.data?.records || []) as SettlementRecord[];
+  const crossStoreClearings = ((allocationQuery.data?.records || []) as SettlementAllocationRecord[]).map(mapCrossStoreClearing);
 
   const billColumns: ProColumns<SettlementRecord>[] = [
     { title: '结算单号', dataIndex: 'billNo', width: 180, hideInSearch: true },
-    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '结算单号 / 主体 / 周期' } },
-    { title: '结算层级', dataIndex: 'billType', width: 120, valueType: 'select', valueEnum: subjectTypeMap, render: (_, record) => renderStatusTag(record.billType, subjectTypeMap) },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '结算单号' } },
+    { title: '结算层级', dataIndex: 'billType', width: 110, search: false, render: (_, record) => renderStatusTag(record.billType, subjectTypeMap) },
     { title: '结算主体', dataIndex: 'subjectName', width: 180, search: false },
-    { title: '周期', dataIndex: 'cycle', width: 220, search: false },
+    { title: '周期', dataIndex: 'cycle', width: 210, search: false },
     { title: '收入金额', dataIndex: 'incomeAmount', width: 120, search: false, render: (_, record) => formatAmount(record.incomeAmount) },
     { title: '退款冲减', dataIndex: 'refundAmount', width: 120, search: false, render: (_, record) => formatAmount(record.refundAmount) },
-    { title: '活动成本', dataIndex: 'costAmount', width: 120, search: false, render: (_, record) => formatAmount(record.costAmount) },
+    { title: '成本', dataIndex: 'costAmount', width: 120, search: false, render: (_, record) => formatAmount(record.costAmount) },
     { title: '应结金额', dataIndex: 'settlementAmount', width: 120, search: false, render: (_, record) => formatAmount(record.settlementAmount) },
-    { title: '打款状态', dataIndex: 'payoutStatus', width: 120, valueType: 'select', valueEnum: payoutStatusMap, render: (_, record) => renderStatusTag(record.payoutStatus, payoutStatusMap) },
-    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: settlementStatusMap, render: (_, record) => renderStatusTag(record.status, settlementStatusMap) },
+    { title: '结算状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: settlementStatusMap, render: (_, record) => renderStatusTag(record.status, settlementStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
     {
       title: '操作',
@@ -343,279 +272,198 @@ const SettlementManagement: React.FC = () => {
       search: false,
       render: (_, record) => (
         <Space>
-          <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-          <Button
-            size="small"
-            type="primary"
-            loading={generateProfitConfirmMutation.isPending}
-            disabled={record.status === 'REJECTED' || record.status === 'PENDING'}
-            title={record.status === 'REJECTED' || record.status === 'PENDING' ? '结算单生成后才可生成分润确认单' : undefined}
-            onClick={() => showBusinessConfirm({
-              title: '生成分润确认单',
-              content: `按结算单「${record.billNo}」的待处理分润明细，按合伙主体和收款账户汇总生成确认单。`,
-              okText: '确认生成',
-              onOk: () => generateProfitConfirmMutation.mutate(record.billNo),
-            })}
-          >
-            生成分润确认单
-          </Button>
+          <Button size="small" icon={<EyeOutlined />} onClick={() => openBillDetail(record)}>详情</Button>
+          {Number(record.pendingProfitDetailCount || 0) > 0 ? (
+            <Button
+              size="small"
+              type="primary"
+              icon={<FileDoneOutlined />}
+              loading={generateProfitConfirmMutation.isPending}
+              onClick={() => showBusinessConfirm({
+                title: '生成分润确认单',
+                content: `按结算单「${record.billNo}」的待处理分润明细生成确认单。`,
+                okText: '确认生成',
+                onOk: () => generateProfitConfirmMutation.mutate(record.billNo),
+              })}
+            >
+              生成分润确认
+            </Button>
+          ) : null}
         </Space>
       ),
     },
   ];
 
-  const detailColumns: ProColumns<SettlementDetailRecord>[] = [
-    { title: '结算单号', dataIndex: 'billNo', width: 180, hideInSearch: true },
-    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '结算单 / 来源单 / 门店 / 备注' } },
-    { title: '明细类型', dataIndex: 'detailType', width: 130, valueType: 'select', valueEnum: detailTypeMap, render: (_, record) => renderStatusTag(record.detailType, detailTypeMap) },
-    { title: '来源单号', dataIndex: 'sourceNo', width: 180, search: false },
-    { title: '充值单号', dataIndex: 'rechargeNo', width: 180, search: false },
-    { title: '门店', dataIndex: 'storeName', width: 180, search: false },
-    { title: '门店组', dataIndex: 'merchantGroupName', width: 180, search: false },
-    { title: '结算模式', dataIndex: 'settlementMode', width: 140, search: false, render: (_, record) => formatEnumText(record.settlementMode, 'settlementMode', '结算模式') },
-    { title: '结算规则', dataIndex: 'settlementRule', width: 180, search: false },
-    { title: '收入', dataIndex: 'incomeAmount', width: 110, search: false, render: (_, record) => formatAmount(record.incomeAmount) },
-    { title: '退款', dataIndex: 'refundAmount', width: 110, search: false, render: (_, record) => formatAmount(record.refundAmount) },
-    { title: '成本', dataIndex: 'costAmount', width: 110, search: false, render: (_, record) => formatAmount(record.costAmount) },
-    { title: '应结', dataIndex: 'settlementAmount', width: 110, search: false, render: (_, record) => formatAmount(record.settlementAmount) },
-    { title: '备注', dataIndex: 'remark', width: 240, search: false },
-    {
-      title: '操作',
-      width: 100,
-      search: false,
-      render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button>,
-    },
-  ];
-
-  const payoutColumns: ProColumns<SettlementPayoutRecord>[] = [
-    { title: '打款流水号', dataIndex: 'payoutNo', width: 180, hideInSearch: true },
-    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '打款流水 / 结算单 / 账户 / 银行' } },
-    { title: '结算单号', dataIndex: 'billNo', width: 180, search: false },
-    { title: '收款户名', dataIndex: 'accountName', width: 180, search: false },
-    { title: '开户行', dataIndex: 'bankName', width: 160, search: false },
-    { title: '打款金额', dataIndex: 'payoutAmount', width: 120, search: false, render: (_, record) => formatAmount(record.payoutAmount) },
-    { title: '打款状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: payoutStatusMap, render: (_, record) => renderStatusTag(record.status, payoutStatusMap) },
-    { title: '打款时间', dataIndex: 'paidAt', width: 180, search: false, render: (_, record) => formatDateTime(record.paidAt) },
-    { title: '失败原因', dataIndex: 'failureReason', width: 180, search: false },
-    {
-      title: '操作',
-      width: 160,
-      search: false,
-      render: (_, record) => (
-        <Space>
-          <Button size="small" onClick={() => setDetail(record)}>详情</Button>
-          <Button
-            size="small"
-            loading={retryPayoutMutation.isPending}
-            disabled={record.status !== 'FAILED'}
-            title={record.status !== 'FAILED' ? '仅失败打款流水可重试' : undefined}
-            onClick={() => confirmRetryPayout(record)}
-          >
-            重试
-          </Button>
-        </Space>
-      ),
-    },
-  ];
-
-  const reconciliationColumns: ProColumns<PaymentReconciliationRecord>[] = [
-    { title: '对账单号', dataIndex: 'reconNo', width: 180, hideInSearch: true },
-    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '对账单 / 结算单 / 负责人' } },
-    { title: '渠道编码', dataIndex: 'channelCode', width: 140, search: false },
-    { title: '渠道金额', dataIndex: 'channelAmount', width: 120, search: false, render: (_, record) => formatAmount(record.channelAmount) },
-    { title: '系统金额', dataIndex: 'platformAmount', width: 120, search: false, render: (_, record) => formatAmount(record.platformAmount) },
-    { title: '差异金额', dataIndex: 'diffAmount', width: 120, search: false, render: (_, record) => formatAmount(record.diffAmount) },
-    { title: '对账状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: reconciliationStatusMap, render: (_, record) => renderStatusTag(record.status, reconciliationStatusMap) },
-    { title: '处理说明', dataIndex: 'handleRemark', width: 220, search: false },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
-    { title: '操作', width: 100, search: false, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
+  const billDetailColumns: ProColumns<SettlementBillDetailRecord>[] = [
+    { title: '明细类型', dataIndex: 'detailType', width: 150, render: (_, record) => renderStatusTag(record.detailType, detailTypeMap) },
+    { title: '来源单号', dataIndex: 'serviceOrderNo', width: 180 },
+    { title: '门店', dataIndex: 'storeName', width: 160 },
+    { title: '本金', dataIndex: 'principalAmount', width: 110, render: (_, record) => formatAmount(record.principalAmount) },
+    { title: '赠送', dataIndex: 'giftAmount', width: 110, render: (_, record) => formatAmount(record.giftAmount) },
+    { title: '清分基数', dataIndex: 'settlementBaseAmount', width: 120, render: (_, record) => formatAmount(record.settlementBaseAmount) },
+    { title: '入账金额', dataIndex: 'amount', width: 120, render: (_, record) => formatAmount(record.amount) },
+    { title: '结算方案', dataIndex: 'settlementRule', width: 180 },
   ];
 
   const clearingColumns: ProColumns<CrossStoreClearingRecord>[] = [
     { title: '清分单号', dataIndex: 'clearingNo', width: 180, hideInSearch: true },
-    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '清分单 / 门店组 / 商户 / 门店 / 来源单' } },
+    { title: '关键词', dataIndex: 'keyword', hideInTable: true, fieldProps: { placeholder: '清分单号 / 来源单号' } },
     { title: '门店组', dataIndex: 'merchantGroupName', width: 180, search: false },
-    { title: '资金持有商户', dataIndex: 'rechargeMerchant', width: 160, search: false },
-    { title: '履约商户', dataIndex: 'consumeMerchant', width: 160, search: false },
+    { title: '资金持有方', dataIndex: 'rechargeMerchant', width: 160, search: false },
+    { title: '履约收入方', dataIndex: 'consumeMerchant', width: 160, search: false },
     { title: '充值门店', dataIndex: 'rechargeStore', width: 140, search: false },
-    { title: '消费门店', dataIndex: 'consumeStore', width: 160, search: false },
+    { title: '消费门店', dataIndex: 'consumeStore', width: 140, search: false },
     { title: '来源单号', dataIndex: 'sourceNo', width: 180, search: false },
     { title: '本金消耗', dataIndex: 'principalAmount', width: 120, search: false, render: (_, record) => formatAmount(record.principalAmount) },
     { title: '赠送消耗', dataIndex: 'giftAmount', width: 120, search: false, render: (_, record) => formatAmount(record.giftAmount) },
-    { title: '优惠抵扣', dataIndex: 'couponAmount', width: 120, search: false, render: (_, record) => formatAmount(record.couponAmount) },
+    { title: '赠送成本', dataIndex: 'giftCostAmount', width: 120, search: false, render: (_, record) => formatAmount(record.giftCostAmount) },
     { title: '清分基数', dataIndex: 'clearingBase', width: 120, search: false, render: (_, record) => formatAmount(record.clearingBase) },
-    { title: '协议比例', dataIndex: 'consumeMerchantRate', width: 220, search: false, render: (_, record) => `${record.rechargeMerchantRate}% / ${record.consumeMerchantRate}% / ${record.platformRate}%` },
-    { title: '充值方留存', dataIndex: 'rechargeMerchantAmount', width: 120, search: false, render: (_, record) => formatAmount(record.rechargeMerchantAmount) },
-    { title: '履约方应收', dataIndex: 'consumeMerchantAmount', width: 120, search: false, render: (_, record) => formatAmount(record.consumeMerchantAmount) },
+    { title: '方案比例', dataIndex: 'configuredRate', width: 300, search: false },
+    { title: '资金方分成', dataIndex: 'rechargeMerchantAmount', width: 120, search: false, render: (_, record) => formatAmount(record.rechargeMerchantAmount) },
+    { title: '履约方分成', dataIndex: 'consumeMerchantAmount', width: 120, search: false, render: (_, record) => formatAmount(record.consumeMerchantAmount) },
     { title: '平台服务费', dataIndex: 'platformFee', width: 120, search: false, render: (_, record) => formatAmount(record.platformFee) },
     { title: '商户净应结', dataIndex: 'payableAmount', width: 130, search: false, render: (_, record) => formatAmount(record.payableAmount) },
-    { title: '账期', dataIndex: 'settlementCycle', width: 140, search: false },
+    { title: '账期', dataIndex: 'settlementCycle', width: 120, search: false, render: (_, record) => settlementCycleMap[record.settlementCycle as keyof typeof settlementCycleMap]?.text || record.settlementCycle },
     { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: clearingStatusMap, render: (_, record) => renderStatusTag(record.status, clearingStatusMap) },
-    { title: '风控', dataIndex: 'riskStatus', width: 120, search: false, render: (_, record) => renderStatusTag(record.riskStatus, clearingRiskMap) },
-    { title: '操作', width: 100, search: false, render: (_, record) => <Button size="small" onClick={() => setDetail(record)}>详情</Button> },
+    { title: '操作', width: 100, search: false, render: (_, record) => <Button size="small" icon={<EyeOutlined />} onClick={() => setSelectedDetail(record)}>详情</Button> },
   ];
 
   return (
     <div style={{ padding: 24 }}>
-      <PageBanner title="结算中心" subtitle="先处理打款失败和对账差异，再核对结算单与跨店清分。" icon={<AccountBookOutlined />} />
-      <WorkflowGuide
-        title="结算复盘闭环"
-        summary="结算页要把收入归集、退款冲减、成本分摊和分润确认串起来，而不是把两个表平铺出来。"
-        steps={[
-          { title: '收入归集', description: '先归集服务收入、充值收入和门店维度金额', status: 'finish', tag: '结算单管理' },
-          { title: '跨店清分', description: '按门店组规则生成多主体清分分录', status: 'process', tag: '清分台账' },
-          { title: '分润确认', description: '按门店和合伙关系确认实际分润结果', status: 'process', tag: '合伙人分润' },
-          { title: '导出复盘', description: '最终输出结算单、分润明细和经营复盘数据', status: 'wait', tag: '报表 / 导出' },
-        ]}
+      <PageBanner
+        title="结算中心"
+        subtitle="查看自动结算结果和跨店清分记录。"
+        icon={<AccountBookOutlined />}
       />
-      <CoreFlowPanel
-        title="多商户跨店结算闭环"
-        subtitle="结算总览要能解释收入从哪里来、退款和成本怎么扣、跨店消费怎么清分、合伙人分润怎么确认，避免财务只能看金额猜原因。"
-        config={[
-          { label: '结算主体', desc: '按商户、门店、门店组或平台主体生成账单，周期和账户来自商户档案。', tag: '主体' },
-          { label: '跨店清分', desc: '余额或次卡消费后按充值方、履约方和平台生成清分分录。', tag: '清分' },
-          { label: '分润规则', desc: '多合伙人比例要使用版本化规则，不能覆盖历史口径。', tag: '分润' },
-        ]}
-        landing={[
-          { label: '结算单', desc: '汇总服务收入、充值收入、退款冲减、成本分摊和应结金额。' },
-          { label: '结算明细', desc: '按订单、充值单、门店和商户组保留可追溯明细。' },
-          { label: '打款流水', desc: '打款状态、失败原因和重试结果单独沉淀，便于财务复盘。' },
-        ]}
-        verify={[
-          { label: '自动成单', desc: '达到门店组账期和最低金额后，系统自动生成结算单。' },
-          { label: '打款前', desc: '确认收款账户和失败原因，不要对失败流水批量盲重试。' },
-          { label: '归档后', desc: '去分润明细和结算明细抽查订单级金额是否一致。' },
-        ]}
-        actions={[
-          { key: 'profit', label: '合伙人分润', type: 'primary', onClick: () => navigate('/settlement/profit-sharing') },
-        ]}
-      />
-      <OperatorTips
-        items={[
-          { label: '先核结算单', desc: '先看收入、退款、成本和应结金额，再处理跨店清分和分润。', tag: '核对' },
-          { label: '打款失败', desc: '在打款流水行内重试，先确认失败原因和收款账户，不要批量盲重试。', tag: '打款' },
-          { label: '结算完成', desc: '记账结算自动完成；真实打款以通道成功回调为最终凭证。', tag: '归档' },
-        ]}
-      />
-
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="待处理结算单" value={bills.filter((item) => item.status !== 'SETTLED').length} suffix="张" /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="本周期收入" value={formatAmount(bills.reduce((sum, item) => sum + Number(item.incomeAmount || 0), 0))} /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="退款冲减" value={formatAmount(bills.reduce((sum, item) => sum + Number(item.refundAmount || 0), 0))} /></Card></Col>
-        <Col xs={24} sm={12} xl={6}><Card><Statistic title="待清分金额" value={formatAmount(crossStoreClearings.reduce((sum, item) => sum + Number(item.payableAmount || 0), 0))} /></Card></Col>
-      </Row>
 
       <Tabs
+        activeKey={activeTab}
+        onChange={(key) => setActiveTab(key as SettlementTabKey)}
         items={[
           {
             key: 'bill',
-            label: '结算单管理',
+            label: '结算单',
             children: (
               <ProTable<SettlementRecord>
                 cardBordered
                 rowKey="id"
                 columns={billColumns}
-                dataSource={filteredBills}
+                dataSource={bills}
                 loading={billQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
-                pagination={{ pageSize: 8 }}
-                scroll={{ x: 2100 }}
+                scroll={{ x: 1900 }}
+                pagination={{
+                  current: billQuery.data?.current || billQueryParams.pageNum,
+                  pageSize: billQuery.data?.size || billQueryParams.pageSize,
+                  total: billQuery.data?.total || 0,
+                  showSizeChanger: true,
+                  showTotal: (total) => `共 ${total} 条`,
+                  onChange: (pageNum, pageSize) => setBillQueryParams((prev) => ({ ...prev, pageNum, pageSize })),
+                }}
                 toolBarRender={() => []}
-                onSubmit={(values) => { setBillKeyword(String(values.keyword || '')); setBillStatusFilter(values.status ? String(values.status) : undefined); }}
-                onReset={() => { setBillKeyword(''); setBillStatusFilter(undefined); }}
-              />
-            ),
-          },
-          {
-            key: 'detail',
-            label: '结算明细',
-            children: (
-              <ProTable<SettlementDetailRecord>
-                cardBordered
-                rowKey="id"
-                columns={detailColumns}
-                dataSource={filteredDetails}
-                loading={billDetailQuery.isLoading}
-                search={{ labelWidth: 'auto', defaultCollapsed: false }}
-                pagination={{ pageSize: 8 }}
-                scroll={{ x: 1700 }}
-                onSubmit={(values) => { setDetailKeyword(String(values.keyword || '')); setDetailTypeFilter(values.detailType ? String(values.detailType) : undefined); }}
-                onReset={() => { setDetailKeyword(''); setDetailTypeFilter(undefined); }}
+                onSubmit={(values) => setBillQueryParams((prev) => ({
+                  ...prev,
+                  pageNum: 1,
+                  keyword: typeof values.keyword === 'string' ? values.keyword.trim() || undefined : undefined,
+                  status: values.status ? String(values.status) : undefined,
+                }))}
+                onReset={() => setBillQueryParams((prev) => ({ pageNum: 1, pageSize: prev.pageSize }))}
               />
             ),
           },
           {
             key: 'crossStoreClearing',
-            label: '跨店清分台账',
+            label: '跨店清分',
             children: (
               <ProTable<CrossStoreClearingRecord>
                 cardBordered
                 rowKey="id"
                 columns={clearingColumns}
-                dataSource={filteredCrossStoreClearings}
+                dataSource={crossStoreClearings}
                 loading={allocationQuery.isLoading}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
-                pagination={{ pageSize: 8 }}
-                scroll={{ x: 2500 }}
+                scroll={{ x: 2800 }}
+                pagination={{
+                  current: allocationQuery.data?.current || clearingQueryParams.pageNum,
+                  pageSize: allocationQuery.data?.size || clearingQueryParams.pageSize,
+                  total: allocationQuery.data?.total || 0,
+                  showSizeChanger: true,
+                  showTotal: (total) => `共 ${total} 条`,
+                  onChange: (pageNum, pageSize) => setClearingQueryParams((prev) => ({ ...prev, pageNum, pageSize })),
+                }}
                 toolBarRender={() => [
-                  <Button key="rule" onClick={() => navigate('/merchant/groups')}>维护门店组协议</Button>,
+                  <Button key="plan" icon={<SettingOutlined />} onClick={() => navigate('/settlement/clearing-plans')}>
+                    跨店结算方案
+                  </Button>,
                 ]}
-                onSubmit={(values) => setClearingKeyword(String(values.keyword || ''))}
-                onReset={() => setClearingKeyword('')}
-              />
-            ),
-          },
-          {
-            key: 'payout',
-            label: '打款流水',
-            children: (
-              <ProTable<SettlementPayoutRecord>
-                cardBordered
-                rowKey="id"
-                columns={payoutColumns}
-                dataSource={filteredPayouts}
-                search={{ labelWidth: 'auto', defaultCollapsed: false }}
-                pagination={{ pageSize: 8 }}
-                        scroll={{ x: 1600 }}
-                        loading={payoutQuery.isLoading}
-                        onSubmit={(values) => { setPayoutKeyword(String(values.keyword || '')); setPayoutStatusFilter(values.status ? String(values.status) : undefined); }}
-                onReset={() => { setPayoutKeyword(''); setPayoutStatusFilter(undefined); }}
-              />
-            ),
-          },
-          {
-            key: 'reconcile',
-            label: '对账差异',
-            children: (
-              <ProTable<PaymentReconciliationRecord>
-                cardBordered
-                rowKey="id"
-                columns={reconciliationColumns}
-                dataSource={filteredReconciliations}
-                search={{ labelWidth: 'auto', defaultCollapsed: false }}
-                pagination={{ pageSize: 8 }}
-                scroll={{ x: 1600 }}
-                loading={reconciliationQuery.isLoading}
-                toolBarRender={() => []}
-                onSubmit={(values) => { setReconcileKeyword(String(values.keyword || '')); setReconcileStatusFilter(values.status ? String(values.status) : undefined); }}
-                onReset={() => { setReconcileKeyword(''); setReconcileStatusFilter(undefined); }}
+                onSubmit={(values) => setClearingQueryParams((prev) => ({
+                  ...prev,
+                  pageNum: 1,
+                  keyword: typeof values.keyword === 'string' ? values.keyword.trim() || undefined : undefined,
+                  status: values.status ? String(values.status) : undefined,
+                }))}
+                onReset={() => setClearingQueryParams((prev) => ({ pageNum: 1, pageSize: prev.pageSize }))}
               />
             ),
           },
         ]}
       />
 
-      <BusinessDetailModal title={detail && 'clearingNo' in detail ? '跨店清分详情' : detail && 'payoutNo' in detail ? '打款流水详情' : detail && 'reconNo' in detail ? '对账差异详情' : detail && 'sourceNo' in detail ? '结算明细详情' : '结算单详情'} open={!!detail} onCancel={() => setDetail(null)} width={820}>
-        {detail ? (
+      <BusinessDetailModal
+        title="结算单详情"
+        eyebrow="结算单"
+        subtitle={selectedBill ? `结算单 ${selectedBill.billNo}` : ''}
+        sectionTitle="结算信息"
+        sectionDesc=""
+        open={!!selectedBill}
+        onCancel={() => setSelectedBill(null)}
+        width={1120}
+      >
+        {selectedBill ? (
+          <>
+            <SchemaDetail record={selectedBill} fields={settlementBillDetailFields} column={2} labelWidth={110} />
+            <div style={{ marginTop: 20, marginBottom: 8, fontWeight: 600 }}>结算明细</div>
+            <ProTable<SettlementBillDetailRecord>
+              rowKey="id"
+              columns={billDetailColumns}
+              dataSource={billDetailQuery.data?.records || []}
+              loading={billDetailQuery.isLoading}
+              search={false}
+              options={false}
+              scroll={{ x: 1130 }}
+              pagination={{
+                current: billDetailQuery.data?.current || billDetailPage.pageNum,
+                pageSize: billDetailQuery.data?.size || billDetailPage.pageSize,
+                total: billDetailQuery.data?.total || 0,
+                showSizeChanger: true,
+                showTotal: (total) => `共 ${total} 条`,
+                onChange: (pageNum, pageSize) => setBillDetailPage({ pageNum, pageSize }),
+              }}
+              toolBarRender={false}
+            />
+          </>
+        ) : null}
+      </BusinessDetailModal>
+
+      <BusinessDetailModal
+        title="跨店清分详情"
+        eyebrow="跨店清分"
+        subtitle=""
+        sectionTitle="记录详情"
+        sectionDesc=""
+        open={!!selectedDetail}
+        onCancel={() => setSelectedDetail(null)}
+        width={860}
+      >
+        {selectedDetail ? (
           <SchemaDetail
-            record={detail as unknown as Record<string, unknown>}
-            fields={('clearingNo' in detail ? crossStoreClearingDetailFields : 'payoutNo' in detail ? settlementPayoutDetailFields : 'reconNo' in detail ? reconciliationDetailFields : 'sourceNo' in detail ? settlementOverviewDetailFields : settlementBillDetailFields) as unknown as DetailField<Record<string, unknown>>[]}
+            record={selectedDetail as unknown as Record<string, unknown>}
+            fields={crossStoreClearingDetailFields as unknown as DetailField<Record<string, unknown>>[]}
             column={2}
             labelWidth={110}
           />
         ) : null}
       </BusinessDetailModal>
-
     </div>
   );
 };

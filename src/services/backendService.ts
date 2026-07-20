@@ -904,6 +904,7 @@ export interface SettlementBillRecord {
   settlementAmount: number | string;
   billStatus: string;
   payoutStatus?: string;
+  pendingProfitDetailCount?: number;
   status?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -1073,6 +1074,9 @@ export interface ProfitPartnerRelationRecord {
   shareRatio: number | string;
   ratio?: string;
   settleAccountId?: number;
+  settleAccountName?: string;
+  settleAccountReference?: string;
+  settleBankName?: string;
   primarySettlement?: string;
   effectiveStart?: string;
   effectiveEnd?: string;

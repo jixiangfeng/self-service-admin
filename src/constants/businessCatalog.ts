@@ -363,6 +363,7 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'SOURCE_GIFT_COST', label: '充值方赠送成本' },
   { value: 'SERVICE_GIFT_COST', label: '履约方赠送成本' },
   { value: 'PLATFORM_GIFT_COST', label: '平台赠送成本' },
+  { value: 'PROMOTION_GIFT_COST', label: '活动赠送成本' },
   { value: 'REFUND_DEDUCT', label: '退款冲减' },
   { value: 'ACTIVITY_COST', label: '活动成本' },
   { value: 'MANUAL_ADJUST', label: '人工调整' },
