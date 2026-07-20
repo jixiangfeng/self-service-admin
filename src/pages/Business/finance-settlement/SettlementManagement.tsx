@@ -88,10 +88,25 @@ interface CrossStoreClearingRecord {
 }
 
 const settlementStatusMap = buildValueEnum(settlementStatusOptions.map((option) => (
-  option.value === 'WAIT_PAYOUT' ? { ...option, label: '待外部结算' } : option
+  option.value === 'WAIT_PAYOUT'
+    ? { ...option, label: '待外部结算' }
+    : option.value === 'SETTLED'
+      ? { ...option, label: '已入账' }
+      : option
 )));
 const subjectTypeMap = buildValueEnum(settlementSubjectTypeOptions);
 const detailTypeMap = buildValueEnum(settlementDetailTypeOptions);
+const detailTypeText = (value?: string) => {
+  if (!value) return '-';
+  const original = value.startsWith('REVERSAL_') ? value.slice('REVERSAL_'.length) : value;
+  const label = detailTypeMap[original as keyof typeof detailTypeMap]?.text || original;
+  return value.startsWith('REVERSAL_') ? `冲正 · ${label}` : label;
+};
+const settlementAmountText = (value: number | string) => {
+  const amount = Number(value || 0);
+  const formatted = amount < 0 ? `-￥${Math.abs(amount).toFixed(2)}` : formatAmount(value);
+  return `${formatted} · ${amount > 0 ? '商户应收' : amount < 0 ? '商户应补' : '已结平'}`;
+};
 const settlementCycleMap = buildValueEnum([
   ...settlementCycleOptions,
   { value: 'T_PLUS_1', label: '日结（T+1）' },
@@ -103,7 +118,12 @@ const settlementAllocationStatusOptions = [
   { value: 'PENDING', label: '待清分' },
   { value: 'PROCESSING', label: '处理中' },
   { value: 'WAIT_PAYOUT', label: '待外部结算' },
-  { value: 'SETTLED', label: '已结算' },
+  { value: 'SETTLED', label: '已入账' },
+  { value: 'REVERSED', label: '已冲正' },
+  { value: 'REVERSING', label: '冲正处理中' },
+  { value: 'CANCELLED', label: '已取消' },
+  { value: 'START_FAILED', label: '启动失败已撤销' },
+  { value: 'REFUNDED', label: '退款已撤销' },
   { value: 'BLOCKED', label: '处理受阻' },
 ];
 const clearingStatusMap = buildValueEnum(settlementAllocationStatusOptions);
@@ -136,8 +156,8 @@ const settlementBillDetailFields: DetailField<SettlementRecord>[] = [
   { name: 'incomeAmount', label: '收入金额', render: (value) => formatAmount(value) },
   { name: 'refundAmount', label: '退款冲减', render: (value) => formatAmount(value) },
   { name: 'costAmount', label: '赠送及活动成本', render: (value) => formatAmount(value) },
-  { name: 'settlementAmount', label: '应结金额', render: (value) => formatAmount(value) },
-  { name: 'status', label: '结算状态', render: (value) => settlementStatusMap[value as keyof typeof settlementStatusMap]?.text || value },
+  { name: 'settlementAmount', label: '往来净额', render: (value) => settlementAmountText(value as number | string) },
+  { name: 'status', label: '账单状态', render: (value) => settlementStatusMap[value as keyof typeof settlementStatusMap]?.text || value },
   { name: 'updatedAt', label: '更新时间', render: (value) => formatDateTime(value) },
 ];
 
@@ -263,8 +283,8 @@ const SettlementManagement: React.FC = () => {
     { title: '收入金额', dataIndex: 'incomeAmount', width: 120, search: false, render: (_, record) => formatAmount(record.incomeAmount) },
     { title: '退款冲减', dataIndex: 'refundAmount', width: 120, search: false, render: (_, record) => formatAmount(record.refundAmount) },
     { title: '成本', dataIndex: 'costAmount', width: 120, search: false, render: (_, record) => formatAmount(record.costAmount) },
-    { title: '应结金额', dataIndex: 'settlementAmount', width: 120, search: false, render: (_, record) => formatAmount(record.settlementAmount) },
-    { title: '结算状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: settlementStatusMap, render: (_, record) => renderStatusTag(record.status, settlementStatusMap) },
+    { title: '往来净额', dataIndex: 'settlementAmount', width: 170, search: false, render: (_, record) => settlementAmountText(record.settlementAmount) },
+    { title: '账单状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: settlementStatusMap, render: (_, record) => renderStatusTag(record.status, settlementStatusMap) },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false, render: (_, record) => formatDateTime(record.updatedAt) },
     {
       title: '操作',
@@ -295,7 +315,7 @@ const SettlementManagement: React.FC = () => {
   ];
 
   const billDetailColumns: ProColumns<SettlementBillDetailRecord>[] = [
-    { title: '明细类型', dataIndex: 'detailType', width: 150, render: (_, record) => renderStatusTag(record.detailType, detailTypeMap) },
+    { title: '明细类型', dataIndex: 'detailType', width: 180, render: (_, record) => detailTypeText(record.detailType) },
     { title: '来源单号', dataIndex: 'serviceOrderNo', width: 180 },
     { title: '门店', dataIndex: 'storeName', width: 160 },
     { title: '本金', dataIndex: 'principalAmount', width: 110, render: (_, record) => formatAmount(record.principalAmount) },
@@ -324,7 +344,7 @@ const SettlementManagement: React.FC = () => {
     { title: '平台服务费', dataIndex: 'platformFee', width: 120, search: false, render: (_, record) => formatAmount(record.platformFee) },
     { title: '商户净应结', dataIndex: 'payableAmount', width: 130, search: false, render: (_, record) => formatAmount(record.payableAmount) },
     { title: '账期', dataIndex: 'settlementCycle', width: 120, search: false, render: (_, record) => settlementCycleMap[record.settlementCycle as keyof typeof settlementCycleMap]?.text || record.settlementCycle },
-    { title: '状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: clearingStatusMap, render: (_, record) => renderStatusTag(record.status, clearingStatusMap) },
+    { title: '账务状态', dataIndex: 'status', width: 120, valueType: 'select', valueEnum: clearingStatusMap, render: (_, record) => renderStatusTag(record.status, clearingStatusMap) },
     { title: '操作', width: 100, search: false, render: (_, record) => <Button size="small" icon={<EyeOutlined />} onClick={() => setSelectedDetail(record)}>详情</Button> },
   ];
 

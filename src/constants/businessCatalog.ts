@@ -330,7 +330,7 @@ export const FALLBACK_BUSINESS_ENUMS = {
   { value: 'PENDING', label: '待生成' },
   { value: 'WAIT_PAYOUT', label: '待打款' },
   { value: 'BLOCKED', label: '处理受阻' },
-  { value: 'SETTLED', label: '已结算' },
+  { value: 'SETTLED', label: '已入账' },
   { value: 'REJECTED', label: '已驳回' },
 ],
   settlementModeOptions: [

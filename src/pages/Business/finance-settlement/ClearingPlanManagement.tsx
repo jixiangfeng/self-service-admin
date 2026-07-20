@@ -26,6 +26,11 @@ const giftBearerOptions = [
   { value: 'RATIO_SPLIT', label: '按清分比例共同承担' },
 ];
 
+const formatNetAmount = (value: number | string) => {
+  const amount = Number(value);
+  return amount < 0 ? `-￥${Math.abs(amount).toFixed(2)}` : formatAmount(value);
+};
+
 const defaultPlan: ClearingPlanSaveRequest = {
   settlementMode: 'AUTO_LEDGER', settlementCycle: 'WEEK', settlementCutoffTime: '00:00',
   settlementDelayDays: 0, minSettlementAmount: 0, cashHolder: 'RECHARGE_MERCHANT',
@@ -61,6 +66,7 @@ export default function ClearingPlanManagement() {
   });
   const plan = planQuery.data as ClearingPlanRecord | undefined;
   const versions = (versionsQuery.data || []) as SettlementRuleRecord[];
+  const giftCostBearerLabel = giftBearerOptions.find((item) => item.value === simulation?.giftCostBearer)?.label || simulation?.giftCostBearer;
 
   useEffect(() => {
     if (!groupIdParam && groups[0]?.id) setSearchParams({ groupId: String(groups[0].id) }, { replace: true });
@@ -208,16 +214,41 @@ export default function ClearingPlanManagement() {
                   <Button icon={<EyeOutlined />} loading={simulateMutation.isPending} onClick={() => simulateMutation.mutate()}>预演</Button>
                 </Form>
                 {simulation ? (
-                  <Row gutter={16} style={{ marginTop: 16 }}>
-                    <Col xs={12} sm={6}><Card size="small">本金消耗<br /><strong>{formatAmount(simulation.principalConsumed)}</strong></Card></Col>
-                    <Col xs={12} sm={6}><Card size="small">赠送消耗<br /><strong>{formatAmount(simulation.giftConsumed)}</strong></Card></Col>
-                    <Col xs={12} sm={6}><Card size="small">清分基数<br /><strong>{formatAmount(simulation.settlementBase)}</strong></Card></Col>
-                    <Col xs={12} sm={6}><Card size="small">赠送成本<br /><strong>{formatAmount(simulation.giftCostAmount)}</strong></Card></Col>
-                    <Col xs={12} sm={8}><Card size="small">充值方留存<br /><strong>{formatAmount(simulation.sourceShareAmount)}</strong></Card></Col>
-                    <Col xs={12} sm={8}><Card size="small">服务方所得<br /><strong>{formatAmount(simulation.serviceShareAmount)}</strong></Card></Col>
-                    <Col xs={12} sm={8}><Card size="small">平台服务费<br /><strong>{formatAmount(simulation.platformFeeAmount)}</strong></Card></Col>
-                    <Col span={24} style={{ marginTop: 12 }}><Alert showIcon type={simulation.balanced ? 'success' : 'error'} message={simulation.balanced ? '资金流入与流出相等，可以发布' : '资金流不平衡，不能发布'} description={simulation.validationMessages.join('；') || undefined} /></Col>
-                  </Row>
+                  <Space direction="vertical" size={16} style={{ width: '100%', marginTop: 16 }}>
+                    <Descriptions title="1. 用户余额怎么扣" bordered size="small" column={{ xs: 1, sm: 2, lg: 4 }}>
+                      <Descriptions.Item label="本金消耗"><strong>{formatAmount(simulation.principalConsumed)}</strong></Descriptions.Item>
+                      <Descriptions.Item label="赠送消耗"><strong>{formatAmount(simulation.giftConsumed)}</strong></Descriptions.Item>
+                      <Descriptions.Item label="消费后本金">{formatAmount(simulation.principalRemaining)}</Descriptions.Item>
+                      <Descriptions.Item label="消费后赠送">{formatAmount(simulation.giftRemaining)}</Descriptions.Item>
+                    </Descriptions>
+
+                    <Descriptions title="2. 消费金额怎么分（未扣赠送成本）" bordered size="small" column={{ xs: 1, sm: 2, lg: 4 }}>
+                      <Descriptions.Item label="本次清分总额"><strong>{formatAmount(simulation.settlementBase)}</strong></Descriptions.Item>
+                      <Descriptions.Item label="充值方毛分配">{formatAmount(simulation.sourceShareAmount)}</Descriptions.Item>
+                      <Descriptions.Item label="服务方毛收入">{formatAmount(simulation.serviceShareAmount)}</Descriptions.Item>
+                      <Descriptions.Item label="平台毛收入（服务费）">{formatAmount(simulation.platformFeeAmount)}</Descriptions.Item>
+                    </Descriptions>
+
+                    <Alert
+                      showIcon
+                      type="info"
+                      message={`${formatAmount(simulation.giftCostAmount)} 赠送成本由${giftCostBearerLabel}承担，不是额外消费`}
+                      description={`成本分摊：充值方 ${formatAmount(simulation.sourceGiftCostAmount)}，服务方 ${formatAmount(simulation.serviceGiftCostAmount)}，平台 ${formatAmount(simulation.platformGiftCostAmount)}。`}
+                    />
+
+                    <Descriptions title="3. 扣除赠送成本后的最终净额" bordered size="small" column={{ xs: 1, sm: 3 }}>
+                      <Descriptions.Item label="充值方净额"><strong>{formatNetAmount(simulation.sourceNetAmount)}</strong></Descriptions.Item>
+                      <Descriptions.Item label="服务方净额"><strong>{formatNetAmount(simulation.serviceNetAmount)}</strong></Descriptions.Item>
+                      <Descriptions.Item label="平台净额"><strong>{formatNetAmount(simulation.platformNetAmount)}</strong></Descriptions.Item>
+                    </Descriptions>
+
+                    <Alert
+                      showIcon
+                      type={simulation.balanced ? 'success' : 'error'}
+                      message={simulation.balanced ? '预演通过，可以发布' : '资金流不平衡，不能发布'}
+                      description={simulation.validationMessages.join('；') || `三方毛分配合计 ${formatAmount(simulation.settlementBase)}；扣除赠送成本后，净额合计等于本金消耗 ${formatAmount(simulation.principalConsumed)}。`}
+                    />
+                  </Space>
                 ) : null}
               </Card>
 

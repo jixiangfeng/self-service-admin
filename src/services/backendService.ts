@@ -291,11 +291,20 @@ export interface ClearingPlanSimulationRequest {
 export interface ClearingPlanSimulationRecord {
   principalConsumed: number | string;
   giftConsumed: number | string;
+  principalRemaining: number | string;
+  giftRemaining: number | string;
   settlementBase: number | string;
   sourceShareAmount: number | string;
   serviceShareAmount: number | string;
   platformFeeAmount: number | string;
   giftCostAmount: number | string;
+  giftCostBearer: string;
+  sourceGiftCostAmount: number | string;
+  serviceGiftCostAmount: number | string;
+  platformGiftCostAmount: number | string;
+  sourceNetAmount: number | string;
+  serviceNetAmount: number | string;
+  platformNetAmount: number | string;
   balanced: boolean;
   validationMessages: string[];
 }
