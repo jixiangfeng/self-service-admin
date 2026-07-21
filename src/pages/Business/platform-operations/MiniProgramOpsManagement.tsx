@@ -186,7 +186,6 @@ const MiniProgramOpsManagement: React.FC = () => {
         agreementType: values.agreementType || 'SERVICE',
         title: values.name,
         content: values.content,
-        versionNo: values.versionNo,
         effectiveAt: fromDateTimePickerValue(values.effectiveAt) || values.effectiveAt,
         status: values.status,
       };
@@ -328,10 +327,9 @@ const MiniProgramOpsManagement: React.FC = () => {
               </BusinessEditorSection>
             ) : null}
             {modalTitle === '新建协议版本' ? (
-              <BusinessEditorSection icon={<FileTextOutlined />} title="协议内容" desc="配置协议类型、版本和用户实际阅读的正文。">
+              <BusinessEditorSection icon={<FileTextOutlined />} title="协议内容" desc="配置协议类型和用户实际阅读的正文。">
                 <div className="merchant-editor-fields">
-                  <Form.Item name="agreementType" label="协议类型"><Select options={agreementTypeOptions} placeholder="请选择协议类型" /></Form.Item>
-                  <Form.Item name="versionNo" label="版本号" rules={[{ required: true, message: '请输入协议版本号' }]}><Input placeholder="例如：V2026062801" /></Form.Item>
+                  <Form.Item name="agreementType" label="协议类型"><Select disabled={Boolean(editingRecord)} options={agreementTypeOptions} placeholder="请选择协议类型" /></Form.Item>
                   <Form.Item name="effectiveAt" label="生效时间"><DateTimeField /></Form.Item>
                   <Form.Item className="merchant-editor-field-span-all" name="content" label="协议正文" rules={[{ required: true, message: '请输入协议正文' }]}><Input.TextArea rows={10} placeholder="请输入用户需要阅读的完整协议正文" /></Form.Item>
                 </div>

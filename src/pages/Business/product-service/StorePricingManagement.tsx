@@ -282,7 +282,6 @@ const StorePricingManagement: React.FC = () => {
                 <Form.Item name="ruleName" label="规则名称" rules={[{ required: true, message: '请输入规则名称' }]}><Input placeholder="例如：吉祥门店001按分钟计费" /></Form.Item>
                 <Form.Item name="storeId" label="适用门店" rules={[{ required: true, message: '请选择适用门店' }]}><Select showSearch optionFilterProp="label" options={storeOptionList as SelectOptionRecord[]} placeholder="请选择门店" onChange={handleStoreChange} /></Form.Item>
                 <Form.Item name="storeName" label="门店名称"><Input disabled placeholder="选择门店后自动回填" /></Form.Item>
-                <Form.Item name="versionNo" label="版本号"><Input placeholder="例如：PR-V202606" /></Form.Item>
                 <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}><Select options={statusOptions} placeholder="请选择状态" /></Form.Item>
               </div>
             </BusinessEditorSection>
